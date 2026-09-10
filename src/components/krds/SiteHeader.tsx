@@ -26,8 +26,8 @@ function Brand() {
 /**
  * 사이트 헤더.
  * - variant="home": 64px, 가운데 메뉴, 오른쪽 검색 아이콘. 모바일(≤768px)은 락업 + 햄버거 → 드로어.
- * - variant="map":  56px, 락업 옆 페이지명, 오른쪽 "메인으로" 버튼.
- *   map 변형의 마크업·CSS는 public/maps/gmap-shared.css 의 .topbar 와 동일하다(픽셀 단위 일치).
+ * - variant="map":  56px, 락업 옆 페이지명.
+ *   로고가 홈 링크라 "메인으로" 버튼은 두지 않는다. map 변형의 마크업·CSS는 public/maps/gmap-shared.css 의 .topbar 와 동일하다(픽셀 단위 일치).
  */
 export function SiteHeader({
   variant = 'home',
@@ -46,11 +46,6 @@ export function SiteHeader({
         <div className="inner">
           <Brand />
           {pageName && <span className="page-name">· {pageName}</span>}
-          <div className="actions">
-            <a className="btn-home" href="/">
-              메인으로
-            </a>
-          </div>
         </div>
       </header>
     );
