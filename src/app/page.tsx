@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { SkipLink, Masthead } from '@/components/krds/Masthead';
-import { KrdsHeader } from '@/components/krds/KrdsHeader';
+import { SiteHeader } from '@/components/krds/SiteHeader';
 import { KrdsFooter } from '@/components/krds/KrdsFooter';
 import { HeroKrds } from '@/components/HeroKrds';
 import { MapsNow } from '@/components/MapsNow';
@@ -21,7 +21,7 @@ export default function Home() {
     <>
       <SkipLink />
       <Masthead />
-      <KrdsHeader />
+      <SiteHeader variant="home" />
       <main
         id="main-content"
         className="krds-home"
