@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Search, MapPin, Navigation } from 'lucide-react';
 import type { SeasonTheme } from '@/config/season.config';
 import { quickCategories } from '@/config/categories.config';
-import { Container } from './ui';
+import { CardLink, Container, ReadyBadge } from './ui';
 export function SeasonalHero({ season }: { season: SeasonTheme }) {
   return (
     <section
@@ -75,9 +75,11 @@ export function SeasonalHero({ season }: { season: SeasonTheme }) {
       <div className="absolute inset-x-0 bottom-0">
         <Container>
           <div className="grid grid-cols-3 overflow-hidden rounded-t-[26px] border border-white/70 bg-white/92 shadow-soft backdrop-blur-xl md:grid-cols-6">
-            {quickCategories.map(({ id, label, icon: Icon, color }) => (
-              <button
+            {quickCategories.map(({ id, label, icon: Icon, color, href }) => (
+              <CardLink
                 key={id}
+                href={href}
+                as="button"
                 className="group flex items-center justify-center gap-3 border-b border-r border-slate-100 px-2 py-4 transition hover:bg-white md:py-6"
               >
                 <span
@@ -87,7 +89,8 @@ export function SeasonalHero({ season }: { season: SeasonTheme }) {
                   <Icon size={21} />
                 </span>
                 <span className="font-bold text-slate-700">{label}</span>
-              </button>
+                {!href && <ReadyBadge />}
+              </CardLink>
             ))}
           </div>
         </Container>

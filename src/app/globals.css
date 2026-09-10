@@ -44,27 +44,28 @@ button {
   }
 }
 
-/* Hero 이후 콘텐츠 영역은 한 화면에 더 많은 생활정보가 보이도록 밀도를 높인다. */
+/* Hero 이후 콘텐츠 영역은 한 화면에 더 많은 생활정보가 보이도록 밀도를 높인다.
+   카드는 링크 여부에 따라 a/article/button 으로 렌더되므로 태그 대신 [data-card] 로 잡는다. */
 main > section:nth-of-type(n + 2):not(:last-of-type) {
   padding-top: 4rem !important;
   padding-bottom: 4rem !important;
 }
-main > section:nth-of-type(2) article {
+main > section:nth-of-type(2) [data-card] {
   min-height: 180px;
   padding: 1.25rem;
 }
-main > section:nth-of-type(2) article:first-child {
+main > section:nth-of-type(2) [data-card]:first-child {
   min-height: 380px;
 }
-main > section:nth-of-type(3) button {
+main > section:nth-of-type(3) [data-card] {
   padding: 1.1rem;
 }
-main > section:nth-of-type(3) button > span:first-child {
+main > section:nth-of-type(3) [data-card] > span:first-child {
   margin-bottom: 1rem;
   width: 2.75rem;
   height: 2.75rem;
 }
-main > section:nth-of-type(4) article {
+main > section:nth-of-type(4) [data-card] {
   min-height: 230px;
   padding: 1.25rem;
 }
@@ -98,10 +99,10 @@ main > section:nth-of-type(9) {
   }
 }
 @media (max-width: 767px) {
-  main > section:nth-of-type(2) article:first-child {
+  main > section:nth-of-type(2) [data-card]:first-child {
     min-height: 300px;
   }
-  main > section:nth-of-type(4) article {
+  main > section:nth-of-type(4) [data-card] {
     min-height: 210px;
   }
 }

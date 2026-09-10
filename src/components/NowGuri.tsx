@@ -1,7 +1,7 @@
 import { ArrowUpRight } from 'lucide-react';
 import type { SeasonTheme } from '@/config/season.config';
 import { featuredDetails } from '@/config/featured.config';
-import { Container, SectionHeading } from './ui';
+import { CardLink, Container, ReadyBadge, SectionHeading } from './ui';
 export function NowGuri({ season }: { season: SeasonTheme }) {
   return (
     <section className="py-20 md:py-28">
@@ -13,11 +13,12 @@ export function NowGuri({ season }: { season: SeasonTheme }) {
           action="전체 보기"
         />
         <div className="grid grid-cols-2 gap-4 md:grid-cols-6 md:grid-rows-2 md:gap-5">
-          {season.featuredItems.map((title, i) => {
+          {season.featuredItems.map(({ title, href }, i) => {
             const d = featuredDetails[i];
             return (
-              <article
+              <CardLink
                 key={title}
+                href={href}
                 className={`group relative min-h-[210px] overflow-hidden rounded-[24px] p-6 ${i === 0 ? 'col-span-2 md:col-span-3 md:row-span-2 md:min-h-[454px]' : i === 1 ? 'md:col-span-3' : i === 2 ? 'md:col-span-2' : i === 3 ? 'md:col-span-2' : 'col-span-2 md:col-span-2'}`}
                 style={{
                   background:
@@ -52,7 +53,13 @@ export function NowGuri({ season }: { season: SeasonTheme }) {
                     <div className="absolute bottom-16 right-24 h-20 w-20 rounded-full bg-white/10" />
                   </>
                 )}
-              </article>
+                {!href && (
+                  <ReadyBadge
+                    tone={i === 0 ? 'light' : 'dark'}
+                    className="absolute right-5 top-5 z-10"
+                  />
+                )}
+              </CardLink>
             );
           })}
         </div>

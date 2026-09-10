@@ -23,23 +23,46 @@ import {
   Footprints,
   Utensils,
   Cross,
+  PawPrint,
 } from 'lucide-react';
-export const quickCategories = [
-  { id: 'life', label: '생활', icon: Heart, color: '#F06B72' },
-  { id: 'safety', label: '안전', icon: ShieldCheck, color: '#E66E36' },
-  { id: 'health', label: '건강', icon: Stethoscope, color: '#15A58C' },
-  { id: 'leisure', label: '여가', icon: Trees, color: '#4B8D63' },
-  { id: 'tour', label: '관광', icon: MapPinned, color: '#4983CF' },
-  { id: 'estate', label: '부동산', icon: Building2, color: '#785DC1' },
+import type { LucideIcon } from 'lucide-react';
+import type { CardItem } from '@/types/content';
+import { animalUrl, themeUrl } from './links';
+
+export interface QuickCategory {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  color: string;
+  href?: string | null;
+}
+export type LinkedCard = CardItem & { icon: LucideIcon; color: string };
+
+/** 히어로 하단 6개 카테고리. 관광·부동산은 대응 그룹이 없어 준비중. */
+export const quickCategories: QuickCategory[] = [
+  { id: 'life', label: '생활', icon: Heart, color: '#F06B72', href: themeUrl('생활편의') },
+  { id: 'safety', label: '안전', icon: ShieldCheck, color: '#E66E36', href: themeUrl('안전·재난') },
+  { id: 'health', label: '건강', icon: Stethoscope, color: '#15A58C', href: themeUrl('건강·의료') },
+  { id: 'leisure', label: '여가', icon: Trees, color: '#4B8D63', href: themeUrl('문화·여가') },
+  { id: 'tour', label: '관광', icon: MapPinned, color: '#4983CF', href: null },
+  { id: 'estate', label: '부동산', icon: Building2, color: '#785DC1', href: null },
 ];
-export const quickFinder = [
-  { id: 'pharmacy', title: '약국', description: '운영 중인 약국', icon: Pill, color: '#F05474' },
+export const quickFinder: LinkedCard[] = [
+  {
+    id: 'pharmacy',
+    title: '약국',
+    description: '운영 중인 약국',
+    icon: Pill,
+    color: '#F05474',
+    href: themeUrl('건강·의료'),
+  },
   {
     id: 'shelter',
     title: '쉼터',
     description: '가까운 안전쉼터',
     icon: Accessibility,
     color: '#5A7AE6',
+    href: themeUrl('여름'),
   },
   {
     id: 'parking',
@@ -47,24 +70,41 @@ export const quickFinder = [
     description: '공영주차장 정보',
     icon: ParkingCircle,
     color: '#3769C8',
+    href: themeUrl('생활편의'),
   },
-  { id: 'toilet', title: '화장실', description: '공중화장실', icon: Bath, color: '#19A0A8' },
+  {
+    id: 'toilet',
+    title: '화장실',
+    description: '공중화장실',
+    icon: Bath,
+    color: '#19A0A8',
+    href: themeUrl('생활편의'),
+  },
   {
     id: 'ev',
     title: '전기차 충전소',
     description: '충전소 위치',
     icon: BatteryCharging,
     color: '#18A86B',
+    href: themeUrl('생활편의'),
   },
-  { id: 'aed', title: 'AED', description: '자동심장충격기', icon: CircleDot, color: '#E85145' },
+  {
+    id: 'aed',
+    title: 'AED',
+    description: '자동심장충격기',
+    icon: CircleDot,
+    color: '#E85145',
+    href: null,
+  },
 ];
-export const recommendedMaps = [
+export const recommendedMaps: LinkedCard[] = [
   {
     id: 'facility',
     title: '우리동네 편의시설',
     description: '생활 반경 안의 공공·편의시설을 한눈에',
     icon: Map,
     color: '#386FE8',
+    href: themeUrl('생활편의'),
   },
   {
     id: 'walk',
@@ -72,6 +112,7 @@ export const recommendedMaps = [
     description: '공원과 산책로를 잇는 추천 걷기 코스',
     icon: Footprints,
     color: '#2BA66D',
+    href: themeUrl('문화·여가'),
   },
   {
     id: 'safe',
@@ -79,6 +120,7 @@ export const recommendedMaps = [
     description: '안전시설과 재난대피 정보를 가까이',
     icon: ShieldCheck,
     color: '#F26E47',
+    href: themeUrl('안전·재난'),
   },
   {
     id: 'food',
@@ -86,6 +128,7 @@ export const recommendedMaps = [
     description: '구리가 인증한 맛있는 가게 찾기',
     icon: Utensils,
     color: '#E25563',
+    href: themeUrl('경제·상권'),
   },
   {
     id: 'life',
@@ -93,6 +136,15 @@ export const recommendedMaps = [
     description: '마음건강 상담과 생명안전 시설 정보',
     icon: Cross,
     color: '#845AC7',
+    href: themeUrl('건강·의료'),
+  },
+  {
+    id: 'animal',
+    title: '유기동물 찾기',
+    description: '보호 중인 아이들을 지도에서 찾아보세요',
+    icon: PawPrint,
+    color: '#F5820D',
+    href: animalUrl(),
   },
 ];
 export const urbanStats = [

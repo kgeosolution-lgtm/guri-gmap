@@ -1,4 +1,10 @@
 import type { SeasonKey } from '@/types/content';
+import { themeUrl } from './links';
+export interface FeaturedItem {
+  title: string;
+  /** 연결된 지도 페이지. null 이면 준비중. */
+  href: string | null;
+}
 export interface SeasonTheme {
   key: SeasonKey;
   label: string;
@@ -8,7 +14,7 @@ export interface SeasonTheme {
   accentSoft: string;
   titleColor: string;
   eyebrow: string;
-  featuredItems: string[];
+  featuredItems: FeaturedItem[];
 }
 export const seasonConfig: Record<SeasonKey, SeasonTheme> = {
   spring: {
@@ -21,11 +27,11 @@ export const seasonConfig: Record<SeasonKey, SeasonTheme> = {
     titleColor: '#18382E',
     eyebrow: '꽃처럼 피어나는 구리의 봄',
     featuredItems: [
-      '한강시민공원 봄 산책',
-      '구리 유채꽃 명소',
-      '아이와 가기 좋은 공원',
-      '봄철 미세먼지 정보',
-      '주말 문화행사',
+      { title: '한강시민공원 봄 산책', href: null },
+      { title: '구리 유채꽃 명소', href: null },
+      { title: '아이와 가기 좋은 공원', href: null },
+      { title: '봄철 미세먼지 정보', href: null },
+      { title: '주말 문화행사', href: null },
     ],
   },
   summer: {
@@ -38,11 +44,11 @@ export const seasonConfig: Record<SeasonKey, SeasonTheme> = {
     titleColor: '#083D43',
     eyebrow: '초록과 강바람이 반가운 여름',
     featuredItems: [
-      '한강 물놀이 쉼터',
-      '시원한 실내 문화공간',
-      '무더위 쉼터 찾기',
-      '여름철 안전 정보',
-      '야간 산책 코스',
+      { title: '한강 물놀이 쉼터', href: themeUrl('여름') },
+      { title: '시원한 실내 문화공간', href: themeUrl('여름') },
+      { title: '무더위 쉼터 찾기', href: themeUrl('여름') },
+      { title: '여름철 안전 정보', href: themeUrl('여름') },
+      { title: '야간 산책 코스', href: themeUrl('여름') },
     ],
   },
   autumn: {
@@ -55,11 +61,11 @@ export const seasonConfig: Record<SeasonKey, SeasonTheme> = {
     titleColor: '#472B20',
     eyebrow: '천천히 걷고 싶은 구리의 가을',
     featuredItems: [
-      '아차산 단풍 산책',
-      '구리 코스모스 축제',
-      '가을 문화행사',
-      '우리동네 전통시장',
-      '자전거 추천 코스',
+      { title: '아차산 단풍 산책', href: null },
+      { title: '구리 코스모스 축제', href: null },
+      { title: '가을 문화행사', href: null },
+      { title: '우리동네 전통시장', href: null },
+      { title: '자전거 추천 코스', href: null },
     ],
   },
   winter: {
@@ -72,11 +78,11 @@ export const seasonConfig: Record<SeasonKey, SeasonTheme> = {
     titleColor: '#173B61',
     eyebrow: '포근한 일상을 잇는 구리의 겨울',
     featuredItems: [
-      '제설 현황 안내',
-      '한파 쉼터 찾기',
-      '겨울철 안전 정보',
-      '따뜻한 실내 나들이',
-      '연말 문화행사',
+      { title: '제설 현황 안내', href: null },
+      { title: '한파 쉼터 찾기', href: null },
+      { title: '겨울철 안전 정보', href: null },
+      { title: '따뜻한 실내 나들이', href: null },
+      { title: '연말 문화행사', href: null },
     ],
   },
 };
