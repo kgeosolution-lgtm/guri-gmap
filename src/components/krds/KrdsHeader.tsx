@@ -1,13 +1,13 @@
 'use client';
 import { useState } from 'react';
-import { MapPinned, Search, Menu, X, ExternalLink } from 'lucide-react';
+import { Search, Menu, X } from 'lucide-react';
 import { siteConfig } from '@/config/site.config';
 import { animalUrl, themeUrl } from '@/config/links';
 
 const menu = [
-  { label: '테마지도', href: themeUrl('여름'), external: true },
-  { label: '유기동물 찾기', href: animalUrl(), external: true },
-  { label: '소개', href: '#about', external: false },
+  { label: '테마지도', href: themeUrl('여름') },
+  { label: '유기동물 찾기', href: animalUrl() },
+  { label: '소개', href: '#about' },
 ];
 
 /** KRDS 헤더 (html/code/header.html 의 header-container + krds-main-menu 구조) */
@@ -21,9 +21,7 @@ export function KrdsHeader() {
             <div className="header-branding">
               <h2 className="logo">
                 <a href="/">
-                  <span className="logo-mark" aria-hidden="true">
-                    <MapPinned size={22} />
-                  </span>
+                  <img className="ci" src="/images/guri-ci.png" alt="구리시" height={32} />
                   <span>
                     <span className="logo-name">{siteConfig.name}</span>
                     <span className="logo-sub">{siteConfig.fullName}</span>
@@ -60,15 +58,8 @@ export function KrdsHeader() {
             <ul className="gnb-menu">
               {menu.map((m) => (
                 <li key={m.label}>
-                  <a
-                    href={m.href}
-                    className="gnb-main-trigger is-link"
-                    target={m.external ? '_blank' : undefined}
-                    rel={m.external ? 'noopener' : undefined}
-                    title={m.external ? '새 창 열림' : undefined}
-                  >
+                  <a href={m.href} className="gnb-main-trigger is-link">
                     {m.label}
-                    {m.external && <ExternalLink className="ico-go" aria-hidden="true" />}
                   </a>
                 </li>
               ))}
@@ -86,15 +77,8 @@ export function KrdsHeader() {
                 <ul>
                   {menu.map((m) => (
                     <li key={m.label}>
-                      <a
-                        href={m.href}
-                        className="gnb-main-trigger"
-                        target={m.external ? '_blank' : undefined}
-                        rel={m.external ? 'noopener' : undefined}
-                        onClick={() => setOpen(false)}
-                      >
+                      <a href={m.href} className="gnb-main-trigger" onClick={() => setOpen(false)}>
                         {m.label}
-                        {m.external && <ExternalLink size={16} aria-hidden="true" />}
                       </a>
                     </li>
                   ))}

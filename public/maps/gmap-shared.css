@@ -1,0 +1,254 @@
+/* ═══════════════════════════════════════════════════════════════
+   G-MAP 공용 디자인 토큰 — 홈(Next.js, src/app/globals.css)과 지도 페이지(theme.html, animal.html)가 공유
+   출처: KRDS(krds-uiux 1.1.0) 토큰. 홈과 동일하게 16px 기준 px 로 재기준화.
+   primary 는 구리시 초록 #018058 기준 확장형 팔레트(50=기준색, 60=버튼 호버 #01573C).
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Pretendard GOV — 홈과 같은 파일(/fonts/) 공유 */
+@font-face {
+  font-family: 'Pretendard GOV';
+  src: url('/fonts/PretendardGOV-Regular.subset.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Pretendard GOV';
+  src: url('/fonts/PretendardGOV-Medium.subset.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Pretendard GOV';
+  src: url('/fonts/PretendardGOV-Bold.subset.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}
+/* 와구리체 — G-MAP 브랜드 타이틀 전용 (기존 지도 페이지 선언 그대로) */
+@font-face {
+  font-family: 'Waguri';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2403@1.0/WAGURITTF.woff2') format('woff2');
+  font-weight: normal;
+  font-display: swap;
+}
+
+:root {
+  /* ── primary: 구리시 초록 (확장형) ── */
+  --krds-color-light-primary-5: #edf4f0;
+  --krds-color-light-primary-10: #dae9e1;
+  --krds-color-light-primary-20: #b7d5c5;
+  --krds-color-light-primary-30: #8bbca4;
+  --krds-color-light-primary-40: #4f9e7b;
+  --krds-color-light-primary-50: #018058;
+  --krds-color-light-primary-60: #01573c;
+  --krds-color-light-primary-70: #044e34;
+  --krds-color-light-primary-80: #023421;
+  --krds-color-light-primary-90: #041e13;
+  --krds-color-light-primary-95: #04140c;
+
+  /* ── gray ── */
+  --krds-color-light-gray-0: #ffffff;
+  --krds-color-light-gray-5: #f4f5f6;
+  --krds-color-light-gray-10: #e6e8ea;
+  --krds-color-light-gray-20: #cdd1d5;
+  --krds-color-light-gray-30: #b1b8be;
+  --krds-color-light-gray-40: #8a949e;
+  --krds-color-light-gray-50: #6d7882;
+  --krds-color-light-gray-60: #58616a;
+  --krds-color-light-gray-70: #464c53;
+  --krds-color-light-gray-80: #33363d;
+  --krds-color-light-gray-90: #1e2124;
+  --krds-color-light-gray-95: #131416;
+  --krds-color-light-gray-100: #000000;
+
+  /* ── secondary (KRDS 기본) ── */
+  --krds-color-light-secondary-5: #eef2f7;
+  --krds-color-light-secondary-10: #d6e0eb;
+  --krds-color-light-secondary-20: #bacbde;
+  --krds-color-light-secondary-30: #90b0d5;
+  --krds-color-light-secondary-40: #6b96c7;
+  --krds-color-light-secondary-50: #346fb2;
+  --krds-color-light-secondary-60: #1c589c;
+  --krds-color-light-secondary-70: #063a74;
+  --krds-color-light-secondary-80: #052b57;
+  --krds-color-light-secondary-90: #031f3f;
+  --krds-color-light-secondary-95: #02162c;
+
+  /* ── danger / warning / success ── */
+  --krds-color-light-danger-5: #fdefec;
+  --krds-color-light-danger-10: #fcdfd9;
+  --krds-color-light-danger-20: #f7afa1;
+  --krds-color-light-danger-30: #f48771;
+  --krds-color-light-danger-40: #f05f42;
+  --krds-color-light-danger-50: #de3412;
+  --krds-color-light-danger-60: #bd2c0f;
+  --krds-color-light-danger-70: #8a240f;
+  --krds-color-light-danger-80: #5c180a;
+  --krds-color-light-danger-90: #390d05;
+  --krds-color-light-danger-95: #260903;
+  --krds-color-light-warning-5: #fff3db;
+  --krds-color-light-warning-10: #ffe0a3;
+  --krds-color-light-warning-20: #ffc95c;
+  --krds-color-light-warning-30: #ffb114;
+  --krds-color-light-warning-40: #c78500;
+  --krds-color-light-warning-50: #9e6a00;
+  --krds-color-light-warning-60: #8a5c00;
+  --krds-color-light-warning-70: #614100;
+  --krds-color-light-warning-80: #422c00;
+  --krds-color-light-warning-90: #2e1f00;
+  --krds-color-light-warning-95: #241800;
+  --krds-color-light-success-5: #eaf6ec;
+  --krds-color-light-success-10: #d8eedd;
+  --krds-color-light-success-20: #a9dab4;
+  --krds-color-light-success-30: #7ec88e;
+  --krds-color-light-success-40: #3fa654;
+  --krds-color-light-success-50: #228738;
+  --krds-color-light-success-60: #267337;
+  --krds-color-light-success-70: #285d33;
+  --krds-color-light-success-80: #1f4727;
+  --krds-color-light-success-90: #122b18;
+  --krds-color-light-success-95: #0e2012;
+
+  /* ── 그림자 ── */
+  --krds-light-color-alpha-shadow1: #0000000d;
+  --krds-light-color-alpha-shadow2: #00000014;
+  --krds-light-color-alpha-shadow3: #0000001f;
+  --krds-shadow-1: 0 0 2px 0 var(--krds-light-color-alpha-shadow1), 0 4px 8px 0 var(--krds-light-color-alpha-shadow2);
+  --krds-shadow-2: 0 0 2px 0 var(--krds-light-color-alpha-shadow2), 0 8px 16px 0 var(--krds-light-color-alpha-shadow3);
+  --krds-shadow-3: 0 0 4px 0 var(--krds-light-color-alpha-shadow2), 0 16px 32px 0 var(--krds-light-color-alpha-shadow3);
+
+  /* ── 라운드 ── */
+  --krds-radius-xsmall1: 2px;
+  --krds-radius-small1: 4px;
+  --krds-radius-medium1: 6px;
+  --krds-radius-medium3: 8px;
+  --krds-radius-large1: 10px;
+  --krds-radius-xlarge1: 12px;
+  --krds-radius-max: 1000px;
+
+  /* ── 글자 크기 (PC) ── */
+  --krds-pc-font-size-body-large: 19px;
+  --krds-pc-font-size-body-medium: 17px;
+  --krds-pc-font-size-body-small: 15px;
+  --krds-pc-font-size-body-xsmall: 13px;
+  --krds-pc-font-size-label-large: 19px;
+  --krds-pc-font-size-label-medium: 17px;
+  --krds-pc-font-size-label-small: 15px;
+  --krds-pc-font-size-label-xsmall: 13px;
+  --krds-pc-font-size-heading-xlarge: 40px;
+  --krds-pc-font-size-heading-large: 32px;
+  --krds-pc-font-size-heading-medium: 24px;
+  --krds-pc-font-size-heading-small: 19px;
+  --krds-pc-font-size-heading-xsmall: 17px;
+
+  /* ── 서체 ── */
+  --krds-font-family-base: 'Pretendard GOV', Pretendard, 'Noto Sans KR', Arial, sans-serif;
+  --gmap-font-brand: 'Waguri', 'Pretendard GOV', sans-serif;
+
+  /* ── 상단바 공통 ── */
+  --gmap-topbar-height: 56px;
+}
+
+/* ═══ 지도 페이지 공통 상단바 ═══ */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  background: #fff;
+  border-bottom: 1px solid var(--krds-color-light-gray-20);
+}
+.topbar-in {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: var(--gmap-topbar-height);
+  margin: 0 auto;
+  padding: 0 18px;
+}
+.topbar .brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  color: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.topbar .brand .ci {
+  height: 28px;
+  width: auto;
+  display: block;
+}
+.topbar .brand .name {
+  font-family: var(--gmap-font-brand);
+  font-size: 22px;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  color: var(--krds-color-light-primary-60);
+}
+.topbar .brand .sub {
+  display: block;
+  font-family: var(--krds-font-family-base);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--krds-color-light-gray-60);
+  margin-top: 1px;
+}
+.topbar .page-name {
+  flex: none;
+  padding-left: 12px;
+  border-left: 1px solid var(--krds-color-light-gray-20);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--krds-color-light-gray-70);
+  white-space: nowrap;
+}
+.topbar .grow {
+  flex: 1;
+  min-width: 0;
+}
+/* 메인으로 — 홈 헤더의 KRDS primary 버튼(small) 과 같은 스타일 */
+.topbar .home-link {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--krds-color-light-primary-50);
+  border-radius: var(--krds-radius-medium1);
+  background: var(--krds-color-light-primary-50);
+  color: #fff;
+  font-family: var(--krds-font-family-base);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.topbar .home-link:hover {
+  background: var(--krds-color-light-primary-60);
+  border-color: var(--krds-color-light-primary-60);
+}
+@media (max-width: 640px) {
+  .topbar-in {
+    padding: 0 12px;
+    gap: 8px;
+  }
+  .topbar .brand .sub,
+  .topbar .page-name {
+    display: none;
+  }
+  .topbar .brand .ci {
+    height: 24px;
+  }
+  .topbar .brand .name {
+    font-size: 19px;
+  }
+  .topbar .home-link {
+    height: 34px;
+    padding: 0 11px;
+    font-size: 13px;
+  }
+}

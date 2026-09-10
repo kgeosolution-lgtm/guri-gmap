@@ -52,7 +52,7 @@ export function ArrowButton({ label = '자세히 보기' }: { label?: string }) 
   );
 }
 /**
- * 카드 껍데기. href 가 있으면 새 창으로 여는 <a>, 없으면 기존 태그(button/article)를 그대로 쓴다.
+ * 카드 껍데기. href 가 있으면 <a>(같은 사이트라 같은 탭), 없으면 기존 태그(button/article)를 그대로 쓴다.
  * 어느 태그든 data-card 를 달아 globals.css 의 밀도 규칙이 동일하게 적용되게 한다.
  */
 export function CardLink({
@@ -70,7 +70,7 @@ export function CardLink({
 }) {
   if (href) {
     return (
-      <a href={href} target="_blank" rel="noopener" data-card className={className} style={style}>
+      <a href={href} data-card className={className} style={style}>
         {children}
       </a>
     );

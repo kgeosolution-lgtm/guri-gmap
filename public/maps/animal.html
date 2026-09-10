@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>유기동물 찾기 · 구리시 G-MAP</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="gmap-shared.css">
+<link rel="stylesheet" href="https://js.arcgis.com/4.29/esri/themes/light/main.css">
+<style>
+
+:root{
+  /* 공용 토큰(gmap-shared.css) 별칭 — 색 자체는 KRDS 토큰에서 온다 */
+  --bg:var(--krds-color-light-gray-5); --surface:#FFFFFF; --ink:var(--krds-color-light-gray-90); --sub:var(--krds-color-light-gray-60); --faint:var(--krds-color-light-gray-40); --line:var(--krds-color-light-gray-10);
+  --blue:var(--krds-color-light-primary-50); --blue-soft:var(--krds-color-light-primary-5); --navy:var(--krds-color-light-primary-60);
+  --warm:#F08A3C; --warm-soft:#FFF3E7; --danger:#E5533C; --danger-soft:#FDEAE6;
+  --green:#3FA796; --green-soft:#E8F5F1;
+  --dog:#F08A3C; --cat:#3FA796; --etc:#8B77C9;
+  --radius:16px; --shadow:0 2px 10px rgba(34,48,63,.06); --shadow-lg:0 10px 26px rgba(34,48,63,.13);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:var(--krds-font-family-base);background:var(--bg);color:var(--ink);line-height:1.55;
+  -webkit-font-smoothing:antialiased}
+img{display:block}
+button{font-family:inherit;cursor:pointer;border:none;background:none}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ───────── 상단바: gmap-shared.css 공용 ───────── */
+
+/* ───────── 히어로 ───────── */
+.hero{background:
+  radial-gradient(720px 300px at 12% 0%,rgba(240,138,60,.14),transparent 65%),
+  radial-gradient(600px 280px at 88% 8%,rgba(63,167,150,.10),transparent 60%),
+  linear-gradient(180deg,#FFF9F2 0%,#FFFDFB 62%,var(--bg) 100%);
+  padding:56px 24px 34px;overflow:hidden;position:relative}
+.hero-in{max-width:1300px;margin:0 auto;display:grid;grid-template-columns:1.15fr .85fr;gap:40px;align-items:center}
+.hero .eyebrow{font-size:12.5px;font-weight:800;color:var(--warm);letter-spacing:.14em;margin-bottom:12px}
+.hero h1{font-family:var(--gmap-font-brand);font-size:clamp(28px,3.6vw,44px);line-height:1.3;font-weight:400;letter-spacing:.01em;
+  word-break:keep-all}
+.hero h1 .num{color:var(--warm)}
+.hero p.sub{margin-top:14px;color:var(--sub);font-size:15px;max-width:46ch;word-break:keep-all}
+.datachip{display:inline-flex;align-items:center;gap:7px;margin-top:16px;font-size:12px;color:var(--sub);
+  background:#fff;border:1px solid var(--line);border-radius:20px;padding:6px 13px}
+.datachip .pulse{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:13px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:20px 18px;box-shadow:var(--shadow)}
+.stat .k{font-size:12.5px;color:var(--sub);font-weight:600}
+.stat .v{font-size:31px;font-weight:800;margin-top:3px;font-variant-numeric:tabular-nums}
+.stat .s{font-size:11.5px;color:var(--faint);margin-top:2px}
+.stat.blue .v{color:var(--blue)} .stat.warm .v{color:var(--warm)} .stat.red .v{color:var(--danger)}
+
+/* ───────── 마감 임박 스트립 ───────── */
+.urgent{max-width:1300px;margin:8px auto 0;padding:0 24px}
+.urgent-in{background:var(--surface);border:1px solid #F6D9C4;border-left:4px solid var(--danger);
+  border-radius:var(--radius);padding:12px 18px;display:flex;align-items:center;gap:14px;overflow-x:auto;
+  box-shadow:var(--shadow);scrollbar-width:thin}
+.urgent .lbl{font-size:13px;font-weight:800;color:var(--danger);white-space:nowrap;flex:none}
+.urgent .item{font-size:13px;white-space:nowrap;background:#FFF8F3;border:1px solid #FBE8D8;border-radius:20px;
+  padding:6px 13px;cursor:pointer;transition:transform .12s;flex:none}
+.urgent .item:hover{transform:translateY(-1px)}
+.urgent .item b{color:var(--danger)}
+
+/* ───────── 필터바 ───────── */
+.filters{max-width:1300px;margin:22px auto 0;padding:0 24px;position:sticky;top:57px;z-index:50}
+.filters-in{background:rgba(255,255,255,.96);backdrop-filter:blur(6px);border:1px solid var(--line);
+  border-radius:var(--radius);padding:13px 16px;display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+  box-shadow:var(--shadow)}
+.chip{border:1px solid var(--line);background:#fff;border-radius:22px;padding:8px 16px;font-size:13.5px;
+  font-weight:700;color:var(--sub);transition:all .13s}
+.chip:hover{border-color:#C9D3E0}
+.chip.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.chip .cnt{font-size:11px;opacity:.65;margin-left:3px;font-weight:600}
+.sep{width:1px;height:22px;background:var(--line);margin:0 3px}
+.ctrl{border:1px solid var(--line);border-radius:11px;padding:8px 11px;font-size:13px;color:var(--ink);
+  background:#fff;font-family:inherit}
+.searchbox{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:11px;
+  background:#fff;padding:0 11px;flex:1;min-width:150px;max-width:240px}
+.searchbox input{border:none;outline:none;padding:8px 0;font-size:13px;width:100%;font-family:inherit;background:none}
+.switch{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--sub);margin-left:auto;
+  cursor:pointer;user-select:none;white-space:nowrap}
+.switch input{accent-color:var(--blue);width:15px;height:15px;cursor:pointer}
+.result-n{font-size:12.5px;color:var(--faint);white-space:nowrap}
+
+/* ───────── 본문 ───────── */
+.main{max-width:1300px;margin:20px auto 0;padding:0 24px;display:grid;grid-template-columns:1fr 424px;
+  gap:20px;align-items:start}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(212px,1fr));gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;
+  box-shadow:var(--shadow);transition:transform .16s,box-shadow .16s;cursor:pointer}
+.card:hover{transform:translateY(-4px);box-shadow:var(--shadow-lg)}
+.thumb{position:relative;aspect-ratio:4/3.1;background:linear-gradient(135deg,#F0F3F7,#E7ECF2);overflow:hidden}
+.thumb img{width:100%;height:100%;object-fit:cover;transition:transform .25s}
+.thumb:hover img{transform:scale(1.04)}
+
+.thumb .ph{position:absolute;inset:0;display:grid;place-items:center;font-size:34px;opacity:.35}
+.badge{position:absolute;top:10px;left:10px;font-size:11.5px;font-weight:800;color:#fff;border-radius:20px;
+  padding:4px 11px;box-shadow:0 2px 6px rgba(0,0,0,.18)}
+.badge.dd{background:var(--warm)} .badge.dd.hot{background:var(--danger)}
+    .badge.dd.done{background:var(--faint)}
+    .mtag.done{background:#EFF2F6;color:var(--sub)}
+.badge.done{background:#8494A8} .badge.adopt{background:var(--green)} .badge.return{background:var(--blue)}
+.sp-mark{position:absolute;top:10px;right:10px;width:27px;height:27px;border-radius:50%;
+  display:grid;place-items:center;font-size:13.5px;background:rgba(255,255,255,.93);box-shadow:0 1px 4px rgba(0,0,0,.12)}
+.card-b{padding:13px 15px 15px}
+.card-b .t{font-weight:800;font-size:15px;display:flex;align-items:center;gap:6px;word-break:keep-all}
+.sex{font-size:13px;font-weight:800}
+.sex.m{color:#3B6FD4} .sex.f{color:#D9538A} .sex.u{color:var(--faint)}
+.card-b .meta{font-size:12.5px;color:var(--sub);margin-top:3px}
+.card-b .loc{font-size:12px;color:var(--sub);margin-top:8px;display:flex;gap:5px;align-items:flex-start;line-height:1.45}
+.card-b .feat{font-size:12.3px;color:#6B5138;background:var(--warm-soft);border-radius:9px;padding:6px 10px;
+  margin-top:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.more-wrap{grid-column:1/-1;text-align:center;padding:8px 0 4px}
+.more-btn{background:var(--surface);border:1px solid var(--line);border-radius:24px;padding:11px 30px;
+  font-size:14px;font-weight:700;color:var(--ink);box-shadow:var(--shadow);transition:all .15s}
+.more-btn:hover{border-color:#C9D3E0;transform:translateY(-1px)}
+.empty{grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--sub)}
+.empty .big{font-size:40px;margin-bottom:12px;opacity:.5}
+
+/* 스켈레톤 */
+.skel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.skel .a{aspect-ratio:4/3.1;background:linear-gradient(90deg,#EFF2F6 25%,#F7F9FB 50%,#EFF2F6 75%);
+  background-size:200% 100%;animation:shine 1.3s infinite}
+.skel .b{height:74px;padding:13px}
+.skel .b i{display:block;height:12px;border-radius:6px;margin-bottom:8px;
+  background:linear-gradient(90deg,#EFF2F6 25%,#F7F9FB 50%,#EFF2F6 75%);background-size:200% 100%;animation:shine 1.3s infinite}
+@keyframes shine{to{background-position:-200% 0}}
+
+/* 지도 */
+.mapwrap{position:sticky;top:130px}
+.mapcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;
+  box-shadow:var(--shadow)}
+#map{height:540px;width:100%}
+.legend{display:flex;gap:15px;padding:12px 16px 6px;font-size:12.5px;color:var(--sub);flex-wrap:wrap}
+.legend .dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:5px;vertical-align:-1px}
+.maphint{padding:4px 16px 13px;font-size:11.5px;color:var(--faint)}
+
+/* ───────── 섹션 공통 ───────── */
+.section{max-width:1300px;margin:46px auto 0;padding:0 24px}
+.sec-h{display:flex;align-items:baseline;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.sec-h h2{font-size:21px;font-weight:800}
+.sec-h span{font-size:13px;color:var(--sub)}
+.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:21px;
+  box-shadow:var(--shadow)}
+.panel h3{font-size:14px;font-weight:800;margin-bottom:4px}
+    .panel .phint{font-size:11.5px;color:var(--sub);margin-bottom:15px;font-weight:500}
+.donut-wrap{display:flex;align-items:center;gap:20px}
+.dlegend{font-size:12.5px;color:var(--sub);display:grid;gap:6px}
+.dlegend b{color:var(--ink)}
+.dlegend .dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:6px}
+.bar-row{display:grid;grid-template-columns:96px 1fr 40px;align-items:center;gap:10px;font-size:13px;margin-bottom:11px}
+.bar-row .track{height:10px;background:#EFF2F6;border-radius:6px;overflow:hidden}
+.bar-row .fill{height:100%;border-radius:6px;transition:width .6s ease}
+.bar-row .n{text-align:right;font-weight:800;font-size:12.5px;font-variant-numeric:tabular-nums}
+
+/* 보호소 · 절차 */
+.shelters{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.sh{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:19px;
+  box-shadow:var(--shadow)}
+.sh .cnt-chip{font-size:11px;font-weight:800;color:var(--warm);background:var(--warm-soft);
+  border-radius:14px;padding:3px 10px;display:inline-block;margin-bottom:9px}
+.sh .nm{font-weight:800;font-size:14.5px;word-break:keep-all}
+.sh .ad{font-size:12.5px;color:var(--sub);margin-top:6px;min-height:38px;word-break:keep-all}
+.sh a{display:inline-block;margin-top:10px;font-size:13px;color:var(--blue);font-weight:700;text-decoration:none;
+  background:var(--blue-soft);border-radius:18px;padding:6px 14px;transition:background .15s}
+.sh a:hover{background:#D3EBE0}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.step{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:21px;
+  box-shadow:var(--shadow)}
+.step .ic{width:44px;height:44px;border-radius:13px;background:var(--warm-soft);display:grid;place-items:center;
+  font-size:21px;margin-bottom:13px}
+.step .no{font-size:11px;font-weight:800;color:var(--warm);letter-spacing:.08em}
+.step .tt{font-weight:800;font-size:15px;margin-top:3px}
+.step .ds{font-size:12.5px;color:var(--sub);margin-top:6px;word-break:keep-all}
+
+footer{margin-top:56px;background:var(--surface);border-top:1px solid var(--line);padding:28px 24px;
+  text-align:center;font-size:12.5px;color:var(--sub)}
+footer .links{margin-top:6px;font-size:12px;color:var(--faint)}
+
+/* ───────── 상세 모달 ───────── */
+.overlay{position:fixed;inset:0;background:rgba(20,28,38,.45);display:none;z-index:100;padding:22px;overflow-y:auto}
+.overlay.open{display:flex;align-items:flex-start;justify-content:center}
+@media (min-width:1140px){
+  .overlay{background:rgba(20,28,38,.28)}
+  .overlay.open{justify-content:flex-start;padding-left:6vw}
+}
+.modal{background:#fff;border-radius:22px;max-width:780px;width:100%;margin:auto;overflow:hidden;position:relative;
+  box-shadow:0 24px 60px rgba(0,0,0,.28);animation:up .22s ease}
+@keyframes up{from{transform:translateY(14px);opacity:0}to{transform:none;opacity:1}}
+.modal .close{position:absolute;top:14px;right:14px;width:36px;height:36px;border-radius:50%;
+  background:rgba(255,255,255,.95);border:1px solid var(--line);font-size:15px;z-index:2;transition:transform .13s}
+.modal .close:hover{transform:rotate(90deg)}
+.modal-grid{display:grid;grid-template-columns:1fr 1.05fr}
+.modal-photo{background:#EDF0F4;min-height:360px;position:relative}
+.modal-photo img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
+.modal-body{padding:27px 27px 23px}
+.mno{font-size:11.5px;color:var(--faint)}
+.modal-body h3{font-size:22px;font-weight:800;margin-top:5px;display:flex;align-items:center;gap:8px;word-break:keep-all}
+.mtag{display:inline-block;font-size:12px;font-weight:800;border-radius:16px;padding:5px 13px;margin-top:11px}
+.mtag.dd{background:var(--warm-soft);color:var(--warm)}
+.mtag.dd.hot{background:var(--danger-soft);color:var(--danger)}
+.mtag.done{background:#EFF2F6;color:var(--sub)}
+.mtag.adopt{background:var(--green-soft);color:var(--green)}
+.kv{margin-top:17px;display:grid;grid-template-columns:1fr 1fr;gap:9px 16px;font-size:13.5px}
+.kv .k{color:var(--faint);font-size:11.5px}
+.kv .v{font-weight:600;word-break:keep-all}
+.mfeat{margin-top:15px;background:var(--warm-soft);border-radius:11px;padding:12px 14px;font-size:13.5px;
+  color:#6B5138;word-break:keep-all}
+.timeline{margin-top:19px;display:flex;align-items:flex-start;font-size:11px;color:var(--sub)}
+.tl-node{text-align:center;flex:0 0 auto;line-height:1.5}
+.tl-node .dot2{width:11px;height:11px;border-radius:50%;background:var(--blue);margin:0 auto 5px}
+.tl-node.end .dot2{background:var(--danger)}
+.tl-line{flex:1;height:2px;background:var(--line);margin:5px 7px 0}
+.mshelter{margin-top:19px;border-top:1px solid var(--line);padding-top:15px;font-size:13px}
+.mshelter b{font-size:14px}
+.mshelter .addr{color:var(--sub);margin-top:2px}
+.mshelter .tel{display:inline-block;margin-top:10px;background:var(--warm);color:#fff;font-weight:800;
+  border-radius:22px;padding:9px 20px;text-decoration:none;font-size:13.5px;transition:transform .13s;box-shadow:0 4px 12px rgba(240,138,60,.35)}
+.mshelter .tel:hover{transform:translateY(-1px)}
+
+/* 오류 배너 */
+.errbox{max-width:1300px;margin:26px auto;padding:0 24px}
+.errbox-in{background:#FFF6F4;border:1px solid #F3CCC4;border-radius:var(--radius);padding:22px;text-align:center;
+  color:#8A4335;font-size:14px}
+
+/* ───────── 반응형 ───────── */
+@media (max-width:1060px){
+  .main{grid-template-columns:1fr}
+  .mapwrap{position:static}
+  #map{height:400px}
+  .stats-grid,.shelters,.steps{grid-template-columns:repeat(2,1fr)}
+  .hero-in{grid-template-columns:1fr;gap:26px}
+  .filters{position:static}
+}
+@media (max-width:620px){
+  .cards{grid-template-columns:repeat(2,1fr)}
+  .shelters,.steps,.stats-grid{grid-template-columns:1fr}
+  .modal-grid{grid-template-columns:1fr}
+  .modal-photo{min-height:250px}
+  .crumb{display:none}
+  .stats{grid-template-columns:1fr 1fr}
+  .stat:first-child{grid-column:1/-1}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-in">
+    <a class="brand" href="/" title="G-MAP 홈으로">
+      <img class="ci" src="/images/guri-ci.png" alt="구리시">
+      <span><span class="name">G-MAP</span><span class="sub">구리시 시민생활지도</span></span>
+    </a>
+    <span class="page-name">유기동물 찾기</span>
+    <span class="grow"></span>
+    <a class="home-link" href="/">메인으로</a>
+  </div>
+</div>
+
+<div class="hero">
+  <div class="hero-in">
+    <div>
+      <div class="eyebrow">GURI ANIMAL CARE</div>
+      <h1 id="heroTitle">오늘, <span class="num" id="heroNum">–</span>마리가<br>따뜻한 가족을 기다리고 있어요</h1>
+      <p class="sub">구리시와 인근 보호소에서 보호 중인 아이들입니다. 잃어버린 가족을 찾고 계신가요? 발견 위치 지도에서 확인해 보세요.</p>
+      <div class="datachip"><span class="pulse"></span><span id="dataDate">데이터 불러오는 중…</span></div>
+    </div>
+    <div class="stats">
+      <div class="stat blue"><div class="k">보호 중</div><div class="v" id="stCare">–</div><div class="s">공고 진행 · 대기</div></div>
+      <div class="stat warm"><div class="k">가족을 만났어요</div><div class="v" id="stHome">–</div><div class="s">최근 6개월 입양 · 반환</div></div>
+      <div class="stat red"><div class="k">공고 마감 임박</div><div class="v" id="stUrgent">–</div><div class="s">3일 이내 마감</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="urgent" id="urgentWrap" style="display:none">
+  <div class="urgent-in">
+    <span class="lbl">⏰ 공고 마감 임박</span>
+    <span id="urgentItems" style="display:flex;gap:8px"></span>
+  </div>
+</div>
+
+<div class="filters">
+  <div class="filters-in">
+    <span id="spChips">
+      <button class="chip on" data-sp="전체">전체 <span class="cnt"></span></button>
+      <button class="chip" data-sp="개">🐕 개 <span class="cnt"></span></button>
+      <button class="chip" data-sp="고양이">🐈 고양이 <span class="cnt"></span></button>
+      <button class="chip" data-sp="기타">🐾 기타 <span class="cnt"></span></button>
+    </span>
+    <div class="sep"></div>
+    <select class="ctrl" id="sortSel" aria-label="정렬">
+      <option value="new">최신 공고순</option>
+      <option value="dd">마감 임박순</option>
+    </select>
+    <select class="ctrl" id="shelterSel" aria-label="보호소"><option value="">보호소 전체</option></select>
+    <div class="searchbox">🔍<input id="searchIn" placeholder="품종, 특징, 발견 장소 검색" aria-label="검색"></div>
+    <label class="switch"><input type="checkbox" id="pastChk"> 지난 공고 포함</label>
+    <span class="result-n" id="resultN"></span>
+  </div>
+</div>
+
+<div class="main">
+  <div class="cards" id="cards"></div>
+  <div class="mapwrap">
+    <div class="mapcard">
+      <div id="map"></div>
+      <div class="legend" id="pinLegend"></div>
+      <div class="maphint">발견 위치 기준 · 카드에 마우스를 올리면 위치가 강조되고, 심볼을 클릭하면 상세 정보가 열립니다</div>
+    </div>
+  </div>
+</div>
+
+<div class="section" id="statsSection" style="display:none">
+  <div class="sec-h"><h2>한눈에 보는 보호 현황</h2><span id="statsRange"></span></div>
+  <div class="stats-grid">
+    <div class="panel"><h3>보호 상태 비율</h3><p class="phint">전체 공고 기준 · 6개월간 처리 결과</p>
+      <div class="donut-wrap"><svg width="132" height="132" viewBox="0 0 42 42" id="donut" role="img" aria-label="보호 상태 비율"></svg>
+      <div class="dlegend" id="donutLegend"></div></div></div>
+    <div class="panel"><h3>축종별 현황</h3><p class="phint">현재 보호중인 아이들 기준</p><div id="spBars"></div></div>
+    <div class="panel"><h3>보호소별 현황</h3><p class="phint">현재 보호중인 아이들 기준</p><div id="shBars"></div></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="sec-h"><h2>보호소 안내</h2><span>구리시 관할 및 인근 위탁 보호소</span></div>
+  <div class="shelters" id="shelterCards"></div>
+</div>
+
+<div class="section" style="margin-bottom:8px">
+  <div class="sec-h"><h2>입양은 이렇게 진행돼요</h2><span>공고 기간이 끝난 아이들은 입양이 가능해요</span></div>
+  <div class="steps">
+    <div class="step"><div class="ic">🔍</div><div class="no">STEP 1</div><div class="tt">아이 찾아보기</div><div class="ds">보호 중인 아이들을 살펴보고 가족이 되고 싶은 아이를 찾아요.</div></div>
+    <div class="step"><div class="ic">📞</div><div class="no">STEP 2</div><div class="tt">보호소 상담</div><div class="ds">보호소에 연락해 아이의 상태와 입양 절차를 상담해요.</div></div>
+    <div class="step"><div class="ic">🏠</div><div class="no">STEP 3</div><div class="tt">방문 · 만남</div><div class="ds">보호소를 방문해 아이를 직접 만나보고 입양을 결정해요.</div></div>
+    <div class="step"><div class="ic">❤️</div><div class="no">STEP 4</div><div class="tt">입양 · 동물등록</div><div class="ds">입양 후 30일 이내 동물등록을 완료하면 진짜 가족이 돼요.</div></div>
+  </div>
+</div>
+
+<footer>© 구리시 · 케이지오솔루션</footer>
+
+<div class="overlay" id="overlay">
+  <div class="modal" role="dialog" aria-modal="true">
+    <button class="close" onclick="closeModal()" aria-label="닫기">✕</button>
+    <div class="modal-grid">
+      <div class="modal-photo"><img id="mPhoto" alt=""></div>
+      <div class="modal-body">
+        <div class="mno" id="mNo"></div>
+        <h3 id="mTitle"></h3>
+        <span class="mtag" id="mDd"></span>
+        <div class="kv" id="mKv"></div>
+        <div class="mfeat" id="mFeat"></div>
+        <div class="timeline" id="mTl"></div>
+        <div class="mshelter" id="mShel"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://js.arcgis.com/4.29/"></script>
+<script>
+/* ═════════ 설정 ═════════ */
+const SVC = "https://www.guri.go.kr/gmapsvr/rest/services/Hosted/pet_stray/FeatureServer/0/query";
+const PAGE = 18;
+const spColor = {'개':'#F08A3C','고양이':'#3FA796','기타':'#8B77C9'};
+const spEmoji = {'개':'🐕','고양이':'🐈','기타':'🐾'};
+const SHELTER_TEL = {'구리시 반려돌봄센터':'031-566-0059','한국동물구조관리협회':'031-867-9119',
+  '남양주시동물보호센터':'031-579-3604','하남동물보호센터':'031-790-5302'};
+/* 보호소 좌표 (하남은 동 단위 근사 — 정확 좌표 확보 시 교체) */
+const SHELTERS = [
+  {name:'구리시 반려돌봄센터', x:127.14076, y:37.61120, addr:'경기도 구리시 동구릉로136번길 57 (인창동) 2층', tel:'031-566-0059'},
+  {name:'남양주시동물보호센터', x:127.19256, y:37.61429, addr:'경기도 남양주시 경강로163번길 32-27 (이패동)', tel:'031-579-3604'},
+  {name:'하남동물보호센터', x:127.20544, y:37.56989, addr:'경기도 하남시 미사동로40번길 75-91 (미사동)', tel:'031-790-5302'},
+  {name:'한국동물구조관리협회', x:126.95544, y:37.91345, addr:'경기도 양주시 남면 감악산로 63-37', tel:'031-867-9119'},
+];
+
+/* ═════════ 유틸 ═════════ */
+const $ = id => document.getElementById(id);
+const cleanBreed = s => (s||'').replace(/^\[[^\]]+\]\s*/,'').trim();
+const cleanPlace = s => { let t=(s||'').replace(/\s+/g,' ').trim();
+  t=t.replace(/^경기도\s+/,'').replace(/^(구리시|남양주시|하남시)\s+경기\s+\1/,'$1').replace(/^(구리시|남양주시|하남시)\s+\1/,'$1');
+  return t; };
+const httpsify = u => (u||'').replace(/^http:/,'https:');
+const parseYmd = s => s&&s.length===8? new Date(+s.slice(0,4),+s.slice(4,6)-1,+s.slice(6,8)) : null;
+const fmtYmd = s => s&&s.length===8? `${s.slice(0,4)}.${s.slice(4,6)}.${s.slice(6,8)}` : '-';
+const fmtDate = d => `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+const ageTxt = s => { const m=(s||'').match(/^(\d{4})/); if(!m) return s||'-';
+  const sub=(s.match(/\(([^)]*미만[^)]*)\)/)||[])[1];
+  const age=Math.max(0,BASE.getFullYear()-+m[1]);
+  return `${m[1]}년생 · ${sub? sub : (age===0?'1살 미만':age+'살 추정')}`; };
+const sexMark = s => s==='수컷'?'<span class="sex m">♂ 수컷</span>':s==='암컷'?'<span class="sex f">♀ 암컷</span>':'<span class="sex u">성별 미상</span>';
+const esc = s => (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ═════════ 상태 ═════════ */
+let ALL=[], BASE=new Date(), syncStale=false;
+let curSp='전체', curShelter='', curQ='', showPast=false;
+let shown=PAGE, view=null, gLayer=null, GraphicCls=null;
+
+const dday = a => { const d=parseYmd(a['공고종']); return d? Math.ceil((d-BASE)/86400000) : null; };
+const isCare = a => a['상태']==='보호중';
+
+/* ═════════ 데이터 로드 ═════════ */
+(function skeleton(){ $('cards').innerHTML = Array(8).fill('<div class="skel"><div class="a"></div><div class="b"><i style="width:70%"></i><i style="width:45%"></i><i style="width:85%"></i></div></div>').join(''); })();
+
+(async function load(){
+  try{
+    const url = `${SVC}?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&resultRecordCount=2000&f=json`;
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const json = await res.json();
+    if(json.error) throw new Error(json.error.message||'서비스 오류');
+    ALL = json.features.map(f=>{
+      const raw=f.attributes, g=f.geometry||{};
+      // ⚠️ 포털 데이터스토어가 필드명을 소문자로 저장합니다(desertionNo → desertionno).
+      //    카멜케이스로 그대로 읽으면 전부 undefined가 되어 0건으로 보이던 문제 수정.
+      const s={}; for(const k in raw) s[k.toLowerCase()]=raw[k];
+      const sexMap={M:'수컷',F:'암컷',Q:'미상',U:'미상'};
+      const neuterMap={Y:'예',N:'아니오',U:'미상'};
+      const up=(s.upkindnm||'').trim();
+      const species=up.includes('개')?'개':up.includes('고양이')?'고양이':'기타';
+      const toYmd=v=>{
+        if(v==null||v==='')return '';
+        if(typeof v==='number'||/^\d{11,}$/.test(String(v))){const d=new Date(Number(v));
+          if(!isNaN(d.getTime()))return ''+d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');}
+        const t=String(v); if(/^\d{8}$/.test(t))return t;
+        const mm=t.match(/(\d{4})[-.](\d{1,2})[-.](\d{1,2})/);
+        return mm?mm[1]+mm[2].padStart(2,'0')+mm[3].padStart(2,'0'):t;
+      };
+      const st=s.processstate||'';
+      return {
+        '유기번':s.desertionno, '유기동':species, '품종':s.kindfullnm||s.kindnm||species,
+        '색상':s.colorcd, '나이':s.age, '체중':s.weight,
+        '성별':sexMap[s.sexcd]||'미상', '중성화':neuterMap[s.neuteryn]||'미상',
+        '특징':s.specialmark,
+        '상태':st.startsWith('종료')?st.replace(/^종료\(|\)$/g,''):st,
+        '접수일':toYmd(s.happendt), '발견장':s.happenplace,
+        '공고번':s.noticeno, '공고시':toYmd(s.noticesdt), '공고종':toYmd(s.noticeedt),
+        '보호소':s.carenm, '보호_0':s.caretel, '보호_1':s.careaddr,
+        popfile:s.popfile1||s.popfile2||'',
+        x: g.x!=null?g.x:+s.x, y: g.y!=null?g.y:+s.y
+
+      };
+    }).filter(a=>a['유기번']);
+
+    /* 기준일: 데이터가 오래됐으면(최신 공고 45일 이상 경과) 데이터 최신일을 기준으로 — 동기화 가동 전 데모 대응 */
+    const maxNotice = ALL.reduce((m,a)=> a['공고시']>m? a['공고시']:m, '00000000');
+    const maxD = parseYmd(maxNotice), today = new Date();
+    if(maxD && (today-maxD)/86400000 > 45){ BASE = new Date(maxD.getTime()+86400000); syncStale=true; }
+    else BASE = today;
+    $('dataDate').textContent = syncStale
+      ? `데이터 기준일 ${fmtDate(BASE)} · 최근 6개월 공고 · 동기화 가동 대기 중`
+      : `${fmtDate(BASE)} 기준 · 최근 6개월 공고 · 국가동물보호정보시스템 연계`;
+
+    initUI();
+  }catch(e){
+    console.error(e);
+    document.querySelector('.main').insertAdjacentHTML('beforebegin',
+      `<div class="errbox"><div class="errbox-in">😿 데이터를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.<br>
+      <span style="font-size:12px;color:#B08A80">(${esc(e.message)})</span></div></div>`);
+    $('cards').innerHTML=''; $('dataDate').textContent='연결 실패';
+  }
+})();
+
+/* ═════════ UI 초기화 ═════════ */
+function initUI(){
+  const care = ALL.filter(isCare);
+  const homeN = ALL.filter(a=>a['상태']==='입양'||a['상태']==='반환').length;
+  const urgent = care.filter(a=>{ const d=dday(a); return d!==null&&d>=0&&d<=3; }).sort((a,b)=>dday(a)-dday(b));
+
+  countUp($('heroNum'), care.length);
+  countUp($('stCare'), care.length);
+  countUp($('stHome'), homeN);
+  countUp($('stUrgent'), urgent.length);
+
+  if(urgent.length){
+    $('urgentWrap').style.display='block';
+    $('urgentItems').innerHTML = urgent.slice(0,10).map(a=>
+      `<span class="item" onclick="openModal('${a['유기번']}')">${spEmoji[a['유기동']]||'🐾'} ${esc(cleanBreed(a['품종']))} <b>${dday(a)===0?'오늘 마감':'D-'+dday(a)}</b></span>`).join('');
+  }
+
+  /* 축종 칩 카운트(보호중 기준) */
+  document.querySelectorAll('#spChips .chip').forEach(c=>{
+    const sp=c.dataset.sp;
+    c.querySelector('.cnt').textContent = sp==='전체'? care.length : care.filter(a=>a['유기동']===sp).length;
+    c.addEventListener('click',()=>{ document.querySelectorAll('#spChips .chip').forEach(x=>x.classList.remove('on'));
+      c.classList.add('on'); curSp=sp; shown=PAGE; refresh(); });
+  });
+
+  /* 보호소 select + 안내 카드 */
+  const shelters=[...new Set(ALL.map(a=>a['보호소']).filter(Boolean))];
+  $('shelterSel').innerHTML = '<option value="">보호소 전체</option>'+shelters.map(s=>`<option>${esc(s)}</option>`).join('');
+  $('shelterSel').addEventListener('change',e=>{ curShelter=e.target.value; shown=PAGE; refresh(); });
+  $('shelterCards').innerHTML = shelters.map(s=>{
+    const rec=ALL.find(a=>a['보호소']===s&&a['보호_1']);
+    const n=care.filter(a=>a['보호소']===s).length;
+    const tel=(rec&&rec['보호_0'])||SHELTER_TEL[s]||'';
+    return `<div class="sh"><span class="cnt-chip">보호 중 ${n}마리</span><div class="nm">${esc(s)}</div>
+      <div class="ad">${esc((rec&&rec['보호_1']||'').trim()||'주소 정보 없음')}</div>
+      ${tel?`<a href="tel:${tel}">📞 ${tel}</a>`:''}</div>`;
+  }).join('');
+
+  $('sortSel').addEventListener('change',()=>{ shown=PAGE; refresh(); });
+  $('pastChk').addEventListener('change',e=>{ showPast=e.target.checked; shown=PAGE; refresh(); });
+  let deb; $('searchIn').addEventListener('input',e=>{ clearTimeout(deb);
+    deb=setTimeout(()=>{ curQ=e.target.value.trim(); shown=PAGE; refresh(); },250); });
+
+  buildCharts(care);
+  initMap();
+  refresh();
+}
+
+function countUp(el,to){
+  if(matchMedia('(prefers-reduced-motion:reduce)').matches){ el.textContent=to; return; }
+  const t0=performance.now(), dur=900;
+  (function step(t){ const p=Math.min(1,(t-t0)/dur);
+    el.textContent=Math.round(to*(1-Math.pow(1-p,3)));
+    if(p<1) requestAnimationFrame(step); })(t0);
+}
+
+/* ═════════ 필터·렌더 ═════════ */
+function filtered(){
+  let L = ALL.filter(a=> showPast? true : isCare(a));
+  if(curSp!=='전체') L=L.filter(a=>a['유기동']===curSp);
+  if(curShelter) L=L.filter(a=>a['보호소']===curShelter);
+  if(curQ){ const q=curQ.toLowerCase();
+    L=L.filter(a=>[a['품종'],a['특징'],a['발견장'],a['색상']].join(' ').toLowerCase().includes(q)); }
+  const s=$('sortSel').value;
+  L=L.slice().sort((a,b)=>{
+    if(s==='dd'){
+      // 마감 임박순: 아직 공고중(dday>=0)인 것만 앞에 오름차순, 이미 종료(음수)·미상은 맨 뒤로
+      const da=dday(a), db=dday(b);
+      const ra = (da===null)? 2 : (da<0? 1 : 0);   // 0=공고중, 1=종료, 2=미상
+      const rb = (db===null)? 2 : (db<0? 1 : 0);
+      if(ra!==rb) return ra-rb;
+      if(ra===0) return da-db;                       // 공고중끼리는 임박순
+      return (b['공고종']||'').localeCompare(a['공고종']||''); // 종료끼리는 최근 종료 먼저
+    }
+    // 최신 공고순: 접수일 최신순 (접수일 없으면 공고시작일로 폴백)
+    const ka=(a['접수일']||a['공고시']||''), kb=(b['접수일']||b['공고시']||'');
+    return kb.localeCompare(ka);
+  });
+  return L;
+}
+
+function statusBadge(a){
+  if(isCare(a)){ const d=dday(a);
+    if(d===null) return '';
+    if(d<0) return `<span class="badge done">공고 종료</span>`;
+    return d<0? `<span class="badge dd done">공고 종료</span>` : `<span class="badge dd ${d<=3?'hot':''}">${d===0?'오늘 마감':'D-'+d}</span>`; }
+  if(a['상태']==='입양') return `<span class="badge adopt">🏡 가족을 만났어요</span>`;
+  if(a['상태']==='반환') return `<span class="badge return">💙 가족 품으로</span>`;
+  return `<span class="badge done">${esc(a['상태'])}</span>`;
+}
+
+function refresh(){
+  const L=filtered();
+  $('resultN').textContent = `${L.length}마리`;
+  const page=L.slice(0,shown);
+  $('cards').innerHTML = (page.length? page.map(card).join('') :
+    `<div class="empty"><div class="big">🐾</div>조건에 맞는 아이가 없어요.<br>필터를 조정해 보세요.</div>`)
+    + (L.length>shown? `<div class="more-wrap"><button class="more-btn" onclick="shown+=PAGE;refresh()">더 보기 (${L.length-shown}마리 남음)</button></div>`:'');
+  syncMap();
+}
+
+function card(a){
+  const feat=(a['특징']||'').trim();
+  return `<article class="card" onmouseenter="hl('${a['유기번']}',1)" onmouseleave="hl('${a['유기번']}',0)" onclick="openModal('${a['유기번']}')">
+    <div class="thumb">
+      ${a.popfile
+        ? `<img src="${httpsify(a.popfile)}" alt="${esc(cleanBreed(a['품종']))}" loading="lazy" onerror="this.remove();this.parentNode.querySelector('.ph').style.display='grid'">`
+        : ''}
+      <span class="ph" style="display:${a.popfile?'none':'grid'}">${spEmoji[a['유기동']]||'🐾'}</span>
+      ${statusBadge(a)}
+      <span class="sp-mark">${spEmoji[a['유기동']]||'🐾'}</span>
+    </div>
+    <div class="card-b">
+      <div class="t">${esc(cleanBreed(a['품종']))} ${sexMark(a['성별'])}</div>
+      <div class="meta">${ageTxt(a['나이'])} · ${esc(a['체중']||'')}</div>
+      <div class="loc">📍<span>${esc(cleanPlace(a['발견장']))}</span></div>
+      ${feat?`<div class="feat">"${esc(feat)}"</div>`:''}
+    </div>
+  </article>`;
+}
+
+/* ═════════ 지도 (바로e맵 배경 + 심볼) ═════════ */
+const NGII_VT="https://www.guri.go.kr/gmapsvr/rest/services/Hosted/NGII_SD_20250604/VectorTileServer";
+let shelterLayer=null;
+
+/* ── 심볼: 제공받은 PNG를 SVG로 재제작 (원본 색상·형태 유지, 벡터라 확대해도 선명) ── */
+function circleSvg(bg, glyph){
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="112" height="112">
+    <circle cx="14" cy="14" r="12.9" fill="${bg}" stroke="#fff" stroke-width="1.4"/>${glyph}</svg>`;
+  return "data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svg);
+}
+const GLYPH_BODY={};  /* 뱃지 심볼에서 재사용 */
+const SYM_URL={
+  '개':circleSvg('#F0710C',`
+    <ellipse cx="8.6" cy="14.8" rx="3.4" ry="5" fill="#fff"/>
+    <ellipse cx="19.4" cy="14.8" rx="3.4" ry="5" fill="#fff"/>
+    <circle cx="14" cy="13.8" r="6.6" fill="#fff"/>
+    <path d="M9 17.5 q5 5 10 0 v2.2 q-5 3.6 -10 0 Z" fill="#fff"/>
+    <circle cx="11.6" cy="12.3" r="1.15" fill="#F0710C"/>
+    <circle cx="16.4" cy="12.3" r="1.15" fill="#F0710C"/>
+    <circle cx="14" cy="15.2" r="1.3" fill="#F0710C"/>
+    <path d="M14 16.2 v1.5 M14 17.7 q-1.5 1.3 -2.9 .4 M14 17.7 q1.5 1.3 2.9 .4"
+      stroke="#F0710C" stroke-width=".9" fill="none" stroke-linecap="round"/>`),
+  '고양이':circleSvg('#A52FBA',`
+    <path d="M8.3 12.6 L8.7 5.6 L13.3 9.6 Z" fill="#fff"/>
+    <path d="M19.7 12.6 L19.3 5.6 L14.7 9.6 Z" fill="#fff"/>
+    <path d="M9.4 11.5 L9.7 7.6 L12.3 9.9 Z" fill="#A52FBA" opacity=".55"/>
+    <path d="M18.6 11.5 L18.3 7.6 L15.7 9.9 Z" fill="#A52FBA" opacity=".55"/>
+    <circle cx="14" cy="14.6" r="6.4" fill="#fff"/>
+    <circle cx="11.4" cy="13.6" r="1.1" fill="#A52FBA"/>
+    <circle cx="16.6" cy="13.6" r="1.1" fill="#A52FBA"/>
+    <path d="M13 15.7 h2 l-1 1.3 Z" fill="#A52FBA"/>
+    <path d="M14 17 q-1.3 1.2 -2.6 .3 M14 17 q1.3 1.2 2.6 .3
+             M5.9 13.4 q2.2 .2 3.6 .9 M5.9 16.4 q2.2 -.5 3.6 -.4
+             M22.1 13.4 q-2.2 .2 -3.6 .9 M22.1 16.4 q-2.2 -.5 -3.6 -.4"
+      stroke="#A52FBA" stroke-width=".85" fill="none" stroke-linecap="round"/>`),
+  '기타':circleSvg('#A2A2A2',`
+    <circle cx="8" cy="14" r="2.2" fill="#fff"/>
+    <circle cx="14" cy="14" r="2.2" fill="#fff"/>
+    <circle cx="20" cy="14" r="2.2" fill="#fff"/>`),
+  '보호소':circleSvg('#C93100',`
+    <path d="M14 5.8 L23.6 13.6 H21.4 V22 H6.6 V13.6 H4.4 Z" fill="#fff"/>
+    <rect x="18.2" y="7.4" width="2.4" height="4.2" rx=".5" fill="#fff"/>
+    <path d="M14 13.4 c-1.3 -2.3 -4.6 -1.6 -4.6 1 0 2 2.7 3.5 4.6 5 1.9 -1.5 4.6 -3 4.6 -5 0 -2.6 -3.3 -3.3 -4.6 -1 z" fill="#C93100"/>`)
+};
+/* 뱃지용 글리프 본체 (SYM_URL과 동일 도형) */
+(function(){
+  for(const k of ['개','고양이','기타']){
+    const url=SYM_URL[k];
+    const raw=decodeURIComponent(url.split(',')[1]);
+    const m=raw.match(/stroke-width="1.4"\/>([\s\S]*?)<\/svg>/);
+    GLYPH_BODY[k]=m?m[1]:'';
+  }
+})();
+function pinSym(kind,hot){
+  const shelter = kind==='보호소';
+  const s = hot? 42 : (shelter? 34 : 30);
+  return {type:"picture-marker",url:SYM_URL[kind]||SYM_URL['기타'],
+    width:s+"px",height:s+"px"};
+}
+/* 같은 좌표에 여러 마리 → 심볼 + 빨간 숫자 뱃지 */
+const BG_COLOR={'개':'#F0710C','고양이':'#A52FBA','기타':'#A2A2A2'};
+const _glyphInner={};  /* circleSvg에 넣었던 원+글리프를 36그리드로 재배치 */
+function badgeSvgUrl(sp,count){
+  const bg=BG_COLOR[sp]||BG_COLOR['기타'];
+  const label=count>99?'99+':String(count);
+  const fs=label.length>=3?6.6:8;
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 34" width="144" height="136">
+    <g transform="translate(2,5)">
+      <circle cx="14" cy="14" r="12.9" fill="${bg}" stroke="#fff" stroke-width="1.4"/>
+      ${GLYPH_BODY[sp]||GLYPH_BODY['기타']}
+    </g>
+    <circle cx="27.5" cy="7.5" r="7" fill="#E5533C" stroke="#fff" stroke-width="1.5"/>
+    <text x="27.5" y="7.5" dy=".36em" text-anchor="middle" fill="#fff"
+      font-family="sans-serif" font-weight="700" font-size="${fs}">${label}</text></svg>`;
+  return "data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svg);
+}
+const symCache={};
+function groupSym(sp,count,hot){
+  if(count<2) return pinSym(sp,hot);
+  const k=sp+'|'+count+'|'+(hot?1:0);
+  if(!symCache[k]){
+    const s=hot?47:34;
+    symCache[k]={type:"picture-marker",url:badgeSvgUrl(sp,count),
+      width:s+"px",height:(s*34/36)+"px"};
+  }
+  return symCache[k];
+}
+/* 심볼 범례 */
+(function(){
+  const el=$('pinLegend'); if(!el) return;
+  el.innerHTML=['개','고양이','기타','보호소'].map(k=>
+    `<span style="display:inline-flex;align-items:center;gap:5px"><img src="${SYM_URL[k]}" width="17" height="17" alt="">${k}</span>`).join('');
+})();
+
+function initMap(){
+  require(["esri/config","esri/Map","esri/Basemap","esri/views/MapView",
+           "esri/layers/GraphicsLayer","esri/layers/VectorTileLayer","esri/layers/WebTileLayer","esri/layers/FeatureLayer","esri/Graphic"],
+  (esriConfig,Map,Basemap,MapView,GraphicsLayer,VectorTileLayer,WebTileLayer,FeatureLayer,Graphic)=>{
+    esriConfig.request.useIdentity=false; /* 공개 서비스만 사용 — 로그인 대화상자 원천 차단 */
+    GraphicCls=Graphic;
+
+    /* ── 베이스맵: 브이월드 → (실패 시) 바로e맵 벡터타일 → (실패 시) 회색 ──
+       VWORLD_KEY: 공식 오픈API 키(공공기관 무료 발급). 비워두면 키 없는 xdworld 타일 사용 */
+    const VWORLD_KEY="";
+    const vwTpl = VWORLD_KEY
+      ? "https://api.vworld.kr/req/wmts/1.0.0/"+VWORLD_KEY+"/Base/{level}/{row}/{col}.png"
+      : "https://xdworld.vworld.kr/2d/Base/service/{level}/{col}/{row}.png";
+    const vw=new WebTileLayer({urlTemplate:vwTpl,copyright:"© 브이월드(국토교통부)"});
+    const basemap=new Basemap({baseLayers:[vw],title:"브이월드"});
+
+    /* 행정동 경계 (얇은 선 + 동 이름 라벨) */
+    const dongLayer=new FeatureLayer({
+      url:"https://www.guri.go.kr/gmapsvr/rest/services/Hosted/%ED%96%89%EC%A0%95%EB%8F%99%EA%B2%BD%EA%B3%84/FeatureServer/0",
+      popupEnabled:false, legendEnabled:false,
+      renderer:{type:"simple",symbol:{type:"simple-fill",color:[255,255,255,0],
+        outline:{color:"#8A98AC",width:1,style:"short-dash"}}},
+      labelingInfo:[{labelExpressionInfo:{expression:"$feature.adm_dr_nm"},
+        symbol:{type:"text",color:"#5A6B80",haloColor:"#ffffff",haloSize:1.3,
+          font:{size:10.5,weight:"bold"}}}]
+    });
+    /* 구리시 경계 (굵은 외곽선) */
+    const guriLayer=new FeatureLayer({
+      url:"https://www.guri.go.kr/gmapsvr/rest/services/Hosted/%EA%B5%AC%EB%A6%AC%EC%8B%9C%EA%B2%BD%EA%B3%84/FeatureServer/0",
+      popupEnabled:false, legendEnabled:false,
+      renderer:{type:"simple",symbol:{type:"simple-fill",color:[255,255,255,0],
+        outline:{color:"#01573C",width:2.4}}}
+    });
+
+    gLayer=new GraphicsLayer();
+    pulseLayer=new GraphicsLayer();
+    shelterLayer=new GraphicsLayer({title:"보호소"});
+    SHELTERS.forEach(s=>{
+      shelterLayer.add(new Graphic({
+        geometry:{type:"point",longitude:s.x,latitude:s.y},
+        attributes:s, symbol:pinSym('보호소',false)}));
+    });
+    const map=new Map({basemap,layers:[dongLayer,guriLayer,shelterLayer,pulseLayer,gLayer]});
+    view=new MapView({container:"map",map,
+      extent:{xmin:126.962,ymin:37.474,xmax:127.437,ymax:37.889,
+        spatialReference:{wkid:4326}},   /* 구리시 전체가 보이도록 초기 확대 */
+      popupEnabled:false,ui:{components:["zoom"]},constraints:{minZoom:9}});
+
+    /* 베이스맵 폴백 체인: 브이월드 → 바로e맵 → 회색 (화면이 비지 않게) */
+    let bmStage=0, ngiiVtl=null;
+    function bmFallback(m){
+      bmStage++;
+      if(bmStage===1){
+        console.warn("브이월드 실패 → 바로e맵(NGII)으로 대체");
+        ngiiVtl=new VectorTileLayer({url:NGII_VT});
+        m.basemap=new Basemap({baseLayers:[ngiiVtl],title:"바로e맵(국토지리정보원)"});
+        ngiiVtl.load().catch(()=>bmFallback(m));
+      }else if(bmStage===2){
+        console.warn("바로e맵 실패 → 회색 베이스맵으로 대체");
+        m.basemap=Basemap.fromId("gray-vector");
+      }
+    }
+    vw.load().catch(()=>bmFallback(map));
+    view.on("layerview-create-error",e=>{
+      if(e.layer===vw&&bmStage===0) bmFallback(map);
+      else if(ngiiVtl&&e.layer===ngiiVtl&&bmStage===1) bmFallback(map);
+    });
+
+    view.on("click",ev=>{ view.hitTest(ev).then(r=>{
+      const an=r.results.find(x=>x.graphic&&x.layer===gLayer);
+      if(an){ hideShelterToast();
+        const at=an.graphic.attributes;
+        if(at.ids.length>1) showGroupChooser(at); else openModal(at.ids[0]);
+        return; }
+      const sh=r.results.find(x=>x.graphic&&x.layer===shelterLayer);
+      if(sh){ hideGroupChooser(); showShelterToast(sh.graphic.attributes); return; }
+      hideShelterToast(); hideGroupChooser(); }); });
+    view.on("pointer-move",ev=>{ view.hitTest(ev).then(r=>{
+      view.container.style.cursor=r.results.some(x=>x.layer===gLayer||x.layer===shelterLayer)?'pointer':'default'; }); });
+
+    syncMap();
+  });
+}
+
+function showShelterToast(s){
+  let t=$('mapToast');
+  if(!t){ t=document.createElement('div'); t.id='mapToast';
+    t.style.cssText='position:absolute;left:12px;right:12px;bottom:12px;background:#fff;border:1px solid var(--line);border-left:4px solid #C93100;border-radius:12px;padding:11px 14px;font-size:12.5px;box-shadow:var(--shadow-lg);z-index:10;line-height:1.5';
+    document.querySelector('.mapcard').appendChild(t);
+    document.querySelector('.mapcard').style.position='relative'; }
+  t.innerHTML=`<b>🏠 ${esc(s.name)}</b><br><span style="color:var(--sub)">${esc(s.addr)}</span>
+    <a href="tel:${s.tel}" style="color:var(--blue);font-weight:700;text-decoration:none;margin-left:8px">📞 ${s.tel}</a>
+    <button onclick="hideShelterToast()" style="position:absolute;top:8px;right:10px;font-size:13px;color:var(--faint)">✕</button>`;
+  t.style.display='block';
+}
+function hideShelterToast(){ const t=$('mapToast'); if(t) t.style.display='none'; }
+
+/* 같은 지점 여러 마리 → 선택 목록 */
+function showGroupChooser(g){
+  hideShelterToast();
+  let t=$('groupChooser');
+  if(!t){ t=document.createElement('div'); t.id='groupChooser';
+    t.style.cssText='position:absolute;left:12px;right:12px;bottom:12px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow-lg);z-index:11;max-height:320px;display:flex;flex-direction:column;overflow:hidden';
+    document.querySelector('.mapcard').appendChild(t);
+    document.querySelector('.mapcard').style.position='relative'; }
+  const items=g.ids.map(id=>ALL.find(a=>a['유기번']===id)).filter(Boolean);
+  t.innerHTML=`<div style="padding:11px 14px;border-bottom:1px solid var(--line);font-size:13px;font-weight:800;display:flex;align-items:center">
+      📍 이 지점의 동물 <span style="color:var(--danger);margin-left:4px">${items.length}마리</span>
+      <button onclick="hideGroupChooser()" style="margin-left:auto;font-size:14px;color:var(--faint)">✕</button></div>
+    <div style="overflow-y:auto">${items.map(a=>{
+      const d=dday(a);
+      const badge=isCare(a)? (d!==null&&d>=0? `<span style="font-size:10.5px;font-weight:800;color:${d<=3?'var(--danger)':'var(--warm)'}">${d===0?'오늘 마감':'D-'+d}</span>`:'')
+        : `<span style="font-size:10.5px;color:var(--faint)">${esc(a['상태'])}</span>`;
+      return `<div onclick="hideGroupChooser();openModal('${a['유기번']}')" style="display:flex;gap:10px;align-items:center;padding:8px 13px;border-bottom:1px solid #F1F4F8;cursor:pointer">
+        <img src="${httpsify(a.popfile)}" loading="lazy" style="width:42px;height:42px;border-radius:9px;object-fit:cover;background:#EFF2F6" alt="">
+        <div style="min-width:0;flex:1">
+          <div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(cleanBreed(a['품종']))} <span style="font-weight:600;color:${a['성별']==='수컷'?'#3B6FD4':a['성별']==='암컷'?'#D9538A':'var(--faint)'}">${a['성별']==='수컷'?'♂':a['성별']==='암컷'?'♀':''}</span></div>
+          <div style="font-size:11px;color:var(--sub)">${esc(a['색상']||'')} · ${esc(a['체중']||'')}</div>
+        </div>${badge}</div>`; }).join('')}</div>`;
+  t.style.display='flex';
+}
+function hideGroupChooser(){ const t=$('groupChooser'); if(t) t.style.display='none'; }
+
+/* 필터 상태를 지도에 반영 — 같은 좌표는 그룹 1심볼(+숫자 뱃지) */
+let groupsByKey={};
+function syncMap(){
+  if(!gLayer||!GraphicCls) return;
+  gLayer.removeAll(); groupsByKey={};
+  filtered().forEach(a=>{ const x=+a.x,y=+a.y;
+    if(!isFinite(x)||!isFinite(y)||x<124||x>132||y<33||y>39) return;
+    const key=x.toFixed(5)+','+y.toFixed(5);
+    if(!groupsByKey[key]) groupsByKey[key]={key,x,y,sp:a['유기동'],ids:[]};
+    groupsByKey[key].ids.push(a['유기번']); });
+  Object.values(groupsByKey).forEach(g=>{
+    const hot=!!(selectedId&&g.ids.includes(selectedId));
+    gLayer.add(new GraphicCls({geometry:{type:"point",longitude:g.x,latitude:g.y},
+      attributes:g, symbol:groupSym(g.sp,g.ids.length,hot)})); });
+  hideGroupChooser();
+}
+function hl(id,on,force){
+  if(!gLayer) return;
+  const g=gLayer.graphics.find(x=>x.attributes.ids&&x.attributes.ids.includes(id)); if(!g) return;
+  if(!on&&!force&&selectedId&&g.attributes.ids.includes(selectedId)) return;   /* 선택 상태는 유지 */
+  g.symbol=groupSym(g.attributes.sp,g.attributes.ids.length,!!on);
+}
+let pulseLayer=null, pulseRAF=null;
+function zoomTo(id,z){
+  if(!view) return Promise.resolve();
+  const a=ALL.find(x=>x['유기번']===id);
+  if(!a) return Promise.resolve();
+  const x=+a.x,y=+a.y;
+  if(!isFinite(x)||!isFinite(y)) return Promise.resolve();
+  const cur=isFinite(view.zoom)? view.zoom : 12;
+  /* goTo는 {center:[경도,위도], zoom} 형식이 정확함 */
+  return view.goTo({center:[x,y],zoom:Math.max(cur,z||14)},{duration:650})
+    .catch(()=>{}).then(()=>({x,y}));
+}
+/* 도착 지점 깜빡임: 퍼져나가는 링 3회 */
+function pulseAt(x,y){
+  if(!pulseLayer||!GraphicCls) return;
+  pulseLayer.removeAll();
+  if(pulseRAF) cancelAnimationFrame(pulseRAF);
+  const g=new GraphicCls({geometry:{type:"point",longitude:x,latitude:y}});
+  pulseLayer.add(g);
+  const t0=performance.now(), CYCLE=800, N=3;
+  (function anim(t){
+    const el=t-t0;
+    if(el>CYCLE*N){ pulseLayer.removeAll(); pulseRAF=null; return; }
+    const p=(el%CYCLE)/CYCLE;
+    g.symbol={type:"simple-marker",style:"circle",color:[240,138,60,0],
+      size:16+p*52,
+      outline:{color:[229,83,60,(1-p)*.95],width:4*(1-p)+.8}};
+    pulseRAF=requestAnimationFrame(anim);
+  })(t0);
+}
+/* 카드/심볼 선택: 지도 확대 + 심볼 강조 유지 + 도착 후 깜빡임 */
+let selectedId=null;
+function focusOn(id){
+  hideShelterToast();
+  if(selectedId&&selectedId!==id) hl(selectedId,0,true);   /* 이전 선택 해제 */
+  selectedId=id;
+  hl(id,1);
+  zoomTo(id,16).then(pt=>{ if(pt) pulseAt(pt.x,pt.y); });
+  if(matchMedia('(max-width:1060px)').matches)
+    document.getElementById('map').scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+/* ═════════ 상세 모달 ═════════ */
+function openModal(id){
+  const a=ALL.find(x=>x['유기번']===id); if(!a) return;
+  $('mPhoto').src = a.popfile? httpsify(a.popfile):'';
+  $('mPhoto').alt = cleanBreed(a['품종']);
+  $('mNo').textContent = `공고번호 ${a['공고번']||'-'} · 유기번호 ${a['유기번']}`;
+  $('mTitle').innerHTML = `${esc(cleanBreed(a['품종']))} ${sexMark(a['성별'])}`;
+  const t=$('mDd');
+  if(isCare(a)){ const d=dday(a);
+    if(d===null){ t.textContent='보호 중'; t.className='mtag dd'; }
+    else if(d<0){ t.textContent='공고 종료 · 입양 상담 가능'; t.className='mtag done'; }
+    else if(d<0){ t.textContent='공고 종료 · 입양 상담 가능'; t.className='mtag done'; } else{ t.textContent=d===0?'⏰ 오늘 공고 마감':`⏰ 공고 마감 D-${d}`; t.className='mtag dd'+(d<=3?' hot':''); } }
+  else if(a['상태']==='입양'){ t.textContent='🏡 새 가족을 만났어요'; t.className='mtag adopt'; }
+  else if(a['상태']==='반환'){ t.textContent='💙 원래 가족 품으로 돌아갔어요'; t.className='mtag adopt'; }
+  else{ t.textContent=a['상태']; t.className='mtag done'; }
+  $('mKv').innerHTML=[['나이',ageTxt(a['나이'])],['체중',a['체중']],['색상',a['색상']],['중성화',a['중성화']],
+    ['발견 장소',cleanPlace(a['발견장'])],['상태',a['상태']]]
+    .map(([k,v])=>`<div><div class="k">${k}</div><div class="v">${esc(v||'-')}</div></div>`).join('');
+  const feat=(a['특징']||'').trim();
+  $('mFeat').style.display=feat?'block':'none';
+  $('mFeat').innerHTML=feat?`💬 "${esc(feat)}"`:'';
+  $('mTl').innerHTML=`
+    <div class="tl-node"><div class="dot2"></div>접수<br><b>${esc((a['접수일']||'').replace(/년 |월 /g,'.').replace('일',''))}</b></div>
+    <div class="tl-line"></div>
+    <div class="tl-node"><div class="dot2"></div>공고 시작<br><b>${fmtYmd(a['공고시'])}</b></div>
+    <div class="tl-line"></div>
+    <div class="tl-node end"><div class="dot2"></div>공고 종료<br><b>${fmtYmd(a['공고종'])}</b></div>`;
+  const tel=(a['보호_0']||SHELTER_TEL[a['보호소']]||'').trim();
+  $('mShel').innerHTML=`<b>🏠 ${esc(a['보호소']||'보호소 정보 없음')}</b>
+    <div class="addr">${esc((a['보호_1']||'').trim())}</div>
+    ${tel?`<a class="tel" href="tel:${tel}">📞 입양 문의 ${tel}</a>`:''}`;
+  $('overlay').classList.add('open');
+  document.body.style.overflow='hidden';
+  focusOn(id);   /* 팝업과 동시에 지도 확대·심볼 강조 */
+}
+function closeModal(){ $('overlay').classList.remove('open'); document.body.style.overflow=''; }
+$('overlay').addEventListener('click',e=>{ if(e.target===$('overlay')) closeModal(); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
+
+/* ═════════ 차트 ═════════ */
+function buildCharts(care){
+  $('statsSection').style.display='block';
+  const dates=ALL.map(a=>a['공고시']).filter(Boolean).sort();
+  if(dates.length) $('statsRange').textContent=`${fmtYmd(dates[0])} ~ ${fmtYmd(dates[dates.length-1])} 공고 기준 · 총 ${ALL.length}건`;
+
+  const grp={}; ALL.forEach(a=>{ const k=(a['상태']||'기타').replace('종료(','').replace(')',''); grp[k]=(grp[k]||0)+1; });
+  const palette={'보호중':'#018058','반환':'#3FA796','입양':'#F08A3C','자연사':'#B8C2CE','방사':'#8B77C9','기증':'#D9538A'};
+  const items=Object.entries(grp).sort((a,b)=>b[1]-a[1]);
+  const total=ALL.length; let off=25, svg='';
+  items.forEach(([k,v])=>{ const p=v/total*100, c=palette[k]||'#C5CDD8';
+    svg+=`<circle r="15.915" cx="21" cy="21" fill="none" stroke="${c}" stroke-width="7"
+      stroke-dasharray="${p} ${100-p}" stroke-dashoffset="${off}"></circle>`; off-=p; });
+  $('donut').innerHTML=svg;
+  $('donutLegend').innerHTML=items.map(([k,v])=>
+    `<div><span class="dot" style="background:${palette[k]||'#C5CDD8'}"></span>${k} <b>${v}</b></div>`).join('');
+
+  const spG={}; care.forEach(a=>{ spG[a['유기동']||'기타']=(spG[a['유기동']||'기타']||0)+1; });
+  bars('spBars',Object.entries(spG).sort((a,b)=>b[1]-a[1]).map(([k,v])=>[`${spEmoji[k]||''} ${k}`,v]),'#F08A3C');
+  const shG={}; care.forEach(a=>{ const k=(a['보호소']||'기타').replace('동물보호센터','').replace('한국동물구조관리협회','동물구조협회').replace('구리시 반려돌봄센터','구리 돌봄센터'); shG[k]=(shG[k]||0)+1; });
+  bars('shBars',Object.entries(shG).sort((a,b)=>b[1]-a[1]),'#018058');
+}
+function bars(el,data,color){
+  const max=Math.max(...data.map(d=>d[1]),1);
+  $(el).innerHTML=data.map(([k,v])=>
+    `<div class="bar-row"><div>${esc(String(k))}</div><div class="track"><div class="fill" style="width:${v/max*100}%;background:${color}"></div></div><div class="n">${v}</div></div>`).join('');
+}
+</script>
+</body>
+</html>

@@ -25,6 +25,14 @@
   font-display: swap;
 }
 
+/* 와구리체 — G-MAP 브랜드 타이틀 전용 (지도 페이지 gmap-shared.css 와 같은 선언) */
+@font-face {
+  font-family: 'Waguri';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2403@1.0/WAGURITTF.woff2') format('woff2');
+  font-weight: normal;
+  font-display: swap;
+}
+
 :root {
   /* ── KRDS 토큰 재기준화 ──
      krds_tokens.css 의 number/font-size 토큰은 html 10px(62.5%) 기준 rem 이다.
@@ -288,6 +296,11 @@ button {
   text-decoration: none;
   color: inherit;
 }
+#krds-header .logo .ci {
+  height: 32px;
+  width: auto;
+  display: block;
+}
 #krds-header .logo .logo-mark {
   display: grid;
   place-items: center;
@@ -299,8 +312,9 @@ button {
 }
 #krds-header .logo .logo-name {
   display: block;
-  font-size: var(--krds-pc-font-size-heading-small);
-  font-weight: var(--krds-font-weight-bold);
+  font-family: 'Waguri', var(--krds-font-family-base);
+  font-size: var(--krds-pc-font-size-heading-medium);
+  font-weight: var(--krds-font-weight-regular);
   line-height: 1.1;
   letter-spacing: -0.02em;
   color: var(--krds-light-color-text-primary);
@@ -358,6 +372,9 @@ button {
   }
   #krds-header .logo .logo-sub {
     display: none;
+  }
+  #krds-header .logo .ci {
+    height: 26px;
   }
 }
 
@@ -624,6 +641,11 @@ button {
   gap: var(--krds-gap-3);
   height: var(--krds-size-height-7);
 }
+#krds-footer .f-logo .ci {
+  height: 40px;
+  width: auto;
+  display: block;
+}
 #krds-footer .f-logo .logo-mark {
   display: grid;
   place-items: center;
@@ -704,6 +726,11 @@ button {
   gap: var(--krds-gap-2);
   font-weight: var(--krds-font-weight-bold);
   color: var(--krds-light-color-text-primary);
+}
+.krds-identifier .logo .ci {
+  height: 22px;
+  width: auto;
+  display: block;
 }
 .krds-identifier .ban-txt {
   font-size: var(--krds-pc-font-size-body-small);

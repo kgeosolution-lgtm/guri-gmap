@@ -1,4 +1,4 @@
-import { ExternalLink, MapPinned } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { siteConfig } from '@/config/site.config';
 import { animalUrl, themeUrl } from '@/config/links';
 
@@ -8,10 +8,7 @@ export function KrdsFooter() {
     <footer id="krds-footer">
       <div className="inner">
         <div className="f-logo" id="about">
-          <span className="logo-mark" aria-hidden="true">
-            CI
-          </span>
-          <span className="logo-name">구리시</span>
+          <img className="ci" src="/images/guri-ci.png" alt="구리시" height={40} />
         </div>
         <div className="f-cnt">
           <div className="f-info">
@@ -25,23 +22,11 @@ export function KrdsFooter() {
           </div>
           <div className="f-link">
             <div className="link-go">
-              <a
-                href={themeUrl('여름')}
-                className="krds-btn medium text"
-                target="_blank"
-                rel="noopener"
-                title="새 창 열림"
-              >
-                테마지도 <ExternalLink className="svg-icon" aria-hidden="true" />
+              <a href={themeUrl('여름')} className="krds-btn medium text">
+                테마지도 <ChevronRight className="svg-icon" aria-hidden="true" />
               </a>
-              <a
-                href={animalUrl()}
-                className="krds-btn medium text"
-                target="_blank"
-                rel="noopener"
-                title="새 창 열림"
-              >
-                유기동물 찾기 <ExternalLink className="svg-icon" aria-hidden="true" />
+              <a href={animalUrl()} className="krds-btn medium text">
+                유기동물 찾기 <ChevronRight className="svg-icon" aria-hidden="true" />
               </a>
             </div>
           </div>
@@ -52,8 +37,7 @@ export function KrdsFooter() {
           </div>
           <div className="krds-identifier">
             <span className="logo">
-              <MapPinned size={18} aria-hidden="true" />
-              구리시
+              <img className="ci" src="/images/guri-ci.png" alt="구리시" height={22} />
             </span>
             <span className="ban-txt">이 누리집은 구리시 누리집이에요.</span>
           </div>

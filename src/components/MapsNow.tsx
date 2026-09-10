@@ -1,4 +1,4 @@
-import { ExternalLink, Layers, PawPrint } from 'lucide-react';
+import { ArrowRight, Layers, PawPrint } from 'lucide-react';
 import { themeGroups } from '@/config/theme-groups.config';
 import { animalUrl, themeUrl } from '@/config/links';
 
@@ -12,18 +12,12 @@ export function MapsNow() {
         <h2 id="maps-now-title" className="krds-h2">
           지금 열어볼 수 있는 지도
         </h2>
-        <p className="krds-desc">완성된 지도 두 가지를 바로 열어보세요. 새 창에서 열려요.</p>
+        <p className="krds-desc">완성된 지도 두 가지를 바로 열어보세요.</p>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-2">
           {/* ① 테마지도 */}
           <article className="krds-map-card">
-            <a
-              href={theme}
-              target="_blank"
-              rel="noopener"
-              className="card-img"
-              title="테마지도 (새 창 열림)"
-            >
+            <a href={theme} className="card-img" title="테마지도 열기">
               <img
                 src="/images/preview-theme.webp"
                 alt="테마지도 화면. 왼쪽 목록과 오른쪽 구리시 지도에 여름 시설이 표시돼 있어요."
@@ -48,23 +42,15 @@ export function MapsNow() {
                     key={group}
                     href={themeUrl(group)}
                     className="krds-btn-tag link"
-                    target="_blank"
-                    rel="noopener"
-                    title={`${group} 분류 열기 (새 창 열림)`}
+                    title={`${group} 분류 열기`}
                   >
                     {group}
                   </a>
                 ))}
               </div>
               <div className="card-actions">
-                <a
-                  href={theme}
-                  className="krds-btn primary"
-                  target="_blank"
-                  rel="noopener"
-                  title="새 창 열림"
-                >
-                  테마지도 열기 <ExternalLink className="svg-icon" aria-hidden="true" />
+                <a href={theme} className="krds-btn primary">
+                  테마지도 열기 <ArrowRight className="svg-icon" aria-hidden="true" />
                 </a>
               </div>
             </div>
@@ -72,13 +58,7 @@ export function MapsNow() {
 
           {/* ② 유기동물 찾기 */}
           <article className="krds-map-card">
-            <a
-              href={animal}
-              target="_blank"
-              rel="noopener"
-              className="card-img"
-              title="유기동물 찾기 (새 창 열림)"
-            >
+            <a href={animal} className="card-img" title="유기동물 찾기 열기">
               <img
                 src="/images/preview-animal.webp"
                 alt="유기동물 찾기 화면. 보호 중인 동물 목록과 위치가 지도에 표시돼 있어요."
@@ -96,14 +76,8 @@ export function MapsNow() {
               </h3>
               <p className="card-desc">보호 중인 아이들을 지도에서 찾아보세요</p>
               <div className="card-actions">
-                <a
-                  href={animal}
-                  className="krds-btn primary"
-                  target="_blank"
-                  rel="noopener"
-                  title="새 창 열림"
-                >
-                  유기동물 찾기 열기 <ExternalLink className="svg-icon" aria-hidden="true" />
+                <a href={animal} className="krds-btn primary">
+                  유기동물 찾기 열기 <ArrowRight className="svg-icon" aria-hidden="true" />
                 </a>
               </div>
             </div>

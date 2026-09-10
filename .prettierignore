@@ -1,3 +1,4 @@
 *.svg
 .next
 node_modules
+public/maps/
