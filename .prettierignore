@@ -1,0 +1,3 @@
+*.svg
+.next
+node_modules

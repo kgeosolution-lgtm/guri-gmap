@@ -1,48 +1,44 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Header, Footer } from '@/components/Layout';
-import { SeasonalHero } from '@/components/SeasonalHero';
+import { SkipLink, Masthead } from '@/components/krds/Masthead';
+import { KrdsHeader } from '@/components/krds/KrdsHeader';
+import { KrdsFooter } from '@/components/krds/KrdsFooter';
+import { HeroKrds } from '@/components/HeroKrds';
+import { MapsNow } from '@/components/MapsNow';
 import { NowGuri } from '@/components/NowGuri';
-import { QuickFinder } from '@/components/QuickFinder';
-import { RecommendedMaps } from '@/components/RecommendedMaps';
-import { SpatialInfo } from '@/components/SpatialInfo';
-import { UrbanStats } from '@/components/UrbanStats';
-import {
-  OpenData,
-  CitizenParticipation,
-  KgeoLab,
-  ExternalServices,
-} from '@/components/ContentSections';
+import { ComingSoon } from '@/components/ComingSoon';
 import { DevSeasonToolbar } from '@/components/DevSeasonToolbar';
 import { getAutoSeason, seasonConfig } from '@/config/season.config';
 import type { SeasonKey } from '@/types/content';
+
+/** KRDS 기반 홈. 이전 홈은 /v1 에 그대로 남아 있다. */
 export default function Home() {
   const [selection, setSelection] = useState<'auto' | SeasonKey>('auto');
   const [auto, setAuto] = useState<SeasonKey>('summer');
   useEffect(() => setAuto(getAutoSeason()), []);
   const season = seasonConfig[selection === 'auto' ? auto : selection];
   return (
-    <main
-      style={
-        {
-          '--accent': season.accentColor,
-          '--accent-soft': season.accentSoft,
-        } as React.CSSProperties
-      }
-    >
-      <Header />
-      <SeasonalHero season={season} />
-      <NowGuri season={season} />
-      <QuickFinder />
-      <RecommendedMaps />
-      <SpatialInfo />
-      <UrbanStats />
-      <OpenData />
-      <CitizenParticipation />
-      <KgeoLab />
-      <ExternalServices />
-      <Footer />
+    <>
+      <SkipLink />
+      <Masthead />
+      <KrdsHeader />
+      <main
+        id="main-content"
+        className="krds-home"
+        style={
+          {
+            '--accent': season.accentColor,
+            '--accent-soft': season.accentSoft,
+          } as React.CSSProperties
+        }
+      >
+        <HeroKrds season={season} />
+        <MapsNow />
+        <NowGuri season={season} />
+        <ComingSoon />
+      </main>
+      <KrdsFooter />
       <DevSeasonToolbar value={selection} onChange={setSelection} />
-    </main>
+    </>
   );
 }

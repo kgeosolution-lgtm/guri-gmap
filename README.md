@@ -15,3 +15,12 @@ npm run dev
 - `layers.config.ts`: PHASE 2에서 `portalItemId`를 등록할 ArcGIS 연결 지점
 
 계절은 현재 날짜를 기준으로 자동 선택됩니다. 우측 하단 도구에서 강제로 전환할 수 있으며, 운영 환경에서는 `NEXT_PUBLIC_SHOW_THEME_TOOLBAR=false`로 숨길 수 있습니다.
+
+## KRDS 적용 방식
+
+홈은 [KRDS(대한민국 디지털 정부서비스 UI/UX 가이드라인)](https://www.krds.go.kr) 기반으로 구성했고, 이전 홈은 `/v1` 에 그대로 남아 있습니다.
+
+- **토큰**: `krds-uiux` 패키지의 `krds_tokens.css` 를 `globals.css` 에서 import 합니다. KRDS 토큰은 html 10px 기준 rem 이라, 이 프로젝트(Tailwind 16px 기준)에서 같은 픽셀값이 나오도록 number·font-size 토큰만 px 로 덮어썼습니다. `tailwind.config.ts` 의 `primary/secondary/gray/danger/warning/success/info/point` 색과 `krds-*` 간격·라운드·그림자는 모두 이 토큰 변수를 가리킵니다.
+- **확장형 primary**: 구리시 초록 `#018058` 을 50단계로 두고, KRDS 기본 primary(블루)의 단계별 OKLCH 명도 곡선을 유지한 채 색상·채도만 바꿔 5~95 팔레트를 만들어 `--krds-color-light-primary-*` 를 덮어썼습니다. 60단계는 버튼 호버 `#01573C`. 명도 대비는 KRDS 매직넘버 기준으로 50단계 vs 흰색 4.96:1(4.5:1 이상), 40단계 vs 흰색 3.23:1(3:1 이상) 입니다.
+- **서체**: `public/fonts` 의 Pretendard GOV(Regular/Medium/Bold, woff2) 를 `@font-face` 로 선언해 본문 기본 서체로 씁니다.
+- **컴포넌트**: 마스트헤드·건너뛰기 링크·헤더·푸터·기관 식별자·버튼·태그는 KRDS HTML 컴포넌트 키트의 마크업 구조(`#krds-masthead`, `#krds-header`, `#krds-footer`, `.krds-btn`, `.krds-btn-tag` …)를 따르되, 540KB 짜리 컴포넌트 CSS 를 통째로 넣지 않고 필요한 규칙만 토큰 기반으로 `globals.css` 에 구현했습니다. 다크모드·고대비 모드는 아직 적용하지 않았습니다.
