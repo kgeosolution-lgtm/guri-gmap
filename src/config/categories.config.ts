@@ -1,0 +1,113 @@
+import {
+  Heart,
+  ShieldCheck,
+  Stethoscope,
+  Trees,
+  MapPinned,
+  Building2,
+  Pill,
+  ParkingCircle,
+  Accessibility,
+  BatteryCharging,
+  Bath,
+  CircleDot,
+  Users,
+  Store,
+  FileSearch,
+  LandPlot,
+  Construction,
+  Database,
+  MessageCircle,
+  Lightbulb,
+  Map,
+  Footprints,
+  Utensils,
+  Cross,
+} from 'lucide-react';
+export const quickCategories = [
+  { id: 'life', label: '생활', icon: Heart, color: '#F06B72' },
+  { id: 'safety', label: '안전', icon: ShieldCheck, color: '#E66E36' },
+  { id: 'health', label: '건강', icon: Stethoscope, color: '#15A58C' },
+  { id: 'leisure', label: '여가', icon: Trees, color: '#4B8D63' },
+  { id: 'tour', label: '관광', icon: MapPinned, color: '#4983CF' },
+  { id: 'estate', label: '부동산', icon: Building2, color: '#785DC1' },
+];
+export const quickFinder = [
+  { id: 'pharmacy', title: '약국', description: '운영 중인 약국', icon: Pill, color: '#F05474' },
+  {
+    id: 'shelter',
+    title: '쉼터',
+    description: '가까운 안전쉼터',
+    icon: Accessibility,
+    color: '#5A7AE6',
+  },
+  {
+    id: 'parking',
+    title: '주차장',
+    description: '공영주차장 정보',
+    icon: ParkingCircle,
+    color: '#3769C8',
+  },
+  { id: 'toilet', title: '화장실', description: '공중화장실', icon: Bath, color: '#19A0A8' },
+  {
+    id: 'ev',
+    title: '전기차 충전소',
+    description: '충전소 위치',
+    icon: BatteryCharging,
+    color: '#18A86B',
+  },
+  { id: 'aed', title: 'AED', description: '자동심장충격기', icon: CircleDot, color: '#E85145' },
+];
+export const recommendedMaps = [
+  {
+    id: 'facility',
+    title: '우리동네 편의시설',
+    description: '생활 반경 안의 공공·편의시설을 한눈에',
+    icon: Map,
+    color: '#386FE8',
+  },
+  {
+    id: 'walk',
+    title: '걷기 좋은 구리',
+    description: '공원과 산책로를 잇는 추천 걷기 코스',
+    icon: Footprints,
+    color: '#2BA66D',
+  },
+  {
+    id: 'safe',
+    title: '시민안전 생활지도',
+    description: '안전시설과 재난대피 정보를 가까이',
+    icon: ShieldCheck,
+    color: '#F26E47',
+  },
+  {
+    id: 'food',
+    title: '우수맛집 지도',
+    description: '구리가 인증한 맛있는 가게 찾기',
+    icon: Utensils,
+    color: '#E25563',
+  },
+  {
+    id: 'life',
+    title: '생명존중 지도',
+    description: '마음건강 상담과 생명안전 시설 정보',
+    icon: Cross,
+    color: '#845AC7',
+  },
+];
+export const urbanStats = [
+  { id: 'population', title: '동네 인구구조', description: '연령·세대별 인구', icon: Users },
+  { id: 'business', title: '상권 통계', description: '업종과 유동인구', icon: Store },
+  { id: 'parcel', title: '일필지 조회', description: '필지별 토지정보', icon: FileSearch },
+  { id: 'landuse', title: '토지이용현황', description: '용도지역·지구', icon: LandPlot },
+  { id: 'development', title: '개발구역현황', description: '도시개발 사업', icon: Construction },
+];
+export const participation = [
+  { title: '시민 지도 제안', description: '생활에 필요한 지도를 제안해 주세요', icon: Lightbulb },
+  {
+    title: '공간정보 오류 신고',
+    description: '잘못된 지도 정보를 알려 주세요',
+    icon: MessageCircle,
+  },
+  { title: '공공데이터 신청', description: '필요한 데이터를 요청해 주세요', icon: Database },
+];

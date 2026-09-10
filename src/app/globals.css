@@ -1,0 +1,107 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+:root {
+  --accent: #078c78;
+  --accent-soft: #e8f8f4;
+}
+* {
+  box-sizing: border-box;
+}
+html {
+  scroll-behavior: smooth;
+}
+body {
+  margin: 0;
+  background: #fff;
+  color: #17211e;
+  font-family: Pretendard, 'Noto Sans KR', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+button,
+a {
+  transition-property: color, background-color, border-color, transform, box-shadow;
+  transition-duration: 0.2s;
+}
+button {
+  cursor: pointer;
+}
+::selection {
+  background: var(--accent);
+  color: white;
+}
+@media (max-width: 430px) {
+  .text-\[42px\] {
+    font-size: 38px;
+  }
+  .fixed.bottom-4.right-4 {
+    right: 10px;
+    bottom: 10px;
+  }
+  .fixed.bottom-4.right-4 button.rounded-xl.px-3 {
+    padding-left: 9px;
+    padding-right: 9px;
+  }
+}
+
+/* Hero 이후 콘텐츠 영역은 한 화면에 더 많은 생활정보가 보이도록 밀도를 높인다. */
+main > section:nth-of-type(n + 2):not(:last-of-type) {
+  padding-top: 4rem !important;
+  padding-bottom: 4rem !important;
+}
+main > section:nth-of-type(2) article {
+  min-height: 180px;
+  padding: 1.25rem;
+}
+main > section:nth-of-type(2) article:first-child {
+  min-height: 380px;
+}
+main > section:nth-of-type(3) button {
+  padding: 1.1rem;
+}
+main > section:nth-of-type(3) button > span:first-child {
+  margin-bottom: 1rem;
+  width: 2.75rem;
+  height: 2.75rem;
+}
+main > section:nth-of-type(4) article {
+  min-height: 230px;
+  padding: 1.25rem;
+}
+main > section:nth-of-type(5) article {
+  min-height: 220px;
+  padding: 1.25rem;
+}
+main > section:nth-of-type(5) article > div:nth-of-type(2) {
+  margin-top: 2.25rem;
+}
+main > section:nth-of-type(6) button {
+  padding: 1.1rem;
+}
+main > section:nth-of-type(6) button strong {
+  margin-top: 1.25rem;
+}
+main > section:nth-of-type(7) > div > div {
+  padding: 2rem;
+}
+main > section:nth-of-type(8) button {
+  padding: 1.15rem;
+}
+main > section:nth-of-type(9) {
+  padding-bottom: 4rem !important;
+}
+
+@media (min-width: 768px) {
+  main > section:nth-of-type(n + 2):not(:last-of-type) {
+    padding-top: 5rem !important;
+    padding-bottom: 5rem !important;
+  }
+}
+@media (max-width: 767px) {
+  main > section:nth-of-type(2) article:first-child {
+    min-height: 300px;
+  }
+  main > section:nth-of-type(4) article {
+    min-height: 210px;
+  }
+}
