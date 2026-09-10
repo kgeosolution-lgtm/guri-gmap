@@ -14,7 +14,7 @@ export const seasonConfig: Record<SeasonKey, SeasonTheme> = {
   spring: {
     key: 'spring',
     label: '봄',
-    heroImage: '/images/hero-spring.png',
+    heroImage: '/images/hero-spring.webp',
     backgroundColor: '#F7ECEE',
     accentColor: '#E65F80',
     accentSoft: '#FFF0F4',
@@ -31,7 +31,7 @@ export const seasonConfig: Record<SeasonKey, SeasonTheme> = {
   summer: {
     key: 'summer',
     label: '여름',
-    heroImage: '/images/hero-summer.png',
+    heroImage: '/images/hero-summer.webp',
     backgroundColor: '#E6F4F3',
     accentColor: '#078C78',
     accentSoft: '#E8F8F4',
@@ -48,7 +48,7 @@ export const seasonConfig: Record<SeasonKey, SeasonTheme> = {
   autumn: {
     key: 'autumn',
     label: '가을',
-    heroImage: '/images/hero-autumn.png',
+    heroImage: '/images/hero-autumn.webp',
     backgroundColor: '#F7EBDD',
     accentColor: '#C75A24',
     accentSoft: '#FFF1E8',
@@ -65,7 +65,7 @@ export const seasonConfig: Record<SeasonKey, SeasonTheme> = {
   winter: {
     key: 'winter',
     label: '겨울',
-    heroImage: '/images/hero-winter.png',
+    heroImage: '/images/hero-winter.webp',
     backgroundColor: '#E8F0FA',
     accentColor: '#3B6FA9',
     accentSoft: '#EDF5FF',
