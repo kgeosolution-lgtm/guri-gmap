@@ -8,244 +8,261 @@
 <link rel="stylesheet" href="gmap-shared.css">
 <link rel="stylesheet" href="https://js.arcgis.com/4.29/esri/themes/light/main.css">
 <style>
-
 :root{
-  /* 공용 토큰(gmap-shared.css) 별칭 — 색 자체는 KRDS 토큰에서 온다 */
-  --bg:var(--krds-color-light-gray-5); --surface:#FFFFFF; --ink:var(--krds-color-light-gray-90); --sub:var(--krds-color-light-gray-60); --faint:var(--krds-color-light-gray-40); --line:var(--krds-color-light-gray-10);
+  /* 공용 토큰(gmap-shared.css) 별칭 */
+  --bg:var(--krds-color-light-gray-5); --surface:#FFFFFF; --ink:var(--krds-color-light-gray-90); --sub:var(--krds-color-light-gray-60); --faint:var(--krds-color-light-gray-40); --line:var(--krds-color-light-gray-20); --hair:var(--krds-color-light-gray-10);
   --blue:var(--krds-color-light-primary-50); --blue-soft:var(--krds-color-light-primary-5); --navy:var(--krds-color-light-primary-60);
+  /* 페이지 강조색 = 홈 반려동물 색 */
+  --accent:#C8456A; --accent-soft:#C8456A1A;
   --warm:#F08A3C; --warm-soft:#FFF3E7; --danger:#E5533C; --danger-soft:#FDEAE6;
   --green:#3FA796; --green-soft:#E8F5F1;
-  --dog:#F08A3C; --cat:#3FA796; --etc:#8B77C9;
-  --radius:8px; --shadow:0 2px 10px rgba(34,48,63,.06); --shadow-lg:0 10px 26px rgba(34,48,63,.13);
+  --dog:#F08A3C; --cat:#8B77C9; --etc:#8A949E;
+  --radius:6px; --shadow:0 2px 10px rgba(34,48,63,.06); --shadow-lg:0 10px 26px rgba(34,48,63,.13);
 }
 *{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{font-family:var(--krds-font-family-base);background:var(--bg);color:var(--ink);line-height:1.55;
-  -webkit-font-smoothing:antialiased}
+body{font-family:var(--krds-font-family-base);background:#fff;color:var(--ink);line-height:1.55;-webkit-font-smoothing:antialiased}
 img{display:block}
-button{font-family:inherit;cursor:pointer;border:none;background:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
 a{color:inherit}
-:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
-
-/* ───────── 상단바: gmap-shared.css 공용 ───────── */
+svg.ti{width:16px;height:16px;flex:none}
+.wrap{max-width:1300px;margin:0 auto;padding:0 24px}
 
 /* ───────── 히어로 ───────── */
-.hero{background:
-  radial-gradient(720px 300px at 12% 0%,rgba(240,138,60,.14),transparent 65%),
-  radial-gradient(600px 280px at 88% 8%,rgba(63,167,150,.10),transparent 60%),
-  linear-gradient(180deg,#FFF9F2 0%,#FFFDFB 62%,var(--bg) 100%);
-  padding:56px 24px 34px;overflow:hidden;position:relative}
-.hero-in{max-width:1300px;margin:0 auto;display:grid;grid-template-columns:1.15fr .85fr;gap:40px;align-items:center}
-.hero .eyebrow{font-size:12.5px;font-weight:800;color:var(--warm);letter-spacing:.14em;margin-bottom:12px}
-.hero h1{font-family:var(--gmap-font-brand);font-size:clamp(28px,3.6vw,44px);line-height:1.3;font-weight:400;letter-spacing:.01em;
-  word-break:keep-all}
-.hero h1 .num{color:var(--warm)}
-.hero p.sub{margin-top:14px;color:var(--sub);font-size:15px;max-width:46ch;word-break:keep-all}
-.datachip{display:inline-flex;align-items:center;gap:7px;margin-top:16px;font-size:12px;color:var(--sub);
-  background:#fff;border:1px solid var(--line);border-radius:6px;padding:6px 13px}
-.datachip .pulse{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+.hero{background:linear-gradient(180deg,var(--accent-soft) 0%,#fff 100%);padding:44px 0 28px;border-bottom:1px solid var(--hair)}
+.hero-in{max-width:1300px;margin:0 auto;padding:0 24px;display:grid;grid-template-columns:1.15fr .85fr;gap:40px;align-items:center}
+.hero .eyebrow{font-size:12px;font-weight:800;color:var(--accent);letter-spacing:.12em;margin-bottom:10px}
+.hero h1{font-family:var(--gmap-font-brand);font-size:clamp(28px,3.6vw,44px);line-height:1.3;font-weight:400;letter-spacing:.01em;word-break:keep-all}
+.hero h1 .num{color:var(--accent)}
+.hero p.sub{margin-top:12px;color:var(--sub);font-size:15px;max-width:46ch;word-break:keep-all}
+.datachip{display:inline-flex;align-items:center;gap:7px;margin-top:14px;font-size:12px;color:var(--sub)}
+.datachip .pulse{width:7px;height:7px;border-radius:50%;background:var(--krds-color-light-primary-50);animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:13px}
-.stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
-  padding:20px 18px;box-shadow:var(--shadow)}
-.stat .k{font-size:12.5px;color:var(--sub);font-weight:600}
-.stat .v{font-size:31px;font-weight:800;margin-top:3px;font-variant-numeric:tabular-nums}
-.stat .s{font-size:11.5px;color:var(--faint);margin-top:2px}
-.stat.blue .v{color:var(--blue)} .stat.warm .v{color:var(--warm)} .stat.red .v{color:var(--danger)}
+/* 통계 숫자 띠 */
+.stats{display:flex;align-items:flex-end;gap:0;justify-self:end}
+.stat{padding:0 22px;border-left:1px solid var(--line)}
+.stat:first-child{border-left:0;padding-left:0}
+.stat .v{font-size:28px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums;color:var(--ink)}
+.stat .k{font-size:12px;color:var(--sub);margin-top:4px;white-space:nowrap}
+.stat.red .v{color:var(--danger)}
 
-/* ───────── 마감 임박 스트립 ───────── */
-.urgent{max-width:1300px;margin:8px auto 0;padding:0 24px}
-.urgent-in{background:var(--surface);border:1px solid #F6D9C4;border-left:4px solid var(--danger);
-  border-radius:var(--radius);padding:12px 18px;display:flex;align-items:center;gap:14px;overflow-x:auto;
-  box-shadow:var(--shadow);scrollbar-width:thin}
-.urgent .lbl{font-size:13px;font-weight:800;color:var(--danger);white-space:nowrap;flex:none}
-.urgent .item{font-size:13px;white-space:nowrap;background:#FFF8F3;border:1px solid #FBE8D8;border-radius:6px;
-  padding:6px 13px;cursor:pointer;transition:transform .12s;flex:none}
-.urgent .item:hover{transform:translateY(-1px)}
-.urgent .item b{color:var(--danger)}
+/* ───────── 마감 임박 띠 ───────── */
+.urgent{max-width:1300px;margin:16px auto 0;padding:0 24px}
+.urgent-in{display:flex;align-items:center;gap:10px;padding:4px 0 4px 12px;border-left:3px solid var(--danger);overflow-x:auto;scrollbar-width:none}
+.urgent-in::-webkit-scrollbar{display:none}
+.urgent .lbl{font-size:12.5px;font-weight:800;color:var(--danger);white-space:nowrap;flex:none;display:inline-flex;align-items:center;gap:5px}
+.urgent .item{font-size:12.5px;white-space:nowrap;border:1px solid var(--line);border-radius:6px;padding:5px 10px;cursor:pointer;flex:none;color:var(--ink);transition:border-color .13s}
+.urgent .item:hover{border-color:var(--accent)}
+.urgent .item b{color:var(--danger);font-weight:800;margin-right:4px}
+.urgent .item .sx{color:var(--sub);font-weight:600}
 
-/* ───────── 필터바 ───────── */
-.filters{max-width:1300px;margin:22px auto 0;padding:0 24px;position:sticky;top:57px;z-index:50}
-.filters-in{background:rgba(255,255,255,.96);backdrop-filter:blur(6px);border:1px solid var(--line);
-  border-radius:var(--radius);padding:13px 16px;display:flex;align-items:center;gap:9px;flex-wrap:wrap;
-  box-shadow:var(--shadow)}
-.chip{border:1px solid var(--line);background:#fff;border-radius:6px;padding:8px 16px;font-size:13.5px;
-  font-weight:700;color:var(--sub);transition:all .13s}
-.chip:hover{border-color:#C9D3E0}
-.chip.on{background:var(--ink);border-color:var(--ink);color:#fff}
-.chip .cnt{font-size:11px;opacity:.65;margin-left:3px;font-weight:600}
-.sep{width:1px;height:22px;background:var(--line);margin:0 3px}
-.ctrl{border:1px solid var(--line);border-radius:6px;padding:8px 11px;font-size:13px;color:var(--ink);
-  background:#fff;font-family:inherit}
-.searchbox{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:6px;
-  background:#fff;padding:0 11px;flex:1;min-width:150px;max-width:240px}
-.searchbox input{border:none;outline:none;padding:8px 0;font-size:13px;width:100%;font-family:inherit;background:none}
-.switch{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--sub);margin-left:auto;
-  cursor:pointer;user-select:none;white-space:nowrap}
-.switch input{accent-color:var(--blue);width:15px;height:15px;cursor:pointer}
-.result-n{font-size:12.5px;color:var(--faint);white-space:nowrap}
+/* ───────── 필터 (도구 줄) ───────── */
+.filters{position:sticky;top:57px;z-index:50;background:#fff;border-bottom:1px solid var(--hair);margin-top:14px}
+.filters-in{max-width:1300px;margin:0 auto;padding:10px 24px;display:flex;align-items:center;gap:8px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+.filters-in::-webkit-scrollbar{display:none}
+.segs{display:inline-flex;flex:none;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:#fff}
+.segs .chip{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;font-size:12px;font-weight:700;color:var(--sub);border-right:1px solid var(--line);transition:all .13s;white-space:nowrap}
+.segs .chip:last-child{border-right:0}
+.segs .chip:hover{background:var(--krds-color-light-gray-5)}
+.segs .chip.on{background:var(--ink);color:#fff}
+.segs .chip .sdot{width:8px;height:8px;border-radius:50%;flex:none}
+.segs .chip .cnt{font-size:11px;font-weight:600;opacity:.7}
+.segs .chip.on .cnt{opacity:.8}
+.sep{width:1px;height:20px;background:var(--line);margin:0 2px;flex:none}
+.tool-sel,.searchbox{height:32px;border:1px solid var(--line);border-radius:6px;background:#fff;font-size:12px;font-weight:700;color:var(--sub);font-family:inherit}
+.tool-sel{flex:none;appearance:none;-webkit-appearance:none;padding:0 26px 0 10px;cursor:pointer;background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width%3D'16'%20height%3D'16'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'%2358616a'%20stroke-width%3D'1.75'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D%22M6%209l6%206l6%20-6%22%2F%3E%3C%2Fsvg%3E");background-repeat:no-repeat;background-position:right 8px center;background-size:14px;transition:border-color .13s,color .13s}
+.tool-sel:hover{border-color:var(--accent);color:var(--accent)}
+.searchbox{position:relative;display:flex;align-items:center;flex:1;min-width:160px;max-width:260px;transition:border-color .13s,box-shadow .13s}
+.searchbox:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.searchbox .sch-ic{position:absolute;left:9px;display:flex;color:var(--faint);pointer-events:none}
+.searchbox input{border:none;outline:none;background:none;width:100%;height:100%;padding:0 10px 0 31px;font-size:12.5px;font-family:inherit;color:var(--ink);font-weight:500}
+.searchbox input::placeholder{color:var(--faint)}
+/* 토글 스위치 */
+.switch{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:var(--sub);cursor:pointer;user-select:none;white-space:nowrap;flex:none;margin-left:auto}
+.switch input{position:absolute;opacity:0;width:0;height:0}
+.switch .knob{width:32px;height:18px;border-radius:9px;background:var(--line);position:relative;transition:background .15s;flex:none}
+.switch .knob::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:transform .15s}
+.switch input:checked+.knob{background:var(--accent)}
+.switch input:checked+.knob::after{transform:translateX(14px)}
+.switch input:focus-visible+.knob{outline:2px solid var(--accent);outline-offset:2px}
+.result-n{font-size:12px;color:var(--faint);white-space:nowrap;flex:none;font-weight:600}
 
 /* ───────── 본문 ───────── */
-.main{max-width:1300px;margin:20px auto 0;padding:0 24px;display:grid;grid-template-columns:1fr 424px;
-  gap:20px;align-items:start}
+.main{max-width:1300px;margin:18px auto 0;padding:0 24px;display:grid;grid-template-columns:1fr 424px;gap:20px;align-items:start}
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(212px,1fr));gap:14px}
-.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;
-  box-shadow:var(--shadow);transition:transform .16s,box-shadow .16s;cursor:pointer}
-.card:hover{transform:translateY(-4px);box-shadow:var(--shadow-lg)}
-.thumb{position:relative;aspect-ratio:4/3.1;background:linear-gradient(135deg,#F0F3F7,#E7ECF2);overflow:hidden}
-.thumb img{width:100%;height:100%;object-fit:cover;transition:transform .25s}
-.thumb:hover img{transform:scale(1.04)}
-
-.thumb .ph{position:absolute;inset:0;display:grid;place-items:center;font-size:34px;opacity:.35}
-.badge{position:absolute;top:10px;left:10px;font-size:11.5px;font-weight:800;color:#fff;border-radius:6px;
-  padding:4px 11px;box-shadow:0 2px 6px rgba(0,0,0,.18)}
-.badge.dd{background:var(--warm)} .badge.dd.hot{background:var(--danger)}
-    .badge.dd.done{background:var(--faint)}
-    .mtag.done{background:#EFF2F6;color:var(--sub)}
-.badge.done{background:#8494A8} .badge.adopt{background:var(--green)} .badge.return{background:var(--blue)}
-.sp-mark{position:absolute;top:10px;right:10px;width:27px;height:27px;border-radius:50%;
-  display:grid;place-items:center;font-size:13.5px;background:rgba(255,255,255,.93);box-shadow:0 1px 4px rgba(0,0,0,.12)}
-.card-b{padding:13px 15px 15px}
-.card-b .t{font-weight:800;font-size:15px;display:flex;align-items:center;gap:6px;word-break:keep-all}
-.sex{font-size:13px;font-weight:800}
-.sex.m{color:#3B6FD4} .sex.f{color:#D9538A} .sex.u{color:var(--faint)}
-.card-b .meta{font-size:12.5px;color:var(--sub);margin-top:3px}
-.card-b .loc{font-size:12px;color:var(--sub);margin-top:8px;display:flex;gap:5px;align-items:flex-start;line-height:1.45}
-.card-b .feat{font-size:12.3px;color:#6B5138;background:var(--warm-soft);border-radius:6px;padding:6px 10px;
-  margin-top:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card{position:relative;background:#fff;border:1px solid var(--line);border-radius:6px;overflow:hidden;cursor:pointer;transition:border-color .13s,box-shadow .13s}
+.card:hover{border-color:var(--accent);box-shadow:var(--shadow)}
+.card.sel{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+.thumb{position:relative;aspect-ratio:4/3;background:var(--krds-color-light-gray-5);overflow:hidden}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.thumb .ph{position:absolute;inset:0;display:grid;place-items:center;color:var(--krds-color-light-gray-30)}
+.thumb .ph svg{width:44px;height:44px;stroke-width:1.4}
+.tag{position:absolute;top:8px;left:8px;display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:4px;font-size:11px;font-weight:800;color:#fff;background:var(--ink)}
+.tag.hot{background:var(--danger)}
+.tag.done{background:var(--faint)}
+.tag.adopt{background:var(--green)}
+.card .viewing{display:none;position:absolute;top:8px;left:8px;transform:translateX(calc(var(--tagw,52px) + 4px));height:20px;padding:0 7px;border-radius:4px;font-size:10.5px;font-weight:800;color:#fff;background:var(--accent);white-space:nowrap;align-items:center;gap:3px}
+.card.sel .viewing{display:inline-flex}
+.sp-mark{position:absolute;top:8px;right:8px;display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;border-radius:4px;font-size:11px;font-weight:800;background:rgba(255,255,255,.94);color:var(--ink)}
+.sp-mark i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.card-b{padding:12px 13px 13px}
+.card-b .t{font-weight:800;font-size:15px;display:flex;align-items:center;gap:6px;word-break:keep-all;line-height:1.3}
+.card-b .t .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sex{font-size:12px;font-weight:700;color:var(--sub);flex:none}
+.card-b .meta{font-size:12.5px;color:var(--sub);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-b .loc{font-size:12.5px;color:var(--sub);margin-top:6px;display:flex;gap:4px;align-items:center;white-space:nowrap;overflow:hidden}
+.card-b .loc span{overflow:hidden;text-overflow:ellipsis}
+.card-b .loc svg{color:var(--faint)}
+.card-b .feat{font-size:12.5px;color:var(--sub);margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .more-wrap{grid-column:1/-1;text-align:center;padding:8px 0 4px}
-.more-btn{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:11px 30px;
-  font-size:14px;font-weight:700;color:var(--ink);box-shadow:var(--shadow);transition:all .15s}
-.more-btn:hover{border-color:#C9D3E0;transform:translateY(-1px)}
+.more-btn{border:1px solid var(--line);border-radius:6px;padding:10px 26px;font-size:13.5px;font-weight:700;color:var(--ink);background:#fff;transition:border-color .13s,color .13s}
+.more-btn:hover{border-color:var(--accent);color:var(--accent)}
 .empty{grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--sub)}
-.empty .big{font-size:40px;margin-bottom:12px;opacity:.5}
-
+.empty .big{display:flex;justify-content:center;margin-bottom:12px;color:var(--krds-color-light-gray-30)}
+.empty .big svg{width:40px;height:40px}
 /* 스켈레톤 */
-.skel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
-.skel .a{aspect-ratio:4/3.1;background:linear-gradient(90deg,#EFF2F6 25%,#F7F9FB 50%,#EFF2F6 75%);
-  background-size:200% 100%;animation:shine 1.3s infinite}
-.skel .b{height:74px;padding:13px}
-.skel .b i{display:block;height:12px;border-radius:6px;margin-bottom:8px;
-  background:linear-gradient(90deg,#EFF2F6 25%,#F7F9FB 50%,#EFF2F6 75%);background-size:200% 100%;animation:shine 1.3s infinite}
+.skel{background:#fff;border:1px solid var(--hair);border-radius:6px;overflow:hidden}
+.skel .a{aspect-ratio:4/3;background:linear-gradient(90deg,#EEF0F2 25%,#F7F8F9 50%,#EEF0F2 75%);background-size:200% 100%;animation:shine 1.2s infinite}
+.skel .b{height:80px;padding:12px 13px}
+.skel .b i{display:block;height:11px;border-radius:4px;margin-bottom:8px;background:linear-gradient(90deg,#EEF0F2 25%,#F7F8F9 50%,#EEF0F2 75%);background-size:200% 100%;animation:shine 1.2s infinite}
 @keyframes shine{to{background-position:-200% 0}}
 
 /* 지도 */
-.mapwrap{position:sticky;top:130px}
-.mapcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;
-  box-shadow:var(--shadow)}
-#map{height:540px;width:100%}
-.legend{display:flex;gap:15px;padding:12px 16px 6px;font-size:12.5px;color:var(--sub);flex-wrap:wrap}
-.legend .dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:5px;vertical-align:-1px}
-.maphint{padding:4px 16px 13px;font-size:11.5px;color:var(--faint)}
+.mapwrap{position:sticky;top:114px}
+.mapcard{position:relative}
+#map{height:560px;width:100%;border-radius:6px;box-shadow:var(--shadow-lg);overflow:hidden;background:var(--krds-color-light-gray-5)}
+.map-ctl{position:absolute;right:12px;top:12px;z-index:6;display:flex;flex-direction:column;gap:6px}
+.map-ctl button{width:34px;height:34px;border-radius:6px;background:#fff;border:1px solid var(--line);display:grid;place-items:center;color:var(--krds-color-light-gray-70);box-shadow:var(--shadow);transition:all .13s}
+.map-ctl button:hover{color:var(--accent);border-color:var(--accent)}
+.map-ctl button svg{width:18px;height:18px}
+.legend{position:absolute;left:12px;bottom:12px;z-index:5;display:flex;gap:11px;flex-wrap:wrap;padding:6px 10px;background:rgba(255,255,255,.94);border:1px solid var(--line);border-radius:6px;font-size:11.5px;color:var(--sub);max-width:70%}
+.maphint{padding:8px 2px 0;font-size:11.5px;color:var(--faint)}
+.map-toggle{display:none}
 
 /* ───────── 섹션 공통 ───────── */
-.section{max-width:1300px;margin:46px auto 0;padding:0 24px}
-.sec-h{display:flex;align-items:baseline;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.section{max-width:1300px;margin:44px auto 0;padding:0 24px}
+.sec-h{display:flex;align-items:baseline;gap:12px;margin-bottom:14px;flex-wrap:wrap}
 .sec-h h2{font-size:21px;font-weight:800}
 .sec-h span{font-size:13px;color:var(--sub)}
-.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
-.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:21px;
-  box-shadow:var(--shadow)}
-.panel h3{font-size:14px;font-weight:800;margin-bottom:4px}
-    .panel .phint{font-size:11.5px;color:var(--sub);margin-bottom:15px;font-weight:500}
+/* 통계 */
+.stats-band{background:var(--bg);padding:36px 0 40px;margin-top:44px}
+.stats-band .section{margin-top:0}
+.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.panel{background:#fff;border-radius:6px;padding:20px}
+.panel h3{font-size:14px;font-weight:800;margin-bottom:3px}
+.panel .phint{font-size:12px;color:var(--sub);margin-bottom:14px;font-weight:500}
 .donut-wrap{display:flex;align-items:center;gap:20px}
 .dlegend{font-size:12.5px;color:var(--sub);display:grid;gap:6px}
 .dlegend b{color:var(--ink)}
 .dlegend .dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:6px}
-.bar-row{display:grid;grid-template-columns:96px 1fr 40px;align-items:center;gap:10px;font-size:13px;margin-bottom:11px}
-.bar-row .track{height:10px;background:#EFF2F6;border-radius:6px;overflow:hidden}
-.bar-row .fill{height:100%;border-radius:6px;transition:width .6s ease}
+.bar-row{display:grid;grid-template-columns:96px 1fr 40px;align-items:center;gap:10px;font-size:13px;margin-bottom:10px}
+.bar-row .track{height:8px;background:var(--krds-color-light-gray-10);border-radius:4px;overflow:hidden}
+.bar-row .fill{height:100%;border-radius:4px;transition:width .6s ease}
 .bar-row .n{text-align:right;font-weight:800;font-size:12.5px;font-variant-numeric:tabular-nums}
 
-/* 보호소 · 절차 */
-.shelters{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
-.sh{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:19px;
-  box-shadow:var(--shadow)}
-.sh .cnt-chip{font-size:11px;font-weight:800;color:var(--warm);background:var(--warm-soft);
-  border-radius:6px;padding:3px 10px;display:inline-block;margin-bottom:9px}
-.sh .nm{font-weight:800;font-size:14.5px;word-break:keep-all}
-.sh .ad{font-size:12.5px;color:var(--sub);margin-top:6px;min-height:38px;word-break:keep-all}
-.sh a{display:inline-block;margin-top:10px;font-size:13px;color:var(--blue);font-weight:700;text-decoration:none;
-  background:var(--blue-soft);border-radius:6px;padding:6px 14px;transition:background .15s}
-.sh a:hover{background:#D3EBE0}
-.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
-.step{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:21px;
-  box-shadow:var(--shadow)}
-.step .ic{width:44px;height:44px;border-radius:6px;background:var(--warm-soft);display:grid;place-items:center;
-  font-size:21px;margin-bottom:13px}
-.step .no{font-size:11px;font-weight:800;color:var(--warm);letter-spacing:.08em}
-.step .tt{font-weight:800;font-size:15px;margin-top:3px}
-.step .ds{font-size:12.5px;color:var(--sub);margin-top:6px;word-break:keep-all}
+/* 보호소 카드 */
+.shelter-card{border:1px solid var(--line);border-radius:6px;padding:20px 22px;display:grid;grid-template-columns:1fr auto;gap:18px;align-items:center}
+.shelter-card .nm{font-size:16px;font-weight:800;display:flex;align-items:center;gap:8px}
+.shelter-card .nm .cnt-chip{font-size:11px;font-weight:800;color:var(--accent);background:var(--accent-soft);border-radius:4px;padding:2px 7px}
+.shelter-card .line{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--sub);margin-top:7px}
+.shelter-card .line svg{color:var(--faint)}
+.shelter-card .line a{color:var(--ink);font-weight:700;text-decoration:none}
+.shelter-card .btns{display:flex;gap:8px}
+.act{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border:1px solid var(--accent);border-radius:6px;background:#fff;color:var(--accent);font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap;transition:filter .13s}
+.act.fill{background:var(--accent);color:#fff}
+.act:hover{filter:brightness(.95)}
+.shelter-more{margin-top:12px;font-size:12.5px;color:var(--sub);display:flex;flex-wrap:wrap;gap:6px 14px}
+.shelter-more a{color:var(--ink);text-decoration:none;font-weight:600}
 
-footer{margin-top:56px;background:var(--surface);border-top:1px solid var(--line);padding:28px 24px;
-  text-align:center;font-size:12.5px;color:var(--sub)}
+/* 입양 절차 타임라인 */
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;position:relative;padding-top:8px}
+.steps::before{content:'';position:absolute;left:12.5%;right:12.5%;top:26px;height:2px;background:var(--line)}
+.step{position:relative;text-align:center;padding:0 8px}
+.step .no{width:36px;height:36px;border-radius:50%;background:var(--accent);color:#fff;font-size:14px;font-weight:800;display:grid;place-items:center;margin:0 auto;position:relative;z-index:1;box-shadow:0 0 0 4px #fff}
+.step .ic{display:flex;justify-content:center;margin:14px 0 8px;color:var(--accent)}
+.step .ic svg{width:22px;height:22px}
+.step .tt{font-weight:800;font-size:15px}
+.step .ds{font-size:12.5px;color:var(--sub);margin-top:5px;word-break:keep-all;line-height:1.5}
+
+footer{margin-top:52px;background:#fff;border-top:1px solid var(--hair);padding:26px 24px;text-align:center;font-size:12.5px;color:var(--sub)}
 footer .src{font-size:12px;color:var(--faint);line-height:1.6;word-break:keep-all;margin-bottom:6px}
 footer .copy{font-size:12.5px;color:var(--sub)}
 
 /* ───────── 상세 모달 ───────── */
 .overlay{position:fixed;inset:0;background:rgba(20,28,38,.45);display:none;z-index:100;padding:22px;overflow-y:auto}
 .overlay.open{display:flex;align-items:flex-start;justify-content:center}
-@media (min-width:1140px){
-  .overlay{background:rgba(20,28,38,.28)}
-  .overlay.open{justify-content:flex-start;padding-left:6vw}
-}
-.modal{background:#fff;border-radius:6px;max-width:780px;width:100%;margin:auto;overflow:hidden;position:relative;
-  box-shadow:0 24px 60px rgba(0,0,0,.28);animation:up .22s ease}
+@media (min-width:1140px){.overlay{background:rgba(20,28,38,.28)}.overlay.open{justify-content:flex-start;padding-left:6vw}}
+.modal{background:#fff;border-radius:8px;max-width:780px;width:100%;margin:auto;overflow:hidden;position:relative;box-shadow:0 24px 60px rgba(0,0,0,.28);animation:up .22s ease}
 @keyframes up{from{transform:translateY(14px);opacity:0}to{transform:none;opacity:1}}
-.modal .close{position:absolute;top:14px;right:14px;width:36px;height:36px;border-radius:6px;
-  background:rgba(255,255,255,.95);border:1px solid var(--line);font-size:15px;z-index:2;transition:transform .13s}
-.modal .close:hover{transform:rotate(90deg)}
+.modal .close{position:absolute;top:12px;right:12px;width:34px;height:34px;border-radius:6px;background:rgba(255,255,255,.95);border:1px solid var(--line);display:grid;place-items:center;z-index:2;color:var(--ink)}
 .modal-grid{display:grid;grid-template-columns:1fr 1.05fr}
-.modal-photo{background:#EDF0F4;min-height:360px;position:relative}
+.modal-photo{background:var(--krds-color-light-gray-5);min-height:360px;position:relative}
 .modal-photo img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
-.modal-body{padding:27px 27px 23px}
+.modal-body{padding:26px 26px 22px}
 .mno{font-size:11.5px;color:var(--faint)}
 .modal-body h3{font-size:22px;font-weight:800;margin-top:5px;display:flex;align-items:center;gap:8px;word-break:keep-all}
-.mtag{display:inline-block;font-size:12px;font-weight:800;border-radius:6px;padding:5px 13px;margin-top:11px}
-.mtag.dd{background:var(--warm-soft);color:var(--warm)}
+.mtag{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:800;border-radius:4px;padding:4px 10px;margin-top:10px}
+.mtag.dd{background:var(--krds-color-light-gray-10);color:var(--ink)}
 .mtag.dd.hot{background:var(--danger-soft);color:var(--danger)}
-.mtag.done{background:#EFF2F6;color:var(--sub)}
+.mtag.done{background:var(--krds-color-light-gray-10);color:var(--sub)}
 .mtag.adopt{background:var(--green-soft);color:var(--green)}
-.kv{margin-top:17px;display:grid;grid-template-columns:1fr 1fr;gap:9px 16px;font-size:13.5px}
+.kv{margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:9px 16px;font-size:13.5px}
 .kv .k{color:var(--faint);font-size:11.5px}
 .kv .v{font-weight:600;word-break:keep-all}
-.mfeat{margin-top:15px;background:var(--warm-soft);border-radius:6px;padding:12px 14px;font-size:13.5px;
-  color:#6B5138;word-break:keep-all}
-.timeline{margin-top:19px;display:flex;align-items:flex-start;font-size:11px;color:var(--sub)}
+.mfeat{margin-top:14px;background:var(--krds-color-light-gray-5);border-radius:6px;padding:11px 13px;font-size:13.5px;color:var(--ink);word-break:keep-all;display:flex;gap:7px;align-items:flex-start}
+.mfeat svg{color:var(--faint);margin-top:2px}
+.timeline{margin-top:18px;display:flex;align-items:flex-start;font-size:11px;color:var(--sub)}
 .tl-node{text-align:center;flex:0 0 auto;line-height:1.5}
-.tl-node .dot2{width:11px;height:11px;border-radius:50%;background:var(--blue);margin:0 auto 5px}
+.tl-node .dot2{width:10px;height:10px;border-radius:50%;background:var(--accent);margin:0 auto 5px}
 .tl-node.end .dot2{background:var(--danger)}
-.tl-line{flex:1;height:2px;background:var(--line);margin:5px 7px 0}
-.mshelter{margin-top:19px;border-top:1px solid var(--line);padding-top:15px;font-size:13px}
-.mshelter b{font-size:14px}
-.mshelter .addr{color:var(--sub);margin-top:2px}
-.mshelter .tel{display:inline-block;margin-top:10px;background:var(--warm);color:#fff;font-weight:800;
-  border-radius:6px;padding:9px 20px;text-decoration:none;font-size:13.5px;transition:transform .13s;box-shadow:0 4px 12px rgba(240,138,60,.35)}
-.mshelter .tel:hover{transform:translateY(-1px)}
+.tl-line{flex:1;height:2px;background:var(--line);margin:4px 7px 0}
+.mshelter{margin-top:18px;border-top:1px solid var(--hair);padding-top:14px;font-size:13px}
+.mshelter b{font-size:14px;display:flex;align-items:center;gap:6px}
+.mshelter b svg{color:var(--faint)}
+.mshelter .addr{color:var(--sub);margin-top:3px}
+.mshelter .tel{display:inline-flex;align-items:center;gap:6px;margin-top:10px;background:var(--accent);color:#fff;font-weight:800;border-radius:6px;padding:9px 16px;text-decoration:none;font-size:13.5px}
 
 /* 오류 배너 */
 .errbox{max-width:1300px;margin:26px auto;padding:0 24px}
-.errbox-in{background:#FFF6F4;border:1px solid #F3CCC4;border-radius:var(--radius);padding:22px;text-align:center;
-  color:#8A4335;font-size:14px}
+.errbox-in{background:var(--danger-soft);border:1px solid #F3CCC4;border-radius:6px;padding:22px;text-align:center;color:#8A4335;font-size:14px}
 
 /* ───────── 반응형 ───────── */
 @media (max-width:1060px){
   .main{grid-template-columns:1fr}
   .mapwrap{position:static}
   #map{height:400px}
-  .stats-grid,.shelters,.steps{grid-template-columns:repeat(2,1fr)}
-  .hero-in{grid-template-columns:1fr;gap:26px}
-  .filters{position:static}
+  .stats-grid{grid-template-columns:repeat(2,1fr)}
+  .hero-in{grid-template-columns:1fr;gap:22px}
+  .stats{justify-self:start}
+  .shelter-card{grid-template-columns:1fr}
 }
 @media (max-width:620px){
-  .cards{grid-template-columns:repeat(2,1fr)}
-  .shelters,.steps,.stats-grid{grid-template-columns:1fr}
+  .hero{padding:30px 0 22px}
+  .stat{padding:0 14px}
+  .stat .v{font-size:24px}
+  .filters{top:57px}
+  .cards{grid-template-columns:repeat(2,1fr);gap:10px}
+  .stats-grid{grid-template-columns:1fr}
   .modal-grid{grid-template-columns:1fr}
   .modal-photo{min-height:250px}
-  .crumb{display:none}
-  .stats{grid-template-columns:1fr 1fr}
-  .stat:first-child{grid-column:1/-1}
+  /* 지도: 카드 위 접이식 */
+  .mapwrap{order:-1}
+  .map-toggle{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border:1px solid var(--line);border-radius:6px;background:#fff;font-size:13px;font-weight:700;color:var(--ink);width:100%;justify-content:center}
+  .mapcard{display:none;margin-top:8px}
+  .mapwrap.open .mapcard{display:block}
+  #map{height:240px}
+  .maphint{display:none}
+  /* 세로 타임라인 */
+  .steps{grid-template-columns:1fr;gap:18px;padding-top:0}
+  .steps::before{left:17px;right:auto;top:8px;bottom:8px;width:2px;height:auto}
+  .step{text-align:left;display:grid;grid-template-columns:36px 1fr;gap:0 14px;padding:0}
+  .step .no{margin:0}
+  .step .ic{grid-column:2;justify-content:flex-start;margin:0 0 4px}
+  .step .tt,.step .ds{grid-column:2}
+  .step .ic{grid-row:1;align-self:center}
+  .step .no{grid-row:1/4}
 }
 </style>
 </head>
@@ -270,74 +287,81 @@ footer .copy{font-size:12.5px;color:var(--sub)}
       <div class="datachip"><span class="pulse"></span><span id="dataDate">데이터 불러오는 중…</span></div>
     </div>
     <div class="stats">
-      <div class="stat blue"><div class="k">보호 중</div><div class="v" id="stCare">–</div><div class="s">공고 진행 · 대기</div></div>
-      <div class="stat warm"><div class="k">가족을 만났어요</div><div class="v" id="stHome">–</div><div class="s">최근 6개월 입양 · 반환</div></div>
-      <div class="stat red"><div class="k">공고 마감 임박</div><div class="v" id="stUrgent">–</div><div class="s">3일 이내 마감</div></div>
+      <div class="stat"><div class="v" id="stCare">–</div><div class="k">보호중</div></div>
+      <div class="stat"><div class="v" id="stWeek">–</div><div class="k">이번 주 새 공고</div></div>
+      <div class="stat red"><div class="v" id="stUrgent">–</div><div class="k">마감 임박</div></div>
     </div>
   </div>
 </div>
 
 <div class="urgent" id="urgentWrap" style="display:none">
   <div class="urgent-in">
-    <span class="lbl">⏰ 공고 마감 임박</span>
-    <span id="urgentItems" style="display:flex;gap:8px"></span>
+    <span class="lbl"><svg class="ti" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>마감 임박</span>
+    <span id="urgentItems" style="display:flex;gap:6px"></span>
   </div>
 </div>
 
 <div class="filters">
   <div class="filters-in">
-    <span id="spChips">
+    <span id="spChips" class="segs">
       <button class="chip on" data-sp="전체">전체 <span class="cnt"></span></button>
-      <button class="chip" data-sp="개">🐕 개 <span class="cnt"></span></button>
-      <button class="chip" data-sp="고양이">🐈 고양이 <span class="cnt"></span></button>
-      <button class="chip" data-sp="기타">🐾 기타 <span class="cnt"></span></button>
+      <button class="chip" data-sp="개"><i class="sdot" style="background:var(--dog)"></i>개 <span class="cnt"></span></button>
+      <button class="chip" data-sp="고양이"><i class="sdot" style="background:var(--cat)"></i>고양이 <span class="cnt"></span></button>
+      <button class="chip" data-sp="기타"><i class="sdot" style="background:var(--etc)"></i>기타 <span class="cnt"></span></button>
     </span>
-    <div class="sep"></div>
-    <select class="ctrl" id="sortSel" aria-label="정렬">
+    <select class="tool-sel" id="sortSel" aria-label="정렬">
       <option value="new">최신 공고순</option>
       <option value="dd">마감 임박순</option>
     </select>
-    <select class="ctrl" id="shelterSel" aria-label="보호소"><option value="">보호소 전체</option></select>
-    <div class="searchbox">🔍<input id="searchIn" placeholder="품종, 특징, 발견 장소 검색" aria-label="검색"></div>
-    <label class="switch"><input type="checkbox" id="pastChk"> 지난 공고 포함</label>
+    <select class="tool-sel" id="shelterSel" aria-label="보호소"><option value="">보호소 전체</option></select>
+    <div class="searchbox"><span class="sch-ic"><svg class="ti" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M21 21l-6 -6"/></svg></span><input id="searchIn" placeholder="품종, 특징, 발견 장소 검색" aria-label="검색"></div>
+    <label class="switch"><input type="checkbox" id="pastChk"><i class="knob"></i>공고 종료 포함</label>
     <span class="result-n" id="resultN"></span>
   </div>
 </div>
 
 <div class="main">
   <div class="cards" id="cards"></div>
-  <div class="mapwrap">
+  <div class="mapwrap" id="mapwrap">
+    <button type="button" class="map-toggle" id="mapToggle" onclick="toggleMap()"><svg class="ti" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l6 -3l6 3l6 -3v13l-6 3l-6 -3l-6 3v-13"/><path d="M9 4v13"/><path d="M15 7v13"/></svg><span>지도 펼치기</span></button>
     <div class="mapcard">
       <div id="map"></div>
+      <div class="map-ctl">
+        <button type="button" title="확대" aria-label="확대" onclick="view&&view.goTo({zoom:view.zoom+1},{duration:250})"><svg class="ti" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg></button>
+        <button type="button" title="축소" aria-label="축소" onclick="view&&view.goTo({zoom:view.zoom-1},{duration:250})"><svg class="ti" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+        <button type="button" title="내 위치" aria-label="내 위치" onclick="locateMe()"><svg class="ti" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M20 12h2"/><path d="M2 12h2"/></svg></button>
+      </div>
       <div class="legend" id="pinLegend"></div>
-      <div class="maphint">발견 위치 기준 · 카드에 마우스를 올리면 위치가 강조되고, 심볼을 클릭하면 상세 정보가 열립니다</div>
     </div>
+    <div class="maphint">발견 위치 기준 · 카드에 마우스를 올리면 위치가 강조되고, 심볼을 클릭하면 상세 정보가 열립니다</div>
   </div>
 </div>
 
+<div class="stats-band">
 <div class="section" id="statsSection" style="display:none">
   <div class="sec-h"><h2>한눈에 보는 보호 현황</h2><span id="statsRange"></span></div>
   <div class="stats-grid">
     <div class="panel"><h3>보호 상태 비율</h3><p class="phint">전체 공고 기준 · 6개월간 처리 결과</p>
       <div class="donut-wrap"><svg width="132" height="132" viewBox="0 0 42 42" id="donut" role="img" aria-label="보호 상태 비율"></svg>
       <div class="dlegend" id="donutLegend"></div></div></div>
-    <div class="panel"><h3>축종별 현황</h3><p class="phint">현재 보호중인 아이들 기준</p><div id="spBars"></div></div>
+    <div class="panel"><h3>종류별 현황</h3><p class="phint">현재 보호중인 아이들 기준</p><div id="spBars"></div></div>
     <div class="panel"><h3>보호소별 현황</h3><p class="phint">현재 보호중인 아이들 기준</p><div id="shBars"></div></div>
   </div>
 </div>
+</div>
 
 <div class="section">
-  <div class="sec-h"><h2>보호소 안내</h2><span>구리시 관할 및 인근 위탁 보호소</span></div>
-  <div class="shelters" id="shelterCards"></div>
+  <div class="sec-h"><h2>보호소 안내</h2><span>구리시 관할 보호소 · 인근 위탁 보호소는 지도 핀으로 확인하세요</span></div>
+  <div id="shelterCards"></div>
 </div>
 
 <div class="section" style="margin-bottom:8px">
   <div class="sec-h"><h2>입양은 이렇게 진행돼요</h2><span>공고 기간이 끝난 아이들은 입양이 가능해요</span></div>
   <div class="steps">
-    <div class="step"><div class="ic">🔍</div><div class="no">STEP 1</div><div class="tt">아이 찾아보기</div><div class="ds">보호 중인 아이들을 살펴보고 가족이 되고 싶은 아이를 찾아요.</div></div>
-    <div class="step"><div class="ic">📞</div><div class="no">STEP 2</div><div class="tt">보호소 상담</div><div class="ds">보호소에 연락해 아이의 상태와 입양 절차를 상담해요.</div></div>
-    <div class="step"><div class="ic">🏠</div><div class="no">STEP 3</div><div class="tt">방문 · 만남</div><div class="ds">보호소를 방문해 아이를 직접 만나보고 입양을 결정해요.</div></div>
-    <div class="step"><div class="ic">❤️</div><div class="no">STEP 4</div><div class="tt">입양 · 동물등록</div><div class="ds">입양 후 30일 이내 동물등록을 완료하면 진짜 가족이 돼요.</div></div>
+    <div class="step"><div class="no">1</div><div class="ic"><svg class="ti" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M21 21l-6 -6"/></svg></div><div class="tt">아이 찾아보기</div><div class="ds">보호 중인 아이들을 살펴보고 가족이 되고 싶은 아이를 찾아요.</div></div>
+    <div class="step"><div class="no">2</div><div class="ic"><svg class="ti" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5l-2.5 1.5a11 11 0 0 0 5 5l1.5 -2.5l5 2v4a2 2 0 0 1 -2 2a16 16 0 0 1 -15 -15a2 2 0 0 1 2 -2"/></svg></div><div class="tt">보호소 상담</div><div class="ds">보호소에 연락해 아이의 상태와 입양 절차를 상담해요.</div></div>
+    <div class="step"><div class="no">3</div><div class="ic"><svg class="ti" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l-2 0l9 -9l9 9l-2 0"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7"/><path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6"/></svg></div><div class="tt">방문 · 만남</div><div class="ds">보호소를 방문해 아이를 직접 만나보고 입양을 결정해요.</div></div>
+    <div class="step"><div class="no">4</div><div class="ic"><svg class="ti" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg></div><div class="tt">입양 · 동물등록</div><div class="ds">입양 후 30일 이내 동물등록을 완료하면 진짜 가족이 돼요.</div></div>
   </div>
 </div>
 
@@ -348,7 +372,7 @@ footer .copy{font-size:12.5px;color:var(--sub)}
 
 <div class="overlay" id="overlay">
   <div class="modal" role="dialog" aria-modal="true">
-    <button class="close" onclick="closeModal()" aria-label="닫기">✕</button>
+    <button class="close" onclick="closeModal()" aria-label="닫기"><svg class="ti" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6l-12 12"/><path d="M6 6l12 12"/></svg></button>
     <div class="modal-grid">
       <div class="modal-photo"><img id="mPhoto" alt=""></div>
       <div class="modal-body">
@@ -370,7 +394,12 @@ footer .copy{font-size:12.5px;color:var(--sub)}
 const SVC = "https://www.guri.go.kr/gmapsvr/rest/services/Hosted/pet_stray/FeatureServer/0/query";
 const PAGE = 18;
 const spColor = {'개':'#F08A3C','고양이':'#3FA796','기타':'#8B77C9'};
-const spEmoji = {'개':'🐕','고양이':'🐈','기타':'🐾'};
+const spEmoji = {'개':'🐕','고양이':'🐈','기타':'🐾'}; /* (미사용 — 렌더는 아래 SVG 사용) */
+const svgI=(k,size)=>'<svg class="ti" xmlns="http://www.w3.org/2000/svg" width="'+(size||16)+'" height="'+(size||16)+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+ICONS[k]+'</svg>';
+const ICONS={"pin":"<path d=\"M9 11a3 3 0 1 0 6 0a3 3 0 0 0 -6 0\"/><path d=\"M17.657 16.657l-4.243 4.243a2 2 0 0 1 -2.827 0l-4.244 -4.243a8 8 0 1 1 11.314 0z\"/>","phone":"<path d=\"M5 4h4l2 5l-2.5 1.5a11 11 0 0 0 5 5l1.5 -2.5l5 2v4a2 2 0 0 1 -2 2a16 16 0 0 1 -15 -15a2 2 0 0 1 2 -2\"/>","clock":"<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v5l3 3\"/>","home":"<path d=\"M5 12l-2 0l9 -9l9 9l-2 0\"/><path d=\"M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7\"/><path d=\"M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6\"/>","heart":"<path d=\"M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572\"/>","eye":"<circle cx=\"12\" cy=\"12\" r=\"2\"/><path d=\"M22 12c-2.667 4.667 -6 7 -10 7s-7.333 -2.333 -10 -7c2.667 -4.667 6 -7 10 -7s7.333 2.333 10 7\"/>","paw":"<path d=\"M14.7 13.5c-1.1 -2 -1.441 -2.5 -2.7 -2.5c-1.259 0 -1.6 .5 -2.7 2.5c-.6 1 -1.4 1.4 -2.6 1.5c-1.5 .1 -2.2 1.1 -2.2 2.2c0 1.1 .9 2 2 2c.4 0 .9 -.1 1.3 -.3c1.6 -.8 3.1 -1.1 4.2 -1.1c1.1 0 2.6 .3 4.2 1.1c.4 .2 .9 .3 1.3 .3c1.1 0 2 -.9 2 -2c0 -1.1 -.7 -2.1 -2.2 -2.2c-1.2 -.1 -2 -.5 -2.6 -1.5z\"/><path d=\"M4 8m-1.5 0a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0\"/><path d=\"M9 5m-1.5 0a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0\"/><path d=\"M15 5m-1.5 0a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0\"/><path d=\"M20 8m-1.5 0a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0\"/>","msg":"<path d=\"M8 9h8\"/><path d=\"M8 13h6\"/><path d=\"M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1 -3 3h-5l-5 3v-3h-2a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3h12z\"/>","x":"<path d=\"M18 6l-12 12\"/><path d=\"M6 6l12 12\"/>","route":"<circle cx=\"6\" cy=\"19\" r=\"2\"/><circle cx=\"18\" cy=\"5\" r=\"2\"/><path d=\"M12 19h4.5a3.5 3.5 0 0 0 0 -7h-8a3.5 3.5 0 0 1 0 -7h3.5\"/>"};
+const SIL={"개":"<path d=\"M11 5h2l3 3v3l-1 4l1 5h-3l-1 -4h-2l-1 4h-3l1 -5l-1 -4v-3z\"/><path d=\"M8 8l-2 -3\"/><path d=\"M16 8l2 -3\"/><circle cx=\"10.5\" cy=\"10.5\" r=\".6\" fill=\"currentColor\"/><circle cx=\"13.5\" cy=\"10.5\" r=\".6\" fill=\"currentColor\"/>","고양이":"<path d=\"M12 5l3 -2v4l1 2v6a4 4 0 0 1 -8 0v-6l1 -2v-4z\"/><path d=\"M9.5 12h1\"/><path d=\"M13.5 12h1\"/><path d=\"M12 15l-1 1\"/><path d=\"M12 15l1 1\"/><path d=\"M6 11l3 .5\"/><path d=\"M18 11l-3 .5\"/>","기타":"<path d=\"M14.7 13.5c-1.1 -2 -1.441 -2.5 -2.7 -2.5c-1.259 0 -1.6 .5 -2.7 2.5c-.6 1 -1.4 1.4 -2.6 1.5c-1.5 .1 -2.2 1.1 -2.2 2.2c0 1.1 .9 2 2 2c.4 0 .9 -.1 1.3 -.3c1.6 -.8 3.1 -1.1 4.2 -1.1c1.1 0 2.6 .3 4.2 1.1c.4 .2 .9 .3 1.3 .3c1.1 0 2 -.9 2 -2c0 -1.1 -.7 -2.1 -2.2 -2.2c-1.2 -.1 -2 -.5 -2.6 -1.5z\"/><path d=\"M4 8m-1.5 0a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0\"/><path d=\"M9 5m-1.5 0a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0\"/><path d=\"M15 5m-1.5 0a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0\"/><path d=\"M20 8m-1.5 0a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0\"/>"};
+const spVar={'개':'var(--dog)','고양이':'var(--cat)','기타':'var(--etc)'};
+const spDot=sp=>'<i style="background:'+(spVar[sp]||spVar['기타'])+'"></i>';
 const SHELTER_TEL = {'구리시 반려돌봄센터':'031-566-0059','한국동물구조관리협회':'031-867-9119',
   '남양주시동물보호센터':'031-579-3604','하남동물보호센터':'031-790-5302'};
 /* 보호소 좌표 (하남은 동 단위 근사 — 정확 좌표 확보 시 교체) */
@@ -395,7 +424,7 @@ const ageTxt = s => { const m=(s||'').match(/^(\d{4})/); if(!m) return s||'-';
   const sub=(s.match(/\(([^)]*미만[^)]*)\)/)||[])[1];
   const age=Math.max(0,BASE.getFullYear()-+m[1]);
   return `${m[1]}년생 · ${sub? sub : (age===0?'1살 미만':age+'살 추정')}`; };
-const sexMark = s => s==='수컷'?'<span class="sex m">♂ 수컷</span>':s==='암컷'?'<span class="sex f">♀ 암컷</span>':'<span class="sex u">성별 미상</span>';
+const sexMark = s => s==='수컷'?'<span class="sex">♂ 수컷</span>':s==='암컷'?'<span class="sex">♀ 암컷</span>':'<span class="sex">성별 미상</span>';
 const esc = s => (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 /* ═════════ 상태 ═════════ */
@@ -454,15 +483,13 @@ const isCare = a => a['상태']==='보호중';
     const maxD = parseYmd(maxNotice), today = new Date();
     if(maxD && (today-maxD)/86400000 > 45){ BASE = new Date(maxD.getTime()+86400000); syncStale=true; }
     else BASE = today;
-    $('dataDate').textContent = syncStale
-      ? `데이터 기준일 ${fmtDate(BASE)} · 최근 6개월 공고 · 동기화 가동 대기 중`
-      : `${fmtDate(BASE)} 기준 · 최근 6개월 공고 · 국가동물보호정보시스템 연계`;
+    { const t0=Date.now(); const tick=()=>{ const m=Math.floor((Date.now()-t0)/60000); $('dataDate').textContent=(m<1?'방금 갱신':m+'분 전 갱신')+(syncStale?` · 데이터 기준일 ${fmtDate(BASE)}`:''); }; tick(); setInterval(tick,60000); }
 
     initUI();
   }catch(e){
     console.error(e);
     document.querySelector('.main').insertAdjacentHTML('beforebegin',
-      `<div class="errbox"><div class="errbox-in">😿 데이터를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.<br>
+      `<div class="errbox"><div class="errbox-in">데이터를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.<br>
       <span style="font-size:12px;color:#B08A80">(${esc(e.message)})</span></div></div>`);
     $('cards').innerHTML=''; $('dataDate').textContent='연결 실패';
   }
@@ -476,13 +503,15 @@ function initUI(){
 
   countUp($('heroNum'), care.length);
   countUp($('stCare'), care.length);
-  countUp($('stHome'), homeN);
+  const weekAgo=new Date(BASE.getTime()-7*86400000);
+  const weekN=care.filter(a=>{ const d=parseYmd(a['접수일']||a['공고시']); return d&&d>=weekAgo; }).length;
+  countUp($('stWeek'), weekN);
   countUp($('stUrgent'), urgent.length);
 
   if(urgent.length){
     $('urgentWrap').style.display='block';
     $('urgentItems').innerHTML = urgent.slice(0,10).map(a=>
-      `<span class="item" onclick="openModal('${a['유기번']}')">${spEmoji[a['유기동']]||'🐾'} ${esc(cleanBreed(a['품종']))} <b>${dday(a)===0?'오늘 마감':'D-'+dday(a)}</b></span>`).join('');
+      `<span class="item" onclick="openModal('${a['유기번']}')"><b>${dday(a)===0?'오늘 마감':'D-'+dday(a)}</b>· ${esc(cleanBreed(a['품종']))} <span class="sx">${a['성별']==='수컷'?'♂':a['성별']==='암컷'?'♀':''} ${esc(cleanPlace(a['발견장']).split(' ').slice(-1)[0]||'')}</span></span>`).join('');
   }
 
   /* 축종 칩 카운트(보호중 기준) */
@@ -497,14 +526,19 @@ function initUI(){
   const shelters=[...new Set(ALL.map(a=>a['보호소']).filter(Boolean))];
   $('shelterSel').innerHTML = '<option value="">보호소 전체</option>'+shelters.map(s=>`<option>${esc(s)}</option>`).join('');
   $('shelterSel').addEventListener('change',e=>{ curShelter=e.target.value; shown=PAGE; refresh(); });
-  $('shelterCards').innerHTML = shelters.map(s=>{
-    const rec=ALL.find(a=>a['보호소']===s&&a['보호_1']);
-    const n=care.filter(a=>a['보호소']===s).length;
-    const tel=(rec&&rec['보호_0'])||SHELTER_TEL[s]||'';
-    return `<div class="sh"><span class="cnt-chip">보호 중 ${n}마리</span><div class="nm">${esc(s)}</div>
-      <div class="ad">${esc((rec&&rec['보호_1']||'').trim()||'주소 정보 없음')}</div>
-      ${tel?`<a href="tel:${tel}">📞 ${tel}</a>`:''}</div>`;
-  }).join('');
+  { const main=SHELTERS[0]; const n=care.filter(a=>a['보호소']===main.name).length;
+    const nv=`https://m.map.naver.com/route.nhn?menu=route&ename=${encodeURIComponent(main.name)}&ex=${main.x}&ey=${main.y}&pathType=1`;
+    const others=SHELTERS.slice(1).filter(s=>shelters.includes(s.name)||true);
+    $('shelterCards').innerHTML=`<div class="shelter-card">
+      <div>
+        <div class="nm">${esc(main.name)}<span class="cnt-chip">보호 중 ${n}마리</span></div>
+        <div class="line">${svgI('pin')}<span>${esc(main.addr)}</span></div>
+        <div class="line">${svgI('clock')}<span>운영시간은 전화로 확인해 주세요</span></div>
+        <div class="line">${svgI('phone')}<a href="tel:${main.tel}">${main.tel}</a></div>
+      </div>
+      <div class="btns"><a class="act fill" href="${nv}" target="_blank" rel="noopener">${svgI('route')}길찾기</a><a class="act" href="tel:${main.tel}">${svgI('phone')}전화</a></div>
+    </div>
+    <div class="shelter-more">인근 위탁 보호소 ${others.map(s=>`<a href="tel:${s.tel}">${esc(s.name)} ${s.tel}</a>`).join('')}</div>`; }
 
   $('sortSel').addEventListener('change',()=>{ shown=PAGE; refresh(); });
   $('pastChk').addEventListener('change',e=>{ showPast=e.target.checked; shown=PAGE; refresh(); });
@@ -552,11 +586,11 @@ function filtered(){
 function statusBadge(a){
   if(isCare(a)){ const d=dday(a);
     if(d===null) return '';
-    if(d<0) return `<span class="badge done">공고 종료</span>`;
-    return d<0? `<span class="badge dd done">공고 종료</span>` : `<span class="badge dd ${d<=3?'hot':''}">${d===0?'오늘 마감':'D-'+d}</span>`; }
-  if(a['상태']==='입양') return `<span class="badge adopt">🏡 가족을 만났어요</span>`;
-  if(a['상태']==='반환') return `<span class="badge return">💙 가족 품으로</span>`;
-  return `<span class="badge done">${esc(a['상태'])}</span>`;
+    if(d<0) return `<span class="tag done">공고 종료</span>`;
+    return `<span class="tag ${d<=7?'hot':''}">${d===0?'오늘 마감':'D-'+d}</span>`; }
+  if(a['상태']==='입양') return `<span class="tag adopt">가족을 만났어요</span>`;
+  if(a['상태']==='반환') return `<span class="tag adopt">가족 품으로</span>`;
+  return `<span class="tag done">${esc(a['상태'])}</span>`;
 }
 
 function refresh(){
@@ -564,27 +598,28 @@ function refresh(){
   $('resultN').textContent = `${L.length}마리`;
   const page=L.slice(0,shown);
   $('cards').innerHTML = (page.length? page.map(card).join('') :
-    `<div class="empty"><div class="big">🐾</div>조건에 맞는 아이가 없어요.<br>필터를 조정해 보세요.</div>`)
+    `<div class="empty"><div class="big">${svgI('paw',40)}</div>조건에 맞는 아이가 없어요.<br>필터를 조정해 보세요.</div>`)
     + (L.length>shown? `<div class="more-wrap"><button class="more-btn" onclick="shown+=PAGE;refresh()">더 보기 (${L.length-shown}마리 남음)</button></div>`:'');
   syncMap();
 }
 
 function card(a){
-  const feat=(a['특징']||'').trim();
-  return `<article class="card" onmouseenter="hl('${a['유기번']}',1)" onmouseleave="hl('${a['유기번']}',0)" onclick="openModal('${a['유기번']}')">
+  const feat=(a['특징']||'').trim(), sp=a['유기동']||'기타';
+  return `<article class="card ${a['유기번']===selectedId?'sel':''}" data-id="${a['유기번']}" onmouseenter="hl('${a['유기번']}',1)" onmouseleave="hl('${a['유기번']}',0)" onclick="openModal('${a['유기번']}')">
     <div class="thumb">
       ${a.popfile
         ? `<img src="${httpsify(a.popfile)}" alt="${esc(cleanBreed(a['품종']))}" loading="lazy" onerror="this.remove();this.parentNode.querySelector('.ph').style.display='grid'">`
         : ''}
-      <span class="ph" style="display:${a.popfile?'none':'grid'}">${spEmoji[a['유기동']]||'🐾'}</span>
+      <span class="ph" style="display:${a.popfile?'none':'grid'}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SIL[sp]||SIL['기타']}</svg></span>
       ${statusBadge(a)}
-      <span class="sp-mark">${spEmoji[a['유기동']]||'🐾'}</span>
+      <span class="viewing">${svgI('eye',12)}지도에서 보는 중</span>
+      <span class="sp-mark">${spDot(sp)}${esc(sp)}</span>
     </div>
     <div class="card-b">
-      <div class="t">${esc(cleanBreed(a['품종']))} ${sexMark(a['성별'])}</div>
-      <div class="meta">${ageTxt(a['나이'])} · ${esc(a['체중']||'')}</div>
-      <div class="loc">📍<span>${esc(cleanPlace(a['발견장']))}</span></div>
-      ${feat?`<div class="feat">"${esc(feat)}"</div>`:''}
+      <div class="t"><span class="nm">${esc(cleanBreed(a['품종']))}</span>${sexMark(a['성별'])}</div>
+      <div class="meta">${ageTxt(a['나이'])} · ${esc(a['색상']||'')}${a['체중']?' · '+esc(a['체중']):''}</div>
+      <div class="loc">${svgI('pin',14)}<span>${esc(cleanPlace(a['발견장']))}</span></div>
+      ${feat?`<div class="feat">${esc(feat)}</div>`:''}
     </div>
   </article>`;
 }
@@ -680,7 +715,7 @@ function groupSym(sp,count,hot){
 (function(){
   const el=$('pinLegend'); if(!el) return;
   el.innerHTML=['개','고양이','기타','보호소'].map(k=>
-    `<span style="display:inline-flex;align-items:center;gap:5px"><img src="${SYM_URL[k]}" width="17" height="17" alt="">${k}</span>`).join('');
+    `<span style="display:inline-flex;align-items:center;gap:4px"><img src="${SYM_URL[k]}" width="14" height="14" alt="">${k}</span>`).join('');
 })();
 
 function initMap(){
@@ -729,7 +764,7 @@ function initMap(){
     view=new MapView({container:"map",map,
       extent:{xmin:126.962,ymin:37.474,xmax:127.437,ymax:37.889,
         spatialReference:{wkid:4326}},   /* 구리시 전체가 보이도록 초기 확대 */
-      popupEnabled:false,ui:{components:["zoom"]},constraints:{minZoom:9}});
+      popupEnabled:false,ui:{components:[]},constraints:{minZoom:9}});
 
     /* 베이스맵 폴백 체인: 브이월드 → 바로e맵 → 회색 (화면이 비지 않게) */
     let bmStage=0, ngiiVtl=null;
@@ -770,12 +805,12 @@ function initMap(){
 function showShelterToast(s){
   let t=$('mapToast');
   if(!t){ t=document.createElement('div'); t.id='mapToast';
-    t.style.cssText='position:absolute;left:12px;right:12px;bottom:12px;background:#fff;border:1px solid var(--line);border-left:4px solid #C93100;border-radius:12px;padding:11px 14px;font-size:12.5px;box-shadow:var(--shadow-lg);z-index:10;line-height:1.5';
+    t.style.cssText='position:absolute;left:12px;right:12px;bottom:12px;background:#fff;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:6px;padding:11px 14px;font-size:12.5px;box-shadow:var(--shadow-lg);z-index:10;line-height:1.5';
     document.querySelector('.mapcard').appendChild(t);
     document.querySelector('.mapcard').style.position='relative'; }
-  t.innerHTML=`<b>🏠 ${esc(s.name)}</b><br><span style="color:var(--sub)">${esc(s.addr)}</span>
-    <a href="tel:${s.tel}" style="color:var(--blue);font-weight:700;text-decoration:none;margin-left:8px">📞 ${s.tel}</a>
-    <button onclick="hideShelterToast()" style="position:absolute;top:8px;right:10px;font-size:13px;color:var(--faint)">✕</button>`;
+  t.innerHTML=`<b style="display:inline-flex;align-items:center;gap:5px">${svgI('home')}${esc(s.name)}</b><br><span style="color:var(--sub)">${esc(s.addr)}</span>
+    <a href="tel:${s.tel}" style="color:var(--accent);font-weight:700;text-decoration:none;margin-left:8px;display:inline-flex;align-items:center;gap:4px">${svgI('phone',14)}${s.tel}</a>
+    <button onclick="hideShelterToast()" style="position:absolute;top:8px;right:10px;color:var(--faint);display:grid;place-items:center">${svgI('x',14)}</button>`;
   t.style.display='block';
 }
 function hideShelterToast(){ const t=$('mapToast'); if(t) t.style.display='none'; }
@@ -785,19 +820,19 @@ function showGroupChooser(g){
   hideShelterToast();
   let t=$('groupChooser');
   if(!t){ t=document.createElement('div'); t.id='groupChooser';
-    t.style.cssText='position:absolute;left:12px;right:12px;bottom:12px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow-lg);z-index:11;max-height:320px;display:flex;flex-direction:column;overflow:hidden';
+    t.style.cssText='position:absolute;left:12px;right:12px;bottom:12px;background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:var(--shadow-lg);z-index:11;max-height:320px;display:flex;flex-direction:column;overflow:hidden';
     document.querySelector('.mapcard').appendChild(t);
     document.querySelector('.mapcard').style.position='relative'; }
   const items=g.ids.map(id=>ALL.find(a=>a['유기번']===id)).filter(Boolean);
   t.innerHTML=`<div style="padding:11px 14px;border-bottom:1px solid var(--line);font-size:13px;font-weight:800;display:flex;align-items:center">
-      📍 이 지점의 동물 <span style="color:var(--danger);margin-left:4px">${items.length}마리</span>
-      <button onclick="hideGroupChooser()" style="margin-left:auto;font-size:14px;color:var(--faint)">✕</button></div>
+      ${svgI('pin')}<span style="margin-left:4px">이 지점의 동물</span> <span style="color:var(--accent);margin-left:4px">${items.length}마리</span>
+      <button onclick="hideGroupChooser()" style="margin-left:auto;color:var(--faint);display:grid;place-items:center">${svgI('x',14)}</button></div>
     <div style="overflow-y:auto">${items.map(a=>{
       const d=dday(a);
       const badge=isCare(a)? (d!==null&&d>=0? `<span style="font-size:10.5px;font-weight:800;color:${d<=3?'var(--danger)':'var(--warm)'}">${d===0?'오늘 마감':'D-'+d}</span>`:'')
         : `<span style="font-size:10.5px;color:var(--faint)">${esc(a['상태'])}</span>`;
       return `<div onclick="hideGroupChooser();openModal('${a['유기번']}')" style="display:flex;gap:10px;align-items:center;padding:8px 13px;border-bottom:1px solid #F1F4F8;cursor:pointer">
-        <img src="${httpsify(a.popfile)}" loading="lazy" style="width:42px;height:42px;border-radius:9px;object-fit:cover;background:#EFF2F6" alt="">
+        <img src="${httpsify(a.popfile)}" loading="lazy" style="width:42px;height:42px;border-radius:6px;object-fit:cover;background:#EFF2F6" alt="">
         <div style="min-width:0;flex:1">
           <div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(cleanBreed(a['품종']))} <span style="font-weight:600;color:${a['성별']==='수컷'?'#3B6FD4':a['성별']==='암컷'?'#D9538A':'var(--faint)'}">${a['성별']==='수컷'?'♂':a['성별']==='암컷'?'♀':''}</span></div>
           <div style="font-size:11px;color:var(--sub)">${esc(a['색상']||'')} · ${esc(a['체중']||'')}</div>
@@ -865,10 +900,23 @@ function focusOn(id){
   if(selectedId&&selectedId!==id) hl(selectedId,0,true);   /* 이전 선택 해제 */
   selectedId=id;
   hl(id,1);
+  /* 카드 선택 상태 동기화 + 카드로 스크롤 */
+  document.querySelectorAll('.card.sel').forEach(c=>c.classList.remove('sel'));
+  const cardEl=document.querySelector('.card[data-id="'+id+'"]'); if(cardEl){ cardEl.classList.add('sel'); cardEl.scrollIntoView({block:'nearest'}); }
+  if(matchMedia('(max-width:620px)').matches) $('mapwrap').classList.add('open');
   zoomTo(id,16).then(pt=>{ if(pt) pulseAt(pt.x,pt.y); });
   if(matchMedia('(max-width:1060px)').matches)
     document.getElementById('map').scrollIntoView({behavior:'smooth',block:'center'});
 }
+
+/* 내 위치 (우상단 컨트롤) */
+function locateMe(){
+  if(!navigator.geolocation||!view){ return; }
+  navigator.geolocation.getCurrentPosition(p=>{ const x=p.coords.longitude,y=p.coords.latitude;
+    view.goTo({center:[x,y],zoom:Math.max(view.zoom,15)},{duration:600}).catch(()=>{}).then(()=>pulseAt(x,y)); },()=>{},{enableHighAccuracy:true,timeout:8000});
+}
+/* 모바일: 카드 위 접이식 지도 */
+function toggleMap(){ const w=$('mapwrap'); const on=w.classList.toggle('open'); $('mapToggle').querySelector('span').textContent=on?'지도 접기':'지도 펼치기'; }
 
 /* ═════════ 상세 모달 ═════════ */
 function openModal(id){
@@ -881,16 +929,16 @@ function openModal(id){
   if(isCare(a)){ const d=dday(a);
     if(d===null){ t.textContent='보호 중'; t.className='mtag dd'; }
     else if(d<0){ t.textContent='공고 종료 · 입양 상담 가능'; t.className='mtag done'; }
-    else if(d<0){ t.textContent='공고 종료 · 입양 상담 가능'; t.className='mtag done'; } else{ t.textContent=d===0?'⏰ 오늘 공고 마감':`⏰ 공고 마감 D-${d}`; t.className='mtag dd'+(d<=3?' hot':''); } }
-  else if(a['상태']==='입양'){ t.textContent='🏡 새 가족을 만났어요'; t.className='mtag adopt'; }
-  else if(a['상태']==='반환'){ t.textContent='💙 원래 가족 품으로 돌아갔어요'; t.className='mtag adopt'; }
+    else if(d<0){ t.textContent='공고 종료 · 입양 상담 가능'; t.className='mtag done'; } else{ t.innerHTML=svgI('clock',14)+(d===0?'오늘 공고 마감':`공고 마감 D-${d}`); t.className='mtag dd'+(d<=7?' hot':''); } }
+  else if(a['상태']==='입양'){ t.innerHTML=svgI('heart',14)+'새 가족을 만났어요'; t.className='mtag adopt'; }
+  else if(a['상태']==='반환'){ t.innerHTML=svgI('home',14)+'원래 가족 품으로 돌아갔어요'; t.className='mtag adopt'; }
   else{ t.textContent=a['상태']; t.className='mtag done'; }
   $('mKv').innerHTML=[['나이',ageTxt(a['나이'])],['체중',a['체중']],['색상',a['색상']],['중성화',a['중성화']],
     ['발견 장소',cleanPlace(a['발견장'])],['상태',a['상태']]]
     .map(([k,v])=>`<div><div class="k">${k}</div><div class="v">${esc(v||'-')}</div></div>`).join('');
   const feat=(a['특징']||'').trim();
   $('mFeat').style.display=feat?'block':'none';
-  $('mFeat').innerHTML=feat?`💬 "${esc(feat)}"`:'';
+  $('mFeat').innerHTML=feat?`${svgI('msg')}<span>${esc(feat)}</span>`:'';
   $('mTl').innerHTML=`
     <div class="tl-node"><div class="dot2"></div>접수<br><b>${esc((a['접수일']||'').replace(/년 |월 /g,'.').replace('일',''))}</b></div>
     <div class="tl-line"></div>
@@ -898,9 +946,9 @@ function openModal(id){
     <div class="tl-line"></div>
     <div class="tl-node end"><div class="dot2"></div>공고 종료<br><b>${fmtYmd(a['공고종'])}</b></div>`;
   const tel=(a['보호_0']||SHELTER_TEL[a['보호소']]||'').trim();
-  $('mShel').innerHTML=`<b>🏠 ${esc(a['보호소']||'보호소 정보 없음')}</b>
+  $('mShel').innerHTML=`<b>${svgI('home')}${esc(a['보호소']||'보호소 정보 없음')}</b>
     <div class="addr">${esc((a['보호_1']||'').trim())}</div>
-    ${tel?`<a class="tel" href="tel:${tel}">📞 입양 문의 ${tel}</a>`:''}`;
+    ${tel?`<a class="tel" href="tel:${tel}">${svgI('phone',14)}입양 문의 ${tel}</a>`:''}`;
   $('overlay').classList.add('open');
   document.body.style.overflow='hidden';
   focusOn(id);   /* 팝업과 동시에 지도 확대·심볼 강조 */
@@ -916,7 +964,7 @@ function buildCharts(care){
   if(dates.length) $('statsRange').textContent=`${fmtYmd(dates[0])} ~ ${fmtYmd(dates[dates.length-1])} 공고 기준 · 총 ${ALL.length}건`;
 
   const grp={}; ALL.forEach(a=>{ const k=(a['상태']||'기타').replace('종료(','').replace(')',''); grp[k]=(grp[k]||0)+1; });
-  const palette={'보호중':'#018058','반환':'#3FA796','입양':'#F08A3C','자연사':'#B8C2CE','방사':'#8B77C9','기증':'#D9538A'};
+  const palette={'보호중':'#C8456A','반환':'#3FA796','입양':'#F08A3C','자연사':'#B8C2CE','방사':'#8B77C9','기증':'#D9538A'};
   const items=Object.entries(grp).sort((a,b)=>b[1]-a[1]);
   const total=ALL.length; let off=25, svg='';
   items.forEach(([k,v])=>{ const p=v/total*100, c=palette[k]||'#C5CDD8';
@@ -927,14 +975,14 @@ function buildCharts(care){
     `<div><span class="dot" style="background:${palette[k]||'#C5CDD8'}"></span>${k} <b>${v}</b></div>`).join('');
 
   const spG={}; care.forEach(a=>{ spG[a['유기동']||'기타']=(spG[a['유기동']||'기타']||0)+1; });
-  bars('spBars',Object.entries(spG).sort((a,b)=>b[1]-a[1]).map(([k,v])=>[`${spEmoji[k]||''} ${k}`,v]),'#F08A3C');
+  bars('spBars',Object.entries(spG).sort((a,b)=>b[1]-a[1]).map(([k,v])=>[k,v,({'개':'#F08A3C','고양이':'#8B77C9','기타':'#8A949E'})[k]||'#8A949E']),'#8A949E');
   const shG={}; care.forEach(a=>{ const k=(a['보호소']||'기타').replace('동물보호센터','').replace('한국동물구조관리협회','동물구조협회').replace('구리시 반려돌봄센터','구리 돌봄센터'); shG[k]=(shG[k]||0)+1; });
-  bars('shBars',Object.entries(shG).sort((a,b)=>b[1]-a[1]),'#018058');
+  bars('shBars',Object.entries(shG).sort((a,b)=>b[1]-a[1]),'#C8456A');
 }
 function bars(el,data,color){
   const max=Math.max(...data.map(d=>d[1]),1);
-  $(el).innerHTML=data.map(([k,v])=>
-    `<div class="bar-row"><div>${esc(String(k))}</div><div class="track"><div class="fill" style="width:${v/max*100}%;background:${color}"></div></div><div class="n">${v}</div></div>`).join('');
+  $(el).innerHTML=data.map(([k,v,c])=>
+    `<div class="bar-row"><div>${esc(String(k))}</div><div class="track"><div class="fill" style="width:${v/max*100}%;background:${c||color}"></div></div><div class="n">${v}</div></div>`).join('');
 }
 </script>
 </body>
