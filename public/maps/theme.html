@@ -36,30 +36,57 @@ a{color:inherit}
 .btn-brand:hover{background:var(--brand-hover)}
 .header-right-sep{margin-left:auto}
 
-/* ── 분류 바 (콤보박스 + 칩) ── */
-.chipbar{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:57px;z-index:55}
-.chipbar-in{max-width:none;margin:0;padding:9px 18px;display:flex;gap:7px;align-items:center;overflow-x:auto;scrollbar-width:none}
-.chipbar-in::-webkit-scrollbar{display:none}
-.group-sel{flex:none;appearance:none;-webkit-appearance:none;border:1.5px solid var(--accent);color:#fff;background:var(--accent);
-  border-radius:22px;padding:7px 32px 7px 15px;font-size:13.5px;font-weight:700;font-family:inherit;cursor:pointer;
-  background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23fff' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
-  background-repeat:no-repeat;background-position:right 13px center;transition:background-color .15s}
-.group-sel:hover{filter:brightness(.92)}
-.chip{flex:none;display:flex;align-items:center;gap:5px;border:1.5px solid var(--line);background:#fff;
-  border-radius:22px;padding:6px 11px;font-size:12.8px;font-weight:700;color:var(--sub);transition:all .13s;white-space:nowrap}
-.chip:hover{transform:translateY(-1px);box-shadow:var(--shadow);border-color:#BFD8CE}
-.chip img{width:17px;height:17px}
-.chip .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
-.chip .cnt{font-size:11px;opacity:.7;font-weight:600}
-.chip.on{color:#fff}
-.chip.on[data-k="전체"]{background:var(--accent)!important;border-color:var(--accent)!important}
-.chip.soon{border-style:dashed;color:var(--faint)}
-.chip.soon .lbl-soon{font-size:10px;font-weight:700;color:#fff;background:#B9C6BF;border-radius:10px;padding:1px 7px}
+/* ── 세그먼트 밴드 (그룹 색 배경 + 테마 세그먼트) ── */
+.chipbar{position:sticky;top:57px;z-index:55;height:96px;color:#fff;
+  background-color:var(--accent);
+  background-image:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.2)); /* = color-mix(accent 80%, #000) 로 내려가는 그라데이션 */
+  transition:background-color .25s}
+.chipbar-in{position:relative;display:flex;align-items:stretch;height:100%;max-width:none;margin:0;padding:0;overflow:hidden}
+.chipbar-in::after{content:'';position:absolute;right:0;top:0;bottom:0;width:36px;pointer-events:none;
+  background:linear-gradient(90deg,rgba(0,0,0,0),rgba(0,0,0,.22))} /* 가로 스크롤 힌트 */
+/* 그룹 선택 블록 */
+.group-sel{flex:none;display:flex;align-items:center;gap:10px;padding:0 16px 0 18px;border-right:1px solid rgba(255,255,255,.25);
+  color:#fff;cursor:pointer;user-select:none;transition:background .15s}
+.group-sel:hover{background:rgba(255,255,255,.1)}
+.group-sel img{width:34px;height:34px;border-radius:9px;background:rgba(255,255,255,.18);display:block}
+.group-sel .gs-txt{display:flex;flex-direction:column;line-height:1.15}
+.group-sel .gs-lbl{font-size:11px;font-weight:700;letter-spacing:.06em;opacity:.75}
+.group-sel #groupTx{font-size:18px;font-weight:800;white-space:nowrap}
+.group-sel .ar{width:0;height:0;border-left:4.5px solid transparent;border-right:4.5px solid transparent;border-top:5.5px solid #fff;margin-left:4px}
+/* 테마 세그먼트 */
+.segs{display:flex;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none}
+.segs::-webkit-scrollbar{display:none}
+.chip{flex:1 1 0;min-width:104px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  padding:6px 8px;border:0;border-right:1px solid rgba(255,255,255,.14);border-radius:0;background:transparent;color:#fff;
+  font-size:13.5px;font-weight:700;line-height:1.15;white-space:nowrap;cursor:pointer;transition:background .15s,color .15s}
+.chip:last-child{border-right:0}
+.chip:hover{background:rgba(255,255,255,.12)}
+.chip img{width:30px;height:30px;border-radius:8px;display:block}
+.chip .dot{width:14px;height:14px;border-radius:50%;display:block;margin:8px 0}
+.chip .seg-nm{font-size:13.5px;font-weight:700}
+.chip .cnt{font-size:11px;font-weight:600;opacity:.75}
+.chip.all{flex:0 0 auto;width:96px;min-width:0;max-width:96px;background:rgba(0,0,0,.14)}
+.chip.all .seg-nm{font-size:14px}
+.chip.on,.chip.on:hover{background:#fff;color:var(--accent)}
+.chip.on .cnt{color:var(--accent);opacity:.85}
+.chip.soon{opacity:.45;border-top:2px dashed rgba(255,255,255,.7)}
+.chip.soon .lbl-soon{font-size:10px;font-weight:700;color:#fff;background:rgba(255,255,255,.25);border-radius:10px;padding:1px 7px}
+.chip.link .seg-nm{text-decoration:underline;text-underline-offset:2px}
+/* 그룹 메뉴 (드롭다운) */
+.group-menu{display:none;position:absolute;z-index:80;background:#fff;border:1px solid var(--line);border-radius:14px;
+  box-shadow:var(--shadow-lg);padding:6px;min-width:190px;max-height:70vh;overflow:auto;color:var(--ink)}
+.group-menu.open{display:block}
+.group-menu button{display:flex;align-items:center;gap:9px;width:100%;padding:8px 10px;border-radius:10px;
+  font-size:13.5px;font-weight:700;color:var(--ink);text-align:left}
+.group-menu button:hover{background:var(--accent-soft)}
+.group-menu button.on{background:var(--accent);color:#fff}
+.group-menu img{width:24px;height:24px;border-radius:8px;display:block}
+.group-menu .gm-dot{width:9px;height:9px;border-radius:50%;flex:none;margin-left:auto;box-shadow:0 0 0 2px rgba(255,255,255,.6)}
 
 /* ── 본문 ── */
-.main{max-width:none;margin:0;display:flex;min-height:calc(100vh - 110px)}
+.main{max-width:none;margin:0;display:flex;min-height:calc(100vh - 153px)}
 .panel{width:352px;flex:none;background:#fff;border-right:1px solid var(--line);display:flex;flex-direction:column;
-  max-height:calc(100vh - 110px);position:sticky;top:110px}
+  max-height:calc(100vh - 153px);position:sticky;top:153px}
 .panel-head{padding:14px 16px 0}
 .info-block{background:var(--accent-soft);border-radius:var(--radius);padding:11px 14px;font-size:12.5px;color:var(--accent);filter:saturate(1.05);line-height:1.55;word-break:keep-all}
 .near-btn{width:100%;margin-top:10px;border:1.5px solid var(--accent);color:var(--accent);background:#fff;
@@ -163,9 +190,19 @@ a{color:inherit}
 /* ── 반응형: 네이버지도식 바텀시트 ── */
 @media (max-width:900px){
   .topbar{position:static}
-  .chipbar{top:0}
+  .chipbar{top:0;height:84px}
+  .group-sel{padding:0 12px;gap:8px}
+  .group-sel img{width:28px;height:28px}
+  .group-sel .gs-lbl{display:none}
+  .group-sel #groupTx{font-size:15px}
+  .chip{min-width:84px}
+  .chip img{width:26px;height:26px}
+  .chip .seg-nm{font-size:12px}
+  .chip .cnt{font-size:10px}
+  .chip.all{width:72px;max-width:72px}
+  .chip.all .seg-nm{font-size:12.5px}
   .main{display:block}
-  .mapwrap{position:sticky;top:52px;height:calc(100dvh - 52px);min-height:0;z-index:30}
+  .mapwrap{position:sticky;top:84px;height:calc(100dvh - 84px);min-height:0;z-index:30}
   .panel{position:fixed;left:0;right:0;bottom:0;top:auto;z-index:45;width:100%;
     height:82dvh;max-height:none;border-right:none;border-top:none;
     border-radius:20px 20px 0 0;box-shadow:0 -10px 34px rgba(20,40,32,.22);
@@ -184,20 +221,6 @@ a{color:inherit}
   .locate-hint{top:10px;right:10px;font-size:11px}
 }
 
-/* ── 주제 콤보박스(아이콘 포함) ── */
-.group-sel{flex:none;display:inline-flex;align-items:center;gap:7px;border:1.5px solid var(--accent);color:#fff;background:var(--accent);
-  border-radius:22px;padding:6px 14px 6px 9px;font-size:13.5px;font-weight:700;cursor:pointer;user-select:none;transition:background-color .15s;position:relative}
-.group-sel:hover{filter:brightness(.92)}
-.group-sel img{width:22px;height:22px;border-radius:7px;display:block;background:rgba(255,255,255,.18)}
-.group-sel .ar{width:0;height:0;border-left:4.5px solid transparent;border-right:4.5px solid transparent;border-top:5.5px solid #fff;margin-left:2px}
-.group-menu{display:none;position:absolute;z-index:80;background:#fff;border:1px solid var(--line);border-radius:14px;
-  box-shadow:var(--shadow-lg);padding:6px;min-width:190px;max-height:70vh;overflow:auto}
-.group-menu.open{display:block}
-.group-menu button{display:flex;align-items:center;gap:9px;width:100%;padding:8px 10px;border-radius:10px;
-  font-size:13.5px;font-weight:700;color:var(--ink);text-align:left}
-.group-menu button:hover{background:var(--accent-soft)}
-.group-menu button.on{background:var(--accent);color:#fff}
-.group-menu img{width:24px;height:24px;border-radius:8px;display:block}
 
 /* ── 팝업(정보카드) 보강 ── */
 .infocard .pimg{width:100%;height:200px;object-fit:cover;border-radius:12px;margin-bottom:9px;display:block;background:#EEF2F0}
@@ -261,8 +284,8 @@ a{color:inherit}
 </header>
 
 <div class="chipbar"><div class="chipbar-in">
-  <div class="group-sel" id="groupSel" tabindex="0" role="button" aria-haspopup="listbox" aria-label="분류 선택"><img id="groupIc" alt=""><span id="groupTx"></span><i class="ar"></i></div><div class="group-menu" id="groupMenu" role="listbox"></div>
-  <span id="chips" style="display:flex;gap:7px"></span>
+  <div class="group-sel" id="groupSel" tabindex="0" role="button" aria-haspopup="listbox" aria-label="분류 선택"><img id="groupIc" alt=""><span class="gs-txt"><span class="gs-lbl">테마</span><span id="groupTx"></span></span><i class="ar"></i></div><div class="group-menu" id="groupMenu" role="listbox"></div>
+  <span id="chips" class="segs"></span>
 </div></div>
 
 <div class="main">
@@ -1311,7 +1334,7 @@ function annotateDongs(rows){
   const menu=$('groupMenu'), btn=$('groupSel');
   menu.innerHTML=Object.keys(GROUPS).map(g=>{
     const ic=TOPIC_IC[GROUPS[g].icon];
-    return `<button data-g="${g}">${ic?`<img src="${ic}" alt="">`:''}${g}</button>`; }).join('');
+    return `<button data-g="${g}">${ic?`<img src="${ic}" alt="">`:''}${g}<span class="gm-dot" style="background:${GROUPS[g].accent||'var(--brand)'}"></span></button>`; }).join('');
   menu.querySelectorAll('button').forEach(b=>b.onclick=()=>{
     closeMenu();
     Promise.resolve(setGroup(b.dataset.g,'전체',true))
@@ -1676,19 +1699,14 @@ function renderChips(){
   const themes=groupThemes(curGroup);
   const readyTotal=Object.values(themes).filter(t=>t.src)
     .reduce((s,t)=>s+rowsFor(t).length,0);
-  let html=`<button class="chip ${curCat==='전체'?'on':''}" data-k="전체"
-    style="${curCat==='전체'?'background:var(--brand);border-color:var(--brand)':''}">전체 <span class="cnt">${readyTotal||''}</span></button>`;
+  let html=`<button class="chip all ${curCat==='전체'?'on':''}" data-k="전체"><span class="seg-nm">전체</span><span class="cnt">${readyTotal||''}</span></button>`;
   html+=Object.entries(themes).filter(([k,t])=>!t.chipHide).map(([k,t])=>{
     const on=k===curCat, n=t.src?rowsFor(t).length:null;
     if(t.type==='link')
-      return `<button class="chip" data-k="${k}" style="border-color:${t.c};color:${t.c}">
-        ${t.short||k} <span style="font-size:11px">↗</span></button>`;
+      return `<button class="chip link" data-k="${k}"><span class="dot" style="background:${t.c}"></span><span class="seg-nm">${t.short||k} ↗</span></button>`;
     if(!t.src)
-      return `<button class="chip soon" data-k="${k}"><span class="dot" style="background:${t.c};opacity:.4"></span>${t.short||k} <span class="lbl-soon">준비중</span></button>`;
-    return `<button class="chip ${on?'on':''}" data-k="${k}"
-      style="${on?`background:${t.c};border-color:${t.c}`:''}">
-      <img src="${symUrl(k)}" alt="">
-      ${t.short||k} <span class="cnt">${n??''}</span></button>`;
+      return `<button class="chip soon" data-k="${k}"><span class="dot" style="background:${t.c}"></span><span class="seg-nm">${t.short||k}</span><span class="lbl-soon">준비중</span></button>`;
+    return `<button class="chip ${on?'on':''}" data-k="${k}"><img src="${symUrl(k)}" alt=""><span class="seg-nm">${t.short||k}</span><span class="cnt">${n??''}</span></button>`;
   }).join('');
   $('chips').innerHTML=html;
   $('chips').querySelectorAll('.chip').forEach(b=>b.onclick=()=>setCat(b.dataset.k));
