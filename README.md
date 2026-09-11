@@ -24,3 +24,13 @@ npm run dev
 - **확장형 primary**: 구리시 초록 `#018058` 을 50단계로 두고, KRDS 기본 primary(블루)의 단계별 OKLCH 명도 곡선을 유지한 채 색상·채도만 바꿔 5~95 팔레트를 만들어 `--krds-color-light-primary-*` 를 덮어썼습니다. 60단계는 버튼 호버 `#01573C`. 명도 대비는 KRDS 매직넘버 기준으로 50단계 vs 흰색 4.96:1(4.5:1 이상), 40단계 vs 흰색 3.23:1(3:1 이상) 입니다.
 - **서체**: `public/fonts` 의 Pretendard GOV(Regular/Medium/Bold, woff2) 를 `@font-face` 로 선언해 본문 기본 서체로 씁니다.
 - **컴포넌트**: 마스트헤드·건너뛰기 링크·헤더·푸터·기관 식별자·버튼·태그는 KRDS HTML 컴포넌트 키트의 마크업 구조(`#krds-masthead`, `#krds-header`, `#krds-footer`, `.krds-btn`, `.krds-btn-tag` …)를 따르되, 540KB 짜리 컴포넌트 CSS 를 통째로 넣지 않고 필요한 규칙만 토큰 기반으로 `globals.css` 에 구현했습니다. 다크모드·고대비 모드는 아직 적용하지 않았습니다.
+
+## 공동 작업
+
+- 각자 별도로 clone한 폴더를 사용합니다. 같은 폴더를 여러 편집 도구나 에이전트가 동시에 수정하지 않습니다.
+- 작업 시작 전 `git status`와 `git fetch origin`으로 변경 여부를 확인합니다. 깨끗한 main에서 `git pull --ff-only origin main` 후 `git switch -c 작업브랜치명`으로 작업별 브랜치를 만듭니다.
+- 커밋 전 diff를 검토하고 변경에 맞는 검사와 `npm run build`를 실행합니다. 본인 작업 파일만 지정해 stage합니다.
+- 작업 브랜치를 push하고 GitHub Pull Request로 검토·병합합니다. main 강제 push와 다른 사람의 변경을 덮어쓰는 reset은 하지 않습니다.
+- 원격 변경과 이력이 갈라졌으면 자동으로 밀어 넣지 않고 차이를 확인해 작업 브랜치에서 충돌을 해결합니다.
+- 각 clone에서 `git config --local pull.ff only`를 설정하면 실수로 pull 병합 커밋을 만드는 것을 막을 수 있습니다. 이는 GitHub 브랜치 보호 설정을 대신하지 않습니다.
+- 로컬 개발 화면과 운영 배포본은 별개입니다. 운영 반영 여부는 따로 확인합니다.
