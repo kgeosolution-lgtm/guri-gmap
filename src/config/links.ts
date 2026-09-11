@@ -1,8 +1,9 @@
 import { siteConfig } from './site.config';
 
-/** theme.html 의 GROUPS 키와 동일해야 한다. (2026-09-10 kgeodata.com/guri/theme.html 기준) */
+/** theme.html 의 GROUPS 키와 동일해야 한다. (2026-09-11 public/maps/theme.html 기준) */
 export type ThemeGroup =
-  | '여름'
+  | '시즌·여름'
+  | '시즌·가을'
   | '안전·재난'
   | '건강·의료'
   | '육아·교육'

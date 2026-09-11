@@ -44,11 +44,11 @@ export const seasonConfig: Record<SeasonKey, SeasonTheme> = {
     titleColor: '#083D43',
     eyebrow: '초록과 강바람이 반가운 여름',
     featuredItems: [
-      { title: '한강 물놀이 쉼터', href: themeUrl('여름') },
-      { title: '시원한 실내 문화공간', href: themeUrl('여름') },
-      { title: '무더위 쉼터 찾기', href: themeUrl('여름') },
-      { title: '여름철 안전 정보', href: themeUrl('여름') },
-      { title: '야간 산책 코스', href: themeUrl('여름') },
+      { title: '한강 물놀이 쉼터', href: themeUrl('시즌·여름') },
+      { title: '시원한 실내 문화공간', href: themeUrl('시즌·여름') },
+      { title: '무더위 쉼터 찾기', href: themeUrl('시즌·여름') },
+      { title: '여름철 안전 정보', href: themeUrl('시즌·여름') },
+      { title: '야간 산책 코스', href: themeUrl('시즌·여름') },
     ],
   },
   autumn: {
@@ -61,7 +61,7 @@ export const seasonConfig: Record<SeasonKey, SeasonTheme> = {
     titleColor: '#472B20',
     eyebrow: '천천히 걷고 싶은 구리의 가을',
     featuredItems: [
-      { title: '아차산 단풍 산책', href: null },
+      { title: '아차산 단풍 산책', href: themeUrl('시즌·가을') },
       { title: '구리 코스모스 축제', href: null },
       { title: '가을 문화행사', href: null },
       { title: '우리동네 전통시장', href: null },

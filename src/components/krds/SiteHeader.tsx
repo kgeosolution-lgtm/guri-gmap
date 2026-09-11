@@ -11,7 +11,7 @@ export function SiteHeader({
   active?: string;
 }) {
   const links = [
-    { label: '테마지도', href: themeUrl('여름') },
+    { label: '테마지도', href: themeUrl('시즌·여름') },
     { label: '유기동물 찾기', href: animalUrl() },
     { label: 'G-MAP 소개', href: homeUrl('#about') },
   ];
