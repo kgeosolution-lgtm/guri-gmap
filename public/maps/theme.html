@@ -379,7 +379,7 @@ const F={
    pop=팝업에 보여줄 줄 [아이콘, 라벨, 필드후보]
    op=운영상태 배지 계산(line1=기간, line2=시간) */
 const GROUPS={
- '시즌·여름':{ icon:'여름', accent:'#067DB3', webmap:'', themes:{   /* 웹맵 미사용 */
+ '시즌·여름':{ hidden:true, icon:'여름', accent:'#067DB3',   /* 비활성화: 메뉴·기본 그룹에서 숨김(URL 직접 접근은 가능) */ webmap:'', themes:{   /* 웹맵 미사용 */
    '물놀이장':{listTime:true,c:'#00A9C0',sym:'summer_waterplay',type:'cards',op:true,label:true,src:{url:U('summer_waterplay')},
      fields:{line1:['운영기간','운영정보','기간'],line2:['운영시간','가동시간','시간','구분']},
      chips:[{t:'☔ 비 오는 날 휴장'}],
@@ -1432,7 +1432,8 @@ function opStatus(r,t){
 }
 
 /* ════════ 상태 ════════ */
-let curGroup=Object.keys(GROUPS)[0], curCat='전체', sortMode='name', myLoc=null, selectedRow=null, curQ='', curDong='';
+const visibleGroups=()=>Object.keys(GROUPS).filter(g=>!GROUPS[g].hidden);   /* hidden:true 그룹 제외 */
+let curGroup=visibleGroups()[0], curCat='전체', sortMode='name', myLoc=null, selectedRow=null, curQ='', curDong='';
 const DEBUG=/[?&]debug=1/.test(location.search);
 const layerUrl={};    /* 서비스 루트 → 실제 레이어 URL */
 const joinCache={};   /* 팝업 보조 레이어 rows */
@@ -1502,7 +1503,7 @@ function annotateDongs(rows){
 /* ════════ 초기화 ════════ */
 (function initGroupSel(){
   const menu=$('groupMenu'), btn=$('groupSel');
-  menu.innerHTML=Object.keys(GROUPS).map(g=>{
+  menu.innerHTML=visibleGroups().map(g=>{
     const ic=TOPIC_IC[GROUPS[g].icon];
     return `<button data-g="${g}">${ic?`<img src="${ic}" alt="">`:''}${g}<span class="gm-dot" style="background:${GROUPS[g].accent||'var(--brand)'}"></span></button>`; }).join('');
   menu.querySelectorAll('button').forEach(b=>b.onclick=()=>{
@@ -1537,7 +1538,7 @@ function setGroupLabel(g){
   const p=new URLSearchParams(location.search);
   let g=p.get('group'), c=p.get('cat');
   if(!g&&c){ for(const gg of Object.keys(GROUPS)) if(GROUPS[gg].themes[c]){g=gg;break;} }
-  setGroup(g&&GROUPS[g]?g:Object.keys(GROUPS)[0], c||'전체', false);
+  setGroup(g&&GROUPS[g]?g:visibleGroups()[0], c||'전체', false);
 })();
 
 function updateUrl(){
@@ -2156,8 +2157,9 @@ require(["esri/config","esri/Map","esri/Basemap","esri/WebMap","esri/views/MapVi
   mapObj=map; baseMapObj=map;
   myOverlays=[maskLayer,dong,bndHalo,bnd,dongLayer,labelLayer,pulseLayer,gLayer,meLayer];
   view=new MapView({container:"map",map,extent:CITY.extent,
-    popupEnabled:false,ui:{components:[]},constraints:{minZoom:10}});
-  view.when(()=>{                                  /* 시작 화면을 기준으로 저장 */
+    popupEnabled:false,ui:{components:[]},constraints:{minZoom:10,snapToZoom:false}});   /* 소수점 배율 허용(전체보기 맞춤) */
+  view.when(()=>{                                  /* 시작 화면: 전체보기와 같은 배율로 맞춘 뒤 저장 */
+    try{ const f=cityFit(); view.center=f.center; view.zoom=f.zoom; }catch(e){}
     INIT_VIEW={center:[view.center.longitude,view.center.latitude],zoom:view.zoom};
     console.log('[시작 화면] 배율',INIT_VIEW.zoom);
   });
@@ -2405,26 +2407,25 @@ function normGeom(geom){
 async function resetView(why){
   for(let i=0;i<20&&!view;i++) await new Promise(r=>setTimeout(r,100));
   if(!view){ console.warn('[전체보기] 지도가 준비되지 않았어요',why); return false; }
-  if(INIT_VIEW){                                   /* 앱을 처음 켰을 때와 같은 화면으로 */
-    try{ await view.goTo({center:INIT_VIEW.center,zoom:INIT_VIEW.zoom},{duration:600});
-         console.log('[전체보기]',why,'배율',INIT_VIEW.zoom); return true; }
-    catch(err){ console.warn('[전체보기] 실패',String((err&&err.message)||err)); }
-    try{ view.center=INIT_VIEW.center; view.zoom=INIT_VIEW.zoom; return true; }catch(e2){}
-  }
-  const e=CITY.extent;
-  const cx=(e.xmin+e.xmax)/2, cy=(e.ymin+e.ymax)/2;
-  /* 화면 크기에 맞춰 구리시 경계가 꽉 차게 들어오는 배율 계산 */
-  const dx=Math.max(e.xmax-e.xmin,1e-4), dy=Math.max(e.ymax-e.ymin,1e-4);
-  const W=(view.width||1200), H=(view.height||800), M=1.05;   /* 여백 5% */
-  const cos=Math.cos(cy*Math.PI/180);
-  const zx=Math.log2(360*W/(256*dx*M));
-  const zy=Math.log2(360*H*cos/(256*dy*M));
-  const z=Math.max(10,Math.min(15,Math.min(zx,zy)));          /* 소수점 배율 그대로 */
+  try{ await view.when(); }catch(e0){}               /* 준비 전 goTo 는 animation 오류를 낸다 */
+  /* 시작 화면(INIT_VIEW)으로 되돌리지 않고, 현재 지도 크기에 맞춘 구리시 경계 배율을 매번 다시 계산한다 */
+  const f=cityFit(), cx=f.center[0], cy=f.center[1], z=f.zoom;
   try{ await view.goTo({center:[cx,cy],zoom:z},{duration:600});
        console.log('[전체보기]',why,'배율',z); return true; }
   catch(err){ console.warn('[전체보기] 실패',String((err&&err.message)||err)); }
   try{ view.center=[cx,cy]; view.zoom=z; console.log('[전체보기] 직접지정',why); return true; }catch(e2){}
   return false;
+}
+/* 구리시 경계가 지도에 여유 있게 들어오는 중심·배율 (소수점 배율, 시작 화면과 전체보기가 함께 쓴다) */
+function cityFit(){
+  const e=CITY.extent;
+  const cx=(e.xmin+e.xmax)/2, cy=(e.ymin+e.ymax)/2;
+  const dx=Math.max(e.xmax-e.xmin,1e-4), dy=Math.max(e.ymax-e.ymin,1e-4);
+  const W=(view&&view.width)||1200, H=(view&&view.height)||800, M=1.10;   /* 여백 10% */
+  const cos=Math.cos(cy*Math.PI/180);
+  const zx=Math.log2(360*W/(256*dx*M));
+  const zy=Math.log2(360*H*cos/(256*dy*M));
+  return {center:[cx,cy], zoom:Math.max(10,Math.min(15,Math.min(zx,zy)))};
 }
 async function moveToGeom(geom,label){
   if(!view||!geom) return false;

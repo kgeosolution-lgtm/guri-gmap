@@ -19,11 +19,19 @@ export interface ThemeGroupItem {
   color: string;
   /** 그룹에 들어 있는 대표 테마 (theme.html GROUPS 기준) */
   summary: string;
+  /** true 면 홈 카드·검색에서 숨김 (theme.html 의 hidden 과 맞춘다) */
+  hidden?: boolean;
 }
 
 /** theme.html 의 GROUPS 순서 그대로. 연한 배경 위 아이콘 색이라 원색을 쓴다(테마지도 accent 는 흰 글자 대비용 보정값). */
-export const themeGroups: ThemeGroupItem[] = [
-  { group: '시즌·여름', icon: Sun, color: '#1FA2DE', summary: '물놀이장·무더위쉼터·그늘막' },
+const themeGroupsAll: ThemeGroupItem[] = [
+  {
+    group: '시즌·여름',
+    icon: Sun,
+    color: '#1FA2DE',
+    summary: '물놀이장·무더위쉼터·그늘막',
+    hidden: true,
+  },
   { group: '시즌·가을', icon: Leaf, color: '#C1652B', summary: '구리 명소·둘레길·등산로' },
   { group: '안전·재난', icon: ShieldCheck, color: '#E5533C', summary: '대피소·AED·CCTV' },
   { group: '건강·의료', icon: Stethoscope, color: '#2E9E5B', summary: '약국·병의원·예방접종' },
@@ -34,3 +42,6 @@ export const themeGroups: ThemeGroupItem[] = [
   { group: '반려동물', icon: PawPrint, color: '#F0608A', summary: '동물병원·유기동물' },
   { group: '교통', icon: Bus, color: '#5B6C7E', summary: '버스정류장·공사·통제' },
 ];
+
+/** 홈에 보이는 그룹. 비활성화(hidden) 그룹은 제외 */
+export const themeGroups: ThemeGroupItem[] = themeGroupsAll.filter((g) => !g.hidden);
