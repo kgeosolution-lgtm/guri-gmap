@@ -143,3 +143,9 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 호환: `?group=여름` 예전 주소는 GROUPS 첫 항목 fallback으로 `시즌·여름`이 열립니다.
 - 브랜치: `work/kangmina-dulle-course` (둘레길 코스 커밋 5447496 위에 추가).
 - 검증: `npm run build`, `npm run build:deploy`, `tsc --noEmit`, prettier(eol auto), `git diff --check` 통과. 로컬 `?group=시즌·가을`에서 4개 칩(명소 19·둘레길 7·등산로 442·등산로시설 928), 그룹 메뉴 가을 아이콘, 명소 팝업(사진 6장·편의시설 칩·소개·가는 길·전화) 확인. 홈에 시즌·가을 카드 노출 확인. 콘솔 오류 없음(기존 `animation` 경고만 있음). 운영 배포는 수행하지 않았습니다.
+
+## 2026-09-11 목록 상태 배지 정리·긴 팝업 스크롤
+
+- 목록 배지: `rowStatus`가 모든 `statusFn` 결과를 영업중/종료로 바꿔 보여 주던 것을, 운영시간 기준 테마만 표시하도록 제한했습니다. `op:true` 테마(운영시간 계산)와 `listStatus:true`로 지정한 테마(AED, 약국, 병의원, 교통 공사·통제)만 배지가 나옵니다. 구리 명소(휴무일 존재), 전기차 충전소(빈 충전기 없음), 유기동물 보호현황(처리 상태)은 배지가 사라지며, 팝업의 상태 문구는 그대로입니다. 휴무·휴장 상태는 "휴무"로 표시합니다.
+- 팝업 스크롤: PC에서 `.infocard`에 `max-height:calc(100% - 24px); overflow-y:auto`를 주어 지도 높이를 넘는 팝업은 안에서 스크롤됩니다. 900px 이하 태블릿 폭 규칙(`bottom:160px`)에도 같은 상한을 넣었습니다. 모바일 56dvh 규칙은 기존 그대로입니다.
+- 검증: 로컬 1280×800에서 명소 19건·전기차 330건 목록 배지 0개, 약국 108건은 영업중 93·종료 15 유지. 건원릉 팝업이 지도 안(상단 165px~하단 788px)에 머물고 내용 1060px을 스크롤(439px 이동) 확인. 콘솔 오류 없음. `npm run build`, `build:deploy`, `git diff --check` 통과.
