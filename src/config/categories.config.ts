@@ -62,7 +62,7 @@ export const quickFinder: LinkedCard[] = [
     description: '가까운 안전쉼터',
     icon: Accessibility,
     color: '#5A7AE6',
-    href: themeUrl('시즌·여름'),
+    href: themeUrl('안전·재난'),
   },
   {
     id: 'parking',
