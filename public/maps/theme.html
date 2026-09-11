@@ -808,10 +808,12 @@ const GROUPS={
      pop:[['⏰','영업시간',['영업시간','운영시간']],['🚪','휴무일',['휴무일','정기휴무']]],
      info:'전통시장·마트 위치입니다.'},
    '와구리 추천맛집':{short:'추천맛집',c:'#D9538A',sym:'econ_waguri',type:'list',src:{url:U('econ_waguri')},
+     fields:{name:['영업소명','업소명','상호','상호명','업체명']},
      chips:[{from:['대표메뉴','주메뉴','메뉴'],pre:'🍽️ '}],
      guide:'와구리가 추천하는 우리 동네 맛집이에요',
-     pop:[['ℹ️','안내',['추가정보','비고']]],
-     hidePat:/구분|분류|업종/,
+     pop:[['📅','지정년도',(r,pv)=>{ const v=pv(r,['지정년도','지정연도'],true) ?? pv(r,['추가정보','비고']);
+            return valOK(v)? String(v) : null; }]],
+     hidePat:/구분|분류|업종|연번|지정년도|지정연도|비고|추가정보/,
      info:'와구리가 추천하는 우리 동네 맛집입니다.'}
  }},
  '문화·여가':{ icon:'문화여가', accent:'#0C865D', themes:{
@@ -819,9 +821,21 @@ const GROUPS={
      fields:{line1:['행사기간','기간','행사일시'],line2:['행사장소','장소','개최장소']},
      pop:[['📅','기간',['행사기간','기간','행사일시']],['📍','장소',['행사장소','장소','개최장소']],['🏛️','주최',['주최','주관','주최기관']],['🔗','자세히',['홈페이지','url','상세링크']]],
      info:'구리에서 열리는 축제·행사입니다.'},
-   '둘레길':{c:'#3FA796',sym:'culture_dulle',type:'list',pair:'둘레길 시설물',src:{url:U('culture_dulle')},
+   '둘레길':{c:'#3FA796',sym:'culture_dulle',type:'list',pair:'둘레길 시설물',colorBy:'course',
+     src:{url:U('culture_dulle')},
      fields:{name:['길이름','코스명','노선명','명칭']},
-     listSub:(r,pv)=>{ const v=pv(r,['코스설명','설명','비고','구간']); return valOK(v)? String(v) : null; },
+     nameFn:(r,pv)=>{ const nm=pv(r,['길이름','코스명','노선명','명칭'])||'둘레길';
+       const n=courseNo(r,pv);
+       const s=String(nm);
+       return (n && s.indexOf(n+'코스')<0)? `${n}코스 ${s}` : s; },
+     colorFn:(r,pv)=>courseColor(r,pv,'#3FA796'),
+     guideFn:(r,pv)=>{ const n=courseNo(r,pv), c=n&&COURSE_INFO[n];
+       if(c) return esc(c.sub);
+       const v=pv(r,['코스설명','설명','비고']);
+       return valOK(v)? String(v) : '구리 곳곳을 잇는 둘레길이에요<br>표지판을 따라 걸어보세요'; },
+     listSub:(r,pv)=>{ const n=courseNo(r,pv), c=n&&COURSE_INFO[n];
+       if(c&&c.sub) return c.sub;
+       const v=pv(r,['코스설명','설명','비고','구간']); return valOK(v)? String(v) : null; },
      listFn:(r,pv)=>{ const a=pv(r,['구간길이','거리','총연장']), b=pv(r,['시간','소요시간']);
        return [valOK(a)?'📏 '+a:null,valOK(b)?'🕐 '+b:null].filter(Boolean).join('  ')||null; },
      chips:[{from:['코스','코스명','구간']},{from:['난이도','등급']}],
@@ -829,7 +843,10 @@ const GROUPS={
           ['🕐','소요시간',['시간','소요시간']],
           ['ℹ️','코스설명',['코스설명','설명','비고']]],
      info:'구리 둘레길 코스와 코스 위 시설을 함께 보여줍니다. 코스를 누르면 경로가 깜박여요.'},
-   '둘레길 시설물':{short:'둘레길시설',c:'#6C9E3E',sym:'culture_dulle_fac',type:'list',pair:'둘레길',chipHide:true,routeBy:'addr',src:{url:U('culture_dulle_fac')},
+   '둘레길 시설물':{short:'둘레길시설',c:'#6C9E3E',sym:'culture_dulle_fac',type:'list',pair:'둘레길',
+     chipHide:true,routeBy:'addr',symColorBy:'course',
+     colorFn:(r,pv)=>courseColor(r,pv,'#6C9E3E'),
+     src:{url:U('culture_dulle_fac')},
      fields:{name:['관심지점정보','시설명','명칭','시설물명']},
      listSub:(r,pv)=>{ const c=pv(r,['둘레길이름','코스명','노선명','길이름']);
        return '둘레길 시설물'+(valOK(c)?' · '+c:''); },
@@ -1146,8 +1163,14 @@ function symKey(themeName,row){
   return t.sym||null;
 }
 function symUrl(themeName,row){
+  const t=findTheme(themeName);
   const k=symKey(themeName,row);
-  return (k&&SYM[k])? SYM[k] : dotSvg(findTheme(themeName)?.c||'#5F7269');
+  const base=(k&&SYM[k])? SYM[k] : null;
+  if(t&&t.symColorBy==='course'&&row){
+    const col=courseColor(row,pickVal,t.c);
+    return base? tintSym(base,col) : courseDot(col);
+  }
+  return base || dotSvg((t&&t.c)||'#5F7269');
 }
 function dotSvg(bg){
   const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="72" height="72"><circle cx="14" cy="14" r="12.9" fill="${bg}" stroke="#fff" stroke-width="1.4"/><circle cx="14" cy="14" r="4.6" fill="#fff"/></svg>`;
@@ -1830,7 +1853,7 @@ function listRowHtml({r,theme,t}){
       const dong=r._dong? ' · '+r._dong : '';
       const mono=(curCat!=='전체'&&t.mono)? monoOf(r,t) : null;   /* 전체 뷰에서는 항상 심볼 */
       const ic=r.__line
-        ? `<span class="ic line" style="--c:${t.c}"></span>`
+        ? `<span class="ic line" style="--c:${t.colorFn? (t.colorFn(r,pickVal)||t.c) : t.c}"></span>`
         : mono? `<span class="ic mono">${esc(mono)}</span>` : `<img class="ic" src="${symUrl(theme,r)}" alt="">`;
       const hv=(t.listFn? t.listFn(r,pickVal) : null) || (t.listTime? listHours(r,t) : null);
       const st=rowStatus(r,t);
@@ -2112,6 +2135,25 @@ function syncLineLayers(){
         opt.renderer={type:"simple",symbol: kind==='line'
           ? {type:"simple-line",color:t.c,width:4,cap:"round",join:"round"}
           : {type:"simple-fill",color:hexA(t.c,.22),outline:{color:t.c,width:1.8}}};
+        if(t.colorBy==='course'&&kind==='line'){    /* 코스마다 다른 색 */
+          const fld=(oidField[t.src.url]&&null);    /* 실제 필드명은 아래에서 찾음 */
+          const rows=rowsFor(t);
+          const cand=['코스','코스명','코스번호','노선번호','둘레길이름','길이름','노선명','명칭'];
+          let useF=null;
+          if(rows[0]){ const m=keysOf(rows[0]);
+            for(const c of cand){ const n=c.toLowerCase().replace(/[_\s]/g,'');
+              if(m[n]){ useF=m[n]; break; } } }
+          if(useF){
+            const seen={};
+            rows.forEach(r=>{ const v=r[useF];
+              if(valOK(v)&&!(v in seen)) seen[v]=courseColor(r,pickVal,t.c); });
+            const infos=Object.keys(seen).map(v=>({value:v,label:String(v),
+              symbol:{type:"simple-line",color:seen[v],width:4.5,cap:"round",join:"round"}}));
+            if(infos.length) opt.renderer={type:"unique-value",field:useF,
+              defaultSymbol:{type:"simple-line",color:t.c,width:4,cap:"round",join:"round"},
+              uniqueValueInfos:infos};
+          }
+        }
       }else{                                      /* 레이어에 발행된 원래 심볼 사용 */
         const f=oidField[t.src.url]||'OBJECTID';
         const ids=rowsFor(t).map(r=>r.__oid).filter(v=>v!==undefined&&v!==null).slice(0,900);
@@ -2590,6 +2632,60 @@ function busRouteInfo(t){                    /* 노선번호 → {유형,기점,
               to:pickVal(b,['종점','종점명'])||''};
   });
   return idx;
+}
+/* ── 둘레길 코스 구분 (코스 번호 → 색) ── */
+/* 구리시 문화관광 둘레길 안내의 코스별 색·소개 (확인된 것만) */
+const COURSE_INFO = {
+  '1':{color:'#6AA84F', name:'아차산-망우산길', sub:'역사와 자연이 살아있는 둘레길',
+       dist:'7.9km', time:'4시간',
+       spots:['고구려대장간마을','범굴사','아차산 보루군','관용탑','망우역사문화공원','딸기원 입구']},
+  '2':{color:'#E07B27', name:'구릉산-갈매마을길', sub:'구릉산과 갈매마을을 잇는 둘레길',
+       dist:'7.8km', time:'3시간 30분',
+       spots:['딸기원 입구','국군구리병원','구릉산','갈매마을(갈매역)','별내역','사노 나들목(퇴계원)']},
+  '3':{color:'#4A96B8', name:'왕숙천길', sub:'왕숙천과 도심생활공원이 조화로운 둘레길',
+       dist:'7.8km', time:'2시간 30분',
+       spots:['사노 나들목(퇴계원)','구리왕숙체육공원','동창보','구리농수산물도매시장',
+              '왕숙천 생태습지','구리자원회수시설(구리타워)']},
+  '4':{color:'#D96B7B', name:'한강코스모스길', sub:'구리한강시민공원이 있는 둘레길',
+       dist:'6.5km', time:'2시간',
+       spots:['구리자원회수시설(구리타워)','강동대교','구리한강시민공원','구리암사대교','고구려대장간마을']},
+};
+const COURSE_COLORS = ['#6AA84F','#E07B27','#2F6FE4','#7A5FD0','#D9538A','#00A9C0','#8B5E34','#E5533C'];
+function courseNo(r,pv){
+  const v = pv(r,['코스','코스명','코스번호','노선번호','둘레길이름','길이름','노선명','명칭','구간']);
+  if(!valOK(v)) return null;
+  const m = String(v).match(/(\d+)\s*코스|제?\s*(\d+)\s*구간|^\s*(\d+)/);
+  const n = m? (m[1]||m[2]||m[3]) : null;
+  return n? String(parseInt(n,10)) : null;
+}
+function courseColor(r,pv,fallback){
+  const n = courseNo(r,pv);
+  if(!n) return fallback;
+  if(COURSE_INFO[n]&&COURSE_INFO[n].color) return COURSE_INFO[n].color;
+  return COURSE_COLORS[(parseInt(n,10)-1) % COURSE_COLORS.length];
+}
+/* 원래 심볼에 코스 색을 입힌다 (흰 글리프는 남기고 바탕색만 교체) */
+const _tintCache={};
+function tintSym(pngUrl,color){
+  const key=(pngUrl||'').slice(-24)+color;
+  if(_tintCache[key]) return _tintCache[key];
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" `
+    +`viewBox="0 0 28 28" width="72" height="72">`
+    +`<defs><filter id="w" color-interpolation-filters="sRGB">`
+    +`<feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  .34 .5 .16 0 0"/>`
+    +`</filter></defs>`
+    +`<circle cx="14" cy="14" r="12.4" fill="${color}" stroke="#ffffff" stroke-width="2.2"/>`
+    +`<g filter="url(#w)"><image xlink:href="${pngUrl}" x="4" y="4" width="20" height="20"/></g>`
+    +`</svg>`;
+  const url="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svg);
+  _tintCache[key]=url;
+  return url;
+}
+function courseDot(color){
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="72" height="72">`
+    +`<circle cx="14" cy="14" r="12.6" fill="${color}" stroke="#fff" stroke-width="2.2"/>`
+    +`<circle cx="14" cy="14" r="4.4" fill="#fff"/></svg>`;
+  return "data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svg);
 }
 /* 공원 면적을 알기 쉬운 크기로 */
 function areaTxt(v){
