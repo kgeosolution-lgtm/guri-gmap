@@ -1,5 +1,6 @@
 import {
   Sun,
+  Leaf,
   ShieldCheck,
   Stethoscope,
   School,
@@ -22,7 +23,8 @@ export interface ThemeGroupItem {
 
 /** theme.html 의 GROUPS 순서 그대로. 연한 배경 위 아이콘 색이라 원색을 쓴다(테마지도 accent 는 흰 글자 대비용 보정값). */
 export const themeGroups: ThemeGroupItem[] = [
-  { group: '여름', icon: Sun, color: '#1FA2DE', summary: '물놀이장·무더위쉼터·그늘막' },
+  { group: '시즌·여름', icon: Sun, color: '#1FA2DE', summary: '물놀이장·무더위쉼터·그늘막' },
+  { group: '시즌·가을', icon: Leaf, color: '#C1652B', summary: '구리 명소·둘레길·등산로' },
   { group: '안전·재난', icon: ShieldCheck, color: '#E5533C', summary: '대피소·AED·CCTV' },
   { group: '건강·의료', icon: Stethoscope, color: '#2E9E5B', summary: '약국·병의원·예방접종' },
   { group: '육아·교육', icon: School, color: '#7A6FE0', summary: '어린이집·학교·도서관' },

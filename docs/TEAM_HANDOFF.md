@@ -126,3 +126,20 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 변경: `public/maps/theme.html` 반려동물 그룹 유기동물 테마의 `links` 항목 URL을 `https://kgeodata.com/guri/animal.html` → `https://kgeodata.com/app/guri/maps/animal.html` 로 한 곳만 변경. CITY/GROUPS/F·렌더 로직·base64 심볼은 변경 없음.
 - 브랜치: `work/kangmina-animal-link` (base `design/service-home-refresh` 4f282d6).
 - 검증: `npm ci`, `npm run build`, `npm run build:deploy`, `npx prettier --check src public/styles/site-shell.css`, `git diff --check` 통과. `out/maps/theme.html` 에 새 주소 포함 확인. `npm run dev` 후 `/maps/theme.html?group=반려동물` 유기동물 팝업의 "유기동물 찾기 앱에서 더 보기" href가 새 주소이고 콘솔 오류 없음 확인. 운영 배포는 수행하지 않음(개인 브랜치 push만으로는 공개 사이트에 반영되지 않음).
+
+## 2026-09-11 테마지도 둘레길 코스 구분·추천맛집 팝업 이식
+
+- 배경: 별도 작업본 `theme.html`(2026-09-10, 이전 헤더·목록 디자인 기반)에 추가된 내용을 현재 브랜치의 화면·목록·팝업 디자인은 유지한 채로 `public/maps/theme.html`에 옮겼습니다. 헤더, 칩바, 목록 마크업, 팝업 스타일, 이모지 라벨 등 디자인 차이는 가져오지 않았습니다.
+- 옮긴 내용: 둘레길 코스별 색·이름(`n코스 …`)·안내문(`COURSE_INFO`), 둘레길 시설물 심볼의 코스 색 틴트(`tintSym`/`courseDot`), 선 레이어 코스별 unique-value 렌더러, 목록 선 아이콘의 코스 색, 와구리 추천맛집의 이름 필드 후보·`지정년도` 팝업·숨김 패턴 확장.
+- 조정: 현재 `econ_waguri` 레이어에는 `지정년도` 필드가 없고 연도가 `추가정보`("2023년, 2025년")에 있어, `지정년도` 팝업 항목이 `추가정보`·`비고`로 대체 표시되도록 했습니다. 데이터에 `지정년도` 필드가 추가되면 그 값이 우선합니다.
+- 브랜치: `work/kangmina-dulle-course` (base `design/service-home-refresh` 4755da5).
+- 검증: `npm run build`, `npm run build:deploy`, `npx prettier --check --end-of-line auto src public/styles/site-shell.css`, `git diff --check` 통과. `out/maps/theme.html`에 코스 로직 포함 확인. 로컬 `?group=문화·여가` 둘레길에서 코스별 선 색·목록 색·팝업 안내문, `?group=경제·상권` 추천맛집 팝업, 콘솔 오류 없음 확인. 운영 배포는 수행하지 않았습니다.
+
+## 2026-09-11 시즌·가을 그룹 추가 이식
+
+- 원본: 별도 작업본 `theme.html`(2026-09-10 17:52, 이전 디자인 기반). 현재 화면·목록·팝업 디자인은 유지하고 내용만 옮겼습니다.
+- theme.html: 그룹 `여름` → `시즌·여름` 이름 변경, `시즌·가을` 그룹 추가(구리 명소·둘레길·둘레길 시설물·등산로·등산로 시설물), 가을 그룹 아이콘(`TOPIC_IC`), 명소 심볼·색(`SPOT_STYLE`/`spotKind`/`spotSym`), 긴 글 요약(`briefText`), 테마별 `symUrlFn`·`where`·`photos`(사진 여러 장, `.pgal` CSS) 지원. 가을 그룹 accent는 `#B5551F`로 새로 지정.
+- 홈: `links.ts` 그룹 이름 목록, `theme-groups.config.ts` 카드(Leaf 아이콘, `#C1652B`), `themeUrl('여름')` 참조 5곳을 `시즌·여름`으로, 가을 추천 항목 "아차산 단풍 산책"을 `시즌·가을`로 연결. 나머지 가을 추천 항목은 기존처럼 준비중(null).
+- 호환: `?group=여름` 예전 주소는 GROUPS 첫 항목 fallback으로 `시즌·여름`이 열립니다.
+- 브랜치: `work/kangmina-dulle-course` (둘레길 코스 커밋 5447496 위에 추가).
+- 검증: `npm run build`, `npm run build:deploy`, `tsc --noEmit`, prettier(eol auto), `git diff --check` 통과. 로컬 `?group=시즌·가을`에서 4개 칩(명소 19·둘레길 7·등산로 442·등산로시설 928), 그룹 메뉴 가을 아이콘, 명소 팝업(사진 6장·편의시설 칩·소개·가는 길·전화) 확인. 홈에 시즌·가을 카드 노출 확인. 콘솔 오류 없음(기존 `animation` 경고만 있음). 운영 배포는 수행하지 않았습니다.
