@@ -180,8 +180,8 @@ a{color:inherit}
   font-size:12.5px;border-radius:6px;padding:9px 18px;z-index:12;display:none}
 
 /* 정보 카드 */
-.infocard{position:absolute;left:12px;bottom:12px;width:min(360px,calc(100% - 24px));
-  background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:var(--shadow-lg);z-index:10;display:none;overflow:hidden}
+.infocard{position:absolute;left:12px;bottom:12px;width:min(360px,calc(100% - 24px));max-height:calc(100% - 24px);overflow-y:auto;
+  background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:var(--shadow-lg);z-index:10;display:none}
 .infocard.open{display:block;animation:up .2s ease}
 @keyframes up{from{transform:translateY(10px);opacity:0}to{transform:none;opacity:1}}
 .infocard .hd{padding:13px 15px 10px;color:#fff;position:relative}
@@ -234,7 +234,7 @@ a{color:inherit}
   .pin-legend{display:none;bottom:56px}
   .pin-legend.show{display:flex}
   .legend-toggle{display:block}
-  .infocard{bottom:160px;z-index:44}
+  .infocard{bottom:160px;z-index:44;max-height:calc(100% - 172px)}
   .map-toast{bottom:170px}
   .locate-hint{top:10px;right:52px;font-size:11px}
   .map-ctl{top:10px;right:10px}
@@ -549,7 +549,7 @@ const GROUPS={
      addrTitle:'📍 설치 위치',
      telTitle:'📞 설치기관 전화',
      telLabel:'설치기관에 전화하기',
-     statusFn:(r,pv)=>aedStatus(r,pv),
+     listStatus:true, statusFn:(r,pv)=>aedStatus(r,pv),
      hide:['설치위치','설치장소','상세위치','설치기관전화번호','설치기관전화','전화번호',
            '제조사명','제조사','관리자전화번호','관리자연락처','관리자명'],
      hidePat:/가용|시작시각|종료시각|제조사|관리자|관리책임자|책임자/,
@@ -646,7 +646,7 @@ const GROUPS={
  '건강·의료':{ icon:'건강의료', accent:'#058847', themes:{
    '약국':{c:'#2E9E5B',sym:'health_pharmacy',type:'list',weekHours:true,src:{url:U('health_pharmacy')},
      fields:{name:['약국명','시설명','상호명'],addr:['도로명주소','지번주소','주소'],tel:['전화번호']},
-     statusFn:(r,pv)=>weekStatus(r,pv),
+     listStatus:true, statusFn:(r,pv)=>weekStatus(r,pv),
      chipsFn:(r,pv)=>weekChips(r,pv),
      cardFn:(r,pv,t)=>weekTable(r,pv,'#1F7A45')
        +(valOK(pv(r,['비고']))?`<div style="margin-top:8px;font-size:12px;color:#5B6472">📝 ${esc(String(pv(r,['비고'])))}</div>`:''),
@@ -656,7 +656,7 @@ const GROUPS={
    '병의원':{c:'#E5533C',sym:'health_hospital',type:'list',weekHours:true,src:{url:U('health_hospital')},
      fields:{name:['병원명','요양기관명','의료기관명','시설명','상호명'],addr:['도로명주소','지번주소','주소'],tel:['전화번호']},
      cat:[['종별코드명','종별','의료기관종별'],['읍면동명','행정동']],
-     statusFn:(r,pv)=>{ const s=weekStatus(r,pv);
+     listStatus:true, statusFn:(r,pv)=>{ const s=weekStatus(r,pv);
        return tMin(pv(r,['월요일_시작','월요일시작'],true))!=null||tMin(pv(r,['일요일_시작','일요일시작'],true))!=null? s : null; },
      chipsFn:(r,pv)=>{
        let out=weekChips(r,pv);
@@ -1232,7 +1232,7 @@ const GROUPS={
        return ic+' '+(k||'교통정보')+((s&&s!==k)?' · '+s:''); },
      titleFn:(r,pv)=>{ const rd=pv(r,['roadname','도로명']);
        return valOK(rd)? String(rd) : '교통 돌발상황'; },
-     statusFn:(r,pv)=>{
+     listStatus:true, statusFn:(r,pv)=>{
        const s=toDate(pv(r,['startdate','시작일시'])), e=toDate(pv(r,['enddate','종료일시']));
        const now=new Date();
        if(s&&now<s) return {k:'pre',t:'🕒 '+fmtDT(s)+' 시작 예정'};
@@ -2004,12 +2004,14 @@ function monoOf(r,t){
 }
 /* 상태 배지: 기존 statusFn/opStatus 판정 그대로, 표시만 짧게 */
 function rowStatus(r,t){
-  if(!t.statusFn&&!t.op) return null;
+  /* 목록 배지는 운영시간 기준 상태만: op:true(운영시간 계산) 또는 listStatus:true 로 지정한 테마 */
+  if(!(t.op||(t.statusFn&&t.listStatus))) return null;
   try{
     const st=t.statusFn? t.statusFn(r,pickVal,t) : opStatus(r,t);
     if(!st||!st.k) return null;
     const on=t.op&&!t.statusFn? '운영중' : '영업중';
-    const lab={on:on,pre:'영업 전',off:'종료'}[st.k] || String(st.t||st.k).replace(/[^\w가-힣 ]/g,'').slice(0,6);
+    const off=/휴무|휴장/.test(String(st.t||''))? '휴무' : '종료';
+    const lab={on:on,pre:'영업 전',off:off}[st.k] || String(st.t||st.k).replace(/[^\w가-힣 ]/g,'').slice(0,6);
     return {k:st.k,s:lab};
   }catch(e){ return null; }
 }
