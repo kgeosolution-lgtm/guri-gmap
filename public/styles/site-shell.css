@@ -1,0 +1,206 @@
+.service-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(255, 255, 255, 0.96);
+  border-bottom: 1px solid #e2e8e5;
+  font-family: var(--krds-font-family-base), sans-serif;
+  backdrop-filter: blur(16px);
+}
+.service-header-inner {
+  max-width: 1248px;
+  height: 76px;
+  margin: auto;
+  padding: 0 32px;
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  box-sizing: border-box;
+}
+.service-header.map .service-header-inner {
+  height: 56px;
+  max-width: none;
+  padding: 0 20px;
+}
+.service-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  text-decoration: none;
+  flex-shrink: 0;
+  color: #018058;
+}
+.service-brand img {
+  width: auto;
+  height: 28px;
+}
+.service-brand span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.service-brand b {
+  font-family: Waguri, sans-serif;
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1;
+}
+.service-brand small {
+  font-size: 11px;
+  font-weight: 500;
+  color: #66756e;
+  line-height: 1.2;
+  letter-spacing: -0.3px;
+}
+.service-nav {
+  display: flex;
+  gap: 32px;
+  margin-left: auto;
+  height: 100%;
+  align-items: center;
+}
+.service-nav a {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  font-size: 15px;
+  font-weight: 700;
+  color: #293e34;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.service-nav a:after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: #018058;
+  transform: scaleX(0);
+  transition: transform 0.2s;
+}
+.service-nav a:hover:after,
+.service-nav a[aria-current]:after {
+  transform: scaleX(1);
+}
+.service-search {
+  padding: 10px 15px;
+  background: #edf5f0;
+  border: 1px solid #dbe8df;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #01573c;
+  text-decoration: none;
+  display: flex;
+  gap: 18px;
+  transition: background 0.2s;
+}
+.service-search:hover {
+  background: #dceee3;
+}
+.service-page-name {
+  color: #69776f;
+  font-size: 13px;
+  border-left: 1px solid #dbe3de;
+  padding-left: 20px;
+}
+.service-mobile {
+  display: none;
+}
+.service-header a:focus-visible,
+.service-header summary:focus-visible {
+  outline: 3px solid #018058;
+  outline-offset: 4px;
+}
+@media (max-width: 768px) {
+  .service-header-inner {
+    height: 64px;
+    padding: 0 20px;
+    gap: 12px;
+  }
+  .service-header.map .service-header-inner {
+    padding: 0 16px;
+  }
+  .service-nav,
+  .service-search {
+    display: none;
+  }
+  .service-mobile {
+    display: block;
+    margin-left: auto;
+  }
+  .service-mobile summary {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+    gap: 6px;
+    cursor: pointer;
+    list-style: none;
+    padding: 8px;
+    box-sizing: border-box;
+  }
+  .service-mobile summary::-webkit-details-marker {
+    display: none;
+  }
+  .service-mobile summary span {
+    display: block;
+    height: 2px;
+    width: 23px;
+    background: #01573c;
+    transition: transform 0.2s;
+  }
+  .service-mobile[open] summary span:first-child {
+    transform: translateY(4px) rotate(45deg);
+  }
+  .service-mobile[open] summary span:last-child {
+    transform: translateY(-4px) rotate(-45deg);
+  }
+  .service-mobile nav {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    display: grid;
+    background: #fff;
+    padding: 16px 24px 24px;
+    border-bottom: 1px solid #dbe3de;
+    box-shadow: 0 16px 24px #153b2410;
+    animation: menu-enter 0.2s ease-out;
+  }
+  .service-mobile nav a {
+    padding: 15px 0;
+    color: #263e31;
+    font-size: 16px;
+    font-weight: 700;
+    text-decoration: none;
+    border-bottom: 1px solid #edf1ee;
+  }
+  .service-page-name {
+    font-size: 12px;
+    padding-left: 10px;
+  }
+  .service-brand small {
+    font-size: 10px;
+  }
+}
+@keyframes menu-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .service-header * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
