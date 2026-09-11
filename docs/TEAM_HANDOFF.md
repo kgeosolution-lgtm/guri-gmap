@@ -120,3 +120,9 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 ## 검증 범위
 
 2026-09-11 디자인 작업에서 빌드·포맷 검사, PC/모바일 3개 페이지 시각 점검, 콘솔 오류 없음, 홈 그룹 검색/빈 결과 복원/계절 전환/모바일 메뉴를 확인했습니다. 정적 지도 기존 script 블록은 변경 전과 동일함을 비교했습니다. 운영 배포나 전체 데이터 정확성 검증은 수행하지 않았습니다. 이후 변경은 각 작업자가 다시 검증합니다.
+
+## 2026-09-11 반려동물 팝업 링크 수정
+
+- 변경: `public/maps/theme.html` 반려동물 그룹 유기동물 테마의 `links` 항목 URL을 `https://kgeodata.com/guri/animal.html` → `https://kgeodata.com/app/guri/maps/animal.html` 로 한 곳만 변경. CITY/GROUPS/F·렌더 로직·base64 심볼은 변경 없음.
+- 브랜치: `work/kangmina-animal-link` (base `design/service-home-refresh` 4f282d6).
+- 검증: `npm ci`, `npm run build`, `npm run build:deploy`, `npx prettier --check src public/styles/site-shell.css`, `git diff --check` 통과. `out/maps/theme.html` 에 새 주소 포함 확인. `npm run dev` 후 `/maps/theme.html?group=반려동물` 유기동물 팝업의 "유기동물 찾기 앱에서 더 보기" href가 새 주소이고 콘솔 오류 없음 확인. 운영 배포는 수행하지 않음(개인 브랜치 push만으로는 공개 사이트에 반영되지 않음).
