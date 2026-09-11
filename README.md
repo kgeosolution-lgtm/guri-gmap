@@ -44,3 +44,7 @@ npm run dev
 ## 팀원·Claude 인수인계
 
 최신 디자인 브랜치, 실행 명령, 직원별 Git 작업 절차, Claude에 붙여 넣을 지시서는 [팀 협업 및 Claude 인수인계](docs/TEAM_HANDOFF.md)를 확인하세요. 현재 디자인은 `design/service-home-refresh`에 있으며 main 병합 전입니다.
+
+## 서버 미리보기 자동 배포
+
+`https://kgeodata.com/app/guri/` 자동 배포 설정과 서버 최초 실행기 등록은 [IIS 배포 안내](docs/DEPLOY_IIS.md)를 참고하세요. 서버 실행기 등록 전에는 실제 배포되지 않습니다.

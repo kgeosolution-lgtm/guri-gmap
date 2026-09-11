@@ -1,4 +1,5 @@
 'use client';
+import { homeUrl } from '@/config/paths';
 import { animalUrl, themeUrl } from '@/config/links';
 export function SiteHeader({
   variant = 'home',
@@ -12,7 +13,7 @@ export function SiteHeader({
   const links = [
     { label: '테마지도', href: themeUrl('여름') },
     { label: '유기동물 찾기', href: animalUrl() },
-    { label: 'G-MAP 소개', href: '/#about' },
+    { label: 'G-MAP 소개', href: homeUrl('#about') },
   ];
   const navigation = links.map((link) => (
     <a key={link.label} href={link.href} aria-current={active === link.label ? 'page' : undefined}>
@@ -22,7 +23,7 @@ export function SiteHeader({
   return (
     <header className={`service-header ${variant === 'map' ? 'map topbar' : 'home'}`}>
       <div className="service-header-inner">
-        <a className="service-brand" href="/" aria-label="G-MAP 구리시 시민생활지도 홈">
+        <a className="service-brand" href={homeUrl()} aria-label="G-MAP 구리시 시민생활지도 홈">
           <img src="/images/guri-emblem.png" alt="" width="50" height="41" />
           <span>
             <b>G-MAP</b>
@@ -33,7 +34,7 @@ export function SiteHeader({
         <nav className="service-nav" aria-label="주 메뉴">
           {navigation}
         </nav>
-        <a className="service-search" href="/#search">
+        <a className="service-search" href={homeUrl('#search')}>
           테마 찾기 <span aria-hidden="true">↗</span>
         </a>
         <details
@@ -57,7 +58,7 @@ export function SiteHeader({
             }}
           >
             {navigation}
-            <a href="/#search">테마 찾기</a>
+            <a href={homeUrl('#search')}>테마 찾기</a>
           </nav>
         </details>
       </div>

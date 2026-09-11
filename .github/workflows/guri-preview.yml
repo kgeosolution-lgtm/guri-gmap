@@ -1,0 +1,47 @@
+name: Guri IIS preview
+on:
+  push:
+    branches: [design/service-home-refresh]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: guri-iis-preview
+  cancel-in-progress: false
+jobs:
+  build:
+    if: github.ref == 'refs/heads/design/service-home-refresh'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx prettier --check src public/styles/site-shell.css
+      - run: npm run build:deploy
+      - run: cp scripts/deploy-iis.ps1 out/deploy-iis.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: guri-site
+          path: out/
+          retention-days: 7
+  deploy:
+    needs: build
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: guri-site
+          path: ${{ runner.temp }}/guri-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Publish to IIS folder
+        shell: powershell
+        env:
+          SITE_ARTIFACT: ${{ runner.temp }}/guri-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          $deployScript = Join-Path $env:SITE_ARTIFACT 'deploy-iis.ps1'
+          $scriptCopy = Join-Path $env:RUNNER_TEMP ('deploy-guri-' + $env:GITHUB_RUN_ID + '.ps1')
+          Copy-Item -LiteralPath $deployScript -Destination $scriptCopy -Force
+          Remove-Item -LiteralPath $deployScript
+          & $scriptCopy -Source $env:SITE_ARTIFACT
