@@ -332,10 +332,26 @@ async function loadDongs(){
     syncDongToCenter();
   }catch(e){ console.warn('[행정동 로드 실패]',e); }
 }
+/* 합친 폴리곤에서 시 바깥 고리만 남긴다.
+ * 동 경계끼리 딱 맞물리지 않아 union 결과에 생기는 작은 구멍(안쪽 고리)과 조각(작은 섬)은
+ * 헤일로·본선이 그려지며 시내 한가운데 흰 자국으로 보이므로 여기서 걷어낸다. */
+function cleanOutline(poly){
+  const rings=(poly.rings||[]).filter(r=>r&&r.length>3);
+  if(!rings.length) return poly;
+  const area=r=>{ let a=0; for(let i=0,j=r.length-1;i<r.length;j=i++) a+=(r[j][0]+r[i][0])*(r[j][1]-r[i][1]); return Math.abs(a/2); };
+  const isCW=r=>typeof poly.isClockwise==='function'? poly.isClockwise(r) : true;
+  const outer=rings.filter(isCW).map(r=>({r,a:area(r)}));   /* 바깥 고리(시계 방향)만, 구멍은 제외 */
+  if(!outer.length) return poly;
+  const max=Math.max(...outer.map(o=>o.a));
+  const kept=outer.filter(o=>o.a>=max*0.02).map(o=>o.r);      /* 가장 큰 면적의 2% 미만 조각은 버림 */
+  const out=poly.clone? poly.clone() : poly;
+  out.rings=kept.length? kept : [outer.sort((x,y)=>y.a-x.a)[0].r];
+  return out;
+}
 function drawCityOutline(){
   if(!bndLayer||!geomEngine||!DONGS) return;
   bndLayer.removeAll();
-  let city; try{ city=geomEngine.union(DONGS.map(d=>d.geometry)); }catch(e){ city=null; }
+  let city; try{ city=cleanOutline(geomEngine.union(DONGS.map(d=>d.geometry))); }catch(e){ city=null; }
   if(!city) return;
   bndLayer.add(new GraphicCls({geometry:city,   /* 흰 헤일로 */
     symbol:{type:'simple-fill',color:[0,0,0,0],outline:{color:[255,255,255,.85],width:5}}}));
