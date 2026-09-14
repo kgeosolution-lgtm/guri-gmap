@@ -13,14 +13,16 @@
 <link rel="stylesheet" href="/styles/site-shell.css">
 <style>
 :root{
-  --brand:var(--krds-color-light-primary-50); --brand-hover:var(--krds-color-light-primary-60); --brand-soft:var(--krds-color-light-primary-5);
-  --accent:var(--krds-color-light-primary-50);
-  --ink:var(--krds-color-light-gray-90); --sub:var(--krds-color-light-gray-60); --faint:var(--krds-color-light-gray-40); --line:var(--krds-color-light-gray-10);
+  /* 공용 토큰(gmap-shared.css) 별칭 — 토큰이 안 실려도 색이 나오도록 기본값을 둔다 */
+  --brand:var(--krds-color-light-primary-50,#018058); --brand-hover:var(--krds-color-light-primary-60,#01573C); --brand-soft:var(--krds-color-light-primary-5,#edf4f0);
+  --accent:var(--krds-color-light-primary-50,#018058);
+  --ink:var(--krds-color-light-gray-90,#1e2124); --sub:var(--krds-color-light-gray-60,#58616a); --faint:var(--krds-color-light-gray-40,#8a949e); --line:var(--krds-color-light-gray-10,#e6e8ea);
+  --gray20:var(--krds-color-light-gray-20,#cdd1d5); --gray70:var(--krds-color-light-gray-70,#464c53); --gray80:var(--krds-color-light-gray-80,#33363d);
   --shadow:0 2px 10px rgba(30,50,41,.12);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
-body{font-family:var(--krds-font-family-base);background:var(--krds-color-light-gray-5);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased}
+body{background:var(--krds-color-light-gray-5,#f4f5f6);font-family:var(--krds-font-family-base,'Pretendard GOV',Pretendard,'Noto Sans KR',sans-serif);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased}
 button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
 .main{position:relative;height:calc(100dvh - 57px);min-height:420px}
 #map{position:absolute;inset:0}
@@ -29,14 +31,14 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 
 /* 지도 우상단 컨트롤 (테마지도와 동일한 결) */
 .map-ctl{position:absolute;right:12px;top:12px;z-index:6;display:flex;flex-direction:column;gap:6px}
-.map-ctl button{width:34px;height:34px;border-radius:6px;background:#fff;border:1px solid var(--krds-color-light-gray-20);display:grid;place-items:center;color:var(--krds-color-light-gray-70);box-shadow:var(--shadow);transition:all .13s}
+.map-ctl button{width:34px;height:34px;border-radius:6px;background:#fff;border:1px solid var(--gray20);display:grid;place-items:center;color:var(--gray70);box-shadow:var(--shadow);transition:all .13s}
 .map-ctl button:hover{color:var(--accent);border-color:var(--accent)}
 .map-ctl button svg{width:18px;height:18px}
 .map-toast{position:absolute;left:50%;transform:translateX(-50%);bottom:150px;background:#1E3229;color:#fff;font-size:13px;padding:8px 14px;border-radius:6px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:9;white-space:nowrap;max-width:calc(100% - 32px);white-space:normal;text-align:center}
 .map-toast.show{opacity:1}
 
 /* 연도 바 */
-.ts-bar{position:absolute;left:50%;transform:translateX(-50%);bottom:16px;z-index:7;background:#fff;border:1px solid var(--krds-color-light-gray-20);border-radius:8px;box-shadow:var(--shadow);padding:10px 14px 12px;max-width:calc(100% - 24px);width:max-content}
+.ts-bar{position:absolute;left:50%;transform:translateX(-50%);bottom:16px;z-index:7;background:#fff;border:1px solid var(--gray20);border-radius:8px;box-shadow:var(--shadow);padding:10px 14px 12px;max-width:calc(100% - 24px);width:max-content}
 .ts-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
 .ts-title{font-weight:700;font-size:14px;white-space:nowrap}
 .ts-hint{font-size:12px;color:var(--sub);flex:1;min-width:0}
@@ -44,26 +46,43 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .ts-cmp input{width:16px;height:16px;accent-color:var(--brand)}
 .ts-years{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
 .ts-years::-webkit-scrollbar{display:none}
-.ts-year{flex:none;height:32px;padding:0 11px;border-radius:6px;border:1px solid var(--krds-color-light-gray-20);background:#fff;font-size:13px;font-weight:600;color:var(--krds-color-light-gray-70);transition:all .13s;display:inline-flex;align-items:center;gap:4px}
+.ts-year{flex:none;height:32px;padding:0 11px;border-radius:6px;border:1px solid var(--gray20);background:#fff;font-size:13px;font-weight:600;color:var(--gray70);transition:all .13s;display:inline-flex;align-items:center;gap:4px}
 .ts-year:hover{border-color:var(--brand);color:var(--brand)}
 .ts-year.is-on{background:var(--brand);border-color:var(--brand);color:#fff}
-.ts-year.is-left{background:var(--krds-color-light-gray-80);border-color:var(--krds-color-light-gray-80);color:#fff}
-.ts-year.is-left::after{content:'◀';font-size:9px}
-.ts-year.is-on::before{content:'▶';font-size:9px}
+.ts-year.is-left{background:var(--brand);border-color:var(--brand);color:#fff}
+.ts-year.is-left::before{content:'◀';font-size:9px}
+.ts-year.is-on.is-right::after{content:'▶';font-size:9px}
 .ts-year.no-data{opacity:.4}
-.ts-base{display:none;align-items:center;gap:6px;font-size:12px;color:var(--sub);white-space:nowrap}
-.ts-base select{height:28px;border:1px solid var(--krds-color-light-gray-20);border-radius:6px;padding:0 6px;font:inherit;font-size:12px;color:var(--ink);background:#fff}
-.ts-bar.is-compare .ts-base{display:inline-flex}
-.ts-bar.is-compare .ts-hint{display:none}
+
+
+/* 좌상단 주소·장소 검색 (ArcGIS Search 위젯을 알약형으로) */
+.search-host{position:absolute;left:12px;top:12px;z-index:7;width:min(360px,calc(100% - 24px))}
+.search-host .esri-search{width:100%;border-radius:22px;box-shadow:var(--shadow);border:1px solid var(--gray20);overflow:hidden;background:#fff}
+.search-host .esri-search__container{height:42px}
+.search-host .esri-search__input{height:42px;font-family:inherit;font-size:14px;padding-left:16px;border:none}
+.search-host .esri-search__input::placeholder{color:var(--faint)}
+.search-host .esri-search__submit-button{width:44px;color:#fff;background:var(--brand);border:none}
+.search-host .esri-search__submit-button:hover{background:var(--brand-hover)}
+.search-host .esri-search__clear-button{border:none}
+.search-host .esri-search__suggestions-menu{border-radius:10px;margin-top:6px;box-shadow:var(--shadow);border:1px solid var(--gray20)}
+.search-host .esri-search__sources-button{display:none}
+
+/* 우상단 지역 선택 (도 · 시군구 · 동) */
+.region{position:absolute;right:54px;top:12px;z-index:7;display:flex;gap:6px;background:#fff;border:1px solid var(--gray20);border-radius:22px;box-shadow:var(--shadow);padding:5px 8px;height:42px;align-items:center}
+.region select{height:30px;border:none;background:#fff;font:inherit;font-size:13.5px;font-weight:600;color:var(--ink);padding:0 22px 0 8px;border-radius:6px;appearance:none;-webkit-appearance:none;
+  background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2358616a' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 6px center}
+.region select:disabled{opacity:1;color:var(--ink)}
+.region select+select{border-left:1px solid var(--line);border-radius:0}
+.region select:focus{outline:2px solid var(--brand);outline-offset:-2px}
 
 /* 스와이프 손잡이 톤 */
 .esri-swipe__container{--esri-swipe-divider-color:#fff}
 .esri-swipe__divider{background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.25)}
-.esri-swipe__handle{background:#fff;color:var(--brand);border:1px solid var(--krds-color-light-gray-20)}
+.esri-swipe__handle{background:#fff;color:var(--brand);border:1px solid var(--gray20)}
 
 /* 비교 라벨 (왼쪽/오른쪽 연도) */
-.cmp-lbl{position:absolute;top:12px;z-index:6;background:rgba(30,50,41,.78);color:#fff;font-size:12px;font-weight:700;padding:4px 10px;border-radius:6px;pointer-events:none;display:none}
-.cmp-lbl.l{left:12px}.cmp-lbl.r{right:54px}
+.cmp-lbl{position:absolute;bottom:20px;z-index:6;background:rgba(30,50,41,.78);color:#fff;font-size:12px;font-weight:700;padding:4px 10px;border-radius:6px;pointer-events:none;display:none}
+.cmp-lbl.l{left:12px}.cmp-lbl.r{right:12px}
 .is-compare .cmp-lbl{display:block}
 
 .key-warn{position:absolute;left:50%;top:16px;transform:translateX(-50%);z-index:8;background:#fff;border:1px solid var(--krds-color-light-warning-50,#e6a700);border-radius:8px;padding:10px 14px;font-size:13px;max-width:calc(100% - 24px);box-shadow:var(--shadow);display:none}
@@ -75,8 +94,12 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
   .ts-hint{flex-basis:100%;order:3}
   .ts-year{height:30px;padding:0 9px;font-size:12px}
   .map-toast{bottom:140px}
-  .cmp-lbl.r{right:12px;top:60px}
+  .cmp-lbl{bottom:auto;top:60px}
   .map-ctl{top:auto;bottom:150px}
+  .search-host{width:calc(100% - 24px)}
+  .region{top:62px;right:12px;left:12px;justify-content:space-between;padding:5px 6px}
+  .region select{font-size:12.5px;padding:0 18px 0 6px;min-width:0;flex:1}
+  .cmp-lbl{top:112px}
 }
 </style>
 </head>
@@ -86,6 +109,12 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 
 <div class="main" id="main">
   <div id="map"></div>
+  <div class="search-host" id="searchHost"></div>
+  <div class="region" role="group" aria-label="지역 선택">
+    <select aria-label="시도" disabled><option>경기도</option></select>
+    <select aria-label="시군구" disabled><option>구리시</option></select>
+    <select id="dongSel" aria-label="행정동"><option value="">동 선택</option></select>
+  </div>
   <div class="cmp-lbl l" id="cmpL"></div>
   <div class="cmp-lbl r" id="cmpR"></div>
   <div class="map-ctl">
@@ -100,7 +129,6 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
     <div class="ts-head">
       <span class="ts-title">시계열 항공사진</span>
       <span class="ts-hint" id="tsHint"></span>
-      <label class="ts-base">왼쪽(기준) <select id="tsBase" aria-label="비교 기준 연도"></select></label>
       <label class="ts-cmp"><input type="checkbox" id="tsCompare"> 두 시기 비교</label>
     </div>
     <div class="ts-years" id="tsYears"></div>
@@ -121,6 +149,8 @@ const CITY={
   name:'구리시',
   extent:{xmin:127.092,ymin:37.548,xmax:127.180,ymax:37.655,spatialReference:{wkid:4326}},
   boundaryUrl:"https://www.guri.go.kr/gmapsvr/rest/services/Hosted/%EA%B5%AC%EB%A6%AC%EC%8B%9C%EA%B2%BD%EA%B3%84/FeatureServer/0",
+  dongUrl:"https://www.guri.go.kr/gmapsvr/rest/services/Hosted/%ED%96%89%EC%A0%95%EB%8F%99%EA%B2%BD%EA%B3%84/FeatureServer/0",
+  dongNameField:'adm_dr_nm',
   vworldKey:""   /* 공식 브이월드 키 발급 시 입력 (테마지도와 동일) */
 };
 
@@ -166,9 +196,9 @@ require([
   "esri/config","esri/Map","esri/Basemap","esri/views/MapView",
   "esri/layers/WebTileLayer","esri/layers/VectorTileLayer","esri/layers/FeatureLayer","esri/layers/BaseTileLayer",
   "esri/request","esri/geometry/Point","esri/geometry/SpatialReference","esri/geometry/projection",
-  "esri/geometry/support/webMercatorUtils","esri/widgets/Swipe"
+  "esri/geometry/support/webMercatorUtils","esri/widgets/Swipe","esri/widgets/Search","esri/layers/GraphicsLayer","esri/Graphic","esri/core/reactiveUtils","esri/geometry/Extent","esri/geometry/geometryEngine"
 ],(esriConfig,Map,Basemap,MapView,WebTileLayer,VectorTileLayer,FeatureLayer,BaseTileLayer,
-   esriRequest,Point,SpatialReference,projection,webMercatorUtils,Swipe)=>{
+   esriRequest,Point,SpatialReference,projection,webMercatorUtils,Swipe,Search,GraphicsLayer,Graphic,reactiveUtils,Extent,geometryEngine)=>{
 
   esriConfig.request.useIdentity=false;
   SwipeCls=Swipe;
@@ -252,20 +282,88 @@ require([
   const basemap=new Basemap({baseLayers:[vw],title:"브이월드"});
   vw.load().catch(()=>{ map.basemap=Basemap.fromId("gray-vector"); });
 
-  /* 구리시 경계 */
-  const bndHalo=new FeatureLayer({url:CITY.boundaryUrl,popupEnabled:false,legendEnabled:false,
-    renderer:{type:"simple",symbol:{type:"simple-fill",color:[0,0,0,0],outline:{color:[255,255,255,.85],width:5}}}});
-  const bnd=new FeatureLayer({url:CITY.boundaryUrl,popupEnabled:false,legendEnabled:false,
-    renderer:{type:"simple",symbol:{type:"simple-fill",color:[0,0,0,0],outline:{color:"#018058",width:2}}}});
-
-  map=new Map({basemap,layers:[bndHalo,bnd]});
+  /* 행정동 경계 — 지도와 같은 좌표계로 ArcGIS 가 직접 처리(질의·강조 모두 여기서).
+   * 시 외곽선(초록)도 이 레이어의 동들을 합쳐서 만든다 — 항공사진과 맞는 경계 하나만 쓴다. */
+  dongFL=new FeatureLayer({url:CITY.dongUrl,outFields:[CITY.dongNameField],visible:false});
+  geomEngine=geometryEngine;
+  bndLayer=new GraphicsLayer({listMode:"hide"});    /* 시 외곽선 */
+  dongLayer=new GraphicsLayer({listMode:"hide"});   /* 선택한 동 외곽선 */
+  map=new Map({basemap,layers:[dongFL,bndLayer,dongLayer]});
   view=new MapView({container:"map",map,extent:CITY.extent,constraints:{rotationEnabled:false,minScale:600000},
     ui:{components:["attribution"]},popup:{autoOpenEnabled:false}});
   view.ui.move("attribution","bottom-right");
 
   projection.load().then(()=>{ applyYears(); renderBar(); }).catch(()=>toast('좌표 변환 모듈을 불러오지 못했어요'));
+
+  /* ── 주소·장소 검색 (왼쪽 위) ── */
+  const search=new Search({view,container:'searchHost',includeDefaultSources:true,
+    popupEnabled:false,resultGraphicEnabled:true,locationEnabled:false,searchAllEnabled:false,
+    allPlaceholder:'주소 또는 장소를 검색하세요',
+    searchExtent:{xmin:126.95,ymin:37.45,xmax:127.35,ymax:37.75,spatialReference:{wkid:4326}}});
+  reactiveUtils.watch(()=>search.allSources.length,()=>{ search.allSources.forEach(src=>{ src.placeholder='주소 또는 장소를 검색하세요'; src.name='주소·장소'; }); },{initial:true});
+  search.on('search-complete',e=>{ if(!e.numResults) toast('찾는 곳이 없어요. 다른 이름이나 주소로 찾아보세요'); });
+  search.on('select-result',()=>{ const g=search.resultGraphic; if(g) view.goTo({target:g.geometry,zoom:Math.max(view.zoom,17)},{duration:400}); });
+
+  /* ── 동 목록 · 지도 이동에 따라 현재 동 표시 (오른쪽 위) ── */
+  loadDongs();
+  reactiveUtils.when(()=>view.stationary,()=>{ if(view.stationary) syncDongToCenter(); });
+  GraphicCls=Graphic; WMU=webMercatorUtils; ExtentCls=Extent;
   if(!NGII.apiKey) $('keyWarn').style.display='block';
 });
+
+/* ── 행정동 ── */
+let DONGS=null, dongLayer=null, dongFL=null, bndLayer=null, geomEngine=null, GraphicCls=null, WMU=null, ExtentCls=null, dongByUser=false;
+async function loadDongs(){
+  try{
+    /* 지도와 같은 좌표계(뷰 SR)로 받아 시 외곽선(초록)과 어긋나지 않게 한다 */
+    await dongFL.load();
+    const q=dongFL.createQuery();
+    q.where='1=1'; q.outFields=[CITY.dongNameField]; q.returnGeometry=true;
+    q.outSpatialReference=view.spatialReference; q.maxAllowableOffset=1;   /* ≈1m, 뷰 SR 단위 */
+    const r=await dongFL.queryFeatures(q);
+    const fs=(r.features||[]).filter(f=>f.geometry&&(f.geometry.rings||[]).length);
+    DONGS=fs.map(f=>({name:String(f.attributes[CITY.dongNameField]||'').trim(),geometry:f.geometry,extent:f.geometry.extent}))
+      .filter(d=>d.name).sort((a,b)=>a.name.localeCompare(b.name,'ko'));
+    if(!DONGS.length){ DONGS=null; return; }
+    const sel=$('dongSel');
+    sel.innerHTML='<option value="">동 선택</option>'+DONGS.map(d=>`<option>${d.name}</option>`).join('');
+    sel.addEventListener('change',e=>gotoDong(e.target.value));
+    drawCityOutline();
+    syncDongToCenter();
+  }catch(e){ console.warn('[행정동 로드 실패]',e); }
+}
+function drawCityOutline(){
+  if(!bndLayer||!geomEngine||!DONGS) return;
+  bndLayer.removeAll();
+  let city; try{ city=geomEngine.union(DONGS.map(d=>d.geometry)); }catch(e){ city=null; }
+  if(!city) return;
+  bndLayer.add(new GraphicCls({geometry:city,   /* 흰 헤일로 */
+    symbol:{type:'simple-fill',color:[0,0,0,0],outline:{color:[255,255,255,.85],width:5}}}));
+  bndLayer.add(new GraphicCls({geometry:city,   /* 초록 본선 */
+    symbol:{type:'simple-fill',color:[0,0,0,0],outline:{color:'#018058',width:2}}}));
+}
+function pip(x,y,rings){ let inside=false;
+  for(const ring of rings){ for(let i=0,j=ring.length-1;i<ring.length;j=i++){
+    const xi=ring[i][0],yi=ring[i][1],xj=ring[j][0],yj=ring[j][1];
+    if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi)) inside=!inside; } }
+  return inside; }
+function syncDongToCenter(){
+  if(!DONGS||!view||!view.center||dongByUser) return;
+  const c=view.center;   /* 지도와 동 경계 모두 뷰 SR 이라 그대로 비교 */
+  const d=DONGS.find(d=>pip(c.x,c.y,d.geometry.rings));
+  $('dongSel').value=d? d.name : '';
+}
+async function gotoDong(nm){
+  const d=(DONGS||[]).find(x=>x.name===nm);
+  if(dongLayer) dongLayer.removeAll();
+  if(!d||!view){ if(!nm&&view) goHome(); return; }
+  dongLayer.add(new GraphicCls({geometry:d.geometry,
+    symbol:{type:'simple-fill',color:[255,255,255,0],outline:{color:'#FFD54A',width:3}}}));
+  dongByUser=true;
+  try{ await view.goTo(d.extent.expand(1.15),{duration:450}); }catch(e){ console.warn('[동 이동]',e); }
+  dongByUser=false;
+  toast(`${d.name}으로 이동했어요`,1600);
+}
 
 /* ── 연도 반영 ── */
 function applyYears(){
@@ -274,17 +372,17 @@ function applyYears(){
   if(airLayer){ map.remove(airLayer); airLayer=null; }
   if(cmpLayer){ map.remove(cmpLayer); cmpLayer=null; }
 
-  const right=year, left=compare? baseYear : null;
-  const older=compare? Math.min(left,right) : right;
+  const two=compare&&baseYear!==year;
+  const left=two? Math.min(year,baseYear) : null, right=two? Math.max(year,baseYear) : year;
   const mk=y=>new AirPhotoLayer({year:y,id:'airphoto_'+y,title:'항공사진 '+y,copyright:'국토지리정보원 국토정보플랫폼'});
-  airLayer=mk(compare? right : older); map.add(airLayer,0);
-  if(compare&&left!==right){
-    /* 왼쪽=기준(과거), 오른쪽=선택 연도. Swipe 의 leading(왼쪽)에 기준 연도를 둔다 */
+  airLayer=mk(right); map.add(airLayer,0);
+  if(two){
+    /* 왼쪽=작은(과거) 해, 오른쪽=큰(최근) 해. Swipe 의 leading(왼쪽)에 과거 해를 둔다 */
     cmpLayer=mk(left); map.add(cmpLayer,1);
     swipe=new SwipeCls({view,leadingLayers:[cmpLayer],trailingLayers:[airLayer],position:50,direction:'horizontal'});
     view.ui.add(swipe);
   }
-  $('main').classList.toggle('is-compare',compare&&left!==right);
+  $('main').classList.toggle('is-compare',two);
   $('cmpL').textContent=left+'년'; $('cmpR').textContent=right+'년';
   syncUrl();
 }
@@ -294,21 +392,29 @@ function renderBar(){
   const host=$('tsYears'); host.innerHTML='';
   NGII.years.forEach(y=>{
     const b=document.createElement('button'); b.type='button'; b.className='ts-year';
-    if(y===year) b.classList.add('is-on');
-    if(compare&&y===baseYear) b.classList.add('is-left');
-    b.textContent=y; b.setAttribute('aria-pressed',y===year?'true':'false');
-    b.title=compare? `${y}년을 오른쪽에 (Shift+클릭: 왼쪽 기준으로)` : `${y}년 항공사진`;
-    b.onclick=e=>{ if(compare&&e.shiftKey) baseYear=y; else year=y; applyYears(); renderBar(); };
+    const two=compare&&baseYear!==year, lo=Math.min(year,baseYear), hi=Math.max(year,baseYear);
+    if(two&&y===lo) b.classList.add('is-left');
+    else if(y===(two? hi : year)) b.classList.add('is-on','is-right');
+    b.textContent=y; b.setAttribute('aria-pressed',(y===year||(two&&y===baseYear))?'true':'false');
+    b.title=compare? `${y}년으로 바꾸기 (먼저 고른 해가 바뀌어요)` : `${y}년 항공사진`;
+    b.onclick=()=>{
+      if(compare){ if(y===year||y===baseYear) return;   /* 이미 고른 해 */
+        baseYear=year; year=y; }                          /* 먼저 고른 해를 새 해로 교체 */
+      else year=y;
+      applyYears(); renderBar(); };
     host.appendChild(b);
   });
-  const sel=$('tsBase'); sel.innerHTML=NGII.years.map(y=>`<option value="${y}" ${y===baseYear?'selected':''}>${y}년</option>`).join('');
-  $('tsHint').textContent=`${year}년 항공사진 · 국토지리정보원 국토정보플랫폼`;
+  const two=compare&&baseYear!==year;
+  $('tsHint').textContent=two
+    ? `왼쪽 ${Math.min(year,baseYear)}년 ↔ 오른쪽 ${Math.max(year,baseYear)}년 · 다른 해를 누르면 먼저 고른 해가 바뀌어요`
+    : `${year}년 항공사진 · 국토지리정보원 국토정보플랫폼`;
   $('tsBar').classList.toggle('is-compare',compare);
   $('tsCompare').checked=compare;
   const on=host.querySelector('.is-on'); if(on) on.scrollIntoView({block:'nearest',inline:'nearest'});
 }
-$('tsCompare').addEventListener('change',e=>{ compare=e.target.checked; if(compare&&baseYear===year) baseYear=NGII.years[0]===year? NGII.years[1] : NGII.years[0]; applyYears(); renderBar(); });
-$('tsBase').addEventListener('change',e=>{ baseYear=parseInt(e.target.value,10); applyYears(); renderBar(); });
+$('tsCompare').addEventListener('change',e=>{ compare=e.target.checked;
+  if(compare&&baseYear===year) baseYear=NGII.years[0]===year? NGII.years[1] : NGII.years[0];   /* 처음 켤 때 짝이 없으면 2011년과 비교 */
+  applyYears(); renderBar(); });
 
 function syncUrl(){
   const p=new URLSearchParams(); p.set('y',year); if(compare){ p.set('cmp','1'); p.set('base',baseYear); }
@@ -316,7 +422,7 @@ function syncUrl(){
 }
 
 /* ── 도구 ── */
-function goHome(){ if(view) view.goTo(CITY.extent,{duration:400}); }
+function goHome(){ if(view&&ExtentCls) view.goTo(new ExtentCls(CITY.extent),{duration:400}); }
 function locate(){
   if(!navigator.geolocation){ toast('이 브라우저는 위치 기능을 지원하지 않아요'); return; }
   navigator.geolocation.getCurrentPosition(p=>{
@@ -324,7 +430,7 @@ function locate(){
   },()=>toast('현재 위치를 확인하지 못했어요'),{enableHighAccuracy:true,timeout:8000});
 }
 async function shareUrl(){
-  const label=`구리시 G-MAP 시계열 항공사진 ${compare? baseYear+'년 ↔ '+year+'년' : year+'년'}`;
+  const label=`구리시 G-MAP 시계열 항공사진 ${compare? Math.min(year,baseYear)+'년 ↔ '+Math.max(year,baseYear)+'년' : year+'년'}`;
   const httpish=/^https?:/i.test(location.href);
   if(navigator.share){
     try{ await navigator.share(httpish? {title:label,url:location.href} : {title:label,text:label}); return; }
