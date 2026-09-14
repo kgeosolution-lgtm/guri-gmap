@@ -211,3 +211,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 축제 팝업: '일정 확정' 항목 제거. '참고'(`비고`)는 `festNote`로 "…개최장소 사용", "위치 근거", "데이터의 연속성" 같은 관리용 문장을 뺀 뒤 요약. '공식페이지 바로가기'는 `festLink`로 값이 http(s) 주소이고 사이트 첫 화면이 아니며 다른 축제와 같은 주소(공통 안내 페이지)가 아닐 때만 버튼을 만듭니다. 이를 위해 팝업 링크 설정에 `fn:(row,pickVal,theme)=>url|null` 지원을 한 줄 추가했습니다.
 - 브랜치: `work/kangmina-theme-basemap-boundary` (base `design/service-home-refresh` 2fd9601).
 - 검증: 인라인 스크립트 `node --check`, `festNote`/`festLink` 단위 검사 6건, `npm run build:deploy`, `git diff --check` 통과. 구리시 서버가 차단된 환경이라 바로e맵 표시, 외곽선 합집합, 축제 팝업은 배포 후 브라우저 확인이 필요합니다.
+
+## 2026-09-14 테마지도 배경맵 아이템(51c2bc2d…) 적용 방식 보강 (담당: 강민아)
+
+- 요청: 배경맵 아이템 `51c2bc2db0d3423382d30ff755563f31`을 테마지도 배경으로. 앞서 WebMap 로드 → 베이스맵 추출 한 가지 방법만 있어 실제 화면에서 적용되지 않았습니다.
+- 조치: `useWebmapBasemap`을 세 단계로 바꿨습니다. ① `Basemap({portalItem:{id}})` 직접 로드(배경맵 갤러리 방식) → ② `WebMap` 로드 후 베이스맵 추출 → ③ `…/sharing/rest/content/items/{id}/data?f=json`을 직접 읽어 `baseMap.baseMapLayers`를 VectorTileLayer/TileLayer/MapImageLayer/WebTileLayer로 조립. 각 20초 제한. 성공하면 `WM_BASEMAP`에 두어 그룹 웹맵 전환 시에도 유지. 웹맵의 일반 레이어(마스크 등)는 더 이상 추가하지 않습니다(배경만). 모두 실패하면 바로e맵을 유지하고 콘솔에 `[배경 웹맵 실패 — 바로e맵 유지]`와 단계별 사유, 공유 설정 확인 주소를 남깁니다.
+- 확인 필요: 아이템이 포털에서 "모든 사용자(공개)"로 공유돼 있어야 로그인하지 않은 시민도 배경을 볼 수 있습니다. 비공개면 세 방법 모두 실패합니다.
+- 브랜치: `work/kangmina-theme-webmap-basemap` (base `design/service-home-refresh` 682a6fc).
+- 검증: 인라인 스크립트 `node --check`, ③ 조립 분기 단위 검사(벡터타일·숨김 레이어 제외·WebTiled 투명도), `npm run build:deploy`, `git diff --check` 통과. 포털이 이 환경에서 차단돼 실제 적용은 배포 후 브라우저 콘솔의 `[배경 웹맵] 적용(…)` 메시지로 확인해야 합니다.

@@ -2218,8 +2218,9 @@ function catExtent(){
 }
 require(["esri/config","esri/Map","esri/Basemap","esri/WebMap","esri/views/MapView","esri/layers/GraphicsLayer",
          "esri/layers/VectorTileLayer","esri/layers/WebTileLayer","esri/layers/FeatureLayer","esri/Graphic",
-         "esri/renderers/support/jsonUtils","esri/core/reactiveUtils","esri/geometry/geometryEngine"],
-(esriConfig,Map,Basemap,WebMap,MapView,GraphicsLayer,VectorTileLayer,WebTileLayer,FeatureLayer,Graphic,rendererJsonUtils,reactiveUtils,geometryEngine)=>{
+         "esri/renderers/support/jsonUtils","esri/core/reactiveUtils","esri/geometry/geometryEngine",
+         "esri/layers/TileLayer","esri/layers/MapImageLayer"],
+(esriConfig,Map,Basemap,WebMap,MapView,GraphicsLayer,VectorTileLayer,WebTileLayer,FeatureLayer,Graphic,rendererJsonUtils,reactiveUtils,geometryEngine,TileLayer,MapImageLayer)=>{
   esriConfig.request.useIdentity=false;
   esriConfig.portalUrl=CITY.portalUrl;              /* 포털 항목(웹맵)을 읽을 기준 주소 */
   GraphicCls=Graphic; FLCls=FeatureLayer; WebMapCls=WebMap; RendererJU=rendererJsonUtils;
@@ -2313,29 +2314,49 @@ require(["esri/config","esri/Map","esri/Basemap","esri/WebMap","esri/views/MapVi
 
   let bmStage=0;
 
-  /* 포털 웹맵을 배경으로 사용 */
+  /* 포털 배경맵 아이템(웹맵)을 배경으로 사용 — 세 가지 방법을 차례로 시도하고, 모두 실패하면 이유를 콘솔에 남긴다 */
   (async function useWebmapBasemap(){
-    if(!CITY.basemapWebmapId) return;
+    const id=CITY.basemapWebmapId; if(!id) return;
+    const itemUrl=`${CITY.portalUrl}/sharing/rest/content/items/${id}`;
+    const apply=(base,how)=>{ map.basemap=base; WM_BASEMAP=base; bmStage=99;
+      console.log('[배경 웹맵] 적용('+how+')',id,'| 베이스 레이어',base.baseLayers.length,
+        base.baseLayers.map(l=>l.title||l.type).toArray? base.baseLayers.map(l=>l.title||l.type).toArray().join(', ') : ''); };
+    const why=[];
+    /* ① Basemap 아이템으로 직접 읽기 (배경맵 갤러리와 같은 방식) */
     try{
-      const wm=new WebMap({portalItem:{id:CITY.basemapWebmapId}});
-      await withTimeout(wm.load(),15000,'배경 웹맵 load');
-      try{ await withTimeout(wm.loadAll(),15000,'배경 웹맵 loadAll'); }
-      catch(e){ console.warn('[배경 웹맵] 하위 레이어 로딩이 늦어 베이스맵만 먼저 적용합니다'); }
-      if(!wm.loaded) throw new Error('배경 웹맵을 읽지 못했습니다');
-      const base=wm.basemap;
-      const nBase=base&&base.baseLayers? base.baseLayers.length : 0;
-      const ops=wm.layers? wm.layers.toArray().reverse() : [];
-      console.log('[배경 웹맵]',CITY.basemapWebmapId,'| 베이스 레이어',nBase,'| 일반 레이어',ops.length);
-      if(nBase){ map.basemap=base; WM_BASEMAP=base; bmStage=99; }
-      /* 시 바깥 음영(마스크)은 이 페이지가 직접 그리므로 웹맵의 마스크성 레이어는 겹치지 않게 뺀다 */
-      const isMask=l=>/mask|마스크|음영|dim|바깥|외부/i.test(String(l.title||l.id||''));
-      ops.forEach(l=>{ if(isMask(l)){ console.log('[배경 웹맵] 마스크 레이어 생략:',l.title); return; }
-        try{ l.popupEnabled=false; l.legendEnabled=false; map.add(l,0); }catch(e){} });
-      if(!nBase&&!ops.length) console.warn('[배경 웹맵] 안에 레이어가 없어 브이월드를 유지합니다');
-    }catch(e){
-      console.warn('[배경 웹맵 실패 — 브이월드 유지]',String((e&&e.message)||e));
-      console.warn('   ↳ 항목 확인:',CITY.portalUrl+'/sharing/rest/content/items/'+CITY.basemapWebmapId+'?f=json');
-    }
+      const b=new Basemap({portalItem:{id}});
+      await withTimeout(b.load(),20000,'배경맵 아이템 load');
+      if(b.baseLayers&&b.baseLayers.length){ apply(b,'Basemap 아이템'); return; }
+      why.push('Basemap 아이템: 베이스 레이어가 없음');
+    }catch(e){ why.push('Basemap 아이템: '+String((e&&e.message)||e)); }
+    /* ② 웹맵으로 읽어 베이스맵만 꺼내기 */
+    try{
+      const wm=new WebMap({portalItem:{id}});
+      await withTimeout(wm.load(),20000,'배경 웹맵 load');
+      const base=wm.basemap, n=base&&base.baseLayers? base.baseLayers.length : 0;
+      if(n){ apply(base,'WebMap'); return; }
+      why.push('WebMap: 베이스 레이어가 없음 (일반 레이어 '+(wm.layers? wm.layers.length : 0)+'개)');
+    }catch(e){ why.push('WebMap: '+String((e&&e.message)||e)); }
+    /* ③ 아이템 JSON을 직접 읽어 baseMapLayers 를 조립 */
+    try{
+      const j=await withTimeout(fetch(itemUrl+'/data?f=json').then(r=>r.json()),20000,'배경 웹맵 JSON');
+      if(j.error) throw new Error(j.error.message||JSON.stringify(j.error));
+      const bl=((j.baseMap&&j.baseMap.baseMapLayers)||[]).filter(l=>l.visibility!==false);
+      const layers=bl.map(l=>{
+        const t=String(l.layerType||''), c={title:l.title||l.id,opacity:l.opacity==null? 1 : l.opacity};
+        if(t==='VectorTileLayer') return new VectorTileLayer(Object.assign(c, l.styleUrl? {url:l.styleUrl} : l.itemId? {portalItem:{id:l.itemId}} : {url:l.url}));
+        if(t==='ArcGISTiledMapServiceLayer') return new TileLayer(Object.assign(c,{url:l.url}));
+        if(t==='ArcGISMapServiceLayer') return new MapImageLayer(Object.assign(c,{url:l.url}));
+        if(t==='WebTiledLayer') return new WebTileLayer(Object.assign(c,{urlTemplate:String(l.templateUrl||''),subDomains:l.subDomains||undefined,copyright:l.copyright||''}));
+        return null;
+      }).filter(Boolean);
+      if(!layers.length) throw new Error('baseMapLayers 없음 또는 지원하지 않는 형식: '+bl.map(l=>l.layerType).join(', '));
+      apply(new Basemap({baseLayers:layers,title:(j.baseMap&&j.baseMap.title)||'배경맵'}),'아이템 JSON');
+      return;
+    }catch(e){ why.push('아이템 JSON: '+String((e&&e.message)||e)); }
+    console.warn('[배경 웹맵 실패 — 바로e맵 유지]',id);
+    why.forEach(w=>console.warn('   ↳',w));
+    console.warn('   ↳ 포털에서 이 아이템이 "모든 사용자(공개)"로 공유돼 있는지 확인:',itemUrl+'?f=json');
   })();
 
   function bmFallback(){ if(bmStage>=99) return; bmStage++;
