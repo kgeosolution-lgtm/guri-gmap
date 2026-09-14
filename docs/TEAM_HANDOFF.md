@@ -166,3 +166,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 인증키: 항공사진 인증키(`NGII.apiKey`)는 도메인 등록형이라 국토정보플랫폼에 등록된 도메인(kgeodata.com, 개발 시 localhost)에서만 타일이 보입니다. 다른 도메인에 배포하면 등록을 추가해야 합니다.
 - 브랜치: `work/kangmina-aerial-timelapse` (base `design/service-home-refresh` a6a5955). 같은 내용이 이전에 main(#5)에도 병합돼 있으나, 운영 미리보기는 `design/service-home-refresh` 기준입니다.
 - 검증: `tsc --noEmit`, `npm run build`, `npm run build:deploy`(`out/maps/aerial.html` 생성·`/app/guri/maps/aerial.html` 링크 치환 확인), `npx prettier --check src public/styles/site-shell.css`, `git diff --check` 통과. 헤드리스 Chromium 1280px·390px에서 홈 섹션, 항공사진 페이지 헤더(현재 페이지 표시), 유기동물 페이지 헤더 링크 확인. 이 환경은 외부망이 막혀 항공사진 타일·유기동물 데이터 로드는 확인하지 못했습니다. 운영 배포 여부는 Actions 실행과 공개 URL로 별도 확인합니다.
+
+## 2026-09-14 시계열 항공사진 2차 교체 (담당: 강민아)
+
+- `public/maps/aerial.html`을 새 작업본으로 통째로 교체했습니다. 제목·공유 문구의 "구리생활지도"만 "구리시 G-MAP"으로 맞췄고 나머지는 작업본 그대로입니다.
+- 추가된 기능: 왼쪽 위 주소·장소 검색(ArcGIS Search 위젯, 구리 인근으로 검색 범위 제한), 오른쪽 위 지역 선택(경기도 · 구리시 고정, 행정동 드롭다운 — `CITY.dongUrl` 행정동경계 FeatureServer에서 목록을 받아 이동·노란 외곽선 강조, 지도 이동 시 중심 동 자동 표시), 시 외곽선을 행정동 합집합으로 생성(별도 시경계 레이어 제거).
+- 비교 방식 변경: "두 시기 비교"에서 연도를 누르면 먼저 고른 해가 새 해로 바뀌며 왼쪽은 항상 과거, 오른쪽은 최근 해입니다(기준 연도 select 제거). 비교 라벨은 지도 하단 좌·우로 이동.
+- 브랜치: `work/kangmina-aerial-search-dong` (base `design/service-home-refresh` 2905de9).
+- 검증: `npm run build:deploy`(`out/maps/aerial.html` 경로 치환 확인), `git diff --check` 통과. 헤드리스 Chromium 1280px·390px에서 헤더·검색창·지역 선택·연도 바 배치 확인. 외부망이 막힌 환경이라 ArcGIS 위젯 동작, 행정동 데이터, 항공사진 타일은 실제 브라우저에서 확인이 필요합니다.
