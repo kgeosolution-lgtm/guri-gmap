@@ -195,3 +195,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 조치: `public/maps/aerial.html` 연도 버튼 아래에 안내문(`#tsNote`)을 추가했습니다. 설정은 `NGII.limited = {maxYear:2019, minScale:4500}`. 2019년 이하 연도가 선택돼 있을 때만 보이고(비교 모드는 두 해 중 해당 연도만 언급), 실제로 `view.scale`이 4,500보다 작으면 "지금 배율에서는 … 바탕 지형도가 보여요" 문구로 바뀌며 노란 강조색이 됩니다. `reactiveUtils.watch(view.scale)`로 배율이 바뀔 때마다 갱신합니다. 항공사진·비교 로직은 변경 없음.
 - 브랜치: `work/kangmina-aerial-scale-note` (base `design/service-home-refresh` 1b3dbf3).
 - 검증: 인라인 스크립트 `node --check`, `updateNote` 단위 검사 5건(해당 없음/단일 연도/확대 상태/비교 모드 한쪽만/비교 모드 양쪽) 통과, `npm run build:deploy`, `git diff --check` 통과. 실제 지도에서의 표시는 배포 후 확인이 필요합니다.
+
+## 2026-09-14 테마지도 배경 웹맵 통일·축제 테마 추가 (담당: 강민아)
+
+- 배경지도: `CITY.basemapWebmapId`에 구리시 포털 웹맵 `51c2bc2db0d3423382d30ff755563f31`을 넣어 테마지도의 모든 배경이 이 웹맵의 베이스맵을 쓰도록 했습니다(`useWebmapBasemap`). 읽어 온 베이스맵은 `WM_BASEMAP`에 두어 그룹 웹맵으로 지도를 바꿀 때도 같은 배경을 적용합니다. 로딩 제한을 15초로 늘리고, 하위 레이어(loadAll)가 늦어도 베이스맵은 먼저 적용합니다. 이 페이지가 시 바깥 음영을 직접 그리므로 웹맵 안의 마스크성 레이어(제목에 mask/마스크/음영/dim/바깥/외부)는 겹치지 않게 뺍니다. 웹맵을 못 읽으면 기존처럼 브이월드 → 바로e맵 → 회색 순으로 대체합니다.
+- 축제 테마: `시즌·가을` 그룹의 `구리 명소` 앞에 `축제` 추가(`Hosted/culture_festival_New/FeatureServer`). 목록은 이름 + 상태 배지(진행중·오늘 개최·예정·계획·일정 미정·종료), 기간(`시작일`~`종료일`, 예정이면 "n일 뒤 시작"), 장소명. 팝업은 구리 명소와 같은 구성으로 소개(`축제소개`), 축제유형·무료·연계행사 칩, 기간·시간·장소·주요 프로그램·요금·주최·주관·연계행사·일정 확정(`확정수준`+`최종확인일`)·참고(`비고`), 공식페이지 링크, 문의처 전화, 사진 여러 장(`이미지URL`, 쉼표·공백·줄바꿈 구분). 심볼은 상태 색 깃발(`festSym`), 순서는 진행중 → 예정(가까운 순) → 계획·미정 → 종료(최근 순).
+- 렌더 로직 변경(최소): 목록 정렬에 테마별 `sortRank` 훅 한 줄 추가(다른 테마는 0이라 영향 없음), 상태 배지 CSS `.st.live/.soon/.plan/.done` 추가. CITY/GROUPS의 기존 테마와 F는 변경 없음.
+- 브랜치: `work/kangmina-theme-basemap-festival` (base `design/service-home-refresh` e013e29).
+- 검증: 인라인 스크립트 전체 `node --check`, 축제 상태·기간·시간·정렬 단위 검사(종료/예정/epoch 날짜/계획/미공개/진행중/오늘 8건), `npm run build:deploy`, `git diff --check` 통과. 구리시 서버(guri.go.kr)가 이 환경에서 차단돼 웹맵 베이스맵 실제 적용, 축제 데이터 로드, 사진 표시는 배포 후 브라우저에서 확인이 필요합니다.
