@@ -2,11 +2,12 @@
 import { useState } from 'react';
 import { Search, Menu, X } from 'lucide-react';
 import { siteConfig } from '@/config/site.config';
-import { animalUrl, themeUrl } from '@/config/links';
+import { aerialUrl, animalUrl, themeUrl } from '@/config/links';
 
 const menu = [
   { label: '테마지도', href: themeUrl('여름') },
   { label: '유기동물 찾기', href: animalUrl() },
+  { label: '시계열 항공사진', href: aerialUrl() },
   { label: '소개', href: '#about' },
 ];
 

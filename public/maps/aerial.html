@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>시계열 항공사진 · 구리시 G-MAP</title>
+<meta property="og:title" content="구리시 G-MAP 시계열 항공사진">
+<meta property="og:description" content="2011년부터 지금까지, 우리 동네가 어떻게 달라졌는지 항공사진으로 비교해 보세요.">
+<meta property="og:type" content="website">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="gmap-shared.css">
+<link rel="stylesheet" href="https://js.arcgis.com/4.29/esri/themes/light/main.css">
+<style>
+:root{
+  --brand:var(--krds-color-light-primary-50); --brand-hover:var(--krds-color-light-primary-60); --brand-soft:var(--krds-color-light-primary-5);
+  --accent:var(--krds-color-light-primary-50);
+  --ink:var(--krds-color-light-gray-90); --sub:var(--krds-color-light-gray-60); --faint:var(--krds-color-light-gray-40); --line:var(--krds-color-light-gray-10);
+  --shadow:0 2px 10px rgba(30,50,41,.12);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--krds-font-family-base);background:var(--krds-color-light-gray-5);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+.main{position:relative;height:calc(100dvh - 56px);min-height:420px}
+#map{position:absolute;inset:0}
+.esri-view .esri-view-surface--touch-none:focus::after{outline:none}
+.esri-ui .esri-attribution{font-size:11px}
+
+/* 지도 우상단 컨트롤 (테마지도와 동일한 결) */
+.map-ctl{position:absolute;right:12px;top:12px;z-index:6;display:flex;flex-direction:column;gap:6px}
+.map-ctl button{width:34px;height:34px;border-radius:6px;background:#fff;border:1px solid var(--krds-color-light-gray-20);display:grid;place-items:center;color:var(--krds-color-light-gray-70);box-shadow:var(--shadow);transition:all .13s}
+.map-ctl button:hover{color:var(--accent);border-color:var(--accent)}
+.map-ctl button svg{width:18px;height:18px}
+.map-toast{position:absolute;left:50%;transform:translateX(-50%);bottom:150px;background:#1E3229;color:#fff;font-size:13px;padding:8px 14px;border-radius:6px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:9;white-space:nowrap;max-width:calc(100% - 32px);white-space:normal;text-align:center}
+.map-toast.show{opacity:1}
+
+/* 연도 바 */
+.ts-bar{position:absolute;left:50%;transform:translateX(-50%);bottom:16px;z-index:7;background:#fff;border:1px solid var(--krds-color-light-gray-20);border-radius:8px;box-shadow:var(--shadow);padding:10px 14px 12px;max-width:calc(100% - 24px);width:max-content}
+.ts-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.ts-title{font-weight:700;font-size:14px;white-space:nowrap}
+.ts-hint{font-size:12px;color:var(--sub);flex:1;min-width:0}
+.ts-cmp{display:flex;align-items:center;gap:6px;font-size:13px;white-space:nowrap;margin-left:auto}
+.ts-cmp input{width:16px;height:16px;accent-color:var(--brand)}
+.ts-years{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.ts-years::-webkit-scrollbar{display:none}
+.ts-year{flex:none;height:32px;padding:0 11px;border-radius:6px;border:1px solid var(--krds-color-light-gray-20);background:#fff;font-size:13px;font-weight:600;color:var(--krds-color-light-gray-70);transition:all .13s;display:inline-flex;align-items:center;gap:4px}
+.ts-year:hover{border-color:var(--brand);color:var(--brand)}
+.ts-year.is-on{background:var(--brand);border-color:var(--brand);color:#fff}
+.ts-year.is-left{background:var(--krds-color-light-gray-80);border-color:var(--krds-color-light-gray-80);color:#fff}
+.ts-year.is-left::after{content:'◀';font-size:9px}
+.ts-year.is-on::before{content:'▶';font-size:9px}
+.ts-year.no-data{opacity:.4}
+.ts-base{display:none;align-items:center;gap:6px;font-size:12px;color:var(--sub);white-space:nowrap}
+.ts-base select{height:28px;border:1px solid var(--krds-color-light-gray-20);border-radius:6px;padding:0 6px;font:inherit;font-size:12px;color:var(--ink);background:#fff}
+.ts-bar.is-compare .ts-base{display:inline-flex}
+.ts-bar.is-compare .ts-hint{display:none}
+
+/* 스와이프 손잡이 톤 */
+.esri-swipe__container{--esri-swipe-divider-color:#fff}
+.esri-swipe__divider{background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.25)}
+.esri-swipe__handle{background:#fff;color:var(--brand);border:1px solid var(--krds-color-light-gray-20)}
+
+/* 비교 라벨 (왼쪽/오른쪽 연도) */
+.cmp-lbl{position:absolute;top:12px;z-index:6;background:rgba(30,50,41,.78);color:#fff;font-size:12px;font-weight:700;padding:4px 10px;border-radius:6px;pointer-events:none;display:none}
+.cmp-lbl.l{left:12px}.cmp-lbl.r{right:54px}
+.is-compare .cmp-lbl{display:block}
+
+.key-warn{position:absolute;left:50%;top:16px;transform:translateX(-50%);z-index:8;background:#fff;border:1px solid var(--krds-color-light-warning-50,#e6a700);border-radius:8px;padding:10px 14px;font-size:13px;max-width:calc(100% - 24px);box-shadow:var(--shadow);display:none}
+.key-warn b{color:#9a6a00}
+
+@media (max-width:640px){
+  .ts-bar{left:8px;right:8px;transform:none;width:auto;max-width:none;bottom:8px;padding:8px 10px 10px}
+  .ts-title{font-size:13px}
+  .ts-hint{flex-basis:100%;order:3}
+  .ts-year{height:30px;padding:0 9px;font-size:12px}
+  .map-toast{bottom:140px}
+  .cmp-lbl.r{right:12px;top:60px}
+  .map-ctl{top:auto;bottom:150px}
+}
+</style>
+</head>
+<body>
+
+<header class="site-header map topbar">
+  <div class="inner">
+    <a class="brand" href="/" title="G-MAP 홈으로">
+      <img class="emblem" src="/images/guri-emblem.png" alt="구리시" width="50" height="41">
+      <span class="txt"><span class="name">G-MAP</span><span class="sub">구리시 시민생활지도</span></span>
+    </a>
+    <span class="page-name">· 시계열 항공사진</span>
+  </div>
+</header>
+
+<div class="main" id="main">
+  <div id="map"></div>
+  <div class="cmp-lbl l" id="cmpL"></div>
+  <div class="cmp-lbl r" id="cmpR"></div>
+  <div class="map-ctl">
+    <button type="button" title="확대" aria-label="확대" onclick="view&&view.goTo({zoom:view.zoom+1},{duration:250})"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg></button>
+    <button type="button" title="축소" aria-label="축소" onclick="view&&view.goTo({zoom:view.zoom-1},{duration:250})"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+    <button type="button" title="내 위치" aria-label="내 위치" onclick="locate()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M20 12h2"/><path d="M2 12h2"/></svg></button>
+    <button type="button" title="구리시 전체 보기" aria-label="구리시 전체 보기" onclick="goHome()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l-2 0l9 -9l9 9l-2 0"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7"/><path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6"/></svg></button>
+    <button type="button" title="공유하기" aria-label="공유하기" onclick="shareUrl()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="12" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M8.7 10.7l6.6 -3.4"/><path d="M8.7 13.3l6.6 3.4"/></svg></button>
+  </div>
+  <div class="key-warn" id="keyWarn"><b>인증키가 없어요.</b> 국토정보플랫폼 항공사진 인증키를 이 파일의 <code>NGII.apiKey</code>에 넣어야 사진이 보여요.</div>
+  <div class="ts-bar" id="tsBar" role="group" aria-label="연도 선택">
+    <div class="ts-head">
+      <span class="ts-title">시계열 항공사진</span>
+      <span class="ts-hint" id="tsHint"></span>
+      <label class="ts-base">왼쪽(기준) <select id="tsBase" aria-label="비교 기준 연도"></select></label>
+      <label class="ts-cmp"><input type="checkbox" id="tsCompare"> 두 시기 비교</label>
+    </div>
+    <div class="ts-years" id="tsYears"></div>
+  </div>
+  <div class="map-toast" id="mapToast"></div>
+</div>
+
+<script src="https://js.arcgis.com/4.29/"></script>
+<script>
+/* ═══════════════════════════════════════════════════════════
+   구리생활지도 · 시계열 항공사진
+   국토지리정보원 국토정보플랫폼(map.ngii.go.kr) 항공사진 WMTS(EPSG:5179)를
+   웹 메르카토르 지도 위에 재투영해 연도별로 보여준다.
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── 설정 ── */
+const CITY={
+  name:'구리시',
+  extent:{xmin:127.092,ymin:37.548,xmax:127.180,ymax:37.655,spatialReference:{wkid:4326}},
+  boundaryUrl:"https://www.guri.go.kr/gmapsvr/rest/services/Hosted/%EA%B5%AC%EB%A6%AC%EC%8B%9C%EA%B2%BD%EA%B3%84/FeatureServer/0",
+  vworldKey:""   /* 공식 브이월드 키 발급 시 입력 (테마지도와 동일) */
+};
+
+/* 국토정보플랫폼 항공사진 WMTS
+ * ★ 인증키는 도메인 등록형이다. 국토정보플랫폼 > 오픈API > 항공사진 서비스를 신청할 때
+ *   이 페이지를 서비스할 도메인(kgeodata.com, 개발 중이면 localhost)을 등록해야 한다.
+ *   서버가 Access-Control-Allow-Origin 에 등록 도메인만 내려주므로, 등록 안 된 곳에서는 타일이 안 보인다.
+ * 자체 프록시를 쓰려면 proxyTemplate 에 {url} 자리를 둔 주소를 넣는다. 예: '/proxy/ngii?url={url}' */
+const NGII={
+  wmtsUrl:'https://map.ngii.go.kr/airmapprime/map/wmts',
+  apiKey:'17513F3A71B2FEAA62FD5191213C7C26',   /* 국토정보플랫폼 인증키 (kgeodata.com 등록) */
+  proxyTemplate:'',
+  layerPrefix:'mapprime:air_',                 /* 실제 레이어명 = mapprime:air_2015 */
+  tileMatrixSet:'NGIS_AIR',
+  format:'image/jpeg',
+  years:[2011,2012,2013,2014,2015,2016,2017,2018,2019,2020,2021,2022,2023,2024,2025],
+  /* NGIS_AIR 타일 격자 (EPSG:5179) */
+  grid:{
+    wkid:5179, origin:{x:-200000,y:4000000}, tileSize:256,
+    firstLevel:5,                              /* resolutions[0] 이 tilematrix 5 */
+    resolutions:[2088.96,1044.48,522.24,261.12,130.56,65.28,32.64,16.32,8.16,4.08,2.04,1.02,0.51,0.255],
+    fullExtent:{xmin:705680,ymin:1349270,xmax:1388291,ymax:2581448}
+  }
+};
+
+/* ── 상태 ── */
+let view=null, map=null;
+let year=null, baseYear=null, compare=false;
+let airLayer=null, cmpLayer=null, swipe=null;
+let SwipeCls=null, AirPhotoLayer=null;
+
+const $=id=>document.getElementById(id);
+const qs=new URLSearchParams(location.search);
+function toast(msg,ms=2200){ const t=$('mapToast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),ms); }
+
+function pickYear(v,fallback){ const n=parseInt(v,10); return NGII.years.includes(n)? n : fallback; }
+year=pickYear(qs.get('y'),NGII.years[NGII.years.length-1]);
+baseYear=pickYear(qs.get('base'),NGII.years[0]);
+compare=qs.get('cmp')==='1';
+
+/* ── 지도 ── */
+require([
+  "esri/config","esri/Map","esri/Basemap","esri/views/MapView",
+  "esri/layers/WebTileLayer","esri/layers/VectorTileLayer","esri/layers/FeatureLayer","esri/layers/BaseTileLayer",
+  "esri/request","esri/geometry/Point","esri/geometry/SpatialReference","esri/geometry/projection",
+  "esri/geometry/support/webMercatorUtils","esri/widgets/Swipe"
+],(esriConfig,Map,Basemap,MapView,WebTileLayer,VectorTileLayer,FeatureLayer,BaseTileLayer,
+   esriRequest,Point,SpatialReference,projection,webMercatorUtils,Swipe)=>{
+
+  esriConfig.request.useIdentity=false;
+  SwipeCls=Swipe;
+
+  /* ── 국토정보플랫폼 항공사진 타일 레이어 (5179 → 웹 메르카토르 재투영) ──
+   * NGII WMTS는 NGIS_AIR(EPSG:5179) 격자만 제공한다. ArcGIS SDK는 타일을 재투영하지 않으므로
+   * 웹 메르카토르 타일 한 장마다 필요한 5179 타일을 받아 어파인 변환으로 캔버스에 다시 그린다.
+   * 두 좌표계 모두 등각이라 타일 한 장 범위 안에서는 회전+축척으로 근사돼 오차는 1px 수준. */
+  const G=NGII.grid, TILE=G.tileSize, SR5179=new SpatialReference({wkid:G.wkid});
+  const MAX_SOURCE_TILES=42;
+
+  function sourceUrl(y,z,col,row){
+    const q=[`layer=${encodeURIComponent(NGII.layerPrefix+y)}`,'style=',`tilematrixset=${NGII.tileMatrixSet}`,
+      'service=WMTS','request=GetTile','version=1.0.0',`format=${encodeURIComponent(NGII.format)}`,
+      `tilematrix=${z}`,`tilecol=${col}`,`tilerow=${row}`,`apiKey=${NGII.apiKey}`].join('&');
+    const direct=`${NGII.wmtsUrl}?${q}`;
+    return NGII.proxyTemplate? NGII.proxyTemplate.replace('{url}',encodeURIComponent(direct)) : direct;
+  }
+
+  AirPhotoLayer=BaseTileLayer.createSubclass({
+    properties:{ year:null },
+    async fetchTile(level,row,col,options){
+      const canvas=document.createElement('canvas'); canvas.width=canvas.height=TILE;
+      const ctx=canvas.getContext('2d');
+      const b=this.getTileBounds(level,row,col);
+      if(!b) return canvas;
+      const corners=[[b[0],b[3]],[b[2],b[3]],[b[0],b[1]],[b[2],b[1]]].map(([x,y])=>this._toSource(x,y));
+      if(corners.some(p=>!p)) return canvas;
+      const [p0,p1,p2]=corners;
+      const fx1=(p1.x-p0.x)/TILE, fx2=(p2.x-p0.x)/TILE, fy1=(p1.y-p0.y)/TILE, fy2=(p2.y-p0.y)/TILE;
+      const det=fx1*fy2-fx2*fy1; if(!det) return canvas;
+      const inv={a:fy2/det,b:-fy1/det,c:-fx2/det,d:fx1/det};
+      const toPixel=(X,Y)=>({u:inv.a*(X-p0.x)+inv.c*(Y-p0.y), v:inv.b*(X-p0.x)+inv.d*(Y-p0.y)});
+
+      const groundRes=Math.hypot(p1.x-p0.x,p1.y-p0.y)/TILE;
+      let idx=0;
+      if(groundRes<G.resolutions[0]){ idx=G.resolutions.findIndex(r=>r<=groundRes); if(idx<0) idx=G.resolutions.length-1; }
+      const srcRes=G.resolutions[idx], srcLevel=idx+G.firstLevel, span=srcRes*TILE;
+
+      const xs=corners.map(p=>p.x), ys=corners.map(p=>p.y);
+      const xmin=Math.min(...xs), xmax=Math.max(...xs), ymin=Math.min(...ys), ymax=Math.max(...ys);
+      const fe=G.fullExtent;
+      if(xmax<fe.xmin||xmin>fe.xmax||ymax<fe.ymin||ymin>fe.ymax) return canvas;
+      const c0=Math.floor((xmin-G.origin.x)/span), c1=Math.floor((xmax-G.origin.x)/span);
+      const r0=Math.floor((G.origin.y-ymax)/span), r1=Math.floor((G.origin.y-ymin)/span);
+      const count=(c1-c0+1)*(r1-r0+1);
+      if(count<=0||count>MAX_SOURCE_TILES) return canvas;
+
+      ctx.imageSmoothingQuality='high';
+      const jobs=[];
+      for(let c=c0;c<=c1;c++) for(let r=r0;r<=r1;r++){
+        const x0=G.origin.x+c*span, y0=G.origin.y-r*span;
+        if(x0+span<fe.xmin||x0>fe.xmax||y0<fe.ymin||y0-span>fe.ymax) continue;
+        jobs.push(esriRequest(sourceUrl(this.year,srcLevel,c,r),{responseType:'image',allowImageDataAccess:true,signal:options&&options.signal})
+          .then(res=>({img:res.data,x0,y0})).catch(()=>null));   /* 자료 없는 칸은 건너뜀 */
+      }
+      const tiles=await Promise.all(jobs);
+      for(const t of tiles){
+        if(!t||!t.img) continue;
+        const o=toPixel(t.x0,t.y0), ex=toPixel(t.x0+srcRes,t.y0), ey=toPixel(t.x0,t.y0-srcRes);
+        ctx.save(); ctx.setTransform(ex.u-o.u,ex.v-o.v,ey.u-o.u,ey.v-o.v,o.u,o.v); ctx.drawImage(t.img,0,0); ctx.restore();
+      }
+      return canvas;
+    },
+    _toSource(x,y){
+      try{
+        const sr=this.spatialReference||SpatialReference.WebMercator;
+        let p=new Point({x,y,spatialReference:sr});
+        if(sr.isWebMercator) p=webMercatorUtils.webMercatorToGeographic(p);
+        const out=projection.project(p,SR5179);
+        return out? {x:out.x,y:out.y} : null;
+      }catch(e){ return null; }
+    }
+  });
+
+  /* 배경: 브이월드 (사진 자료가 없는 곳에서만 보인다) */
+  const vwTpl=CITY.vworldKey
+    ? "https://api.vworld.kr/req/wmts/1.0.0/"+CITY.vworldKey+"/Base/{level}/{row}/{col}.png"
+    : "https://xdworld.vworld.kr/2d/Base/service/{level}/{col}/{row}.png";
+  const vw=new WebTileLayer({urlTemplate:vwTpl,copyright:"© 브이월드(국토교통부)"});
+  const basemap=new Basemap({baseLayers:[vw],title:"브이월드"});
+  vw.load().catch(()=>{ map.basemap=Basemap.fromId("gray-vector"); });
+
+  /* 구리시 경계 */
+  const bndHalo=new FeatureLayer({url:CITY.boundaryUrl,popupEnabled:false,legendEnabled:false,
+    renderer:{type:"simple",symbol:{type:"simple-fill",color:[0,0,0,0],outline:{color:[255,255,255,.85],width:5}}}});
+  const bnd=new FeatureLayer({url:CITY.boundaryUrl,popupEnabled:false,legendEnabled:false,
+    renderer:{type:"simple",symbol:{type:"simple-fill",color:[0,0,0,0],outline:{color:"#018058",width:2}}}});
+
+  map=new Map({basemap,layers:[bndHalo,bnd]});
+  view=new MapView({container:"map",map,extent:CITY.extent,constraints:{rotationEnabled:false,minScale:600000},
+    ui:{components:["attribution"]},popup:{autoOpenEnabled:false}});
+  view.ui.move("attribution","bottom-right");
+
+  projection.load().then(()=>{ applyYears(); renderBar(); }).catch(()=>toast('좌표 변환 모듈을 불러오지 못했어요'));
+  if(!NGII.apiKey) $('keyWarn').style.display='block';
+});
+
+/* ── 연도 반영 ── */
+function applyYears(){
+  if(!map||!AirPhotoLayer) return;
+  if(swipe){ try{swipe.destroy();}catch(e){} swipe=null; }
+  if(airLayer){ map.remove(airLayer); airLayer=null; }
+  if(cmpLayer){ map.remove(cmpLayer); cmpLayer=null; }
+
+  const right=year, left=compare? baseYear : null;
+  const older=compare? Math.min(left,right) : right;
+  const mk=y=>new AirPhotoLayer({year:y,id:'airphoto_'+y,title:'항공사진 '+y,copyright:'국토지리정보원 국토정보플랫폼'});
+  airLayer=mk(compare? right : older); map.add(airLayer,0);
+  if(compare&&left!==right){
+    /* 왼쪽=기준(과거), 오른쪽=선택 연도. Swipe 의 leading(왼쪽)에 기준 연도를 둔다 */
+    cmpLayer=mk(left); map.add(cmpLayer,1);
+    swipe=new SwipeCls({view,leadingLayers:[cmpLayer],trailingLayers:[airLayer],position:50,direction:'horizontal'});
+    view.ui.add(swipe);
+  }
+  $('main').classList.toggle('is-compare',compare&&left!==right);
+  $('cmpL').textContent=left+'년'; $('cmpR').textContent=right+'년';
+  syncUrl();
+}
+
+/* ── 연도 바 ── */
+function renderBar(){
+  const host=$('tsYears'); host.innerHTML='';
+  NGII.years.forEach(y=>{
+    const b=document.createElement('button'); b.type='button'; b.className='ts-year';
+    if(y===year) b.classList.add('is-on');
+    if(compare&&y===baseYear) b.classList.add('is-left');
+    b.textContent=y; b.setAttribute('aria-pressed',y===year?'true':'false');
+    b.title=compare? `${y}년을 오른쪽에 (Shift+클릭: 왼쪽 기준으로)` : `${y}년 항공사진`;
+    b.onclick=e=>{ if(compare&&e.shiftKey) baseYear=y; else year=y; applyYears(); renderBar(); };
+    host.appendChild(b);
+  });
+  const sel=$('tsBase'); sel.innerHTML=NGII.years.map(y=>`<option value="${y}" ${y===baseYear?'selected':''}>${y}년</option>`).join('');
+  $('tsHint').textContent=`${year}년 항공사진 · 국토지리정보원 국토정보플랫폼`;
+  $('tsBar').classList.toggle('is-compare',compare);
+  $('tsCompare').checked=compare;
+  const on=host.querySelector('.is-on'); if(on) on.scrollIntoView({block:'nearest',inline:'nearest'});
+}
+$('tsCompare').addEventListener('change',e=>{ compare=e.target.checked; if(compare&&baseYear===year) baseYear=NGII.years[0]===year? NGII.years[1] : NGII.years[0]; applyYears(); renderBar(); });
+$('tsBase').addEventListener('change',e=>{ baseYear=parseInt(e.target.value,10); applyYears(); renderBar(); });
+
+function syncUrl(){
+  const p=new URLSearchParams(); p.set('y',year); if(compare){ p.set('cmp','1'); p.set('base',baseYear); }
+  history.replaceState(null,'',location.pathname+'?'+p.toString());
+}
+
+/* ── 도구 ── */
+function goHome(){ if(view) view.goTo(CITY.extent,{duration:400}); }
+function locate(){
+  if(!navigator.geolocation){ toast('이 브라우저는 위치 기능을 지원하지 않아요'); return; }
+  navigator.geolocation.getCurrentPosition(p=>{
+    if(view) view.goTo({center:[p.coords.longitude,p.coords.latitude],zoom:16},{duration:500});
+  },()=>toast('현재 위치를 확인하지 못했어요'),{enableHighAccuracy:true,timeout:8000});
+}
+async function shareUrl(){
+  const label=`구리시 G-MAP 시계열 항공사진 ${compare? baseYear+'년 ↔ '+year+'년' : year+'년'}`;
+  const httpish=/^https?:/i.test(location.href);
+  if(navigator.share){
+    try{ await navigator.share(httpish? {title:label,url:location.href} : {title:label,text:label}); return; }
+    catch(e){ if(e&&e.name==='AbortError') return; }
+  }
+  try{ await navigator.clipboard.writeText(location.href); toast('주소를 복사했어요'); }
+  catch(e){ toast('주소 복사가 안 됐어요. 주소창에서 복사해 주세요'); }
+}
+</script>
+</body>
+</html>

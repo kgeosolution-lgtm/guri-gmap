@@ -1,6 +1,6 @@
 import { ChevronRight } from 'lucide-react';
 import { siteConfig } from '@/config/site.config';
-import { animalUrl, themeUrl } from '@/config/links';
+import { aerialUrl, animalUrl, themeUrl } from '@/config/links';
 
 /** KRDS 푸터 (html/code/footer.html 의 f-logo / f-cnt / f-btm + krds-identifier 구조) */
 export function KrdsFooter() {
@@ -27,6 +27,9 @@ export function KrdsFooter() {
               </a>
               <a href={animalUrl()} className="krds-btn medium text">
                 유기동물 찾기 <ChevronRight className="svg-icon" aria-hidden="true" />
+              </a>
+              <a href={aerialUrl()} className="krds-btn medium text">
+                시계열 항공사진 <ChevronRight className="svg-icon" aria-hidden="true" />
               </a>
             </div>
           </div>
