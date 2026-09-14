@@ -2,7 +2,7 @@ export const siteConfig = {
   name: 'G-MAP',
   fullName: '구리시 시민생활지도',
   description: '구리 시민이 지금 필요한 생활정보를 지도에서 쉽게 찾는 사이트',
-  /** 지도 페이지(theme.html, animal.html)가 놓인 기준 URL. public/maps 로 옮기면 값만 바꾼다. */
+  /** 지도 페이지(theme.html, animal.html, aerial.html)가 놓인 기준 URL. public/maps 로 옮기면 값만 바꾼다. */
   mapsBase: process.env.NEXT_PUBLIC_MAPS_BASE ?? '/maps',
   nav: [
     { label: '생활지도', href: '#recommended' },

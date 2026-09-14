@@ -5,6 +5,7 @@ import { SiteHeader } from '@/components/krds/SiteHeader';
 import { KrdsFooter } from '@/components/krds/KrdsFooter';
 import { HeroKrds } from '@/components/HeroKrds';
 import { MapsNow } from '@/components/MapsNow';
+import { AerialPromo } from '@/components/AerialPromo';
 import { NowGuri } from '@/components/NowGuri';
 import { ComingSoon } from '@/components/ComingSoon';
 import { DevSeasonToolbar } from '@/components/DevSeasonToolbar';
@@ -34,6 +35,7 @@ export default function Home() {
       >
         <HeroKrds season={season} />
         <MapsNow />
+        <AerialPromo />
         <NowGuri season={season} />
         <ComingSoon />
       </main>
