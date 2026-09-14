@@ -63,19 +63,19 @@ git diff
 
 ## 주요 파일
 
-| 영역                      | 경로                                            |
-| ------------------------- | ----------------------------------------------- |
-| 새 홈·계절 선택·그룹 검색 | src/app/page.tsx                                |
-| 새 홈 스타일              | src/app/service-home.css                        |
-| React 헤더                | src/components/krds/SiteHeader.tsx              |
-| 홈·지도 공용 헤더 스타일  | public/styles/site-shell.css                    |
-| KRDS 토큰·폰트            | src/app/globals.css                             |
-| 계절 이미지·문구          | src/config/season.config.ts                     |
-| 그룹 색·아이콘·설명       | src/config/theme-groups.config.ts               |
-| 지도 URL 헬퍼             | src/config/links.ts                             |
-| 지도 기본 주소            | src/config/site.config.ts                       |
+| 영역                      | 경로                                                                     |
+| ------------------------- | ------------------------------------------------------------------------ |
+| 새 홈·계절 선택·그룹 검색 | src/app/page.tsx                                                         |
+| 새 홈 스타일              | src/app/service-home.css                                                 |
+| React 헤더                | src/components/krds/SiteHeader.tsx                                       |
+| 홈·지도 공용 헤더 스타일  | public/styles/site-shell.css                                             |
+| KRDS 토큰·폰트            | src/app/globals.css                                                      |
+| 계절 이미지·문구          | src/config/season.config.ts                                              |
+| 그룹 색·아이콘·설명       | src/config/theme-groups.config.ts                                        |
+| 지도 URL 헬퍼             | src/config/links.ts                                                      |
+| 지도 기본 주소            | src/config/site.config.ts                                                |
 | 정적 지도 페이지          | public/maps/theme.html, public/maps/animal.html, public/maps/aerial.html |
-| 지도 공용 토큰            | public/maps/gmap-shared.css                     |
+| 지도 공용 토큰            | public/maps/gmap-shared.css                                              |
 
 React 헤더와 정적 HTML 헤더는 같은 CSS를 사용하지만 마크업은 각각 존재합니다. 구조를 수정하면 양쪽을 함께 확인하세요. 지도 헤더 높이는 테두리 포함 57px이며 기존 밴드·패널의 위치 계산과 연결됩니다. theme.html에는 큰 base64 심볼이 있으므로 전체를 출력하지 말고 필요한 구간만 읽으세요. public/maps/는 Prettier 제외 대상입니다.
 
