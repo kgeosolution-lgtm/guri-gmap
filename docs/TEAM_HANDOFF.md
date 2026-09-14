@@ -181,3 +181,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 조치: `public/maps/aerial.html`에 `cleanOutline()` 추가. union 결과에서 시계 방향(바깥) 고리만 남기고 반시계 방향(구멍) 고리는 버리며, 바깥 고리 중 가장 큰 면적의 2% 미만인 조각도 버립니다. 동 선택·이동·현재 동 표시 로직과 항공사진 로직은 변경 없음.
 - 브랜치: `work/kangmina-aerial-outline-clean` (base `design/service-home-refresh` 267dd12).
 - 검증: 인라인 스크립트 `node --check`, `cleanOutline` 단위 검사(큰 고리 1 + 구멍 1 + 조각 1 → 큰 고리만 남음), `npm run build:deploy`, `git diff --check` 통과. 실제 행정동 데이터로는 외부망이 막혀 확인하지 못했으니 배포 후 지도에서 흰 자국이 사라졌는지 확인이 필요합니다.
+
+## 2026-09-14 시계열 항공사진 검색 버튼 정리 (담당: 강민아)
+
+- 증상: 왼쪽 위 주소 검색창의 돋보기 버튼이 ArcGIS 위젯 기본 높이(32px)로 그려져 42px 검색창 위쪽에 흰 틈이 남고 아이콘이 아래로 치우쳐 보였습니다.
+- 조치: `public/maps/aerial.html`의 `.search-host` 규칙에서 `esri-search__form`·`esri-search__input-container`를 42px stretch 로 맞추고, 돋보기(`esri-search__submit-button`)·지우기(`esri-search__clear-button`) 버튼을 42px 높이·flex 가운데 정렬로 바꿨습니다. 검색 동작 로직은 변경 없음.
+- 브랜치: `work/kangmina-aerial-search-button` (base `design/service-home-refresh` 5a61365).
+- 검증: ArcGIS CSS 를 내려받을 수 없는 환경이라 위젯 기본 규칙(버튼 32px, flex 컨테이너)을 흉내 낸 목업으로 버튼이 42px 를 채우고 아이콘이 가운데 오는지 측정했습니다. `npm run build:deploy`, `git diff --check` 통과. 실제 위젯에서는 배포 후 확인이 필요합니다.

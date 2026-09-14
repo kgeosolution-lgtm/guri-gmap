@@ -58,12 +58,15 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 /* 좌상단 주소·장소 검색 (ArcGIS Search 위젯을 알약형으로) */
 .search-host{position:absolute;left:12px;top:12px;z-index:7;width:min(360px,calc(100% - 24px))}
 .search-host .esri-search{width:100%;border-radius:22px;box-shadow:var(--shadow);border:1px solid var(--gray20);overflow:hidden;background:#fff}
-.search-host .esri-search__container{height:42px}
+.search-host .esri-search__container{height:42px;align-items:stretch}
+.search-host .esri-search__form{display:flex;align-items:stretch;height:42px}
+.search-host .esri-search__input-container{display:flex;align-items:stretch;height:42px}
 .search-host .esri-search__input{height:42px;font-family:inherit;font-size:14px;padding-left:16px;border:none}
 .search-host .esri-search__input::placeholder{color:var(--faint)}
-.search-host .esri-search__submit-button{width:44px;color:#fff;background:var(--brand);border:none}
-.search-host .esri-search__submit-button:hover{background:var(--brand-hover)}
-.search-host .esri-search__clear-button{border:none}
+/* 돋보기·지우기 버튼: ArcGIS 기본 높이(32px) 대신 컨테이너 42px 를 꽉 채우고 아이콘을 가운데에 */
+.search-host .esri-search__submit-button{width:44px;height:42px;min-height:42px;align-self:stretch;display:flex;align-items:center;justify-content:center;padding:0;line-height:1;color:#fff;background:var(--brand);border:none}
+.search-host .esri-search__submit-button:hover,.search-host .esri-search__submit-button:focus{background:var(--brand-hover);color:#fff}
+.search-host .esri-search__clear-button{height:42px;min-height:42px;align-self:stretch;display:flex;align-items:center;justify-content:center;border:none}
 .search-host .esri-search__suggestions-menu{border-radius:10px;margin-top:6px;box-shadow:var(--shadow);border:1px solid var(--gray20)}
 .search-host .esri-search__sources-button{display:none}
 
