@@ -174,3 +174,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 비교 방식 변경: "두 시기 비교"에서 연도를 누르면 먼저 고른 해가 새 해로 바뀌며 왼쪽은 항상 과거, 오른쪽은 최근 해입니다(기준 연도 select 제거). 비교 라벨은 지도 하단 좌·우로 이동.
 - 브랜치: `work/kangmina-aerial-search-dong` (base `design/service-home-refresh` 2905de9).
 - 검증: `npm run build:deploy`(`out/maps/aerial.html` 경로 치환 확인), `git diff --check` 통과. 헤드리스 Chromium 1280px·390px에서 헤더·검색창·지역 선택·연도 바 배치 확인. 외부망이 막힌 환경이라 ArcGIS 위젯 동작, 행정동 데이터, 항공사진 타일은 실제 브라우저에서 확인이 필요합니다.
+
+## 2026-09-14 시계열 항공사진 시 외곽선 정리 (담당: 강민아)
+
+- 증상: 행정동 합집합으로 만든 시 외곽선 안쪽(인창동·수택동 부근)에 작은 흰 자국이 보였습니다. 동 경계끼리 딱 맞물리지 않아 union 결과에 생긴 작은 구멍(안쪽 고리)과 조각(작은 섬)이 헤일로·본선으로 그려진 것입니다.
+- 조치: `public/maps/aerial.html`에 `cleanOutline()` 추가. union 결과에서 시계 방향(바깥) 고리만 남기고 반시계 방향(구멍) 고리는 버리며, 바깥 고리 중 가장 큰 면적의 2% 미만인 조각도 버립니다. 동 선택·이동·현재 동 표시 로직과 항공사진 로직은 변경 없음.
+- 브랜치: `work/kangmina-aerial-outline-clean` (base `design/service-home-refresh` 267dd12).
+- 검증: 인라인 스크립트 `node --check`, `cleanOutline` 단위 검사(큰 고리 1 + 구멍 1 + 조각 1 → 큰 고리만 남음), `npm run build:deploy`, `git diff --check` 통과. 실제 행정동 데이터로는 외부망이 막혀 확인하지 못했으니 배포 후 지도에서 흰 자국이 사라졌는지 확인이 필요합니다.
