@@ -219,3 +219,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 확인 필요: 아이템이 포털에서 "모든 사용자(공개)"로 공유돼 있어야 로그인하지 않은 시민도 배경을 볼 수 있습니다. 비공개면 세 방법 모두 실패합니다.
 - 브랜치: `work/kangmina-theme-webmap-basemap` (base `design/service-home-refresh` 682a6fc).
 - 검증: 인라인 스크립트 `node --check`, ③ 조립 분기 단위 검사(벡터타일·숨김 레이어 제외·WebTiled 투명도), `npm run build:deploy`, `git diff --check` 통과. 포털이 이 환경에서 차단돼 실제 적용은 배포 후 브라우저 콘솔의 `[배경 웹맵] 적용(…)` 메시지로 확인해야 합니다.
+
+## 2026-09-14 문화·여가 축제·행사 → 축제 테마로 교체 (담당: 강민아)
+
+- `문화·여가` 그룹의 `축제·행사`(예전 `culture_festival`, 카드형)를 `시즌·가을`의 `축제`와 같은 테마로 바꿨습니다. 정의를 `festTheme()` 팩토리 함수 하나로 빼고 두 그룹에서 `'축제':festTheme()`로 각각 새 객체를 만들어 씁니다(테마 객체는 실행 중 상태가 붙으므로 공유하지 않음). 데이터는 둘 다 `culture_festival_New`.
+- 심볼: 축제 깃발은 `SYM['fest_flag']`로 등록하고 테마 `sym:'fest_flag'`. 원래 base64 `culture_festival` 아이콘은 덮어쓰지 않고 그대로 둡니다.
+- 브랜치: `work/kangmina-culture-festival` (base `design/service-home-refresh` b9da18b).
+- 검증: 인라인 스크립트 `node --check`, 로컬 헤드리스 Chrome에서 `문화·여가`·`시즌·가을` 테마 순서와 데이터 주소 확인, `npm run build:deploy`, `git diff --check` 통과. 실제 데이터 표시는 배포 후 확인이 필요합니다.
