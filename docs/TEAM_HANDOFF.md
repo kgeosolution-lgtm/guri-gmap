@@ -27,6 +27,7 @@ npm run dev
 - 홈: http://localhost:3000/
 - 테마지도: http://localhost:3000/maps/theme.html?group=여름
 - 유기동물: http://localhost:3000/maps/animal.html
+- 시계열 항공사진: http://localhost:3000/maps/aerial.html
 - 보존된 초기 홈: http://localhost:3000/v1
 
 포트 3000을 이미 사용하는 경우 개발 서버가 출력한 실제 포트를 확인하세요. `.env.local`은 기본 실행에 필수가 아닙니다. 지도 주소를 바꿀 때 `.env.example`을 참고하세요. 기본 지도 주소는 `/maps`입니다. 홈의 사계절 선택은 본 화면에 포함되며, 기존 `NEXT_PUBLIC_SHOW_THEME_TOOLBAR`는 이전 개발 도구에 대한 설정입니다.
@@ -62,19 +63,19 @@ git diff
 
 ## 주요 파일
 
-| 영역                      | 경로                                            |
-| ------------------------- | ----------------------------------------------- |
-| 새 홈·계절 선택·그룹 검색 | src/app/page.tsx                                |
-| 새 홈 스타일              | src/app/service-home.css                        |
-| React 헤더                | src/components/krds/SiteHeader.tsx              |
-| 홈·지도 공용 헤더 스타일  | public/styles/site-shell.css                    |
-| KRDS 토큰·폰트            | src/app/globals.css                             |
-| 계절 이미지·문구          | src/config/season.config.ts                     |
-| 그룹 색·아이콘·설명       | src/config/theme-groups.config.ts               |
-| 지도 URL 헬퍼             | src/config/links.ts                             |
-| 지도 기본 주소            | src/config/site.config.ts                       |
-| 정적 지도 페이지          | public/maps/theme.html, public/maps/animal.html |
-| 지도 공용 토큰            | public/maps/gmap-shared.css                     |
+| 영역                      | 경로                                                                     |
+| ------------------------- | ------------------------------------------------------------------------ |
+| 새 홈·계절 선택·그룹 검색 | src/app/page.tsx                                                         |
+| 새 홈 스타일              | src/app/service-home.css                                                 |
+| React 헤더                | src/components/krds/SiteHeader.tsx                                       |
+| 홈·지도 공용 헤더 스타일  | public/styles/site-shell.css                                             |
+| KRDS 토큰·폰트            | src/app/globals.css                                                      |
+| 계절 이미지·문구          | src/config/season.config.ts                                              |
+| 그룹 색·아이콘·설명       | src/config/theme-groups.config.ts                                        |
+| 지도 URL 헬퍼             | src/config/links.ts                                                      |
+| 지도 기본 주소            | src/config/site.config.ts                                                |
+| 정적 지도 페이지          | public/maps/theme.html, public/maps/animal.html, public/maps/aerial.html |
+| 지도 공용 토큰            | public/maps/gmap-shared.css                                              |
 
 React 헤더와 정적 HTML 헤더는 같은 CSS를 사용하지만 마크업은 각각 존재합니다. 구조를 수정하면 양쪽을 함께 확인하세요. 지도 헤더 높이는 테두리 포함 57px이며 기존 밴드·패널의 위치 계산과 연결됩니다. theme.html에는 큰 base64 심볼이 있으므로 전체를 출력하지 말고 필요한 구간만 읽으세요. public/maps/는 Prettier 제외 대상입니다.
 
@@ -155,3 +156,13 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 배율: 그룹 변경·동 전체 선택 시 `resetView`가 시작 화면(`INIT_VIEW`)으로 되돌리던 것을, 지도 크기에 맞춰 구리시 경계가 여백 10%로 들어오는 소수점 배율(`cityFit`)로 매번 계산하도록 바꿨습니다. 시작 화면도 같은 함수로 맞춥니다. `MapView`에 `snapToZoom:false`를 주어 소수점 배율이 정수(12)로 내려가 구리시가 작게 보이던 문제를 없앴습니다. `goTo` 전에 `view.when()`을 기다립니다.
 - 시즌·여름 비활성화(코드 유지): theme.html 그룹에 `hidden:true`를 두고 `visibleGroups()`로 드롭다운 메뉴·기본 그룹에서 제외했습니다. `?group=시즌·여름` 직접 접근과 `cat` 파라미터 역탐색은 그대로 동작합니다. 홈은 `theme-groups.config.ts`에 `hidden` 플래그를 두고 `themeGroups`를 필터로 내보내 카드·검색에서 빠집니다. 헤더·푸터·지도 바로가기의 테마지도 링크는 `시즌·가을`로, 홈 "쉼터" 카드는 `안전·재난`(무더위·한파쉼터)으로 바꿨습니다. `season.config.ts`의 여름 계절 추천 항목은 여름 화면에서만 쓰이므로 그대로 두었습니다.
 - 검증: 로컬 1280×800(지도 928×647)에서 시작·그룹 변경·동 전체 모두 배율 12.58로 일치, 그룹 메뉴 9개(여름 없음), 홈 카드에 여름 없음, 콘솔 오류 없음. `npm run build`, `build:deploy`, `tsc --noEmit`, prettier, `git diff --check` 통과. 개별 동 확대는 브라우저 패널이 숨김 상태라 애니메이션 `goTo`가 끝나지 않아 이 환경에서는 재확인하지 못했습니다(코드 변경 없음).
+
+## 2026-09-14 시계열 항공사진 추가 (담당: 강민아)
+
+- 페이지: `public/maps/aerial.html` 추가. 국토지리정보원 국토정보플랫폼 항공사진 WMTS(EPSG:5179)를 웹 메르카토르 위에 재투영해 2011~2025년 연도별로 보여주고, "두 시기 비교" 스와이프를 지원합니다. 헤더는 다른 지도 페이지와 같은 `service-header` 마크업이며 지도 높이는 헤더 57px 기준입니다.
+- 공통 헤더: React `SiteHeader.tsx`와 정적 `theme.html`·`animal.html` 헤더(PC nav·모바일 nav) 모두 "유기동물 찾기" 옆에 "시계열 항공사진" 링크를 추가했습니다. 정적 HTML은 헤더 한 줄만 바꿨고 지도·데이터 로직은 손대지 않았습니다.
+- 홈: 유기동물 안내 아래에 `aerial-section`(원형 일러스트 `TimeLapseArt.tsx` + "시간을 따라 보는 구리 / 우리 동네의 변화 과정을 구경하세요." + "시계열 항공사진 보기" 버튼) 추가. 스타일은 `service-home.css`의 `.aerial-*`이며 반려동물 섹션과 같은 구조로 모바일(620px 이하)에서는 세로 배치·가운데 정렬입니다.
+- 링크 헬퍼: `links.ts`에 `aerialUrl()` 추가. `scripts/build-deploy.mjs` 필수 산출물에 `maps/aerial.html` 추가.
+- 인증키: 항공사진 인증키(`NGII.apiKey`)는 도메인 등록형이라 국토정보플랫폼에 등록된 도메인(kgeodata.com, 개발 시 localhost)에서만 타일이 보입니다. 다른 도메인에 배포하면 등록을 추가해야 합니다.
+- 브랜치: `work/kangmina-aerial-timelapse` (base `design/service-home-refresh` a6a5955). 같은 내용이 이전에 main(#5)에도 병합돼 있으나, 운영 미리보기는 `design/service-home-refresh` 기준입니다.
+- 검증: `tsc --noEmit`, `npm run build`, `npm run build:deploy`(`out/maps/aerial.html` 생성·`/app/guri/maps/aerial.html` 링크 치환 확인), `npx prettier --check src public/styles/site-shell.css`, `git diff --check` 통과. 헤드리스 Chromium 1280px·390px에서 홈 섹션, 항공사진 페이지 헤더(현재 페이지 표시), 유기동물 페이지 헤더 링크 확인. 이 환경은 외부망이 막혀 항공사진 타일·유기동물 데이터 로드는 확인하지 못했습니다. 운영 배포 여부는 Actions 실행과 공개 URL로 별도 확인합니다.

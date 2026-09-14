@@ -2,7 +2,8 @@
 import { useEffect, useState } from 'react';
 import { ArrowUpRight, Search, PawPrint, MapPin, Layers, Compass, ArrowRight } from 'lucide-react';
 import { themeGroups } from '@/config/theme-groups.config';
-import { themeUrl, animalUrl } from '@/config/links';
+import { themeUrl, animalUrl, aerialUrl } from '@/config/links';
+import { TimeLapseArt } from '@/components/TimeLapseArt';
 import { SiteHeader } from '@/components/krds/SiteHeader';
 import { SkipLink, Masthead } from '@/components/krds/Masthead';
 import { siteConfig } from '@/config/site.config';
@@ -150,6 +151,31 @@ export default function Home() {
               </a>
             </div>
             <span className="pet-section-index">02 / COMPANION</span>
+          </div>
+        </section>
+        <section className="aerial-section">
+          <div className="home-wrap aerial-layout">
+            <div className="aerial-illustration" aria-hidden="true">
+              <TimeLapseArt />
+              <span>TIME LAPSE</span>
+            </div>
+            <div>
+              <p className="eyebrow">시간을 따라 보는 구리</p>
+              <h2>
+                우리 동네의 변화 과정을
+                <br />
+                구경하세요.
+              </h2>
+              <p>
+                해마다 찍은 항공사진을 나란히 놓고
+                <br />
+                우리 동네가 어떻게 달라졌는지 볼 수 있어요.
+              </p>
+              <a className="home-button" href={aerialUrl()}>
+                시계열 항공사진 보기 <ArrowUpRight size={19} />
+              </a>
+            </div>
+            <span className="aerial-section-index">03 / TIMELINE</span>
           </div>
         </section>
         <section id="about" className="home-wrap about-section">
