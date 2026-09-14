@@ -283,6 +283,60 @@
   letter-spacing: 0.15em;
   color: #b6929c;
 }
+.aerial-section {
+  background: #f4f8f6;
+  border-bottom: 1px solid #e4ede8;
+}
+.aerial-layout {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  align-items: center;
+  gap: 80px;
+  padding-top: 60px;
+  padding-bottom: 60px;
+}
+.aerial-layout .eyebrow {
+  margin-bottom: 17px !important;
+}
+.aerial-layout p:not(.eyebrow) {
+  font-size: 14px;
+  line-height: 1.9;
+  color: #627469;
+  margin: 20px 0;
+}
+.aerial-illustration {
+  --art-fill: #b9d6c8;
+  width: 250px;
+  height: 250px;
+  border-radius: 50%;
+  background: #e3efe9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  margin: auto;
+  color: #2f7a5c;
+}
+.aerial-illustration svg {
+  width: 160px;
+  height: 134px;
+}
+.aerial-illustration span {
+  font-size: 9px;
+  letter-spacing: 0.42em;
+  padding-left: 0.42em;
+  color: #6f9482;
+  margin-top: 12px;
+}
+.aerial-section-index {
+  position: absolute;
+  right: 32px;
+  top: 24px;
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  color: #93aa9d;
+}
 .about-section {
   display: grid;
   grid-template-columns: 1fr 1.25fr;
@@ -391,6 +445,7 @@
     display: none;
   }
   .pet-layout,
+  .aerial-layout,
   .about-section {
     gap: 35px;
   }
@@ -490,6 +545,38 @@
     justify-content: center;
   }
   .pet-section-index {
+    font-size: 8px;
+    right: 22px;
+    top: 17px;
+  }
+  .aerial-layout {
+    grid-template-columns: 1fr;
+    padding-top: 48px;
+    padding-bottom: 45px;
+    gap: 28px;
+  }
+  .aerial-illustration {
+    width: 160px;
+    height: 160px;
+  }
+  .aerial-illustration svg {
+    width: 100px;
+    height: 84px;
+  }
+  .aerial-illustration span {
+    font-size: 7px;
+    margin-top: 6px;
+  }
+  .aerial-layout > div:nth-child(2) {
+    text-align: center;
+  }
+  .aerial-layout .eyebrow {
+    justify-content: center;
+  }
+  .aerial-layout p:not(.eyebrow) br {
+    display: none;
+  }
+  .aerial-section-index {
     font-size: 8px;
     right: 22px;
     top: 17px;

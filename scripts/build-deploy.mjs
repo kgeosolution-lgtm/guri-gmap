@@ -35,6 +35,7 @@ for (const file of [
   'v1/index.html',
   'maps/theme.html',
   'maps/animal.html',
+  'maps/aerial.html',
   'images/guri-emblem.png',
 ]) {
   if (!existsSync(path.join('out', file))) throw new Error(`Missing output: ${file}`);

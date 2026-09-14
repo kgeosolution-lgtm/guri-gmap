@@ -20,3 +20,7 @@ export function themeUrl(group: ThemeGroup): string {
 export function animalUrl(): string {
   return `${siteConfig.mapsBase}/animal.html`;
 }
+
+export function aerialUrl(): string {
+  return `${siteConfig.mapsBase}/aerial.html`;
+}
