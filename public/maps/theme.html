@@ -439,10 +439,8 @@ const GROUPS={
           ['🏛️','주최·주관',(r,pv)=>{ const a=String(pv(r,['주최'])||'').trim(), b=String(pv(r,['주관'])||'').trim();
              return a&&b? (a===b? a : a+' · '+b) : (a||b||null); }],
           ['🎪','연계행사',['연계행사']],
-          ['✅','일정 확정',(r,pv)=>{ const lv=pv(r,['확정수준']); if(!valOK(lv)) return null;
-             const d=toDate(pv(r,['최종확인일'])); return String(lv)+(d? ` (${d.getMonth()+1}.${d.getDate()} 확인)` : ''); }],
-          ['ℹ️','참고',(r,pv)=>briefText(pv(r,['비고']),110,2)]],
-     links:[{t:'🔗 공식페이지 바로가기',f:['공식페이지','홈페이지','url','링크']}],
+          ['ℹ️','참고',(r,pv)=>festNote(r,pv)]],
+     links:[{t:'🔗 공식페이지 바로가기',fn:(r,pv,t)=>festLink(r,pv,t)}],   /* 축제 고유 공식페이지가 있을 때만 */
      hidePat:/이미지|사진|소개|프로그램|시작|종료|상태|확정|최종확인|비고|위치근거|위도|경도|행정동|주최|주관|연계|요금|장소명|유형/,
      telLabel:'문의처로 전화하기',
      foot:'일정·장소는 주최 측 사정으로 바뀔 수 있어요. 공식페이지에서 한 번 더 확인해 주세요',
@@ -1348,6 +1346,27 @@ function festTime(r,pv){
   const a=festHM(pv(r,['시작시간'])), b=festHM(pv(r,['종료시간']));
   return a&&b? `${a} ~ ${b}` : (a? a+' 시작' : (b? b+' 종료' : null));
 }
+/* 참고(비고): '과거 개최장소 사용' 같은 데이터 관리용 문구는 시민에게 보이지 않게 뺀다 */
+function festNote(r,pv){
+  const v=pv(r,['비고']); if(!valOK(v)) return null;
+  const drop=/개최장소|장소.{0,8}사용|과거\s*장소|위치\s*근거|데이터의 연속성/;
+  const kept=String(v).split(/(?<=[.。!?])\s+|\n+/).map(x=>x.trim()).filter(x=>x&&!drop.test(x));
+  return kept.length? briefText(kept.join(' '),110,2) : null;
+}
+/* 공식페이지: 축제 고유 페이지일 때만 연결한다.
+ * 값이 http(s) 주소가 아니거나, 사이트 첫 화면(경로 없음)이거나,
+ * 다른 축제와 똑같은 주소(공통 안내 페이지)면 버튼을 만들지 않는다. */
+const FEST_URL_F=['공식페이지','홈페이지','url','링크'];
+function festLink(r,pv,t){
+  const v=pv(r,FEST_URL_F); if(!valOK(v)) return null;
+  const u=String(v).trim(); if(!/^https?:\/\/\S+$/i.test(u)) return null;
+  let path=''; try{ const o=new URL(u); path=(o.pathname||'/').replace(/\/+$/,'')+(o.search||''); }catch(e){ return null; }
+  if(!path||/^\/?(www|index\.[a-z]+)?$/i.test(path)) return null;
+  try{ const all=(t&&typeof rowsFor==='function')? rowsFor(t) : [];
+    const same=all.filter(b=>String(pv(b,FEST_URL_F)||'').trim()===u).length;
+    if(same>1) return null; }catch(e){}
+  return u;
+}
 /* 깃발 심볼: 상태 색 배경 + 흰 깃발 */
 const _festSymCache={};
 function festSym(k){
@@ -2199,8 +2218,8 @@ function catExtent(){
 }
 require(["esri/config","esri/Map","esri/Basemap","esri/WebMap","esri/views/MapView","esri/layers/GraphicsLayer",
          "esri/layers/VectorTileLayer","esri/layers/WebTileLayer","esri/layers/FeatureLayer","esri/Graphic",
-         "esri/renderers/support/jsonUtils","esri/core/reactiveUtils"],
-(esriConfig,Map,Basemap,WebMap,MapView,GraphicsLayer,VectorTileLayer,WebTileLayer,FeatureLayer,Graphic,rendererJsonUtils,reactiveUtils)=>{
+         "esri/renderers/support/jsonUtils","esri/core/reactiveUtils","esri/geometry/geometryEngine"],
+(esriConfig,Map,Basemap,WebMap,MapView,GraphicsLayer,VectorTileLayer,WebTileLayer,FeatureLayer,Graphic,rendererJsonUtils,reactiveUtils,geometryEngine)=>{
   esriConfig.request.useIdentity=false;
   esriConfig.portalUrl=CITY.portalUrl;              /* 포털 항목(웹맵)을 읽을 기준 주소 */
   GraphicCls=Graphic; FLCls=FeatureLayer; WebMapCls=WebMap; RendererJU=rendererJsonUtils;
@@ -2209,7 +2228,9 @@ require(["esri/config","esri/Map","esri/Basemap","esri/WebMap","esri/views/MapVi
     ? "https://api.vworld.kr/req/wmts/1.0.0/"+CITY.vworldKey+"/Base/{level}/{row}/{col}.png"
     : "https://xdworld.vworld.kr/2d/Base/service/{level}/{col}/{row}.png";
   const vw=new WebTileLayer({urlTemplate:vwTpl,copyright:"© 브이월드(국토교통부)"});
-  const basemap=new Basemap({baseLayers:[vw],title:"브이월드"});
+  /* 기본 배경 = 구리시 포털의 바로e맵 벡터타일(배경 웹맵과 같은 모습). 못 읽으면 브이월드 → 회색 순으로 대체 */
+  let ngii=new VectorTileLayer({url:CITY.ngiiVt,title:"바로e맵"});
+  const basemap=new Basemap({baseLayers:[ngii],title:"바로e맵"});
 
   const dong=new FeatureLayer({url:CITY.dongUrl,popupEnabled:false,legendEnabled:false,
     renderer:{type:"simple",symbol:{type:"simple-fill",color:[255,255,255,0],
@@ -2223,32 +2244,63 @@ require(["esri/config","esri/Map","esri/Basemap","esri/WebMap","esri/views/MapVi
     renderer:{type:"simple",symbol:{type:"simple-fill",color:[255,255,255,0],
       outline:{color:"#01573C",width:3}}}});
   const maskLayer=new GraphicsLayer({listMode:"hide"});
+  const bndLayer=new GraphicsLayer({listMode:"hide"});   /* 시 외곽선 — 행정동 합집합(시계열 항공사진과 같은 방식) */
   function ringArea(r){ let a=0;
     for(let i=0,j=r.length-1;i<r.length;j=i++) a+=r[j][0]*r[i][1]-r[i][0]*r[j][1];
     return a/2; }                                  /* 양수 = 반시계 */
   function orient(r,ccw){ const a=ringArea(r);
     return ((a>0)===ccw)? r : r.slice().reverse(); }
-  (async function drawMask(){                       /* 구리시 바깥만 흐리게 */
+  /* 합친 폴리곤에서 시 바깥 고리만 남긴다 (동 경계 틈으로 생긴 작은 구멍·조각 제거) */
+  function cleanOutline(poly){
+    const rings=(poly.rings||[]).filter(r=>r&&r.length>3);
+    if(!rings.length) return poly;
+    const area=r=>Math.abs(ringArea(r));
+    const isCW=r=>typeof poly.isClockwise==='function'? poly.isClockwise(r) : ringArea(r)<0;
+    const outer=rings.filter(isCW).map(r=>({r,a:area(r)}));
+    if(!outer.length) return poly;
+    const max=Math.max(...outer.map(o=>o.a));
+    const kept=outer.filter(o=>o.a>=max*0.02).map(o=>o.r);
+    const out=poly.clone? poly.clone() : poly;
+    out.rings=kept.length? kept : [outer.sort((x,y)=>y.a-x.a)[0].r];
+    return out;
+  }
+  const MASK_SYM={type:"simple-fill",color:[236,241,238,.55],outline:{color:[0,0,0,0],width:0}};
+  function paintMask(rings){                        /* 구리시 바깥만 흐리게 */
+    const holes=rings.filter(r=>Math.abs(ringArea(r))>1e-7).map(r=>orient(r,true));
+    if(!holes.length){ console.warn('경계 폴리곤 없음'); return; }
+    const world=orient([[-180,-85],[180,-85],[180,85],[-180,85],[-180,-85]],false);
+    maskLayer.removeAll();
+    maskLayer.add(new Graphic({geometry:{type:"polygon",rings:[world].concat(holes),spatialReference:{wkid:4326}},symbol:MASK_SYM}));
+  }
+  (async function drawCityOutline(){
     try{
-      const res=await fetch(`${CITY.boundaryUrl}/query?where=1%3D1&outFields=&returnGeometry=true&outSR=4326&maxAllowableOffset=0.0002&f=json`);
-      const j=await res.json();
-      const holes=[];
-      (j.features||[]).forEach(f=>{
-        const rings=(f.geometry&&f.geometry.rings)||[];
-        rings.forEach(r=>{ if(Math.abs(ringArea(r))>1e-7) holes.push(orient(r,true)); });
-      });
-      if(!holes.length){ console.warn('경계 폴리곤 없음'); return; }
-      const world=orient([[-180,-85],[180,-85],[180,85],[-180,85],[-180,-85]],false);
-      maskLayer.add(new Graphic({
-        geometry:{type:"polygon",rings:[world].concat(holes),spatialReference:{wkid:4326}},
-        symbol:{type:"simple-fill",color:[236,241,238,.55],outline:{color:[0,0,0,0],width:0}}}));
-    }catch(e){ console.warn('경계 마스크 실패',e); }
+      await dong.load();
+      const q=dong.createQuery(); q.where='1=1'; q.returnGeometry=true; q.outFields=[CITY.dongNameField];
+      q.outSpatialReference={wkid:4326}; q.maxAllowableOffset=0.00002;   /* ≈2m */
+      const r=await dong.queryFeatures(q);
+      const polys=(r.features||[]).map(f=>f.geometry).filter(g=>g&&(g.rings||[]).length);
+      if(!polys.length) throw new Error('행정동 도형 없음');
+      const city=cleanOutline(geometryEngine.union(polys));
+      bndLayer.removeAll();
+      bndLayer.add(new Graphic({geometry:city,symbol:{type:"simple-fill",color:[0,0,0,0],outline:{color:[255,255,255,.9],width:6}}}));
+      bndLayer.add(new Graphic({geometry:city,symbol:{type:"simple-fill",color:[0,0,0,0],outline:{color:"#01573C",width:3}}}));
+      paintMask(city.rings);
+    }catch(e){
+      console.warn('[시 외곽선] 행정동 합집합 실패 — 시경계 레이어로 대체',String((e&&e.message)||e));
+      try{ map.add(bndHalo,2); map.add(bnd,3); }catch(x){}
+      try{
+        const res=await fetch(`${CITY.boundaryUrl}/query?where=1%3D1&outFields=&returnGeometry=true&outSR=4326&maxAllowableOffset=0.0002&f=json`);
+        const j=await res.json(); const rings=[];
+        (j.features||[]).forEach(f=>((f.geometry&&f.geometry.rings)||[]).forEach(r=>rings.push(r)));
+        paintMask(rings);
+      }catch(x){ console.warn('경계 마스크 실패',x); }
+    }
   })();
 
   gLayer=new GraphicsLayer(); labelLayer=new GraphicsLayer(); meLayer=new GraphicsLayer(); pulseLayer=new GraphicsLayer(); dongLayer=new GraphicsLayer();
-  const map=new Map({basemap,layers:[maskLayer,dong,bndHalo,bnd,dongLayer,labelLayer,pulseLayer,gLayer,meLayer]});
+  const map=new Map({basemap,layers:[maskLayer,dong,bndLayer,dongLayer,labelLayer,pulseLayer,gLayer,meLayer]});
   mapObj=map; baseMapObj=map;
-  myOverlays=[maskLayer,dong,bndHalo,bnd,dongLayer,labelLayer,pulseLayer,gLayer,meLayer];
+  myOverlays=[maskLayer,dong,bndLayer,dongLayer,labelLayer,pulseLayer,gLayer,meLayer];
   view=new MapView({container:"map",map,extent:CITY.extent,
     popupEnabled:false,ui:{components:[]},constraints:{minZoom:10,snapToZoom:false}});   /* 소수점 배율 허용(전체보기 맞춤) */
   view.when(()=>{                                  /* 시작 화면: 전체보기와 같은 배율로 맞춘 뒤 저장 */
@@ -2259,7 +2311,7 @@ require(["esri/config","esri/Map","esri/Basemap","esri/WebMap","esri/views/MapVi
 
   /* 웹맵 재시도 없음 */
 
-  let bmStage=0,ngii=null;
+  let bmStage=0;
 
   /* 포털 웹맵을 배경으로 사용 */
   (async function useWebmapBasemap(){
@@ -2287,14 +2339,14 @@ require(["esri/config","esri/Map","esri/Basemap","esri/WebMap","esri/views/MapVi
   })();
 
   function bmFallback(){ if(bmStage>=99) return; bmStage++;
-    if(bmStage===1){ ngii=new VectorTileLayer({url:CITY.ngiiVt});
-      map.basemap=new Basemap({baseLayers:[ngii],title:"바로e맵"});
-      ngii.load().catch(bmFallback);
-    }else if(bmStage===2){ map.basemap=Basemap.fromId("gray-vector"); } }
-  vw.load().catch(bmFallback);
+    if(bmStage===1){ console.warn('[배경] 바로e맵을 못 읽어 브이월드로 대체');
+      map.basemap=new Basemap({baseLayers:[vw],title:"브이월드"});
+      vw.load().catch(bmFallback);
+    }else if(bmStage===2){ console.warn('[배경] 브이월드도 못 읽어 회색 지도로 대체'); map.basemap=Basemap.fromId("gray-vector"); } }
+  ngii.load().catch(bmFallback);
   view.on("layerview-create-error",e=>{
-    if(e.layer===vw&&bmStage===0)bmFallback();
-    else if(ngii&&e.layer===ngii&&bmStage===1)bmFallback(); });
+    if(e.layer===ngii&&bmStage===0)bmFallback();
+    else if(e.layer===vw&&bmStage===1)bmFallback(); });
 
   view.on("click",ev=>{
     const inc=[gLayer,...Object.values(lineLayers),...Object.values(wmLayers)];
@@ -3095,6 +3147,7 @@ function showInfo(row){
   let links='';
   (t.links||[]).forEach(L=>{
     let url=L.url;
+    if(L.fn){ const v=unhide(()=>L.fn(row,pickVal,t)); if(!valOK(v)) return; url=String(v); }   /* 테마가 직접 판단 */
     if(L.f){ const v=pickVal(row,L.f); if(!valOK(v)) return; url=String(v); mark(L.f);
       if(!/^https?:\/\//.test(url)) url='http://'+url; }
     if(L.tel){ const v=pickVal(row,L.tel); if(!valOK(v)) return; mark(L.tel);

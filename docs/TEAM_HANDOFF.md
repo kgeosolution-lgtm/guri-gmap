@@ -203,3 +203,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 렌더 로직 변경(최소): 목록 정렬에 테마별 `sortRank` 훅 한 줄 추가(다른 테마는 0이라 영향 없음), 상태 배지 CSS `.st.live/.soon/.plan/.done` 추가. CITY/GROUPS의 기존 테마와 F는 변경 없음.
 - 브랜치: `work/kangmina-theme-basemap-festival` (base `design/service-home-refresh` e013e29).
 - 검증: 인라인 스크립트 전체 `node --check`, 축제 상태·기간·시간·정렬 단위 검사(종료/예정/epoch 날짜/계획/미공개/진행중/오늘 8건), `npm run build:deploy`, `git diff --check` 통과. 구리시 서버(guri.go.kr)가 이 환경에서 차단돼 웹맵 베이스맵 실제 적용, 축제 데이터 로드, 사진 표시는 배포 후 브라우저에서 확인이 필요합니다.
+
+## 2026-09-14 테마지도 배경 바로e맵 기본화·시 외곽선 통일·축제 팝업 정리 (담당: 강민아)
+
+- 배경지도: 포털 웹맵(`basemapWebmapId`)이 실제 화면에서 적용되지 않아(브이월드가 그대로 보임), 웹맵과 같은 모습인 구리시 포털 바로e맵 벡터타일(`CITY.ngiiVt`)을 기본 배경으로 바꿨습니다. 대체 순서는 바로e맵 → 브이월드 → 회색. 웹맵 읽기 시도는 그대로 두어 성공하면 그 베이스맵으로 바뀝니다. 콘솔에 `[배경 웹맵 실패]` 또는 `[배경] …대체` 경고로 원인을 남깁니다.
+- 시 외곽선·마스크: 시경계 레이어(`boundaryUrl`)와 행정동 경계가 어긋나 경계가 두 줄로 보이던 문제. 시경계 FeatureLayer 두 장(`bndHalo`/`bnd`)을 기본 지도에서 빼고, 행정동 레이어를 4326으로 질의해 `geometryEngine.union` + `cleanOutline`(바깥 고리만, 작은 조각 제거)으로 만든 외곽선을 `bndLayer`(GraphicsLayer)에 그립니다. 바깥 음영 마스크도 같은 도형으로 그립니다(시계열 항공사진과 같은 방식). 합집합에 실패하면 예전 시경계 레이어와 마스크로 되돌립니다. `getCityRings`(전체보기 배율 계산)는 그대로 시경계를 씁니다.
+- 축제 팝업: '일정 확정' 항목 제거. '참고'(`비고`)는 `festNote`로 "…개최장소 사용", "위치 근거", "데이터의 연속성" 같은 관리용 문장을 뺀 뒤 요약. '공식페이지 바로가기'는 `festLink`로 값이 http(s) 주소이고 사이트 첫 화면이 아니며 다른 축제와 같은 주소(공통 안내 페이지)가 아닐 때만 버튼을 만듭니다. 이를 위해 팝업 링크 설정에 `fn:(row,pickVal,theme)=>url|null` 지원을 한 줄 추가했습니다.
+- 브랜치: `work/kangmina-theme-basemap-boundary` (base `design/service-home-refresh` 2fd9601).
+- 검증: 인라인 스크립트 `node --check`, `festNote`/`festLink` 단위 검사 6건, `npm run build:deploy`, `git diff --check` 통과. 구리시 서버가 차단된 환경이라 바로e맵 표시, 외곽선 합집합, 축제 팝업은 배포 후 브라우저 확인이 필요합니다.
