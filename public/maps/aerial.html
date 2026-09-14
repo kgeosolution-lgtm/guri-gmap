@@ -46,6 +46,10 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .ts-cmp input{width:16px;height:16px;accent-color:var(--brand)}
 .ts-years{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
 .ts-years::-webkit-scrollbar{display:none}
+/* 연도 아래 안내: 2019년 이하 사진은 1:4,500 보다 크게 확대하면 없음 → 바탕 지형도가 보인다 */
+.ts-note{display:none;margin:8px 0 0;font-size:12px;line-height:1.45;color:var(--sub);word-break:keep-all}
+.ts-note.show{display:block}
+.ts-note.zoomed{color:#9a6a00;font-weight:600}
 .ts-year{flex:none;height:32px;padding:0 11px;border-radius:6px;border:1px solid var(--gray20);background:#fff;font-size:13px;font-weight:600;color:var(--gray70);transition:all .13s;display:inline-flex;align-items:center;gap:4px}
 .ts-year:hover{border-color:var(--brand);color:var(--brand)}
 .ts-year.is-on{background:var(--brand);border-color:var(--brand);color:#fff}
@@ -135,6 +139,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
       <label class="ts-cmp"><input type="checkbox" id="tsCompare"> 두 시기 비교</label>
     </div>
     <div class="ts-years" id="tsYears"></div>
+    <p class="ts-note" id="tsNote" role="status" aria-live="polite"></p>
   </div>
   <div class="map-toast" id="mapToast"></div>
 </div>
@@ -170,6 +175,8 @@ const NGII={
   tileMatrixSet:'NGIS_AIR',
   format:'image/jpeg',
   years:[2011,2012,2013,2014,2015,2016,2017,2018,2019,2020,2021,2022,2023,2024,2025],
+  /* 이 연도 이하 사진은 minScale(1:4,500) 보다 크게 확대한 배율에는 자료가 없다 → 그 자리엔 바탕 지형도가 보인다 */
+  limited:{maxYear:2019,minScale:4500},
   /* NGIS_AIR 타일 격자 (EPSG:5179) */
   grid:{
     wkid:5179, origin:{x:-200000,y:4000000}, tileSize:256,
@@ -310,6 +317,7 @@ require([
   /* ── 동 목록 · 지도 이동에 따라 현재 동 표시 (오른쪽 위) ── */
   loadDongs();
   reactiveUtils.when(()=>view.stationary,()=>{ if(view.stationary) syncDongToCenter(); });
+  reactiveUtils.watch(()=>view.scale,()=>updateNote());
   GraphicCls=Graphic; WMU=webMercatorUtils; ExtentCls=Extent;
   if(!NGII.apiKey) $('keyWarn').style.display='block';
 });
@@ -430,6 +438,21 @@ function renderBar(){
   $('tsBar').classList.toggle('is-compare',compare);
   $('tsCompare').checked=compare;
   const on=host.querySelector('.is-on'); if(on) on.scrollIntoView({block:'nearest',inline:'nearest'});
+  updateNote();
+}
+/* 2019년 이하 연도를 골랐을 때 안내. 실제로 1:4,500 보다 크게 확대한 상태면 강조해서 '지금 지형도가 보이는 이유'를 알린다 */
+function updateNote(){
+  const el=$('tsNote'); if(!el) return;
+  const L=NGII.limited, two=compare&&baseYear!==year;
+  const lim=(two? [year,baseYear] : [year]).filter(y=>y<=L.maxYear).sort((a,b)=>a-b);
+  if(!lim.length){ el.className='ts-note'; el.textContent=''; return; }
+  const who=lim.length===2? `${lim[0]}년·${lim[1]}년` : `${lim[0]}년`;
+  const sc=`1:${L.minScale.toLocaleString('ko-KR')}`;
+  const zoomed=!!(view&&view.scale&&view.scale<L.minScale);
+  el.textContent=zoomed
+    ? `지금 배율에서는 ${who} 항공사진이 제공되지 않아 바탕 지형도가 보여요. ${sc} 이하로 축소하면 사진이 다시 보여요.`
+    : `${who} 항공사진은 ${sc} 보다 크게 확대하면 제공되지 않아요(${L.maxYear}년 이하 공통). 그때는 바탕 지형도가 보여요.`;
+  el.className='ts-note show'+(zoomed? ' zoomed' : '');
 }
 $('tsCompare').addEventListener('change',e=>{ compare=e.target.checked;
   if(compare&&baseYear===year) baseYear=NGII.years[0]===year? NGII.years[1] : NGII.years[0];   /* 처음 켤 때 짝이 없으면 2011년과 비교 */

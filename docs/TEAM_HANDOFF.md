@@ -188,3 +188,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 조치: `public/maps/aerial.html`의 `.search-host` 규칙에서 `esri-search__form`·`esri-search__input-container`를 42px stretch 로 맞추고, 돋보기(`esri-search__submit-button`)·지우기(`esri-search__clear-button`) 버튼을 42px 높이·flex 가운데 정렬로 바꿨습니다. 검색 동작 로직은 변경 없음.
 - 브랜치: `work/kangmina-aerial-search-button` (base `design/service-home-refresh` 5a61365).
 - 검증: ArcGIS CSS 를 내려받을 수 없는 환경이라 위젯 기본 규칙(버튼 32px, flex 컨테이너)을 흉내 낸 목업으로 버튼이 42px 를 채우고 아이콘이 가운데 오는지 측정했습니다. `npm run build:deploy`, `git diff --check` 통과. 실제 위젯에서는 배포 후 확인이 필요합니다.
+
+## 2026-09-14 시계열 항공사진 배율 안내문 (담당: 강민아)
+
+- 배경: 국토정보플랫폼 항공사진은 2019년 이하 연도에 1:4,500보다 크게 확대한 배율의 타일이 없어, 그 배율에서는 바탕 지형도(브이월드)만 보입니다.
+- 조치: `public/maps/aerial.html` 연도 버튼 아래에 안내문(`#tsNote`)을 추가했습니다. 설정은 `NGII.limited = {maxYear:2019, minScale:4500}`. 2019년 이하 연도가 선택돼 있을 때만 보이고(비교 모드는 두 해 중 해당 연도만 언급), 실제로 `view.scale`이 4,500보다 작으면 "지금 배율에서는 … 바탕 지형도가 보여요" 문구로 바뀌며 노란 강조색이 됩니다. `reactiveUtils.watch(view.scale)`로 배율이 바뀔 때마다 갱신합니다. 항공사진·비교 로직은 변경 없음.
+- 브랜치: `work/kangmina-aerial-scale-note` (base `design/service-home-refresh` 1b3dbf3).
+- 검증: 인라인 스크립트 `node --check`, `updateNote` 단위 검사 5건(해당 없음/단일 연도/확대 상태/비교 모드 한쪽만/비교 모드 양쪽) 통과, `npm run build:deploy`, `git diff --check` 통과. 실제 지도에서의 표시는 배포 후 확인이 필요합니다.
