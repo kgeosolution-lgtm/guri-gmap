@@ -355,9 +355,12 @@ const CITY={
   boundaryUrl:"https://www.guri.go.kr/gmapsvr/rest/services/Hosted/%EA%B5%AC%EB%A6%AC%EC%8B%9C%EA%B2%BD%EA%B3%84/FeatureServer/0",
   dongUrl:"https://www.guri.go.kr/gmapsvr/rest/services/Hosted/%ED%96%89%EC%A0%95%EB%8F%99%EA%B2%BD%EA%B3%84/FeatureServer/0",
   dongNameField:'adm_dr_nm',
-  ngiiVt:"https://www.guri.go.kr/gmapsvr/rest/services/Hosted/NGII_SD_20250604/VectorTileServer",
+  /* 배경지도 = 구리시 포털 벡터타일 3장 (아래→위): 바로e맵(일반) → GURI_BND_SE(어둡게) → Korea_Boundary SE(곱하기) */
+  ngiiVt:"https://www.guri.go.kr/gmapsvr/rest/services/Hosted/NGII_MAP_SD_20260901/VectorTileServer",
+  guriBndVt:"https://www.guri.go.kr/gmapsvr/rest/services/Hosted/GURI_BND/VectorTileServer",
+  koreaBndVt:"https://www.guri.go.kr/gmapsvr/rest/services/Hosted/Korea_Boundary/VectorTileServer",
   portalUrl:"https://www.guri.go.kr/gmap",
-  basemapWebmapId:"51c2bc2db0d3423382d30ff755563f31",   /* 배경 웹맵 ID — 모든 배경지도는 이 웹맵(구리시 포털)의 베이스맵을 쓴다 */
+  basemapWebmapId:"",   /* 포털 웹맵으로 배경을 쓰려면 ID 입력 (지금은 위 벡터타일 3장으로 직접 구성) */
   vworldKey:""   /* 공식 브이월드 키 발급 시 입력 */
 };
 
@@ -2231,9 +2234,17 @@ require(["esri/config","esri/Map","esri/Basemap","esri/WebMap","esri/views/MapVi
     ? "https://api.vworld.kr/req/wmts/1.0.0/"+CITY.vworldKey+"/Base/{level}/{row}/{col}.png"
     : "https://xdworld.vworld.kr/2d/Base/service/{level}/{col}/{row}.png";
   const vw=new WebTileLayer({urlTemplate:vwTpl,copyright:"© 브이월드(국토교통부)"});
-  /* 기본 배경 = 구리시 포털의 바로e맵 벡터타일(배경 웹맵과 같은 모습). 못 읽으면 브이월드 → 회색 순으로 대체 */
-  let ngii=new VectorTileLayer({url:CITY.ngiiVt,title:"바로e맵"});
-  const basemap=new Basemap({baseLayers:[ngii],title:"바로e맵"});
+  /* 기본 배경 = 구리시 포털 벡터타일 3장 (포털 웹맵 51c2bc2d… 의 베이스맵 구성을 그대로 재현)
+   *  ① NGII_MAP_SD  바로e맵, 일반
+   *  ② GURI_BND_SE  구리시 경계 그림자, 어둡게(darken)
+   *  ③ Korea_Boundary SE  시 바깥 회색 음영, 곱하기(multiply)
+   * ①을 못 읽으면 브이월드(+자체 마스크) → 회색 순으로 대체. ②③은 못 읽어도 지도는 그대로 둔다 */
+  let ngii=new VectorTileLayer({url:CITY.ngiiVt,title:"NGII_MAP_SD"});
+  const guriBnd=new VectorTileLayer({url:CITY.guriBndVt,title:"GURI_BND_SE",blendMode:"darken"});
+  const koreaBnd=new VectorTileLayer({url:CITY.koreaBndVt,title:"Korea_Boundary SE",blendMode:"multiply"});
+  const basemap=new Basemap({baseLayers:[ngii,guriBnd,koreaBnd],title:"구리 배경"});
+  guriBnd.load().catch(e=>console.warn('[배경] GURI_BND_SE 를 못 읽음',String((e&&e.message)||e)));
+  koreaBnd.load().catch(e=>console.warn('[배경] Korea_Boundary SE 를 못 읽음',String((e&&e.message)||e)));
 
   const dong=new FeatureLayer({url:CITY.dongUrl,popupEnabled:false,legendEnabled:false,
     renderer:{type:"simple",symbol:{type:"simple-fill",color:[255,255,255,0],
@@ -2246,7 +2257,7 @@ require(["esri/config","esri/Map","esri/Basemap","esri/WebMap","esri/views/MapVi
   const bnd=new FeatureLayer({url:CITY.boundaryUrl,popupEnabled:false,legendEnabled:false,
     renderer:{type:"simple",symbol:{type:"simple-fill",color:[255,255,255,0],
       outline:{color:"#01573C",width:3}}}});
-  const maskLayer=new GraphicsLayer({listMode:"hide"});
+  const maskLayer=new GraphicsLayer({listMode:"hide",visible:false});   /* 벡터타일 배경이 바깥 음영을 그리므로 평소엔 숨김 */
   const bndLayer=new GraphicsLayer({listMode:"hide"});   /* 시 외곽선 — 행정동 합집합(시계열 항공사진과 같은 방식) */
   function ringArea(r){ let a=0;
     for(let i=0,j=r.length-1;i<r.length;j=i++) a+=r[j][0]*r[i][1]-r[i][0]*r[j][1];
@@ -2364,6 +2375,7 @@ require(["esri/config","esri/Map","esri/Basemap","esri/WebMap","esri/views/MapVi
   function bmFallback(){ if(bmStage>=99) return; bmStage++;
     if(bmStage===1){ console.warn('[배경] 바로e맵을 못 읽어 브이월드로 대체');
       map.basemap=new Basemap({baseLayers:[vw],title:"브이월드"});
+      maskLayer.visible=true;                         /* 브이월드에는 바깥 음영이 없으니 자체 마스크를 켠다 */
       vw.load().catch(bmFallback);
     }else if(bmStage===2){ console.warn('[배경] 브이월드도 못 읽어 회색 지도로 대체'); map.basemap=Basemap.fromId("gray-vector"); } }
   ngii.load().catch(bmFallback);

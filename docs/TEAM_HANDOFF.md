@@ -226,3 +226,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 심볼: 축제 깃발은 `SYM['fest_flag']`로 등록하고 테마 `sym:'fest_flag'`. 원래 base64 `culture_festival` 아이콘은 덮어쓰지 않고 그대로 둡니다.
 - 브랜치: `work/kangmina-culture-festival` (base `design/service-home-refresh` b9da18b).
 - 검증: 인라인 스크립트 `node --check`, 로컬 헤드리스 Chrome에서 `문화·여가`·`시즌·가을` 테마 순서와 데이터 주소 확인, `npm run build:deploy`, `git diff --check` 통과. 실제 데이터 표시는 배포 후 확인이 필요합니다.
+
+## 2026-09-16 테마지도 배경을 벡터타일 3장으로 직접 구성 (담당: 강민아)
+
+- 포털 웹맵(51c2bc2d…)은 실제 화면에서 적용되지 않아, 그 웹맵의 베이스맵 구성을 레이어로 직접 재현했습니다. `CITY`에 `ngiiVt`(NGII_MAP_SD_20260901), `guriBndVt`(GURI_BND), `koreaBndVt`(Korea_Boundary) 벡터타일 주소를 두고, 베이스맵을 아래→위 순으로 ① NGII_MAP_SD 일반 → ② GURI_BND_SE `blendMode:"darken"` → ③ Korea_Boundary SE `blendMode:"multiply"`로 겹칩니다. `basemapWebmapId`는 비워 웹맵 시도를 끕니다(코드는 유지).
+- 자체 바깥 음영 마스크(`maskLayer`)는 이 배경이 이미 바깥을 어둡게 하므로 기본 숨김이고, ①을 못 읽어 브이월드로 대체될 때만 켭니다. ②③은 못 읽어도 지도는 유지되며 콘솔 경고만 남깁니다.
+- 브랜치: `work/kangmina-theme-layer-basemap` (base `design/service-home-refresh` 417b1cb).
+- 검증: 인라인 스크립트 `node --check`, `npm run build:deploy`, `git diff --check` 통과. 구리시 서버가 차단된 환경이라 실제 배경 모습(음영·경계 그림자·블렌드)은 배포 후 브라우저 확인이 필요합니다.
