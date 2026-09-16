@@ -542,11 +542,9 @@ const GROUPS={
      pop:[['🔢','등산로순번',['등산로순번','순번']],
           ['📏','등산로 길이',(r,pv)=>{ const v=pv(r,['등산로길이','길이','연장','구간길이']);
             if(!valOK(v)) return null;
-            return /[a-zA-Z가-힣]/.test(String(v))? String(v) : Number(v).toLocaleString('ko-KR')+'m'; }],
-          ['⬆️','상행시간',(r,pv)=>{ const v=pv(r,['상행시간','올라가는시간']);
-            return valOK(v)? (/[가-힣]/.test(String(v))? String(v) : String(v)+'시간') : null; }],
-          ['⬇️','하행시간',(r,pv)=>{ const v=pv(r,['하행시간','내려오는시간']);
-            return valOK(v)? (/[가-힣]/.test(String(v))? String(v) : String(v)+'시간') : null; }],
+            return hikeLen(v); }],
+          ['⬆️','상행시간',(r,pv)=>hikeMin(pv(r,['상행시간','올라가는시간']))],
+          ['⬇️','하행시간',(r,pv)=>hikeMin(pv(r,['하행시간','내려오는시간']))],
           ['⚠️','위험구간',(r,pv)=>{ const v=pv(r,['등산로위험구간내용','위험구간내용','위험구간']);
             if(!valOK(v)||/^(없음|해당없음|없슴|무|-)$/.test(String(v).trim())) return null;
             return String(v); }]],
@@ -1051,12 +1049,10 @@ const GROUPS={
      pop:[['🔢','등산로순번',['등산로순번','순번']],
           ['📏','등산로 길이',(r,pv)=>{ const v=pv(r,['등산로길이','길이','연장','구간길이']);
             if(!valOK(v)) return null;
-            return /[a-zA-Z가-힣]/.test(String(v))? String(v) : Number(v).toLocaleString('ko-KR')+'m'; }],
+            return hikeLen(v); }],
           ['🧱','등산로 재질',['등산로재질','재질','포장재질']],
-          ['⬆️','상행시간',(r,pv)=>{ const v=pv(r,['상행시간','올라가는시간']);
-            return valOK(v)? (/[가-힣]/.test(String(v))? String(v) : String(v)+'시간') : null; }],
-          ['⬇️','하행시간',(r,pv)=>{ const v=pv(r,['하행시간','내려오는시간']);
-            return valOK(v)? (/[가-힣]/.test(String(v))? String(v) : String(v)+'시간') : null; }],
+          ['⬆️','상행시간',(r,pv)=>hikeMin(pv(r,['상행시간','올라가는시간']))],
+          ['⬇️','하행시간',(r,pv)=>hikeMin(pv(r,['하행시간','내려오는시간']))],
           ['⚠️','위험구간',(r,pv)=>{ const v=pv(r,['등산로위험구간내용','위험구간내용','위험구간']);
             if(!valOK(v)||/^(없음|해당없음|없슴|무|-)$/.test(String(v).trim())) return null;
             return String(v); }],
@@ -2995,6 +2991,23 @@ function courseColor(r,pv,fallback){
   if(!n) return fallback;
   if(COURSE_INFO[n]&&COURSE_INFO[n].color) return COURSE_INFO[n].color;
   return COURSE_COLORS[(parseInt(n,10)-1) % COURSE_COLORS.length];
+}
+/* 등산로 길이·시간 단위 — 데이터는 길이 km(예: 2.39), 시간 분(예: 42) 단위의 숫자로 온다 */
+function hikeLen(v){
+  if(!valOK(v)) return null;
+  const s=String(v).trim();
+  if(/[a-zA-Z가-힣]/.test(s)) return s;                        /* 이미 단위가 붙어 있으면 그대로 */
+  const n=Number(s.replace(/,/g,'')); if(!isFinite(n)) return s;
+  if(n<100) return (Math.round(n*100)/100).toLocaleString('ko-KR',{maximumFractionDigits:2})+'km';   /* km 로 기록된 값 */
+  return Math.round(n).toLocaleString('ko-KR')+'m';           /* 100 이상이면 m 단위로 본다 */
+}
+function hikeMin(v){
+  if(!valOK(v)) return null;
+  const s=String(v).trim();
+  if(/[가-힣]/.test(s)) return s;
+  const n=Number(s.replace(/,/g,'')); if(!isFinite(n)) return s;
+  const m=Math.round(n), h=Math.floor(m/60), r=m%60;
+  return h? (r? `${h}시간 ${r}분` : `${h}시간`) : `${m}분`;
 }
 /* 긴 글을 앞 문장 몇 개만 남겨 짧게 */
 function briefText(s,maxLen,maxSent){

@@ -256,3 +256,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 조치: `loadDongs`의 질의를 `maxAllowableOffset=0.00001`(≈1m)로 바꿔 지도에 그려지는 점선 경계(같은 행정동 레이어 원본)와 같은 모양이 되게 했습니다. 동 필터(점-폴리곤 판정)도 같은 도형을 쓰므로 함께 정확해집니다. 구리시 행정동은 9개라 데이터 증가는 미미합니다.
 - 브랜치: `work/kangmina-dong-highlight-shape` (base `design/service-home-refresh` 2b2cba7).
 - 검증: 인라인 스크립트 `node --check`, `npm run build:deploy`, `git diff --check` 통과. 실제 모양 일치는 배포 후 동 선택으로 확인이 필요합니다.
+
+## 2026-09-16 등산로 팝업 길이·시간 단위 수정 (담당: 강민아)
+
+- 증상: 등산로 팝업이 길이 2.39를 "2.39m", 상행·하행 42·30을 "42시간·30시간"으로 표시. 데이터는 길이 km, 시간 분 단위의 숫자입니다.
+- 조치: `hikeLen(v)`(100 미만 숫자는 km, 100 이상은 m, 단위가 이미 있으면 그대로)·`hikeMin(v)`(분 → "42분", 60분 이상은 "1시간 35분") 헬퍼를 두고 `시즌·가을`·`문화·여가`의 등산로 팝업 '등산로 길이'·'상행시간'·'하행시간' 항목에 적용했습니다.
+- 브랜치: `work/kangmina-hiking-units` (base `design/service-home-refresh` 88215e3).
+- 검증: 인라인 스크립트 `node --check`, 단위 변환 단위 검사 12건, `npm run build:deploy`, `git diff --check` 통과.
