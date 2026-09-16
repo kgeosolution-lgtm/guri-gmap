@@ -35,22 +35,51 @@ export function sanitizeScene(j) {
           }
         }
       }
-      if (!r.defaultSymbol) {
-        const color = l.title === '축제' ? [214, 69, 95, 255] : [193, 101, 43, 255];
-        r.defaultSymbol = {
-          type: 'PointSymbol3D',
-          symbolLayers: [
-            {
-              type: 'Icon',
-              size: 14,
-              resource: { primitive: 'circle' },
-              material: { color },
-              outline: { color: [255, 255, 255, 255], size: 1.5 },
-            },
-          ],
-        };
-        r.defaultLabel = '기타';
-      }
+      // 이름이 렌더러에 없는 항목: 작은 초록 핀 (다른 아이콘과 같은 띄움·연결선)
+      const ref =
+        (r.uniqueValueInfos && r.uniqueValueInfos[0] && r.uniqueValueInfos[0].symbol) || {};
+      r.defaultSymbol = {
+        type: 'PointSymbol3D',
+        symbolLayers: [
+          {
+            type: 'Icon',
+            size: 18,
+            anchor: 'bottom',
+            resource: { href: SYM_BASE + 'pin.png' },
+            occludedVisibility: { mode: 'hidden' },
+          },
+        ],
+        verticalOffset: ref.verticalOffset || { screenLength: 20, maxWorldLength: 200 },
+        callout: ref.callout || { type: 'line', color: [0, 0, 0], size: 0.75 },
+      };
+      r.defaultLabel = '기타';
+      // 이름 레이블: 아이콘 위에, 겹치면 자동으로 숨김(static deconfliction)
+      const field = l.title === '축제' ? '축제명' : '이름';
+      const color = l.title === '축제' ? [138, 47, 81, 255] : [122, 59, 18, 255];
+      l.layerDefinition.drawingInfo.labelingInfo = [
+        {
+          name: '이름',
+          labelExpressionInfo: { expression: `$feature.${field}` },
+          labelPlacement: 'esriServerPointLabelPlacementAboveCenter',
+          deconflictionStrategy: 'static',
+          symbol: {
+            type: 'LabelSymbol3D',
+            symbolLayers: [
+              {
+                type: 'Text',
+                size: 11,
+                font: { family: 'Pretendard GOV, Noto Sans KR, sans-serif', weight: 'bold' },
+                material: { color },
+                halo: { color: [255, 255, 255, 235], size: 1.4 },
+              },
+            ],
+            verticalOffset: ref.verticalOffset || { screenLength: 20, maxWorldLength: 200 },
+            callout: { type: 'line', color: [0, 0, 0, 0], size: 0.1 },
+          },
+        },
+      ];
+      l.showLabels = true;
+      log.push(`${l.title} 레이블(${field}) 설정`);
       if (n) log.push(`${l.title} 심볼 ${n}개 → ${SYM_BASE}`);
     }
     // ③ 축제 팝업: 빈 필드 표 제거, 참고에서 관리용 문장 제거, 공식페이지는 실제 페이지일 때만
