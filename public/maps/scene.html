@@ -137,6 +137,7 @@ const SCENE={
   spotsMax:12
 };
 let PLACES=[];   /* [{title, thumb, go:()=>Promise}] — 웹씬 슬라이드 또는 명소 */
+let overlayDefs=[];   /* 스냅샷에서 떼어 낸 명소·축제 레이어 정의 (페이지가 직접 그린다) */
 let view=null, scene=null, tourTimer=null, tilted=true;
 const $=id=>document.getElementById(id);
 function toast(msg,ms=2200){ const t=$('mapToast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),ms); }
@@ -148,8 +149,8 @@ function showError(title,text){
 
 if(!window.WebGLRenderingContext){ showError('이 브라우저에서는 3D를 볼 수 없어요','최신 크롬·엣지·사파리 브라우저로 열어 주세요.'); }
 
-require(["esri/config","esri/WebScene","esri/views/SceneView","esri/core/reactiveUtils"],
-(esriConfig,WebScene,SceneView,reactiveUtils)=>{
+require(["esri/config","esri/WebScene","esri/views/SceneView","esri/core/reactiveUtils","esri/layers/FeatureLayer","esri/PopupTemplate"],
+(esriConfig,WebScene,SceneView,reactiveUtils,FeatureLayer,PopupTemplate)=>{
   esriConfig.request.useIdentity=false;
   esriConfig.portalUrl=SCENE.portalUrl;
 
@@ -160,7 +161,7 @@ require(["esri/config","esri/WebScene","esri/views/SceneView","esri/core/reactiv
     try{
       const r=await fetch('data/scene.json',{cache:'no-store'});
       if(r.ok){ const j=await r.json();
-        if(j&&(j.operationalLayers||j.baseMap)){ absolutizeIcons(j); scene=WebScene.fromJSON(j); source='snapshot'; console.log('[3D] 스냅샷 사용',j._snapshot||''); } }
+        if(j&&(j.operationalLayers||j.baseMap)){ absolutizeIcons(j); overlayDefs=takeOverlayDefs(j); scene=WebScene.fromJSON(j); source='snapshot'; console.log('[3D] 스냅샷 사용',j._snapshot||''); } }
     }catch(e){}
     if(!scene){ scene=new WebScene({portalItem:{id:SCENE.itemId}}); console.log('[3D] 스냅샷 없음 — 포털에서 직접 읽습니다'); }
 
@@ -174,6 +175,7 @@ require(["esri/config","esri/WebScene","esri/views/SceneView","esri/core/reactiv
       await scene.load(); await view.when();
       clearTimeout(failTimer);
       beautify();
+      addOverlays(FeatureLayer,PopupTemplate);
       await buildPlaces();
       renderSlides();
       $('cover').classList.add('hide');
@@ -226,6 +228,46 @@ require(["esri/config","esri/WebScene","esri/views/SceneView","esri/core/reactiv
   };
 });
 
+/* ── 명소·축제: 웹씬의 3D 아이콘 대신 테마지도와 같은 서비스 레이어를 페이지가 직접 얹는다 ──
+ * 심볼은 2D 그림 마커(빌보드)로 건물 위(relative-to-scene)에 띄워 가려지지 않게, 레이블은 3D 텍스트, 팝업은 웹씬의 Arcade 팝업을 그대로. */
+const OVERLAY_TITLES=['명소','축제'];
+function takeOverlayDefs(j){
+  const defs=[]; const keep=[];
+  (j.operationalLayers||[]).forEach(l=>{ if(OVERLAY_TITLES.includes(String(l.title||'').trim())) defs.push(l); else keep.push(l); });
+  j.operationalLayers=keep;
+  return defs;
+}
+function addOverlays(FeatureLayer,PopupTemplate){
+  if(!view||!overlayDefs.length) return;
+  overlayDefs.forEach((d,idx)=>{
+    try{
+      const isFest=String(d.title).trim()==='축제';
+      const ld=d.layerDefinition||{}; const r=(ld.drawingInfo&&ld.drawingInfo.renderer)||{};
+      const field=r.field1||r.field||(isFest? '축제명':'이름');
+      const size=isFest? 40 : 44;
+      const uv=(r.uniqueValueInfos||[]).map(u=>{ const sl=((u.symbol||{}).symbolLayers||[])[0]; const href=sl&&sl.resource&&sl.resource.href;
+        if(!href) return null; return {value:u.value,symbol:{type:'picture-marker',url:href,width:size,height:size*(240/256),angle:0}}; }).filter(Boolean);
+      const pin=new URL('sym/scene/pin.png',location.href).href;
+      const layer=new FeatureLayer({
+        url:d.url, title:'3D '+d.title, outFields:['*'],
+        definitionExpression:ld.definitionExpression||undefined,
+        elevationInfo:{mode:'relative-to-scene',offset:6},          /* 건물·지형 위에 놓여 가려지지 않는다 */
+        screenSizePerspectiveEnabled:false,
+        renderer:{type:'unique-value',field,uniqueValueInfos:uv,
+          defaultSymbol:{type:'picture-marker',url:pin,width:16,height:20}},
+        labelsVisible:true,
+        labelingInfo:[{labelExpressionInfo:{expression:'$feature.'+field},labelPlacement:'above-center',deconflictionStrategy:'static',
+          symbol:{type:'label-3d',symbolLayers:[{type:'text',size:11,font:{family:'Pretendard GOV, Noto Sans KR, sans-serif',weight:'bold'},
+            material:{color:isFest? [138,47,81,255] : [122,59,18,255]},halo:{color:[255,255,255,235],size:1.4}}]}}],
+        popupTemplate:d.popupInfo? PopupTemplate.fromJSON(d.popupInfo) : undefined,
+        popupEnabled:true
+      });
+      view.map.add(layer);
+      layer.when(()=>console.log('[3D] 얹은 레이어',layer.title,'| 심볼',uv.length,'| 필드',field),
+        e=>console.warn('[3D] 레이어 로딩 실패',d.title,String((e&&e.message)||e)));
+    }catch(e){ console.warn('[3D] 레이어 얹기 실패',d.title,e); }
+  });
+}
 /* 웹씬 JSON 의 아이콘 href 가 '/maps/…' 처럼 루트 상대 주소면 ArcGIS 가 포털 기준으로 풀어 못 찾는다 → 이 페이지 기준 절대 주소로 */
 function absolutizeIcons(j){
   let n=0;

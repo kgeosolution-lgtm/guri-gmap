@@ -304,3 +304,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 조치: `scene.html`이 스냅샷을 읽은 직후 `absolutizeIcons()`로 렌더러 아이콘 href를 페이지 기준 절대 주소(`new URL(href, location.href)`)로 바꿉니다(로컬·배포 모두 동작). 기본 심볼은 순수 파이썬으로 만든 초록 핀 `public/maps/sym/scene/pin.png`(64×80)을 18px, 아래 기준점으로 씁니다. 명소(`이름`)·축제(`축제명`) 레이블을 `labelingInfo`(LabelSymbol3D, 11px 굵게, 흰 테두리, 아이콘 위, `deconflictionStrategy: static`으로 겹치면 자동 숨김)로 넣고 `showLabels: true`. 모두 `scene-sanitize.mjs`에 있어 스냅샷을 교체해도 다시 적용됩니다.
 - 브랜치: `work/kangmina-3d-symbols-fix` (base `design/service-home-refresh` 39d227c).
 - 검증: 스크립트 `node --check`, 스냅샷 재정리 결과(기본 핀·레이블·showLabels), `absolutizeIcons` 단위 검사, `npm run build:deploy`, `git diff --check` 통과. 실제 아이콘·레이블 표시는 배포 후 확인 필요.
+
+## 2026-09-16 3D 지도 명소·축제를 페이지가 직접 얹는 방식으로 (담당: 강민아)
+
+- 증상: 아이콘 주소를 절대 주소로 바꾼 뒤에도 웹씬 JSON의 3D 아이콘(PointSymbol3D Icon, 60px)은 보이지 않고 기본 핀·레이블만 보였습니다. 웹씬 정의의 3D 아이콘 심볼 자체가 이 환경에서 렌더링되지 않는 것으로 판단.
+- 조치: `scene.html`이 스냅샷에서 `명소`·`축제` 레이어 정의를 떼어 내고(`takeOverlayDefs`), 씬이 준비되면 같은 서비스 주소(테마지도와 동일: `autumn_foliage/0`, `culture_festival_New/14`)로 `FeatureLayer`를 직접 만들어 얹습니다(`addOverlays`). 심볼은 렌더러의 이름→PNG 매핑을 그대로 쓰되 2D 그림 마커(picture-marker, 명소 44px·축제 40px, 빌보드)로, `elevationInfo: relative-to-scene(+6m)`으로 건물·지형 위에 놓아 가려지지 않게 했습니다. 이름이 없으면 초록 핀(16×20). 레이블은 label-3d(11px 굵게·흰 테두리, 아이콘 위, 겹치면 숨김). 팝업은 웹씬의 Arcade 팝업 JSON을 `PopupTemplate.fromJSON`으로 그대로 사용.
+- 포털에서 직접 읽는 대체 경로(스냅샷 없음)에서는 이 처리가 없고 웹씬 정의를 그대로 씁니다.
+- 브랜치: `work/kangmina-3d-overlay-layers` (base `design/service-home-refresh` ab75c12).
+- 검증: 인라인 스크립트 `node --check`, 단위 검사(레이어 분리·렌더러 22개 심볼 URL·기본 핀·레이블 식·팝업 요소), `npm run build:deploy`, `git diff --check` 통과. 실제 표시는 배포 후 확인 필요.
