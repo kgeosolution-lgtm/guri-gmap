@@ -1,6 +1,7 @@
 /* 구리시 포털 웹씬 JSON 스냅샷 — 브라우저가 포털(/gmap)에 직접 접근하지 못해도(CORS) 3D 지도가 열리도록
    배포 빌드 때 서버 쪽에서 받아 public/maps/data/scene.json 으로 함께 올린다. */
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { sanitizeScene } from './scene-sanitize.mjs';
 const ID = 'b5e573a06e7f4195bb2f092aad19b253';
 const url =
   process.env.SCENE_DATA_URL ||
@@ -15,18 +16,7 @@ try {
   const j = await r.json();
   if (j.error) throw new Error(j.error.message || JSON.stringify(j.error));
   if (!j.operationalLayers && !j.baseMap) throw new Error('웹씬 JSON 형식이 아닙니다');
-  // 포털(/gmap) 아이템 스타일은 브라우저에서 못 읽으므로 지도 서버(gmapsvr)의 벡터타일 주소로 바꾼다
-  for (const l of j.operationalLayers || []) {
-    if (
-      l.layerType === 'VectorTileLayer' &&
-      /sharing\/rest\/content\/items/.test(l.styleUrl || '') &&
-      /Korea_Boundary/.test(l.title || '')
-    ) {
-      delete l.styleUrl;
-      delete l.itemId;
-      l.url = 'https://www.guri.go.kr/gmapsvr/rest/services/Hosted/Korea_Boundary/VectorTileServer';
-    }
-  }
+  for (const line of sanitizeScene(j)) console.log('[scene snapshot] 정리:', line);
   mkdirSync('public/maps/data', { recursive: true });
   writeFileSync(
     out,
