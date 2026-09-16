@@ -289,3 +289,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 웹씬에 슬라이드가 없어 `scene.html`이 구리 명소 레이어(`autumn_foliage/FeatureServer/0`, 최대 12곳)를 조회해 "장소 바로가기" 칩과 "한 바퀴 둘러보기"를 만듭니다(각 명소로 비스듬히 날아감). 웹씬에 슬라이드를 넣으면 그것이 우선합니다.
 - 브랜치: `work/kangmina-3d-snapshot-data` (base `design/service-home-refresh` 5b36abb).
 - 검증: scene.html 인라인 스크립트 `node --check`, 스냅샷 JSON 구조·포털 참조 제거 확인, `npm run build:deploy`(스냅샷 파일이 out/maps/data 에 포함되는지), `git diff --check` 통과. 실제 3D 표시는 배포 후 브라우저 확인 필요.
+
+## 2026-09-16 3D 지도 명소·축제 심볼·팝업 (담당: 강민아)
+
+- 증상: 3D 씬에서 명소·축제 심볼이 안 보임. 웹씬 렌더러(uniqueValue, 필드 `이름`/`축제명`)의 아이콘 주소가 포털 아이템 안의 상대 경로(`./resources/symbols/resources/*.png`)라 우리 사이트에서는 읽을 수 없기 때문.
+- 조치: 담당자가 준 PNG 22장을 `public/maps/sym/scene/`에 올리고, `scripts/scene-sanitize.mjs`(공용 정리 모듈)가 스냅샷의 아이콘 주소를 `/maps/sym/scene/파일명`으로 바꿉니다(배포 시 `/app/guri/maps/...`로 치환). 이름이 렌더러에 없는 항목용 기본 심볼(원형)도 추가. `fetch-scene.mjs`도 이 모듈을 써서 자동 스냅샷에 같은 정리가 적용됩니다. 새 명소·축제가 생기면 CSV의 파일명 규칙대로 PNG를 추가하고 포털 렌더러에 값을 넣은 뒤 스냅샷을 다시 저장하면 됩니다.
+- 팝업: 웹씬에 이미 있는 Arcade 팝업(사진 여러 장·칩·정보 행·전화/홈페이지 버튼)을 그대로 씁니다. 축제 팝업만 빈 필드 표 제거, '참고'에서 "…개최장소 사용" 같은 관리용 문장 제거(`NoteClean`), 공식페이지 버튼은 실제 페이지 주소일 때만(`LinkOK`, 사이트 첫 화면 제외)으로 테마지도와 기준을 맞췄습니다.
+- 브랜치: `work/kangmina-3d-symbols` (base `design/service-home-refresh` 11ad0d6).
+- 검증: 스크립트 `node --check`, 스냅샷 재정리 결과(22개 주소 치환·기본 심볼·팝업 요소) 확인, `npm run build:deploy`에서 `out/maps/data/scene.json`의 아이콘 주소가 `/app/guri/maps/sym/scene/`으로 치환되는지 확인, `git diff --check` 통과. 실제 아이콘·팝업 표시는 배포 후 확인 필요.
