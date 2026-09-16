@@ -297,3 +297,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 팝업: 웹씬에 이미 있는 Arcade 팝업(사진 여러 장·칩·정보 행·전화/홈페이지 버튼)을 그대로 씁니다. 축제 팝업만 빈 필드 표 제거, '참고'에서 "…개최장소 사용" 같은 관리용 문장 제거(`NoteClean`), 공식페이지 버튼은 실제 페이지 주소일 때만(`LinkOK`, 사이트 첫 화면 제외)으로 테마지도와 기준을 맞췄습니다.
 - 브랜치: `work/kangmina-3d-symbols` (base `design/service-home-refresh` 11ad0d6).
 - 검증: 스크립트 `node --check`, 스냅샷 재정리 결과(22개 주소 치환·기본 심볼·팝업 요소) 확인, `npm run build:deploy`에서 `out/maps/data/scene.json`의 아이콘 주소가 `/app/guri/maps/sym/scene/`으로 치환되는지 확인, `git diff --check` 통과. 실제 아이콘·팝업 표시는 배포 후 확인 필요.
+
+## 2026-09-16 3D 지도 심볼 주소 절대화·기본 핀·이름 레이블 (담당: 강민아)
+
+- 증상: 심볼 주소를 `/app/guri/maps/sym/…`(루트 상대)로 넣었더니 ArcGIS가 웹씬 JSON의 상대 href를 페이지가 아닌 포털 기준으로 풀어 아이콘을 찾지 못했고, 렌더러에 없는 이름은 기본 원형만 보였습니다.
+- 조치: `scene.html`이 스냅샷을 읽은 직후 `absolutizeIcons()`로 렌더러 아이콘 href를 페이지 기준 절대 주소(`new URL(href, location.href)`)로 바꿉니다(로컬·배포 모두 동작). 기본 심볼은 순수 파이썬으로 만든 초록 핀 `public/maps/sym/scene/pin.png`(64×80)을 18px, 아래 기준점으로 씁니다. 명소(`이름`)·축제(`축제명`) 레이블을 `labelingInfo`(LabelSymbol3D, 11px 굵게, 흰 테두리, 아이콘 위, `deconflictionStrategy: static`으로 겹치면 자동 숨김)로 넣고 `showLabels: true`. 모두 `scene-sanitize.mjs`에 있어 스냅샷을 교체해도 다시 적용됩니다.
+- 브랜치: `work/kangmina-3d-symbols-fix` (base `design/service-home-refresh` 39d227c).
+- 검증: 스크립트 `node --check`, 스냅샷 재정리 결과(기본 핀·레이블·showLabels), `absolutizeIcons` 단위 검사, `npm run build:deploy`, `git diff --check` 통과. 실제 아이콘·레이블 표시는 배포 후 확인 필요.
