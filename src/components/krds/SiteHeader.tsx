@@ -1,6 +1,6 @@
 'use client';
 import { homeUrl } from '@/config/paths';
-import { aerialUrl, animalUrl, themeUrl } from '@/config/links';
+import { aerialUrl, animalUrl, sceneUrl, themeUrl } from '@/config/links';
 export function SiteHeader({
   variant = 'home',
   pageName,
@@ -13,6 +13,7 @@ export function SiteHeader({
   const links = [
     { label: '테마지도', href: themeUrl('시즌·가을') },
     { label: '유기동물 찾기', href: animalUrl() },
+    { label: '3D 지도', href: sceneUrl() },
     { label: '시계열 항공사진', href: aerialUrl() },
     { label: 'G-MAP 소개', href: homeUrl('#about') },
   ];

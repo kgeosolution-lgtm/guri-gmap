@@ -283,6 +283,64 @@
   letter-spacing: 0.15em;
   color: #b6929c;
 }
+.scene-section {
+  background: #eef3fa;
+  border-top: 1px solid #dfe7f3;
+}
+.scene-layout {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  align-items: center;
+  gap: 80px;
+  padding-top: 60px;
+  padding-bottom: 60px;
+}
+.scene-layout h2 {
+  color: #1f3a63;
+}
+.scene-layout .eyebrow {
+  color: #4a6a99;
+  margin-bottom: 17px !important;
+}
+.scene-layout p:not(.eyebrow) {
+  font-size: 14px;
+  line-height: 1.9;
+  color: #5c7091;
+  margin: 20px 0;
+}
+.scene-illustration {
+  --art-fill: #b7cbea;
+  width: 250px;
+  height: 250px;
+  border-radius: 50%;
+  background: #dde8f7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  margin: auto;
+  color: #2f5fa8;
+}
+.scene-illustration svg {
+  width: 160px;
+  height: 134px;
+}
+.scene-illustration span {
+  font-size: 9px;
+  letter-spacing: 0.42em;
+  padding-left: 0.42em;
+  color: #6b83a8;
+  margin-top: 12px;
+}
+.scene-section-index {
+  position: absolute;
+  right: 32px;
+  top: 24px;
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  color: #8ea1bd;
+}
 .aerial-section {
   background: #f4f8f6;
   border-bottom: 1px solid #e4ede8;
@@ -445,6 +503,7 @@
     display: none;
   }
   .pet-layout,
+  .scene-layout,
   .aerial-layout,
   .about-section {
     gap: 35px;
@@ -545,6 +604,38 @@
     justify-content: center;
   }
   .pet-section-index {
+    font-size: 8px;
+    right: 22px;
+    top: 17px;
+  }
+  .scene-layout {
+    grid-template-columns: 1fr;
+    padding-top: 48px;
+    padding-bottom: 45px;
+    gap: 28px;
+  }
+  .scene-illustration {
+    width: 160px;
+    height: 160px;
+  }
+  .scene-illustration svg {
+    width: 100px;
+    height: 84px;
+  }
+  .scene-illustration span {
+    font-size: 7px;
+    margin-top: 6px;
+  }
+  .scene-layout > div:nth-child(2) {
+    text-align: center;
+  }
+  .scene-layout .eyebrow {
+    justify-content: center;
+  }
+  .scene-layout p:not(.eyebrow) br {
+    display: none;
+  }
+  .scene-section-index {
     font-size: 8px;
     right: 22px;
     top: 17px;

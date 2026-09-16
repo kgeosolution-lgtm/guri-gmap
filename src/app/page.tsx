@@ -2,8 +2,9 @@
 import { useEffect, useState } from 'react';
 import { ArrowUpRight, Search, PawPrint, MapPin, Layers, Compass, ArrowRight } from 'lucide-react';
 import { themeGroups } from '@/config/theme-groups.config';
-import { themeUrl, animalUrl, aerialUrl } from '@/config/links';
+import { themeUrl, animalUrl, sceneUrl, aerialUrl } from '@/config/links';
 import { TimeLapseArt } from '@/components/TimeLapseArt';
+import { SkylineArt } from '@/components/SkylineArt';
 import { SiteHeader } from '@/components/krds/SiteHeader';
 import { SkipLink, Masthead } from '@/components/krds/Masthead';
 import { siteConfig } from '@/config/site.config';
@@ -153,6 +154,31 @@ export default function Home() {
             <span className="pet-section-index">02 / COMPANION</span>
           </div>
         </section>
+        <section className="scene-section">
+          <div className="home-wrap scene-layout">
+            <div className="scene-illustration" aria-hidden="true">
+              <SkylineArt />
+              <span>GURI IN 3D</span>
+            </div>
+            <div>
+              <p className="eyebrow">입체로 보는 구리</p>
+              <h2>
+                우리 동네를 하늘에서
+                <br />
+                내려다보세요.
+              </h2>
+              <p>
+                건물과 지형을 3D로 돌려 보며
+                <br />
+                구리의 모습을 입체적으로 살펴볼 수 있어요.
+              </p>
+              <a className="home-button" href={sceneUrl()}>
+                3D 지도 보기 <ArrowUpRight size={19} />
+              </a>
+            </div>
+            <span className="scene-section-index">03 / SKYLINE</span>
+          </div>
+        </section>
         <section className="aerial-section">
           <div className="home-wrap aerial-layout">
             <div className="aerial-illustration" aria-hidden="true">
@@ -175,7 +201,7 @@ export default function Home() {
                 시계열 항공사진 보기 <ArrowUpRight size={19} />
               </a>
             </div>
-            <span className="aerial-section-index">03 / TIMELINE</span>
+            <span className="aerial-section-index">04 / TIMELINE</span>
           </div>
         </section>
         <section id="about" className="home-wrap about-section">

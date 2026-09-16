@@ -27,6 +27,7 @@ npm run dev
 - 홈: http://localhost:3000/
 - 테마지도: http://localhost:3000/maps/theme.html?group=여름
 - 유기동물: http://localhost:3000/maps/animal.html
+- 3D 지도: http://localhost:3000/maps/scene.html
 - 시계열 항공사진: http://localhost:3000/maps/aerial.html
 - 보존된 초기 홈: http://localhost:3000/v1
 
@@ -63,19 +64,19 @@ git diff
 
 ## 주요 파일
 
-| 영역                      | 경로                                                                     |
-| ------------------------- | ------------------------------------------------------------------------ |
-| 새 홈·계절 선택·그룹 검색 | src/app/page.tsx                                                         |
-| 새 홈 스타일              | src/app/service-home.css                                                 |
-| React 헤더                | src/components/krds/SiteHeader.tsx                                       |
-| 홈·지도 공용 헤더 스타일  | public/styles/site-shell.css                                             |
-| KRDS 토큰·폰트            | src/app/globals.css                                                      |
-| 계절 이미지·문구          | src/config/season.config.ts                                              |
-| 그룹 색·아이콘·설명       | src/config/theme-groups.config.ts                                        |
-| 지도 URL 헬퍼             | src/config/links.ts                                                      |
-| 지도 기본 주소            | src/config/site.config.ts                                                |
-| 정적 지도 페이지          | public/maps/theme.html, public/maps/animal.html, public/maps/aerial.html |
-| 지도 공용 토큰            | public/maps/gmap-shared.css                                              |
+| 영역                      | 경로                                                                                             |
+| ------------------------- | ------------------------------------------------------------------------------------------------ |
+| 새 홈·계절 선택·그룹 검색 | src/app/page.tsx                                                                                 |
+| 새 홈 스타일              | src/app/service-home.css                                                                         |
+| React 헤더                | src/components/krds/SiteHeader.tsx                                                               |
+| 홈·지도 공용 헤더 스타일  | public/styles/site-shell.css                                                                     |
+| KRDS 토큰·폰트            | src/app/globals.css                                                                              |
+| 계절 이미지·문구          | src/config/season.config.ts                                                                      |
+| 그룹 색·아이콘·설명       | src/config/theme-groups.config.ts                                                                |
+| 지도 URL 헬퍼             | src/config/links.ts                                                                              |
+| 지도 기본 주소            | src/config/site.config.ts                                                                        |
+| 정적 지도 페이지          | public/maps/theme.html, public/maps/animal.html, public/maps/scene.html, public/maps/aerial.html |
+| 지도 공용 토큰            | public/maps/gmap-shared.css                                                                      |
 
 React 헤더와 정적 HTML 헤더는 같은 CSS를 사용하지만 마크업은 각각 존재합니다. 구조를 수정하면 양쪽을 함께 확인하세요. 지도 헤더 높이는 테두리 포함 57px이며 기존 밴드·패널의 위치 계산과 연결됩니다. theme.html에는 큰 base64 심볼이 있으므로 전체를 출력하지 말고 필요한 구간만 읽으세요. public/maps/는 Prettier 제외 대상입니다.
 
@@ -263,3 +264,12 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 조치: `hikeLen(v)`(100 미만 숫자는 km, 100 이상은 m, 단위가 이미 있으면 그대로)·`hikeMin(v)`(분 → "42분", 60분 이상은 "1시간 35분") 헬퍼를 두고 `시즌·가을`·`문화·여가`의 등산로 팝업 '등산로 길이'·'상행시간'·'하행시간' 항목에 적용했습니다.
 - 브랜치: `work/kangmina-hiking-units` (base `design/service-home-refresh` 88215e3).
 - 검증: 인라인 스크립트 `node --check`, 단위 변환 단위 검사 12건, `npm run build:deploy`, `git diff --check` 통과.
+
+## 2026-09-16 3D 지도 추가 (담당: 강민아)
+
+- 페이지: `public/maps/scene.html`. 구리시 포털 웹씬 `b5e573a06e7f4195bb2f092aad19b253`을 `WebScene` + `SceneView`(qualityProfile high)로 엽니다. 로드 후 대기·별·고화질 대기 효과, 직사 그림자·주변광 차폐·물 반사, 6월 오후 2시 햇빛을 적용하고(`beautify`), 하단 바에서 그림자 끄기·저녁 빛(18:30) 전환이 가능합니다. 웹씬에 저장된 슬라이드가 있으면 "장소 바로가기" 칩과 "한 바퀴 둘러보기"(슬라이드 순회)가 나오고, 없으면 안내 문구만 나옵니다. 우상단 컨트롤: 확대·축소, 위에서/비스듬히 보기 전환, 북쪽 맞추기, 내 위치, 처음 화면(웹씬 시작 화면, 없으면 구리시 중심), 공유. 로딩 덮개와 실패 시 안내(공개 설정 확인·다시 시도·구리시 3D 뷰어 열기 링크)가 있습니다. WebGL 미지원 브라우저는 안내만 표시.
+- 메뉴: React `SiteHeader.tsx`와 정적 `theme.html`·`animal.html`·`aerial.html` 헤더(PC·모바일)에 "3D 지도"를 유기동물 찾기와 시계열 항공사진 사이에 추가. `links.ts`에 `sceneUrl()`.
+- 홈: 유기동물 안내와 시계열 항공사진 사이에 `scene-section`(등각 건물 일러스트 `SkylineArt.tsx`, "입체로 보는 구리 / 우리 동네를 하늘에서 내려다보세요.", "3D 지도 보기" 버튼, 파란 톤) 추가. 항공사진 섹션 번호는 04로.
+- `scripts/build-deploy.mjs` 필수 산출물에 `maps/scene.html` 추가.
+- 브랜치: `work/kangmina-3d-scene` (base `design/service-home-refresh` cb4d0c2).
+- 검증: `tsc --noEmit`, prettier, scene.html 인라인 스크립트 `node --check`, `npm run build`, 헤드리스 Chrome 홈(PC 1280·모바일 390) 및 3D 페이지 셸 렌더링 확인, `npm run build:deploy`, `git diff --check` 통과. 구리시 포털이 이 환경에서 차단돼 실제 3D 씬 로딩·효과·슬라이드는 배포 후 브라우저 확인이 필요합니다. 웹씬 아이템이 "모든 사용자(공개)"로 공유돼 있어야 시민이 볼 수 있습니다.
