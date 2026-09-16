@@ -249,3 +249,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 조치: `esri/geometry/Extent`를 로드해 `ExtentCls`로 두고, `asExtent()`로 실제 Extent 도형을 만들어 `view.goTo(도형)`으로 넘깁니다. 시작 화면·전체보기(`fitExtent`)·동 이동(`gotoDong`)·`moveTo` 모두 적용. Extent 모듈이 없으면 예외를 던져 예전 중심+줌 경로로 넘어갑니다.
 - 브랜치: `work/kangmina-theme-fit-fix` (base `design/service-home-refresh` 7f62e18).
 - 검증: 인라인 스크립트 `node --check`, `fitExtent`/`asExtent` 단위 검사(Extent 인스턴스 생성, 모듈 없을 때 예외), `npm run build:deploy`, `git diff --check` 통과. 실제 이동은 배포 후 브라우저에서 주제 변경·동 전체·동 선택으로 확인이 필요합니다.
+
+## 2026-09-16 동 선택 강조 경계 모양 일치 (담당: 강민아)
+
+- 증상: 동 선택 시 깜빡이는 강조 경계가 지도에 그려진 행정동 점선 경계와 모양이 달랐습니다. 강조·동 필터용 행정동 도형을 받아올 때 `maxAllowableOffset=0.0004`(≈40m)로 단순화한 것이 원인입니다.
+- 조치: `loadDongs`의 질의를 `maxAllowableOffset=0.00001`(≈1m)로 바꿔 지도에 그려지는 점선 경계(같은 행정동 레이어 원본)와 같은 모양이 되게 했습니다. 동 필터(점-폴리곤 판정)도 같은 도형을 쓰므로 함께 정확해집니다. 구리시 행정동은 9개라 데이터 증가는 미미합니다.
+- 브랜치: `work/kangmina-dong-highlight-shape` (base `design/service-home-refresh` 2b2cba7).
+- 검증: 인라인 스크립트 `node --check`, `npm run build:deploy`, `git diff --check` 통과. 실제 모양 일치는 배포 후 동 선택으로 확인이 필요합니다.

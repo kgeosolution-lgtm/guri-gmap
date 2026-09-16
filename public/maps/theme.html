@@ -1566,7 +1566,8 @@ let DONGS=null;   /* [{name, rings, extent}] */
   const why=[];
   for(const u of tries){
     try{
-      const res=await fetch(`${u}/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&maxAllowableOffset=0.0004&f=json`);
+      /* 동 강조(깜빡임)와 동 필터에 쓰는 도형 — 지도에 그려지는 행정동 점선 경계와 같은 모양이 되도록 단순화를 거의 하지 않는다(≈1m) */
+      const res=await fetch(`${u}/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&maxAllowableOffset=0.00001&f=json`);
       const j=await res.json();
       if(j.error){ why.push(u+' → '+j.error.message); continue; }
       const fs=j.features||[];
