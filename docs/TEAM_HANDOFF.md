@@ -273,3 +273,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - `scripts/build-deploy.mjs` 필수 산출물에 `maps/scene.html` 추가.
 - 브랜치: `work/kangmina-3d-scene` (base `design/service-home-refresh` cb4d0c2).
 - 검증: `tsc --noEmit`, prettier, scene.html 인라인 스크립트 `node --check`, `npm run build`, 헤드리스 Chrome 홈(PC 1280·모바일 390) 및 3D 페이지 셸 렌더링 확인, `npm run build:deploy`, `git diff --check` 통과. 구리시 포털이 이 환경에서 차단돼 실제 3D 씬 로딩·효과·슬라이드는 배포 후 브라우저 확인이 필요합니다. 웹씬 아이템이 "모든 사용자(공개)"로 공유돼 있어야 시민이 볼 수 있습니다.
+
+## 2026-09-16 3D 지도: 웹씬 스냅샷 방식 (담당: 강민아)
+
+- 증상: 배포된 3D 지도가 "Failed to load portal item"으로 실패. 웹씬 아이템은 공개(`access:public`)이고 시크릿 창에서 JSON이 읽히므로 공유 문제는 아니며, kgeodata.com 브라우저에서 구리시 포털(/gmap)로의 교차 출처 요청이 막히는 것(CORS)으로 판단. 지도 서비스(/gmapsvr)는 정상.
+- 조치: `scripts/fetch-scene.mjs`가 `…/items/b5e573a0…/data?f=json`을 받아 `public/maps/data/scene.json`으로 저장하고, `build:deploy`가 `next build` 전에 이 스크립트를 실행합니다(실패해도 배포는 계속, 기존 파일이 있으면 그대로 사용). `scene.html`은 같은 서버의 `data/scene.json`을 먼저 읽어 `WebScene.fromJSON`으로 열고, 없으면 포털에서 직접 읽습니다. 실패하면 아이템 JSON을 직접 조회해 공개 설정 문제인지 CORS인지 구분해 안내합니다.
+- 씬을 포털에서 수정한 뒤 반영하려면 배포를 다시 실행(design 브랜치 push 또는 Actions의 Run workflow)하면 됩니다. GitHub 러너가 포털에 접속하지 못하는 경우엔 시크릿 창에서 위 data 주소를 열어 JSON을 `public/maps/data/scene.json`으로 저장해 커밋해도 됩니다. 로컬은 `npm run fetch:scene`.
+- 브랜치: `work/kangmina-3d-snapshot` (base `design/service-home-refresh` bf779c4).
+- 검증: 스크립트 `node --check`, 가짜 응답으로 스냅샷 저장·검증 로직 확인, `npm run build:deploy`, `git diff --check` 통과. 실제 씬 표시는 배포 후 확인 필요(Actions 로그의 `[scene snapshot]` 줄로 러너가 JSON을 받았는지 확인).
