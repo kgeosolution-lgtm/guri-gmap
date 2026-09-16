@@ -2,6 +2,8 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
 const base = '/app/guri';
+// 3D 지도용 웹씬 스냅샷(실패해도 배포는 계속)
+spawnSync(process.execPath, ['scripts/fetch-scene.mjs'], { stdio: 'inherit' });
 const result = spawnSync(process.execPath, ['node_modules/next/dist/bin/next', 'build'], {
   stdio: 'inherit',
   env: {

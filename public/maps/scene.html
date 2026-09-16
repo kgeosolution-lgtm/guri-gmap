@@ -149,30 +149,52 @@ require(["esri/config","esri/WebScene","esri/views/SceneView","esri/core/reactiv
   esriConfig.request.useIdentity=false;
   esriConfig.portalUrl=SCENE.portalUrl;
 
-  scene=new WebScene({portalItem:{id:SCENE.itemId}});
-  view=new SceneView({container:'map',map:scene,qualityProfile:'high',
-    ui:{components:['attribution']},popup:{dockEnabled:true,dockOptions:{buttonEnabled:false,breakpoint:false,position:'bottom-right'}},
-    environment:{atmosphereEnabled:true,starsEnabled:true,atmosphere:{quality:'high'}}});
-  view.ui.move('attribution','bottom-right');
+  (async()=>{
+    /* ① 배포 때 받아 둔 웹씬 스냅샷(같은 서버) → 브라우저가 포털에 직접 접근하지 않아도 된다
+       ② 없으면 포털에서 직접 읽기 */
+    let source='portal';
+    try{
+      const r=await fetch('data/scene.json',{cache:'no-store'});
+      if(r.ok){ const j=await r.json();
+        if(j&&(j.operationalLayers||j.baseMap)){ scene=WebScene.fromJSON(j); source='snapshot'; console.log('[3D] 스냅샷 사용',j._snapshot||''); } }
+    }catch(e){}
+    if(!scene){ scene=new WebScene({portalItem:{id:SCENE.itemId}}); console.log('[3D] 스냅샷 없음 — 포털에서 직접 읽습니다'); }
 
-  const failTimer=setTimeout(()=>{ if(!scene.loaded) showError('3D 지도 불러오기가 늦어지고 있어요','네트워크가 느리거나 서버가 응답하지 않아요. 잠시 후 다시 시도해 주세요.'); },45000);
+    view=new SceneView({container:'map',map:scene,qualityProfile:'high',
+      ui:{components:['attribution']},popup:{dockEnabled:true,dockOptions:{buttonEnabled:false,breakpoint:false,position:'bottom-right'}},
+      environment:{atmosphereEnabled:true,starsEnabled:true,atmosphere:{quality:'high'}}});
+    view.ui.move('attribution','bottom-right');
 
-  scene.load().then(()=>view.when()).then(()=>{
-    clearTimeout(failTimer);
-    beautify();
-    renderSlides();
-    $('cover').classList.add('hide');
-    reactiveUtils.watch(()=>view.camera&&view.camera.tilt,t=>{ tilted=t>20; $('btnTilt').classList.toggle('is-on',!tilted); });
-    if(!hasInitialView()) goHome();
-    console.log('[3D] 웹씬',scene.portalItem&&scene.portalItem.title,'| 레이어',scene.allLayers.length,'| 슬라이드',slideList().length);
-  }).catch(e=>{
-    clearTimeout(failTimer);
-    const m=String((e&&e.message)||e);
-    console.warn('[3D] 웹씬 실패',m);
-    showError('3D 지도를 불러오지 못했어요', /403|401|not accessible|does not exist|권한/i.test(m)
-      ? '이 3D 씬이 아직 모든 사용자에게 공개되지 않았을 수 있어요. 관리자에게 공유 설정을 확인해 달라고 알려 주세요.'
-      : '서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요. ('+m.slice(0,80)+')');
-  });
+    const failTimer=setTimeout(()=>{ if(!scene.loaded) showError('3D 지도 불러오기가 늦어지고 있어요','네트워크가 느리거나 서버가 응답하지 않아요. 잠시 후 다시 시도해 주세요.'); },45000);
+    try{
+      await scene.load(); await view.when();
+      clearTimeout(failTimer);
+      beautify();
+      renderSlides();
+      $('cover').classList.add('hide');
+      reactiveUtils.watch(()=>view.camera&&view.camera.tilt,t=>{ tilted=t>20; $('btnTilt').classList.toggle('is-on',!tilted); });
+      if(!hasInitialView()) goHome();
+      console.log('[3D] 웹씬 준비('+source+')',(scene.portalItem&&scene.portalItem.title)||'','| 레이어',scene.allLayers.length,'| 슬라이드',slideList().length);
+    }catch(e){
+      clearTimeout(failTimer);
+      const m=String((e&&e.message)||e);
+      console.warn('[3D] 웹씬 실패('+source+')',m,e);
+      showError('3D 지도를 불러오지 못했어요',await diagnose(m));
+    }
+  })();
+
+  /* 실패 원인을 구분해 안내: 포털 아이템을 직접 조회해 본다 */
+  async function diagnose(m){
+    const itemUrl=`${SCENE.portalUrl}/sharing/rest/content/items/${SCENE.itemId}?f=json`;
+    try{
+      const r=await fetch(itemUrl,{signal:AbortSignal.timeout(10000)});
+      const j=await r.json();
+      if(j.error) return '이 3D 씬이 아직 모든 사용자에게 공개되지 않았을 수 있어요. 관리자에게 공유 설정을 확인해 달라고 알려 주세요. ('+(j.error.message||j.error.code)+')';
+      return '씬 정보는 읽었지만 일부 자료를 불러오지 못했어요. 잠시 후 다시 시도해 주세요. ('+m.slice(0,80)+')';
+    }catch(e){
+      return '구리시 포털이 이 사이트에서의 접근(CORS)을 허용하지 않아 씬 정보를 읽지 못했어요. 관리자가 배포를 다시 실행하면 스냅샷으로 열 수 있어요. ('+m.slice(0,60)+')';
+    }
+  }
 
   /* ── 보기 좋게: 부드러운 그림자·주변광 차폐·대기·물 반사, 오후 햇빛 ── */
   function beautify(){

@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "build:deploy": "node scripts/build-deploy.mjs"
+    "build:deploy": "node scripts/build-deploy.mjs",
+    "fetch:scene": "node scripts/fetch-scene.mjs"
   },
   "dependencies": {
     "@types/node": "^22.0.0",
