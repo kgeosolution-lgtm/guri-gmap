@@ -241,3 +241,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 시 외곽선: 배경(GURI_BND_SE)이 경계 그림자를 그리므로 행정동 합집합 외곽선(`bndLayer`)은 기본 숨김이고, 바로e맵을 못 읽어 브이월드로 대체될 때만 마스크와 함께 켭니다.
 - 브랜치: `work/kangmina-theme-fit-outline` (base `design/service-home-refresh` 4bac670).
 - 검증: 인라인 스크립트 `node --check`, `fitExtent` 단위 검사, `npm run build:deploy`, `git diff --check` 통과. 실제 배율은 배포 후 브라우저에서 주제 변경·동 전체·동 선택으로 확인이 필요합니다.
+
+## 2026-09-16 전체보기·동 이동 복구 (담당: 강민아)
+
+- 증상: 직전 변경(#16) 뒤 주제 변경·동 전체에서 구리시 전체가 보이지 않고, 동 선택 시 확대·이동도 되지 않았습니다.
+- 원인: `view.goTo({target:{type:"extent",…}})`처럼 일반 객체로 준 범위는 ArcGIS goTo가 이동 대상(도형)으로 인식하지 않아 아무 동작 없이 성공으로 끝났고, 그래서 예비 경로(중심+줌)도 실행되지 않았습니다.
+- 조치: `esri/geometry/Extent`를 로드해 `ExtentCls`로 두고, `asExtent()`로 실제 Extent 도형을 만들어 `view.goTo(도형)`으로 넘깁니다. 시작 화면·전체보기(`fitExtent`)·동 이동(`gotoDong`)·`moveTo` 모두 적용. Extent 모듈이 없으면 예외를 던져 예전 중심+줌 경로로 넘어갑니다.
+- 브랜치: `work/kangmina-theme-fit-fix` (base `design/service-home-refresh` 7f62e18).
+- 검증: 인라인 스크립트 `node --check`, `fitExtent`/`asExtent` 단위 검사(Extent 인스턴스 생성, 모듈 없을 때 예외), `npm run build:deploy`, `git diff --check` 통과. 실제 이동은 배포 후 브라우저에서 주제 변경·동 전체·동 선택으로 확인이 필요합니다.

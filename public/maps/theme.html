@@ -2211,7 +2211,7 @@ function toast(msg){ const t=$('mapToast'); t.textContent=msg; t.style.display='
   clearTimeout(t._h); t._h=setTimeout(()=>t.style.display='none',2200); }
 
 /* ════════ 지도 ════════ */
-var WebMapCls=null, RendererJU=null, baseMapObj=null, myOverlays=[], INIT_VIEW=null;
+var WebMapCls=null, RendererJU=null, baseMapObj=null, myOverlays=[], INIT_VIEW=null, ExtentCls=null;
 var view=null,gLayer=null,labelLayer=null,meLayer=null,pulseLayer=null,dongLayer=null,GraphicCls=null,FLCls=null,mapObj=null,pulseRAF=null,dongRAF=null,zoomMode='norm';
 const lineLayers={};   /* 테마명 → FeatureLayer */
 function catExtent(){
@@ -2224,8 +2224,9 @@ function catExtent(){
 require(["esri/config","esri/Map","esri/Basemap","esri/WebMap","esri/views/MapView","esri/layers/GraphicsLayer",
          "esri/layers/VectorTileLayer","esri/layers/WebTileLayer","esri/layers/FeatureLayer","esri/Graphic",
          "esri/renderers/support/jsonUtils","esri/core/reactiveUtils","esri/geometry/geometryEngine",
-         "esri/layers/TileLayer","esri/layers/MapImageLayer"],
-(esriConfig,Map,Basemap,WebMap,MapView,GraphicsLayer,VectorTileLayer,WebTileLayer,FeatureLayer,Graphic,rendererJsonUtils,reactiveUtils,geometryEngine,TileLayer,MapImageLayer)=>{
+         "esri/layers/TileLayer","esri/layers/MapImageLayer","esri/geometry/Extent"],
+(esriConfig,Map,Basemap,WebMap,MapView,GraphicsLayer,VectorTileLayer,WebTileLayer,FeatureLayer,Graphic,rendererJsonUtils,reactiveUtils,geometryEngine,TileLayer,MapImageLayer,Extent)=>{
+  ExtentCls=Extent;
   esriConfig.request.useIdentity=false;
   esriConfig.portalUrl=CITY.portalUrl;              /* 포털 항목(웹맵)을 읽을 기준 주소 */
   GraphicCls=Graphic; FLCls=FeatureLayer; WebMapCls=WebMap; RendererJU=rendererJsonUtils;
@@ -2318,7 +2319,7 @@ require(["esri/config","esri/Map","esri/Basemap","esri/WebMap","esri/views/MapVi
   view=new MapView({container:"map",map,extent:CITY.extent,
     popupEnabled:false,ui:{components:[]},constraints:{minZoom:10,snapToZoom:false}});   /* 소수점 배율 허용(전체보기 맞춤) */
   view.when(()=>{                                  /* 시작 화면: 전체보기와 같은 범위로 맞춘 뒤 저장 */
-    try{ view.extent=fitExtent(); }
+    try{ view.extent=fitExtent(); }   /* Extent 도형 */
     catch(e){ try{ const f=cityFit(); view.center=f.center; view.zoom=f.zoom; }catch(e2){} }
     INIT_VIEW={center:[view.center.longitude,view.center.latitude],zoom:view.zoom};
     console.log('[시작 화면] 배율',INIT_VIEW.zoom,'| 축척 1:'+Math.round(view.scale),'| 좌표계',view.spatialReference&&view.spatialReference.wkid);
@@ -2558,7 +2559,7 @@ async function gotoDong(nm){
   const ext={xmin:e.xmin-px,ymin:e.ymin-py,xmax:e.xmax+px,ymax:e.ymax+py,
              spatialReference:{wkid:4326}};
   let ok=false;
-  try{ await view.goTo({target:Object.assign({type:"extent"},ext)},{duration:650}); ok=true;  /* 1) 동 범위(배경 타일 체계와 무관) */
+  try{ await view.goTo(asExtent(ext),{duration:650}); ok=true;  /* 1) 동 범위(Extent 도형, 배경 타일 체계와 무관) */
        console.log('[동 이동]',curDong,'범위 · 축척 1:'+Math.round(view.scale)); }
   catch(e1b){ console.warn('[동 이동] 범위 이동 실패',String((e1b&&e1b.message)||e1b)); }
   if(!ok){ try{ await view.goTo({center:[cx,cy],zoom:z},{duration:650}); ok=true;  /* 2) 중심점+줌 */
@@ -2596,7 +2597,7 @@ async function resetView(why){
   try{ await view.when(); }catch(e0){}               /* 준비 전 goTo 는 animation 오류를 낸다 */
   /* 구리시 범위(extent)를 지도에 맞춘다. 줌 숫자로 계산하면 배경 타일 체계(브이월드/바로e맵)에 따라 배율이 달라져
    * 구리시가 잘리므로, 범위 기준으로 맞추고(소수점 배율 허용) 실패할 때만 예전 줌 계산을 쓴다 */
-  try{ await view.goTo({target:fitExtent()},{duration:600});
+  try{ await view.goTo(fitExtent(),{duration:600});
        console.log('[전체보기]',why,'배율',+view.zoom.toFixed(2),'| 축척 1:'+Math.round(view.scale)); return true; }
   catch(err){ console.warn('[전체보기] 범위 맞춤 실패',String((err&&err.message)||err)); }
   const f=cityFit(), cx=f.center[0], cy=f.center[1], z=f.zoom;
@@ -2609,7 +2610,12 @@ async function resetView(why){
 /* 구리시 범위 + 여백 5% — 시작 화면·전체보기·동 전체가 함께 쓴다 (배경 타일 체계와 무관하게 범위를 맞춘다) */
 function fitExtent(){
   const e=CITY.extent, mx=(e.xmax-e.xmin)*0.05, my=(e.ymax-e.ymin)*0.05;
-  return {type:"extent",xmin:e.xmin-mx,xmax:e.xmax+mx,ymin:e.ymin-my,ymax:e.ymax+my,spatialReference:{wkid:4326}};
+  return asExtent({xmin:e.xmin-mx,xmax:e.xmax+mx,ymin:e.ymin-my,ymax:e.ymax+my});
+}
+/* goTo 에 넘길 실제 Extent 도형 — 일반 객체는 goTo 가 이동 대상으로 인식하지 않아 지도가 움직이지 않는다 */
+function asExtent(o){
+  if(!ExtentCls) throw new Error('Extent 모듈이 아직 없음');
+  return new ExtentCls({xmin:o.xmin,ymin:o.ymin,xmax:o.xmax,ymax:o.ymax,spatialReference:{wkid:4326}});
 }
 /* 구리시 경계가 지도에 여유 있게 들어오는 중심·배율 (줌 계산 — 범위 맞춤이 실패할 때의 예비) */
 function cityFit(){
@@ -2636,7 +2642,7 @@ async function moveTo(ext,label){
   const cx=(ext.xmin+ext.xmax)/2, cy=(ext.ymin+ext.ymax)/2;
   const span=Math.max(ext.xmax-ext.xmin,(ext.ymax-ext.ymin)*1.3,1e-4);
   const z=Math.max(11,Math.min(17,Math.round(Math.log2(360/span)-0.6)));
-  try{ await view.goTo({target:Object.assign({type:"extent"},ext)},{duration:600});
+  try{ await view.goTo(asExtent(ext),{duration:600});
        console.log('[이동] 범위 성공',label); return true; }
   catch(e){ console.warn('[이동] 범위 실패',String((e&&e.message)||e)); }
   try{ await view.goTo({center:[cx,cy],zoom:z},{duration:600}); console.log('[이동] 중심 성공',label,z); return true; }
