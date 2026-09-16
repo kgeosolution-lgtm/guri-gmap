@@ -2258,7 +2258,7 @@ require(["esri/config","esri/Map","esri/Basemap","esri/WebMap","esri/views/MapVi
     renderer:{type:"simple",symbol:{type:"simple-fill",color:[255,255,255,0],
       outline:{color:"#01573C",width:3}}}});
   const maskLayer=new GraphicsLayer({listMode:"hide",visible:false});   /* 벡터타일 배경이 바깥 음영을 그리므로 평소엔 숨김 */
-  const bndLayer=new GraphicsLayer({listMode:"hide"});   /* 시 외곽선 — 행정동 합집합(시계열 항공사진과 같은 방식) */
+  const bndLayer=new GraphicsLayer({listMode:"hide",visible:false});   /* 시 외곽선(행정동 합집합) — 배경이 경계 그림자를 그리므로 평소엔 숨김 */
   function ringArea(r){ let a=0;
     for(let i=0,j=r.length-1;i<r.length;j=i++) a+=r[j][0]*r[i][1]-r[i][0]*r[j][1];
     return a/2; }                                  /* 양수 = 반시계 */
@@ -2317,10 +2317,11 @@ require(["esri/config","esri/Map","esri/Basemap","esri/WebMap","esri/views/MapVi
   myOverlays=[maskLayer,dong,bndLayer,dongLayer,labelLayer,pulseLayer,gLayer,meLayer];
   view=new MapView({container:"map",map,extent:CITY.extent,
     popupEnabled:false,ui:{components:[]},constraints:{minZoom:10,snapToZoom:false}});   /* 소수점 배율 허용(전체보기 맞춤) */
-  view.when(()=>{                                  /* 시작 화면: 전체보기와 같은 배율로 맞춘 뒤 저장 */
-    try{ const f=cityFit(); view.center=f.center; view.zoom=f.zoom; }catch(e){}
+  view.when(()=>{                                  /* 시작 화면: 전체보기와 같은 범위로 맞춘 뒤 저장 */
+    try{ view.extent=fitExtent(); }
+    catch(e){ try{ const f=cityFit(); view.center=f.center; view.zoom=f.zoom; }catch(e2){} }
     INIT_VIEW={center:[view.center.longitude,view.center.latitude],zoom:view.zoom};
-    console.log('[시작 화면] 배율',INIT_VIEW.zoom);
+    console.log('[시작 화면] 배율',INIT_VIEW.zoom,'| 축척 1:'+Math.round(view.scale),'| 좌표계',view.spatialReference&&view.spatialReference.wkid);
   });
 
   /* 웹맵 재시도 없음 */
@@ -2375,7 +2376,7 @@ require(["esri/config","esri/Map","esri/Basemap","esri/WebMap","esri/views/MapVi
   function bmFallback(){ if(bmStage>=99) return; bmStage++;
     if(bmStage===1){ console.warn('[배경] 바로e맵을 못 읽어 브이월드로 대체');
       map.basemap=new Basemap({baseLayers:[vw],title:"브이월드"});
-      maskLayer.visible=true;                         /* 브이월드에는 바깥 음영이 없으니 자체 마스크를 켠다 */
+      maskLayer.visible=true; bndLayer.visible=true;  /* 브이월드에는 바깥 음영·경계 그림자가 없으니 자체 마스크·외곽선을 켠다 */
       vw.load().catch(bmFallback);
     }else if(bmStage===2){ console.warn('[배경] 브이월드도 못 읽어 회색 지도로 대체'); map.basemap=Basemap.fromId("gray-vector"); } }
   ngii.load().catch(bmFallback);
@@ -2557,11 +2558,12 @@ async function gotoDong(nm){
   const ext={xmin:e.xmin-px,ymin:e.ymin-py,xmax:e.xmax+px,ymax:e.ymax+py,
              spatialReference:{wkid:4326}};
   let ok=false;
-  try{ await view.goTo({center:[cx,cy],zoom:z},{duration:650}); ok=true;  /* 1) 중심점 */
+  try{ await view.goTo({target:Object.assign({type:"extent"},ext)},{duration:650}); ok=true;  /* 1) 동 범위(배경 타일 체계와 무관) */
+       console.log('[동 이동]',curDong,'범위 · 축척 1:'+Math.round(view.scale)); }
+  catch(e1b){ console.warn('[동 이동] 범위 이동 실패',String((e1b&&e1b.message)||e1b)); }
+  if(!ok){ try{ await view.goTo({center:[cx,cy],zoom:z},{duration:650}); ok=true;  /* 2) 중심점+줌 */
        console.log('[동 이동]',curDong,'중심',z); }
-  catch(e1){ console.warn('[동 이동] 중심 이동 실패',String((e1&&e1.message)||e1)); }
-  if(!ok){ try{ await view.goTo({target:Object.assign({type:"extent"},ext)},{duration:650}); ok=true; }  /* 2) 범위 */
-    catch(e1b){ console.warn('[동 이동] 범위 이동 실패',String((e1b&&e1b.message)||e1b)); } }
+    catch(e1){ console.warn('[동 이동] 중심 이동 실패',String((e1&&e1.message)||e1)); } }
   if(!ok){ try{ view.center=[cx,cy]; view.zoom=z; ok=true; }             /* 3) 직접 지정 */
     catch(e3){ console.warn('[동 이동] 직접 지정도 실패',String((e3&&e3.message)||e3)); } }
   if(DEBUG) console.log('[동 이동]',curDong,ok?'성공':'실패',e);
@@ -2592,15 +2594,24 @@ async function resetView(why){
   for(let i=0;i<20&&!view;i++) await new Promise(r=>setTimeout(r,100));
   if(!view){ console.warn('[전체보기] 지도가 준비되지 않았어요',why); return false; }
   try{ await view.when(); }catch(e0){}               /* 준비 전 goTo 는 animation 오류를 낸다 */
-  /* 시작 화면(INIT_VIEW)으로 되돌리지 않고, 현재 지도 크기에 맞춘 구리시 경계 배율을 매번 다시 계산한다 */
+  /* 구리시 범위(extent)를 지도에 맞춘다. 줌 숫자로 계산하면 배경 타일 체계(브이월드/바로e맵)에 따라 배율이 달라져
+   * 구리시가 잘리므로, 범위 기준으로 맞추고(소수점 배율 허용) 실패할 때만 예전 줌 계산을 쓴다 */
+  try{ await view.goTo({target:fitExtent()},{duration:600});
+       console.log('[전체보기]',why,'배율',+view.zoom.toFixed(2),'| 축척 1:'+Math.round(view.scale)); return true; }
+  catch(err){ console.warn('[전체보기] 범위 맞춤 실패',String((err&&err.message)||err)); }
   const f=cityFit(), cx=f.center[0], cy=f.center[1], z=f.zoom;
   try{ await view.goTo({center:[cx,cy],zoom:z},{duration:600});
-       console.log('[전체보기]',why,'배율',z); return true; }
+       console.log('[전체보기]',why,'배율(줌 계산)',z); return true; }
   catch(err){ console.warn('[전체보기] 실패',String((err&&err.message)||err)); }
   try{ view.center=[cx,cy]; view.zoom=z; console.log('[전체보기] 직접지정',why); return true; }catch(e2){}
   return false;
 }
-/* 구리시 경계가 지도에 여유 있게 들어오는 중심·배율 (소수점 배율, 시작 화면과 전체보기가 함께 쓴다) */
+/* 구리시 범위 + 여백 5% — 시작 화면·전체보기·동 전체가 함께 쓴다 (배경 타일 체계와 무관하게 범위를 맞춘다) */
+function fitExtent(){
+  const e=CITY.extent, mx=(e.xmax-e.xmin)*0.05, my=(e.ymax-e.ymin)*0.05;
+  return {type:"extent",xmin:e.xmin-mx,xmax:e.xmax+mx,ymin:e.ymin-my,ymax:e.ymax+my,spatialReference:{wkid:4326}};
+}
+/* 구리시 경계가 지도에 여유 있게 들어오는 중심·배율 (줌 계산 — 범위 맞춤이 실패할 때의 예비) */
 function cityFit(){
   const e=CITY.extent;
   const cx=(e.xmin+e.xmax)/2, cy=(e.ymin+e.ymax)/2;

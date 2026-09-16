@@ -233,3 +233,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 자체 바깥 음영 마스크(`maskLayer`)는 이 배경이 이미 바깥을 어둡게 하므로 기본 숨김이고, ①을 못 읽어 브이월드로 대체될 때만 켭니다. ②③은 못 읽어도 지도는 유지되며 콘솔 경고만 남깁니다.
 - 브랜치: `work/kangmina-theme-layer-basemap` (base `design/service-home-refresh` 417b1cb).
 - 검증: 인라인 스크립트 `node --check`, `npm run build:deploy`, `git diff --check` 통과. 구리시 서버가 차단된 환경이라 실제 배경 모습(음영·경계 그림자·블렌드)은 배포 후 브라우저 확인이 필요합니다.
+
+## 2026-09-16 테마지도 전체보기 범위 맞춤·시 외곽선 숨김 (담당: 강민아)
+
+- 증상: 주제 변경·동 전체 선택 시 구리시 북쪽이 잘리는 배율로 나옴. 전체보기(`resetView`)와 시작 화면이 `cityFit()`의 줌 숫자로 배율을 정하는데, 줌 숫자의 실제 축척은 배경 타일 체계(LOD)에 따라 달라서 벡터타일 배경으로 바꾼 뒤 같은 줌이 더 크게 확대됐습니다.
+- 조치: `fitExtent()`(구리시 범위 + 여백 5%, 4326)를 두고 시작 화면은 `view.extent=fitExtent()`, 전체보기는 `view.goTo({target:fitExtent()})`로 범위를 맞춥니다(소수점 배율 허용, 타일 체계와 무관). 실패할 때만 예전 `cityFit()` 줌 계산을 씁니다. 동 이동(`gotoDong`)도 동 범위 goTo를 먼저, 중심+줌은 예비로 바꿨습니다. 콘솔에 배율과 축척(1:n)을 함께 남깁니다.
+- 시 외곽선: 배경(GURI_BND_SE)이 경계 그림자를 그리므로 행정동 합집합 외곽선(`bndLayer`)은 기본 숨김이고, 바로e맵을 못 읽어 브이월드로 대체될 때만 마스크와 함께 켭니다.
+- 브랜치: `work/kangmina-theme-fit-outline` (base `design/service-home-refresh` 4bac670).
+- 검증: 인라인 스크립트 `node --check`, `fitExtent` 단위 검사, `npm run build:deploy`, `git diff --check` 통과. 실제 배율은 배포 후 브라우저에서 주제 변경·동 전체·동 선택으로 확인이 필요합니다.
