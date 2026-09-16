@@ -21,6 +21,10 @@ export function animalUrl(): string {
   return `${siteConfig.mapsBase}/animal.html`;
 }
 
+export function sceneUrl(): string {
+  return `${siteConfig.mapsBase}/scene.html`;
+}
+
 export function aerialUrl(): string {
   return `${siteConfig.mapsBase}/aerial.html`;
 }

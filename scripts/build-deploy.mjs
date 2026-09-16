@@ -35,6 +35,7 @@ for (const file of [
   'v1/index.html',
   'maps/theme.html',
   'maps/animal.html',
+  'maps/scene.html',
   'maps/aerial.html',
   'images/guri-emblem.png',
 ]) {

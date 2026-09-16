@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D 지도 · 구리시 G-MAP</title>
+<meta property="og:title" content="구리시 G-MAP 3D 지도">
+<meta property="og:description" content="건물과 지형을 3D로 돌려 보며 구리의 모습을 입체적으로 살펴보세요.">
+<meta property="og:type" content="website">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="gmap-shared.css">
+<link rel="stylesheet" href="https://js.arcgis.com/4.29/esri/themes/light/main.css">
+<link rel="stylesheet" href="/styles/site-shell.css">
+<style>
+:root{
+  --brand:var(--krds-color-light-primary-50,#018058); --brand-hover:var(--krds-color-light-primary-60,#01573C); --brand-soft:var(--krds-color-light-primary-5,#edf4f0);
+  --accent:var(--krds-color-light-primary-50,#018058);
+  --ink:var(--krds-color-light-gray-90,#1e2124); --sub:var(--krds-color-light-gray-60,#58616a); --faint:var(--krds-color-light-gray-40,#8a949e); --line:var(--krds-color-light-gray-10,#e6e8ea);
+  --gray20:var(--krds-color-light-gray-20,#cdd1d5); --gray70:var(--krds-color-light-gray-70,#464c53);
+  --shadow:0 2px 10px rgba(30,50,41,.12);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:#dfe8f2;font-family:var(--krds-font-family-base,'Pretendard GOV',Pretendard,'Noto Sans KR',sans-serif);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+.main{position:relative;height:calc(100dvh - 57px);min-height:420px;overflow:hidden}
+#map{position:absolute;inset:0}
+.esri-view .esri-view-surface--touch-none:focus::after{outline:none}
+.esri-ui .esri-attribution{font-size:11px}
+
+/* 우상단 컨트롤 (테마지도·항공사진과 같은 결) */
+.map-ctl{position:absolute;right:12px;top:12px;z-index:6;display:flex;flex-direction:column;gap:6px}
+.map-ctl button{width:34px;height:34px;border-radius:6px;background:#fff;border:1px solid var(--gray20);display:grid;place-items:center;color:var(--gray70);box-shadow:var(--shadow);transition:all .13s}
+.map-ctl button:hover,.map-ctl button.is-on{color:var(--accent);border-color:var(--accent)}
+.map-ctl button.is-on{background:var(--brand-soft)}
+.map-ctl button svg{width:18px;height:18px}
+.map-ctl .sep{height:4px}
+.map-toast{position:absolute;left:50%;transform:translateX(-50%);bottom:130px;background:#1E3229;color:#fff;font-size:13px;padding:8px 14px;border-radius:6px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:9;max-width:calc(100% - 32px);text-align:center}
+.map-toast.show{opacity:1}
+
+/* 좌상단 안내 배지 */
+.hint{position:absolute;left:12px;top:12px;z-index:6;background:rgba(255,255,255,.92);border:1px solid var(--gray20);border-radius:8px;box-shadow:var(--shadow);padding:8px 12px;font-size:12px;color:var(--sub);max-width:min(340px,calc(100% - 70px));backdrop-filter:blur(6px)}
+.hint b{color:var(--ink);font-size:13px;display:block;margin-bottom:2px}
+.hint kbd{font-family:inherit;background:#f1f3f5;border:1px solid var(--gray20);border-radius:4px;padding:0 5px;font-size:11px}
+
+/* 하단 바: 장소 바로가기(슬라이드) + 보기 설정 */
+.bar{position:absolute;left:50%;transform:translateX(-50%);bottom:16px;z-index:7;background:#fff;border:1px solid var(--gray20);border-radius:8px;box-shadow:var(--shadow);padding:10px 14px 12px;max-width:calc(100% - 24px);width:max-content;min-width:min(520px,calc(100% - 24px))}
+.bar-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.bar-title{font-weight:700;font-size:14px;white-space:nowrap}
+.bar-hint{font-size:12px;color:var(--sub);flex:1;min-width:0}
+.bar-opts{display:flex;gap:10px;margin-left:auto;font-size:13px;white-space:nowrap}
+.bar-opts label{display:inline-flex;align-items:center;gap:5px;cursor:pointer}
+.bar-opts input{width:15px;height:15px;accent-color:var(--brand)}
+.slides{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.slides::-webkit-scrollbar{display:none}
+.slide{flex:none;height:34px;padding:0 11px 0 6px;border-radius:6px;border:1px solid var(--gray20);background:#fff;font-size:13px;font-weight:600;color:var(--gray70);display:inline-flex;align-items:center;gap:7px;transition:all .13s}
+.slide img{width:34px;height:24px;object-fit:cover;border-radius:4px;background:#e9eef4}
+.slide:hover{border-color:var(--brand);color:var(--brand)}
+.slide.is-on{background:var(--brand);border-color:var(--brand);color:#fff}
+.slide.tour{background:var(--brand-soft);color:var(--brand-hover);border-color:transparent}
+.slide.tour.is-on{background:var(--brand);color:#fff}
+.slides:empty+.bar-empty{display:block}
+.bar-empty{display:none;font-size:12px;color:var(--faint)}
+
+/* 로딩·오류 덮개 */
+.cover{position:absolute;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,#e9f0f7,#dfe8f2);transition:opacity .35s}
+.cover.hide{opacity:0;pointer-events:none}
+.cover .box{background:#fff;border:1px solid var(--gray20);border-radius:12px;box-shadow:var(--shadow);padding:22px 26px;max-width:min(420px,calc(100% - 32px));text-align:center}
+.cover .box b{display:block;font-size:16px;margin-bottom:6px}
+.cover .box p{font-size:13px;color:var(--sub);line-height:1.6}
+.cover .box a,.cover .box button{display:inline-flex;align-items:center;justify-content:center;gap:6px;margin:12px 4px 0;padding:9px 14px;border-radius:6px;font-size:13px;font-weight:700;text-decoration:none}
+.cover .box .go{background:var(--brand);color:#fff}
+.cover .box .alt{border:1px solid var(--gray20);color:var(--gray70)}
+.spin{width:36px;height:36px;border-radius:50%;border:3px solid #dbe4ee;border-top-color:var(--brand);margin:0 auto 12px;animation:sp .9s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.cover.err .spin{display:none}
+
+@media (max-width:640px){
+  .hint{display:none}
+  .bar{left:8px;right:8px;transform:none;width:auto;max-width:none;min-width:0;bottom:8px;padding:8px 10px 10px}
+  .bar-hint{display:none}
+  .bar-opts{margin-left:0;font-size:12px}
+  .slide{height:32px;font-size:12px}
+  .map-toast{bottom:120px}
+  .map-ctl{top:auto;bottom:130px}
+}
+</style>
+</head>
+<body>
+
+<header class="service-header map topbar"><div class="service-header-inner"><a class="service-brand" href="/" aria-label="G-MAP 구리시 시민생활지도 홈"><img src="/images/guri-emblem.png" alt="" width="50" height="41"><span><b>G-MAP</b><small>구리시 시민생활지도</small></span></a><span class="service-page-name">3D 지도</span><nav class="service-nav" aria-label="주 메뉴"><a href="/maps/theme.html?group=%EC%97%AC%EB%A6%84" >테마지도</a><a href="/maps/animal.html" >유기동물 찾기</a><a href="/maps/scene.html" aria-current="page">3D 지도</a><a href="/maps/aerial.html" >시계열 항공사진</a><a href="/#about">G-MAP 소개</a></nav><a class="service-search" href="/#search">테마 찾기 <span aria-hidden="true">↗</span></a><details class="service-mobile"><summary aria-label="메뉴 열기·닫기"><span></span><span></span></summary><nav aria-label="모바일 주 메뉴"><a href="/maps/theme.html?group=%EC%97%AC%EB%A6%84" >테마지도</a><a href="/maps/animal.html" >유기동물 찾기</a><a href="/maps/scene.html" aria-current="page">3D 지도</a><a href="/maps/aerial.html" >시계열 항공사진</a><a href="/#about">G-MAP 소개</a><a href="/#search">테마 찾기</a></nav></details></div></header>
+
+<div class="main" id="main">
+  <div id="map"></div>
+  <div class="hint" id="hint"><b>3D 구리 둘러보기</b>드래그로 이동 · 마우스 휠로 확대 · <kbd>우클릭 드래그</kbd> 또는 <kbd>Ctrl</kbd>+드래그로 회전·기울이기</div>
+  <div class="map-ctl">
+    <button type="button" title="확대" aria-label="확대" onclick="zoomBy(1)"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg></button>
+    <button type="button" title="축소" aria-label="축소" onclick="zoomBy(-1)"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+    <div class="sep"></div>
+    <button type="button" id="btnTilt" title="위에서 보기 / 비스듬히 보기" aria-label="위에서 보기 / 비스듬히 보기" onclick="toggleTilt()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l9 4 9-4"/><path d="M3 12l9 4 9-4"/><path d="M12 3l9 4-9 4-9-4z"/></svg></button>
+    <button type="button" title="북쪽 맞추기" aria-label="북쪽 맞추기" onclick="faceNorth()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3v3"/><path d="M14.5 14.5L12 7l-2.5 7.5 2.5-1.5z" fill="currentColor"/></svg></button>
+    <button type="button" title="내 위치" aria-label="내 위치" onclick="locate()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M20 12h2"/><path d="M2 12h2"/></svg></button>
+    <button type="button" title="처음 화면" aria-label="처음 화면" onclick="goHome()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l-2 0l9 -9l9 9l-2 0"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7"/><path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6"/></svg></button>
+    <button type="button" title="공유하기" aria-label="공유하기" onclick="shareUrl()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="12" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M8.7 10.7l6.6 -3.4"/><path d="M8.7 13.3l6.6 3.4"/></svg></button>
+  </div>
+
+  <div class="bar" id="bar" role="group" aria-label="장소 바로가기와 보기 설정">
+    <div class="bar-head">
+      <span class="bar-title">3D 구리</span>
+      <span class="bar-hint" id="barHint">장소를 누르면 그곳으로 날아가요</span>
+      <span class="bar-opts">
+        <label><input type="checkbox" id="optShadow" checked> 그림자</label>
+        <label><input type="checkbox" id="optEvening"> 저녁 빛</label>
+      </span>
+    </div>
+    <div class="slides" id="slides"></div>
+    <div class="bar-empty">저장된 장소가 없어요. 지도를 직접 돌려가며 둘러보세요.</div>
+  </div>
+
+  <div class="cover" id="cover"><div class="box"><div class="spin"></div><b id="coverTitle">3D 지도를 불러오는 중…</b><p id="coverText">건물과 지형 자료를 준비하고 있어요. 잠시만 기다려 주세요.</p><div id="coverActions"></div></div></div>
+  <div class="map-toast" id="mapToast"></div>
+</div>
+
+<script src="https://js.arcgis.com/4.29/"></script>
+<script>
+/* ═══════════════════════════════════════════════════════════
+   구리시 G-MAP · 3D 지도
+   구리시 포털 웹씬(b5e573a0…)을 SceneView 로 열고, 시민이 보기 좋게 조명·그림자·대기 효과를 더한다.
+   ═══════════════════════════════════════════════════════════ */
+const SCENE={
+  portalUrl:'https://www.guri.go.kr/gmap',
+  itemId:'b5e573a06e7f4195bb2f092aad19b253',
+  viewerUrl:'https://www.guri.go.kr/gmap/home/webscene/viewer.html?webscene=b5e573a06e7f4195bb2f092aad19b253',
+  city:{center:[127.1396,37.5943],tilt:62,heading:20,scale:60000}   /* 웹씬에 시작 화면이 없을 때 */
+};
+let view=null, scene=null, tourTimer=null, tilted=true;
+const $=id=>document.getElementById(id);
+function toast(msg,ms=2200){ const t=$('mapToast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),ms); }
+function showError(title,text){
+  const c=$('cover'); c.classList.add('err'); c.classList.remove('hide');
+  $('coverTitle').textContent=title; $('coverText').textContent=text;
+  $('coverActions').innerHTML=`<button type="button" class="go" onclick="location.reload()">다시 시도</button><a class="alt" href="${SCENE.viewerUrl}" target="_blank" rel="noopener">구리시 3D 뷰어에서 열기 ↗</a>`;
+}
+
+if(!window.WebGLRenderingContext){ showError('이 브라우저에서는 3D를 볼 수 없어요','최신 크롬·엣지·사파리 브라우저로 열어 주세요.'); }
+
+require(["esri/config","esri/WebScene","esri/views/SceneView","esri/core/reactiveUtils"],
+(esriConfig,WebScene,SceneView,reactiveUtils)=>{
+  esriConfig.request.useIdentity=false;
+  esriConfig.portalUrl=SCENE.portalUrl;
+
+  scene=new WebScene({portalItem:{id:SCENE.itemId}});
+  view=new SceneView({container:'map',map:scene,qualityProfile:'high',
+    ui:{components:['attribution']},popup:{dockEnabled:true,dockOptions:{buttonEnabled:false,breakpoint:false,position:'bottom-right'}},
+    environment:{atmosphereEnabled:true,starsEnabled:true,atmosphere:{quality:'high'}}});
+  view.ui.move('attribution','bottom-right');
+
+  const failTimer=setTimeout(()=>{ if(!scene.loaded) showError('3D 지도 불러오기가 늦어지고 있어요','네트워크가 느리거나 서버가 응답하지 않아요. 잠시 후 다시 시도해 주세요.'); },45000);
+
+  scene.load().then(()=>view.when()).then(()=>{
+    clearTimeout(failTimer);
+    beautify();
+    renderSlides();
+    $('cover').classList.add('hide');
+    reactiveUtils.watch(()=>view.camera&&view.camera.tilt,t=>{ tilted=t>20; $('btnTilt').classList.toggle('is-on',!tilted); });
+    if(!hasInitialView()) goHome();
+    console.log('[3D] 웹씬',scene.portalItem&&scene.portalItem.title,'| 레이어',scene.allLayers.length,'| 슬라이드',slideList().length);
+  }).catch(e=>{
+    clearTimeout(failTimer);
+    const m=String((e&&e.message)||e);
+    console.warn('[3D] 웹씬 실패',m);
+    showError('3D 지도를 불러오지 못했어요', /403|401|not accessible|does not exist|권한/i.test(m)
+      ? '이 3D 씬이 아직 모든 사용자에게 공개되지 않았을 수 있어요. 관리자에게 공유 설정을 확인해 달라고 알려 주세요.'
+      : '서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요. ('+m.slice(0,80)+')');
+  });
+
+  /* ── 보기 좋게: 부드러운 그림자·주변광 차폐·대기·물 반사, 오후 햇빛 ── */
+  function beautify(){
+    try{
+      const env=view.environment;
+      env.atmosphereEnabled=true; env.starsEnabled=true;
+      if(env.atmosphere) env.atmosphere.quality='high';
+      const L=env.lighting;
+      if(L&&L.type==='sun'){
+        L.directShadowsEnabled=$('optShadow').checked;
+        L.ambientOcclusionEnabled=true;
+        L.waterReflectionEnabled=true;
+        L.cameraTrackingEnabled=false;
+        applyLightTime();
+      }
+      if(scene.ground){ scene.ground.navigationConstraint={type:'stay-above'}; }
+    }catch(e){ console.warn('[3D] 효과 적용 중 일부 실패',e); }
+  }
+  window.applyLightTime=function(){
+    const L=view&&view.environment&&view.environment.lighting; if(!L||L.type!=='sun') return;
+    const d=new Date(); const evening=$('optEvening').checked;
+    /* 6월 하순 기준으로 낮 14시(밝고 그림자 짧음) / 저녁 18시 30분(길고 따뜻한 빛) */
+    L.date=new Date(d.getFullYear(),5,21,evening? 18 : 14,evening? 30 : 0,0);
+  };
+});
+
+/* ── 슬라이드(장소 바로가기) ── */
+function slideList(){ try{ return scene.presentation&&scene.presentation.slides? scene.presentation.slides.toArray() : []; }catch(e){ return []; } }
+function renderSlides(){
+  const host=$('slides'); host.innerHTML='';
+  const list=slideList();
+  if(list.length){
+    const tour=document.createElement('button'); tour.type='button'; tour.className='slide tour'; tour.id='btnTour';
+    tour.innerHTML='▶ 한 바퀴 둘러보기'; tour.onclick=toggleTour; host.appendChild(tour);
+  }
+  list.forEach((s,i)=>{
+    const b=document.createElement('button'); b.type='button'; b.className='slide'; b.dataset.i=i;
+    const title=(s.title&&s.title.text)||('장소 '+(i+1));
+    const thumb=s.thumbnail&&s.thumbnail.url? `<img src="${s.thumbnail.url}" alt="">` : '';
+    b.innerHTML=thumb+'<span>'+esc(title)+'</span>';
+    b.onclick=()=>{ stopTour(); flyToSlide(i); };
+    host.appendChild(b);
+  });
+  $('barHint').textContent=list.length? '장소를 누르면 그곳으로 날아가요' : '마우스로 지도를 돌려가며 둘러보세요';
+}
+function flyToSlide(i){
+  const s=slideList()[i]; if(!s||!view) return;
+  document.querySelectorAll('.slide').forEach(b=>b.classList.toggle('is-on',b.dataset.i==i));
+  return s.applyTo(view,{duration:1400,easing:'in-out-cubic'}).catch(()=>{});
+}
+async function toggleTour(){ if(tourTimer) return stopTour(); startTour(); }
+async function startTour(){
+  const list=slideList(); if(!list.length) return;
+  $('btnTour').classList.add('is-on'); $('btnTour').innerHTML='■ 둘러보기 멈춤';
+  let i=0; tourTimer=true;
+  while(tourTimer){
+    await flyToSlide(i%list.length);
+    for(let k=0;k<30&&tourTimer;k++) await new Promise(r=>setTimeout(r,120));   /* 3.6초 머문다 */
+    i++;
+  }
+}
+function stopTour(){ tourTimer=null; const b=$('btnTour'); if(b){ b.classList.remove('is-on'); b.innerHTML='▶ 한 바퀴 둘러보기'; } }
+function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ── 도구 ── */
+function hasInitialView(){ try{ return !!(scene&&scene.initialViewProperties&&scene.initialViewProperties.viewpoint); }catch(e){ return false; } }
+function goHome(){
+  if(!view) return; stopTour();
+  document.querySelectorAll('.slide').forEach(b=>b.classList.remove('is-on'));
+  if(hasInitialView()) view.goTo(scene.initialViewProperties.viewpoint,{duration:1200}).catch(()=>{});
+  else view.goTo({center:SCENE.city.center,scale:SCENE.city.scale,tilt:SCENE.city.tilt,heading:SCENE.city.heading},{duration:1200}).catch(()=>{});
+}
+function zoomBy(n){ if(view) view.goTo({zoom:view.zoom+n},{duration:300}).catch(()=>{}); }
+function toggleTilt(){
+  if(!view) return; stopTour();
+  const cam=view.camera.clone();
+  if(tilted){ cam.tilt=0; view.goTo(cam,{duration:700}).catch(()=>{}); toast('위에서 내려다보는 화면이에요',1600); }
+  else{ cam.tilt=62; view.goTo(cam,{duration:700}).catch(()=>{}); toast('비스듬히 보는 3D 화면이에요',1600); }
+}
+function faceNorth(){ if(!view) return; const cam=view.camera.clone(); cam.heading=0; view.goTo(cam,{duration:600}).catch(()=>{}); }
+function locate(){
+  if(!navigator.geolocation){ toast('이 브라우저는 위치 기능을 지원하지 않아요'); return; }
+  navigator.geolocation.getCurrentPosition(p=>{
+    if(view) view.goTo({center:[p.coords.longitude,p.coords.latitude],scale:4000,tilt:55},{duration:1000}).catch(()=>{});
+  },()=>toast('현재 위치를 확인하지 못했어요'),{enableHighAccuracy:true,timeout:8000});
+}
+async function shareUrl(){
+  const label='구리시 G-MAP 3D 지도';
+  const httpish=/^https?:/i.test(location.href);
+  if(navigator.share){
+    try{ await navigator.share(httpish? {title:label,url:location.href} : {title:label,text:label}); return; }
+    catch(e){ if(e&&e.name==='AbortError') return; }
+  }
+  try{ await navigator.clipboard.writeText(location.href); toast('주소를 복사했어요'); }
+  catch(e){ toast('주소 복사가 안 됐어요. 주소창에서 복사해 주세요'); }
+}
+$('optShadow').addEventListener('change',e=>{ const L=view&&view.environment&&view.environment.lighting; if(L&&L.type==='sun') L.directShadowsEnabled=e.target.checked; });
+$('optEvening').addEventListener('change',()=>{ if(window.applyLightTime) applyLightTime(); });
+</script>
+</body>
+</html>
