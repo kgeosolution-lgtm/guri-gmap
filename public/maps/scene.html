@@ -131,8 +131,12 @@ const SCENE={
   portalUrl:'https://www.guri.go.kr/gmap',
   itemId:'b5e573a06e7f4195bb2f092aad19b253',
   viewerUrl:'https://www.guri.go.kr/gmap/home/webscene/viewer.html?webscene=b5e573a06e7f4195bb2f092aad19b253',
-  city:{center:[127.1396,37.5943],tilt:62,heading:20,scale:60000}   /* 웹씬에 시작 화면이 없을 때 */
+  city:{center:[127.1396,37.5943],tilt:62,heading:20,scale:60000},   /* 웹씬에 시작 화면이 없을 때 */
+  /* 웹씬에 슬라이드가 없을 때 '장소 바로가기'로 쓸 구리 명소 레이어 */
+  spotsUrl:'https://www.guri.go.kr/gmapsvr/rest/services/Hosted/autumn_foliage/FeatureServer/0',
+  spotsMax:12
 };
+let PLACES=[];   /* [{title, thumb, go:()=>Promise}] — 웹씬 슬라이드 또는 명소 */
 let view=null, scene=null, tourTimer=null, tilted=true;
 const $=id=>document.getElementById(id);
 function toast(msg,ms=2200){ const t=$('mapToast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),ms); }
@@ -170,11 +174,12 @@ require(["esri/config","esri/WebScene","esri/views/SceneView","esri/core/reactiv
       await scene.load(); await view.when();
       clearTimeout(failTimer);
       beautify();
+      await buildPlaces();
       renderSlides();
       $('cover').classList.add('hide');
       reactiveUtils.watch(()=>view.camera&&view.camera.tilt,t=>{ tilted=t>20; $('btnTilt').classList.toggle('is-on',!tilted); });
       if(!hasInitialView()) goHome();
-      console.log('[3D] 웹씬 준비('+source+')',(scene.portalItem&&scene.portalItem.title)||'','| 레이어',scene.allLayers.length,'| 슬라이드',slideList().length);
+      console.log('[3D] 웹씬 준비('+source+')',(scene.portalItem&&scene.portalItem.title)||'','| 레이어',scene.allLayers.length,'| 장소',PLACES.length);
     }catch(e){
       clearTimeout(failTimer);
       const m=String((e&&e.message)||e);
@@ -221,33 +226,47 @@ require(["esri/config","esri/WebScene","esri/views/SceneView","esri/core/reactiv
   };
 });
 
-/* ── 슬라이드(장소 바로가기) ── */
+/* ── 장소 바로가기: 웹씬 슬라이드가 있으면 그것을, 없으면 구리 명소 레이어에서 만든다 ── */
 function slideList(){ try{ return scene.presentation&&scene.presentation.slides? scene.presentation.slides.toArray() : []; }catch(e){ return []; } }
+async function buildPlaces(){
+  PLACES=slideList().map((s,i)=>({title:(s.title&&s.title.text)||('장소 '+(i+1)),thumb:s.thumbnail&&s.thumbnail.url,
+    go:()=>s.applyTo(view,{duration:1400,easing:'in-out-cubic'})}));
+  if(PLACES.length) return;
+  try{
+    const u=`${SCENE.spotsUrl}/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&resultRecordCount=${SCENE.spotsMax}&f=json`;
+    const j=await (await fetch(u,{signal:AbortSignal.timeout(10000)})).json();
+    const name=a=>{ for(const k of ['이름','명칭','관광지명','장소명','name','NAME']){ if(a[k]) return String(a[k]); } return null; };
+    (j.features||[]).forEach((f,i)=>{
+      if(!f.geometry||f.attributes==null) return; const t=name(f.attributes); if(!t) return;
+      const x=f.geometry.x, y=f.geometry.y;
+      PLACES.push({title:t,thumb:null,
+        go:()=>view.goTo({center:[x,y],scale:2600,tilt:60,heading:(i*40)%360},{duration:1600,easing:'in-out-cubic'})});
+    });
+    console.log('[3D] 명소 바로가기',PLACES.length,'곳');
+  }catch(e){ console.warn('[3D] 명소를 불러오지 못해 장소 바로가기를 생략합니다',String((e&&e.message)||e)); }
+}
 function renderSlides(){
   const host=$('slides'); host.innerHTML='';
-  const list=slideList();
-  if(list.length){
+  if(PLACES.length){
     const tour=document.createElement('button'); tour.type='button'; tour.className='slide tour'; tour.id='btnTour';
     tour.innerHTML='▶ 한 바퀴 둘러보기'; tour.onclick=toggleTour; host.appendChild(tour);
   }
-  list.forEach((s,i)=>{
+  PLACES.forEach((p,i)=>{
     const b=document.createElement('button'); b.type='button'; b.className='slide'; b.dataset.i=i;
-    const title=(s.title&&s.title.text)||('장소 '+(i+1));
-    const thumb=s.thumbnail&&s.thumbnail.url? `<img src="${s.thumbnail.url}" alt="">` : '';
-    b.innerHTML=thumb+'<span>'+esc(title)+'</span>';
+    b.innerHTML=(p.thumb? `<img src="${esc(p.thumb)}" alt="">` : '<span aria-hidden="true">📍</span>')+'<span>'+esc(p.title)+'</span>';
     b.onclick=()=>{ stopTour(); flyToSlide(i); };
     host.appendChild(b);
   });
-  $('barHint').textContent=list.length? '장소를 누르면 그곳으로 날아가요' : '마우스로 지도를 돌려가며 둘러보세요';
+  $('barHint').textContent=PLACES.length? '장소를 누르면 그곳으로 날아가요' : '마우스로 지도를 돌려가며 둘러보세요';
 }
 function flyToSlide(i){
-  const s=slideList()[i]; if(!s||!view) return;
+  const p=PLACES[i]; if(!p||!view) return Promise.resolve();
   document.querySelectorAll('.slide').forEach(b=>b.classList.toggle('is-on',b.dataset.i==i));
-  return s.applyTo(view,{duration:1400,easing:'in-out-cubic'}).catch(()=>{});
+  return Promise.resolve().then(()=>p.go()).catch(()=>{});
 }
 async function toggleTour(){ if(tourTimer) return stopTour(); startTour(); }
 async function startTour(){
-  const list=slideList(); if(!list.length) return;
+  const list=PLACES; if(!list.length) return;
   $('btnTour').classList.add('is-on'); $('btnTour').innerHTML='■ 둘러보기 멈춤';
   let i=0; tourTimer=true;
   while(tourTimer){
