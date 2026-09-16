@@ -15,6 +15,18 @@ try {
   const j = await r.json();
   if (j.error) throw new Error(j.error.message || JSON.stringify(j.error));
   if (!j.operationalLayers && !j.baseMap) throw new Error('웹씬 JSON 형식이 아닙니다');
+  // 포털(/gmap) 아이템 스타일은 브라우저에서 못 읽으므로 지도 서버(gmapsvr)의 벡터타일 주소로 바꾼다
+  for (const l of j.operationalLayers || []) {
+    if (
+      l.layerType === 'VectorTileLayer' &&
+      /sharing\/rest\/content\/items/.test(l.styleUrl || '') &&
+      /Korea_Boundary/.test(l.title || '')
+    ) {
+      delete l.styleUrl;
+      delete l.itemId;
+      l.url = 'https://www.guri.go.kr/gmapsvr/rest/services/Hosted/Korea_Boundary/VectorTileServer';
+    }
+  }
   mkdirSync('public/maps/data', { recursive: true });
   writeFileSync(
     out,

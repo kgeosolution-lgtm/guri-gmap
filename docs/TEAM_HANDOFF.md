@@ -281,3 +281,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 씬을 포털에서 수정한 뒤 반영하려면 배포를 다시 실행(design 브랜치 push 또는 Actions의 Run workflow)하면 됩니다. GitHub 러너가 포털에 접속하지 못하는 경우엔 시크릿 창에서 위 data 주소를 열어 JSON을 `public/maps/data/scene.json`으로 저장해 커밋해도 됩니다. 로컬은 `npm run fetch:scene`.
 - 브랜치: `work/kangmina-3d-snapshot` (base `design/service-home-refresh` bf779c4).
 - 검증: 스크립트 `node --check`, 가짜 응답으로 스냅샷 저장·검증 로직 확인, `npm run build:deploy`, `git diff --check` 통과. 실제 씬 표시는 배포 후 확인 필요(Actions 로그의 `[scene snapshot]` 줄로 러너가 JSON을 받았는지 확인).
+
+## 2026-09-16 3D 지도: 웹씬 스냅샷 커밋·명소 바로가기 (담당: 강민아)
+
+- 배포 로그의 `[scene snapshot] … Item does not exist or is inaccessible`로 GitHub 러너(해외 IP)는 포털 data 엔드포인트를 읽지 못하지만, 국내 브라우저(시크릿 창)에서는 읽히는 것을 확인. 담당자가 저장한 웹씬 JSON을 `public/maps/data/scene.json`으로 커밋했습니다(`_snapshot.source: manual`). `build:deploy`의 자동 스냅샷이 실패하면 이 파일을 그대로 씁니다. 씬을 포털에서 바꾼 뒤에는 같은 방법으로 JSON을 다시 저장해 교체하면 됩니다.
+- 스냅샷 안에서 포털(/gmap)을 가리키던 것은 `Korea_Boundary SE` 벡터타일의 스타일 주소 하나뿐이라 지도 서버(`gmapsvr/…/Korea_Boundary/VectorTileServer`)로 바꿨습니다(`fetch-scene.mjs`도 같은 정리를 합니다). 건물 3D(LOD1·LOD2 SceneServer), 지형(Esri Terrain3D + 구리 NGII_DEM_5m), 항공영상(브이월드), 피처 레이어는 모두 브라우저에서 직접 읽습니다.
+- 웹씬에 슬라이드가 없어 `scene.html`이 구리 명소 레이어(`autumn_foliage/FeatureServer/0`, 최대 12곳)를 조회해 "장소 바로가기" 칩과 "한 바퀴 둘러보기"를 만듭니다(각 명소로 비스듬히 날아감). 웹씬에 슬라이드를 넣으면 그것이 우선합니다.
+- 브랜치: `work/kangmina-3d-snapshot-data` (base `design/service-home-refresh` 5b36abb).
+- 검증: scene.html 인라인 스크립트 `node --check`, 스냅샷 JSON 구조·포털 참조 제거 확인, `npm run build:deploy`(스냅샷 파일이 out/maps/data 에 포함되는지), `git diff --check` 통과. 실제 3D 표시는 배포 후 브라우저 확인 필요.
