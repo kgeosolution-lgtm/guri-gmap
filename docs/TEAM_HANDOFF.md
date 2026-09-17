@@ -475,3 +475,13 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 조치: `SCENE.building={opacity:0.6, edgeColor:[64,68,72,.9], edgeSize:0.6}`. 구리 건물(LOD1·LOD2 SceneLayer)은 레이어가 로드된 뒤 `applyBuildingStyle`로 `mesh-3d` 심볼을 새로 입힘 — 원래 렌더러가 단순 심볼이면 그 색과 colorMixMode(텍스처 tint 등)를 살리고 불투명도만 0.6으로, 없으면 흰색. 외곽선은 `edges:{type:'solid', color, size:0.6pt}`. 시 밖 Esri 건물도 같은 `meshSym`(회색 + 같은 투명도·외곽선). 클릭 강조·팝업 카드는 그대로.
 - 브랜치: `work/kangmina-3d-building-style` (base `design/service-home-refresh` 0a57b6a).
 - 검증: 단위 검사(원래 색·mix 보존 + 0.6, 렌더러 없을 때 흰색, 시 밖 건물 심볼, prepBuildings 적용), `node --check`, `npm run build:deploy`, `git diff --check` 통과. 실제 투명 건물의 겹침·외곽선 굵기는 배포 후 확인 필요.
+
+## 2026-09-17 시계열 항공사진: 지도 위에 함께 보기(브이월드 6종) + 로드뷰 (담당: 강민아)
+
+- 요청: 항공사진만 있어 밋밋하니 고양(gomap)·남원(plan.html)처럼 로드뷰, 행정구역, 연속지적도, 용도지역, 도시지역, 국토계획구역, 공간시설을 추가. 브이월드 키 2A668728-… 사용.
+- 버튼: 검색창 아래 "지도 위에 함께 보기" 카드에 알약 토글 칩(연도 버튼과 같은 결). 자료마다 색 점이 있고 켜면 그 색으로 채워짐, 여러 개 동시에 켤 수 있음. 켜진 게 있으면 아래에 '진하기' 슬라이더(30~100%)와 '모두 끄기', 마지막에 켠 자료의 한 줄 설명. 모바일은 지역 선택 아래로 내려가고 칩이 줄바꿈. 켠 자료는 주소 `ov=` 에 남아 공유 링크로 재현됨.
+- 브이월드: `BaseDynamicLayer` 하위 클래스 `VWorldLayer`가 화면 범위마다 WMS GetMap(1.1.1, EPSG:3857, PNG 투명, `KEY`·`DOMAIN=kgeodata.com`) 한 장을 받는다(`vwUrl`). 항공사진 바로 위·경계선 아래에 놓이고(`overlayIndex`), 투명도는 슬라이더로. 연속지적도는 1:18,000 이하에서만(더 축소하면 안내). 설정은 `OVERLAYS` 배열(키·라벨·색·브이월드 레이어 ID·설명·minScale).
+  - 레이어 ID(브이월드 2D 데이터 WMS): 행정구역 `lt_c_adsigg,lt_c_ademd` / 연속지적도 `lp_pa_cbnd_bubun` / 용도지역 `lt_c_uq111` / 도시지역 `lt_c_upisuq151` / 국토계획구역 `lt_c_uq113,lt_c_uq129`(용도구역+지구단위계획구역) / 공간시설 `lt_c_uq122`. **도시지역·국토계획구역 ID 는 문서 기억에 의존한 추정**이라 배포 후 안 보이면 남원 plan.html 의 설정값으로 `OVERLAYS[].ids` 를 맞출 것. 잘못된 ID 는 브이월드가 오류 XML 을 주어 그 자료만 비어 보임.
+- 로드뷰(카카오): "로드뷰 보기" 칩을 켜면 지도 커서가 십자로 바뀌고 클릭한 곳에 주황 점 표시. `KAKAO.jsKey`(JavaScript 키, 카카오 개발자 콘솔에 kgeodata.com 등록 필요)가 있으면 지도 오른쪽 46%(모바일은 아래 절반) 패널에서 `kakao.maps.Roadview` 로 바로 보고(가장 가까운 파노라마 60m 탐색, 로드뷰 안에서 이동하면 지도 점도 따라감), 키가 없으면 `map.kakao.com/link/roadview/위도,경도` 를 새 창으로 연다(현재 상태). gomap 은 접근이 막혀 참고하지 못했고, 카카오 로드뷰 표준 방식으로 구현.
+- 브랜치: `work/kangmina-aerial-overlays` (base `design/service-home-refresh` acebf7a).
+- 검증: 인라인 스크립트 `node --check`, 가짜 DOM·지도 하네스로 WMS URL 구성, 칩 6개+로드뷰 칩 생성, 주소 `ov=` 복원·갱신, 지적도 확대 안내, 모두 끄기, 로드뷰 새 창 URL 검사 통과. 칩 카드 CSS 는 정적 미리보기로 확인. `npm run build:deploy`, `git diff --check` 통과. 실제 브이월드 응답(키·도메인·레이어 ID)과 카카오 로드뷰는 배포 후 확인 필요.

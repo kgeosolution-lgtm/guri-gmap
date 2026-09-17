@@ -95,7 +95,52 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .key-warn{position:absolute;left:50%;top:16px;transform:translateX(-50%);z-index:8;background:#fff;border:1px solid var(--krds-color-light-warning-50,#e6a700);border-radius:8px;padding:10px 14px;font-size:13px;max-width:calc(100% - 24px);box-shadow:var(--shadow);display:none}
 .key-warn b{color:#9a6a00}
 
+/* 함께 보기 (검색창 아래) — 연도 버튼과 같은 결의 알약 토글, 켜지면 자료별 색 */
+.ov-bar{position:absolute;left:12px;top:64px;z-index:6;background:#fff;border:1px solid var(--gray20);border-radius:12px;box-shadow:var(--shadow);padding:9px 10px 10px;width:min(430px,calc(100% - 24px))}
+.ov-head{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.ov-title{font-weight:700;font-size:13px;white-space:nowrap}
+.ov-src{font-size:11px;color:var(--faint);margin-left:auto;white-space:nowrap}
+.ov-chips{display:flex;flex-wrap:wrap;gap:6px}
+.ov-chip{height:32px;padding:0 11px 0 9px;border-radius:16px;border:1px solid var(--gray20);background:#fff;font-size:13px;font-weight:600;color:var(--gray70);display:inline-flex;align-items:center;gap:6px;transition:all .13s;white-space:nowrap}
+.ov-chip .ic{font-size:15px;line-height:1}
+.ov-chip .dot{width:9px;height:9px;border-radius:50%;background:var(--c,#999);flex:none;box-shadow:0 0 0 1px rgba(0,0,0,.08) inset}
+.ov-chip:hover{border-color:var(--c,var(--brand));color:var(--ink)}
+.ov-chip.is-on{background:var(--c,var(--brand));border-color:var(--c,var(--brand));color:#fff}
+.ov-chip.is-on .dot{background:#fff}
+.ov-chip.rv.is-on{background:#1E3229;border-color:#1E3229}
+.ov-foot{display:none;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--sub)}
+.ov-foot.show{display:flex}
+.ov-foot input[type=range]{flex:1;accent-color:var(--brand);min-width:80px}
+.ov-foot button{font-size:12px;color:var(--sub);text-decoration:underline;padding:0}
+.ov-foot button:hover{color:var(--brand)}
+.ov-note{font-size:11.5px;color:var(--sub);margin-top:6px;line-height:1.4;word-break:keep-all;display:none}
+.ov-note.show{display:block}
+
+/* 로드뷰: 지도 옆에 붙는 패널 (모바일은 아래 절반) */
+.rv-panel{position:absolute;right:0;top:0;bottom:0;width:46%;background:#111;z-index:8;display:none;flex-direction:column;border-left:1px solid rgba(255,255,255,.15)}
+.main.rv-open .rv-panel{display:flex}
+.main.rv-open #map{right:46%}
+.main.rv-open .map-ctl{right:calc(46% + 12px)}
+.main.rv-open .region{right:calc(46% + 54px)}
+.main.rv-open .cmp-lbl.r{right:calc(46% + 12px)}
+.main.rv-mode #map{cursor:crosshair}
+.rv-head{display:flex;align-items:center;gap:8px;padding:8px 10px;background:#1E3229;color:#fff;font-size:13px}
+.rv-head b{font-size:14px}
+.rv-head .addr{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.85}
+.rv-head button{background:rgba(255,255,255,.14);color:#fff;border-radius:6px;padding:6px 10px;font-size:12px;font-weight:700}
+.rv-head button:hover{background:rgba(255,255,255,.28)}
+.rv-view{flex:1;min-height:0;position:relative}
+.rv-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#cfd8d3;font-size:13.5px;text-align:center;padding:20px;line-height:1.6}
+
 @media (max-width:640px){
+  .ov-bar{top:112px;left:8px;right:8px;width:auto;padding:7px 8px 8px}
+  .ov-chip{height:30px;font-size:12px;padding:0 9px 0 8px}
+  .ov-src{display:none}
+  .rv-panel{top:auto;left:0;right:0;bottom:0;width:auto;height:50%;border-left:none;border-top:1px solid rgba(255,255,255,.15)}
+  .main.rv-open #map{right:0;bottom:50%}
+  .main.rv-open .map-ctl,.main.rv-open .region{right:12px}
+  .main.rv-open .cmp-lbl.r{right:12px}
+  .main.rv-open .ts-bar,.main.rv-open .map-toast{display:none}
   .ts-bar{left:8px;right:8px;transform:none;width:auto;max-width:none;bottom:8px;padding:8px 10px 10px}
   .ts-title{font-size:13px}
   .ts-hint{flex-basis:100%;order:3}
@@ -107,6 +152,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
   .region{top:62px;right:12px;left:12px;justify-content:space-between;padding:5px 6px}
   .region select{font-size:12.5px;padding:0 18px 0 6px;min-width:0;flex:1}
   .cmp-lbl{top:112px}
+  .ov-bar~.cmp-lbl{top:168px}
 }
 </style>
 </head>
@@ -121,6 +167,16 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
     <select aria-label="시도" disabled><option>경기도</option></select>
     <select aria-label="시군구" disabled><option>구리시</option></select>
     <select id="dongSel" aria-label="행정동"><option value="">동 선택</option></select>
+  </div>
+  <div class="ov-bar" id="ovBar" role="group" aria-label="지도 위에 함께 보기">
+    <div class="ov-head"><span class="ov-title">지도 위에 함께 보기</span><span class="ov-src">자료: 국토교통부 브이월드 · 카카오</span></div>
+    <div class="ov-chips" id="ovChips"></div>
+    <div class="ov-foot" id="ovFoot"><span>진하기</span><input type="range" id="ovAlpha" min="30" max="100" step="5" value="75" aria-label="겹쳐 보기 진하기"><button type="button" onclick="clearOverlays()">모두 끄기</button></div>
+    <p class="ov-note" id="ovNote" role="status" aria-live="polite"></p>
+  </div>
+  <div class="rv-panel" id="rvPanel" aria-label="로드뷰">
+    <div class="rv-head"><b>🚶 로드뷰</b><span class="addr" id="rvAddr">지도에서 보고 싶은 곳을 클릭하세요</span><button type="button" onclick="rvOff()">닫기 ✕</button></div>
+    <div class="rv-view" id="rvView"><div class="rv-empty" id="rvEmpty">지도에서 길 위를 클릭하면<br>그곳의 로드뷰가 여기에 열려요</div></div>
   </div>
   <div class="cmp-lbl l" id="cmpL"></div>
   <div class="cmp-lbl r" id="cmpR"></div>
@@ -186,6 +242,27 @@ const NGII={
   }
 };
 
+/* ── 지도 위에 함께 보기: 브이월드 WMS 겹쳐 보기 + 카카오 로드뷰 ──
+ * 브이월드 키는 도메인 등록형(kgeodata.com). 레이어 ID 는 브이월드 2D 데이터 API 의 WMS 레이어명.
+ * 각 항목의 ids 를 바꾸면 다른 자료로 교체된다(여러 개는 쉼표로 한 번에 요청). */
+const VW={
+  wmsUrl:'https://api.vworld.kr/req/wms',
+  key:'2A668728-BB39-38D6-A18A-80526EEC2895',
+  domain:'kgeodata.com',
+  alpha:0.75
+};
+const OVERLAYS=[
+  {key:'adm', label:'행정구역',   ic:'🗺️', c:'#2A6DB0', ids:['lt_c_adsigg','lt_c_ademd'], note:'시군구·읍면동 경계와 이름'},
+  {key:'cad', label:'연속지적도', ic:'📐', c:'#7A5FD0', ids:['lp_pa_cbnd_bubun'], minScale:18000, note:'필지 경계와 지번 · 더 확대해야 보여요'},
+  {key:'use', label:'용도지역',   ic:'🏘️', c:'#E07B27', ids:['lt_c_uq111'], note:'주거·상업·공업·녹지 등 용도지역'},
+  {key:'urb', label:'도시지역',   ic:'🏙️', c:'#0F8A8A', ids:['lt_c_upisuq151'], note:'국토계획법상 도시지역 범위'},
+  {key:'pln', label:'국토계획구역', ic:'📋', c:'#B26A00', ids:['lt_c_uq113','lt_c_uq129'], note:'용도구역·지구단위계획구역'},
+  {key:'spc', label:'공간시설',   ic:'🌳', c:'#3A8F3A', ids:['lt_c_uq122'], note:'공원·녹지·광장 등 도시계획 공간시설'}
+];
+/* 카카오 로드뷰: JavaScript 키를 넣고 카카오 개발자 콘솔에 kgeodata.com 을 등록하면 지도 옆 패널에서 바로 본다.
+ * 키가 없으면 카카오맵 로드뷰를 새 창으로 연다. */
+const KAKAO={jsKey:''};
+
 /* ── 상태 ── */
 let view=null, map=null;
 let year=null, baseYear=null, compare=false;
@@ -206,9 +283,10 @@ require([
   "esri/config","esri/Map","esri/Basemap","esri/views/MapView",
   "esri/layers/WebTileLayer","esri/layers/VectorTileLayer","esri/layers/FeatureLayer","esri/layers/BaseTileLayer",
   "esri/request","esri/geometry/Point","esri/geometry/SpatialReference","esri/geometry/projection",
-  "esri/geometry/support/webMercatorUtils","esri/widgets/Swipe","esri/widgets/Search","esri/layers/GraphicsLayer","esri/Graphic","esri/core/reactiveUtils","esri/geometry/Extent","esri/geometry/geometryEngine"
+  "esri/geometry/support/webMercatorUtils","esri/widgets/Swipe","esri/widgets/Search","esri/layers/GraphicsLayer","esri/Graphic","esri/core/reactiveUtils","esri/geometry/Extent","esri/geometry/geometryEngine",
+  "esri/layers/BaseDynamicLayer"
 ],(esriConfig,Map,Basemap,MapView,WebTileLayer,VectorTileLayer,FeatureLayer,BaseTileLayer,
-   esriRequest,Point,SpatialReference,projection,webMercatorUtils,Swipe,Search,GraphicsLayer,Graphic,reactiveUtils,Extent,geometryEngine)=>{
+   esriRequest,Point,SpatialReference,projection,webMercatorUtils,Swipe,Search,GraphicsLayer,Graphic,reactiveUtils,Extent,geometryEngine,BaseDynamicLayer)=>{
 
   esriConfig.request.useIdentity=false;
   SwipeCls=Swipe;
@@ -320,6 +398,15 @@ require([
   reactiveUtils.watch(()=>view.scale,()=>updateNote());
   GraphicCls=Graphic; WMU=webMercatorUtils; ExtentCls=Extent;
   if(!NGII.apiKey) $('keyWarn').style.display='block';
+
+  /* ── 브이월드 WMS 를 화면 범위마다 한 장으로 받는 레이어 (GetCapabilities 없이 URL 만 만든다) ── */
+  VWorldLayer=BaseDynamicLayer.createSubclass({
+    properties:{ ids:null },
+    getImageUrl(extent,width,height){ return vwUrl(this.ids,extent,width,height); }
+  });
+  rvLayer=new GraphicsLayer({listMode:'hide'}); map.add(rvLayer);
+  initOverlays();
+  view.on('click',ev=>{ if(rvMode) rvPick(ev.mapPoint); });
 });
 
 /* ── 행정동 ── */
@@ -460,7 +547,99 @@ $('tsCompare').addEventListener('change',e=>{ compare=e.target.checked;
 
 function syncUrl(){
   const p=new URLSearchParams(); p.set('y',year); if(compare){ p.set('cmp','1'); p.set('base',baseYear); }
+  const ov=typeof overlayKeys==='function'? overlayKeys() : []; if(ov.length) p.set('ov',ov.join(','));
   history.replaceState(null,'',location.pathname+'?'+p.toString());
+}
+
+/* ═══ 지도 위에 함께 보기 ═══ */
+let VWorldLayer=null, rvLayer=null, rvMode=false, rvObj=null, rvClient=null, rvSdk=null;
+const ovLayers={};   /* key → 레이어 */
+function vwUrl(ids,extent,width,height){
+  const e=extent; const bbox=[e.xmin,e.ymin,e.xmax,e.ymax].join(',');
+  const L=[].concat(ids).join(',');
+  return VW.wmsUrl+'?SERVICE=WMS&REQUEST=GetMap&VERSION=1.1.1&LAYERS='+encodeURIComponent(L)+'&STYLES='+encodeURIComponent(L)
+    +'&SRS=EPSG:3857&BBOX='+bbox+'&WIDTH='+width+'&HEIGHT='+height+'&FORMAT=image/png&TRANSPARENT=true&BGCOLOR=0xFFFFFF&EXCEPTIONS=text/xml'
+    +'&KEY='+encodeURIComponent(VW.key)+'&DOMAIN='+encodeURIComponent(VW.domain);
+}
+function ovDef(key){ return OVERLAYS.find(o=>o.key===key)||null; }
+function ovOn(key){ return !!(ovLayers[key]&&ovLayers[key].visible); }
+function initOverlays(){
+  const host=$('ovChips'); host.innerHTML='';
+  const rv=document.createElement('button'); rv.type='button'; rv.className='ov-chip rv'; rv.id='ovRv'; rv.innerHTML='<span class="ic">🚶</span>로드뷰 보기';
+  rv.title='지도를 클릭하면 그곳의 로드뷰를 열어요'; rv.onclick=()=>{ rvMode? rvOff() : rvOn(); }; host.appendChild(rv);
+  OVERLAYS.forEach(o=>{
+    const b=document.createElement('button'); b.type='button'; b.className='ov-chip'; b.dataset.key=o.key; b.style.setProperty('--c',o.c);
+    b.innerHTML='<span class="dot"></span>'+o.label; b.title=o.note||o.label; b.setAttribute('aria-pressed','false');
+    b.onclick=()=>setOverlay(o.key,!ovOn(o.key)); host.appendChild(b);
+  });
+  $('ovAlpha').value=Math.round(VW.alpha*100);
+  $('ovAlpha').addEventListener('input',e=>{ VW.alpha=e.target.value/100; Object.values(ovLayers).forEach(l=>{ l.opacity=VW.alpha; }); });
+  (qs.get('ov')||'').split(',').filter(Boolean).forEach(k=>{ if(ovDef(k)) setOverlay(k,true,true); });
+  if(!VW.key) $('ovNote').textContent='브이월드 인증키가 없어 겹쳐 보기 자료를 불러올 수 없어요.';
+  renderOvState();
+}
+function setOverlay(key,on,silent){
+  const o=ovDef(key); if(!o) return;
+  if(!ovLayers[key]){
+    if(!map||!VWorldLayer) return;
+    const l=new VWorldLayer({ids:o.ids,title:o.label,opacity:VW.alpha,minScale:o.minScale||0,listMode:'hide'});
+    l.on&&l.on('layerview-create-error',e=>console.warn('[함께 보기]',o.label,'표시 실패',e));
+    ovLayers[key]=l; map.add(l,overlayIndex());
+  }
+  ovLayers[key].visible=on;
+  if(on&&!silent&&o.minScale&&view&&view.scale>o.minScale) toast(o.label+'은(는) 더 확대해야 보여요 (1:'+o.minScale.toLocaleString('ko-KR')+' 이하)',2600);
+  renderOvState(); syncUrl();
+}
+function overlayIndex(){ let n=0; if(airLayer) n++; if(cmpLayer) n++; return n; }   /* 항공사진 바로 위, 경계선 아래 */
+function clearOverlays(){ Object.keys(ovLayers).forEach(k=>{ ovLayers[k].visible=false; }); renderOvState(); syncUrl(); }
+function renderOvState(){
+  const onKeys=OVERLAYS.filter(o=>ovOn(o.key)).map(o=>o.key);
+  document.querySelectorAll('.ov-chip[data-key]').forEach(b=>{ const on=onKeys.includes(b.dataset.key); b.classList.toggle('is-on',on); b.setAttribute('aria-pressed',on?'true':'false'); });
+  $('ovFoot').classList.toggle('show',onKeys.length>0);
+  const note=$('ovNote'); if(!VW.key){ note.classList.add('show'); return; }
+  const last=onKeys.length? ovDef(onKeys[onKeys.length-1]) : null;
+  note.textContent=last? (last.note||'') : ''; note.classList.toggle('show',!!last&&!!last.note);
+  const rv=$('ovRv'); if(rv){ rv.classList.toggle('is-on',rvMode); rv.setAttribute('aria-pressed',rvMode?'true':'false'); }
+}
+function overlayKeys(){ return OVERLAYS.filter(o=>ovOn(o.key)).map(o=>o.key); }
+
+/* ── 로드뷰 (카카오) ── */
+function rvOn(){
+  rvMode=true; $('main').classList.add('rv-mode'); renderOvState();
+  if(KAKAO.jsKey){ $('main').classList.add('rv-open'); loadKakao().catch(()=>{ $('rvEmpty').textContent='카카오 지도 SDK 를 불러오지 못했어요. 새 창으로 열어 드릴게요.'; }); }
+  toast(KAKAO.jsKey? '지도에서 길 위를 클릭하면 로드뷰가 열려요' : '지도를 클릭하면 카카오맵 로드뷰가 새 창으로 열려요',3000);
+}
+function rvOff(){
+  rvMode=false; $('main').classList.remove('rv-mode','rv-open'); if(rvLayer) rvLayer.removeAll(); renderOvState();
+}
+function loadKakao(){
+  if(rvSdk) return rvSdk;
+  rvSdk=new Promise((res,rej)=>{
+    const sc=document.createElement('script'); sc.src='https://dapi.kakao.com/v2/maps/sdk.js?appkey='+encodeURIComponent(KAKAO.jsKey)+'&autoload=false';
+    sc.onload=()=>{ try{ kakao.maps.load(()=>{ rvObj=new kakao.maps.Roadview($('rvView')); rvClient=new kakao.maps.RoadviewClient();
+      kakao.maps.event.addListener(rvObj,'position_changed',()=>{ const p=rvObj.getPosition(); if(p) placeRvMarker(p.getLng(),p.getLat()); });
+      res(); }); }catch(e){ rej(e); } };
+    sc.onerror=()=>rej(new Error('sdk'));
+    document.head.appendChild(sc);
+  });
+  return rvSdk;
+}
+function rvPick(pt){
+  if(!pt) return;
+  const ll=WMU? WMU.xyToLngLat(pt.x,pt.y) : [pt.longitude,pt.latitude]; const lng=ll[0], lat=ll[1];
+  placeRvMarker(lng,lat);
+  if(!KAKAO.jsKey||!rvClient){ window.open('https://map.kakao.com/link/roadview/'+lat.toFixed(6)+','+lng.toFixed(6),'_blank','noopener'); return; }
+  const pos=new kakao.maps.LatLng(lat,lng);
+  rvClient.getNearestPanoId(pos,60,panoId=>{
+    if(!panoId){ toast('이 근처에는 로드뷰가 없어요. 길 위를 눌러 보세요'); return; }
+    $('rvEmpty').style.display='none'; rvObj.setPanoId(panoId,pos);
+    $('rvAddr').textContent=lat.toFixed(5)+', '+lng.toFixed(5);
+  });
+}
+function placeRvMarker(lng,lat){
+  if(!rvLayer||!GraphicCls) return; rvLayer.removeAll();
+  rvLayer.add(new GraphicCls({geometry:{type:'point',longitude:lng,latitude:lat},
+    symbol:{type:'simple-marker',style:'circle',size:14,color:'#FF7A00',outline:{color:'#fff',width:2.5}}}));
 }
 
 /* ── 도구 ── */
