@@ -518,3 +518,12 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 공공문화체육시설 삭제. 레이어 목록: 행정구역·연속지적도·용도지역·도시지역·문화재보호.
 - 브랜치: `work/kangmina-aerial-overlays-5` (base `design/service-home-refresh` 5c484ab).
 - 검증: 하네스에 레이어 목록, 행정동 2겹 레이어·레이블 13pt·표시/숨김, 지적도 WFS→GeoJSON(채움 0·지번 11pt·blob URL·지도 추가)와 WFS 실패→WMS 대체, 범례 이미지(용도지역만), 로드뷰 두 번째 클릭 즉시 이동·객체 1개 검사 추가 통과. `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과. 브이월드 WFS 의 CORS 허용 여부·범례 제공 여부는 배포 후 확인.
+
+## 2026-09-17 시계열 항공사진: 연속지적도를 kgeodata 서비스로(구리시만), 용도지역·문화재보호 범례를 우리 색 표로 (담당: 강민아)
+
+- 연속지적도(담당자 요청): 브이월드 대신 kgeodata ArcGIS 서비스 `Hosted/연속지적도형정보_20260208/FeatureServer/0`(`CITY.cadastreUrl`) 을 FeatureLayer 로 그림(`kind:'cad'`, `cadastreDef`/`refreshCadastre`). 같은 사이트라 CORS 문제 없음. **구리시 필지만**: `definitionExpression` 으로 PNU 앞 5자리 `41310`(`CITY.sggCode`) 만 남김. 필드명(`pnu`·`jibun`)은 서비스 `load()` 뒤 `fields` 에서 자동으로 찾음(`pickField`). 채움 없이 보라 선 1.1px, 지번 11pt 굵게·흰 halo, 1:8,000 이하(`minScale`). 레이어는 한 번만 만들고 켜고 끌 때 `visible` 만 바꿈.
+- 용도지역·문화재보호(`kind:'vec'`): 브이월드 WFS(`lt_c_uq111`, `lt_c_uo301`)로 받아 GeoJSONLayer 로 **우리가 정한 색**으로 칠함. 색 표는 `CLASS_TABLES` 하나에 두고 렌더러(Arcade `valueExpression`, 용도지역명에 포함된 글자로 22종 분류)와 범례(`renderLegends`, 색 견본 + 이름)가 같은 표를 쓰므로 **범례 = 실제로 칠한 색**. 용도지역: 주거(노랑→주황 6단계)·상업(빨강 4)·공업(파랑 3)·녹지(초록 3)·관리(연두 3)·농림·자연환경보전·그 밖(회색). 문화재보호구역: 갈색 `#8B5E34`.
+- WFS 가 막히면(CORS 등) 예전처럼 브이월드 WMS 그림으로 자동 대체(`wfsFailed`)하고 범례 아래에 "지금은 브이월드 그림으로 보여서 지도 색이 이 표와 다를 수 있어요" 를 붙임. 브이월드 `GetLegendGraphic` 은 더 이상 안 씀.
+- 남은 확인: 브이월드 WFS 의 CORS 허용 여부는 배포 후 확인. 정확한 색을 보장하려면 용도지역·문화재보호도 지적도처럼 kgeodata 서버에 올리고 `CITY` 에 URL 만 넣으면 됨(같은 `CLASS_TABLES` 로 칠하도록 확장 가능). 도시지역·문화재보호의 브이월드 레이어 ID 는 추정값(`alt` 로 재시도).
+- 브랜치: `work/kangmina-aerial-overlays-7` (base `design/service-home-refresh` 07311c6).
+- 검증: 하네스 개편 — 용도지역 WFS→GeoJSON(unique-value 22종, Arcade 괄호 짝, r2g=#FFC000, 범례에 같은 색·주의문 없음, 이동 시 새 조각으로 교체), 연속지적도 FeatureLayer(kgeodata URL, `pnu LIKE '41310%'`, 채움 0·선 #7A5FD0, 지번 11pt, minScale 8000, 한 번만 생성·visible 토글), 문화재보호 WFS 실패→WMS 그림+대체 ID+범례 주의문, 형식 폴백·원인 보기·로드뷰 검사 통과. `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.

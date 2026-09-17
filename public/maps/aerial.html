@@ -126,6 +126,10 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .ov-legend img{display:block;max-width:100%;height:auto;background:#fff;border:1px solid var(--line);border-radius:6px}
 .ov-legend.none img{display:none}.ov-legend.none .no{display:block}
 .ov-legend .no{display:none;font-size:11.5px;color:var(--faint)}
+.ov-legend .no.show{display:block;margin-top:4px}
+.ov-legend .sw{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px 10px}
+.ov-legend .it{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--gray70);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ov-legend .it i{width:14px;height:14px;border-radius:3px;border:1px solid rgba(0,0,0,.12);flex:none}
 
 /* 겹쳐 보기 이미지 층: 지도 캔버스 위에 놓이는 <img> (WebGL·CORS 와 무관하게 그린다). 구리시 경계 clipPath 로 시 밖은 잘림 */
 .ov-clip{position:absolute;width:0;height:0;overflow:hidden}
@@ -236,6 +240,9 @@ const CITY={
   boundaryUrl:"https://www.guri.go.kr/gmapsvr/rest/services/Hosted/%EA%B5%AC%EB%A6%AC%EC%8B%9C%EA%B2%BD%EA%B3%84/FeatureServer/0",
   dongUrl:"https://www.guri.go.kr/gmapsvr/rest/services/Hosted/%ED%96%89%EC%A0%95%EB%8F%99%EA%B2%BD%EA%B3%84/FeatureServer/0",
   dongNameField:'adm_dr_nm',
+  sggCode:'41310',   /* 구리시 시군구 코드 — 지적도 PNU 앞 5자리로 구리시 필지만 고른다 */
+  /* 연속지적도(kgeodata ArcGIS Server, 사이트와 같은 서버) — 선만 그리고 지번을 크게 쓴다 */
+  cadastreUrl:'https://kgeodata.com/server/rest/services/Hosted/%EC%97%B0%EC%86%8D%EC%A7%80%EC%A0%81%EB%8F%84%ED%98%95%EC%A0%95%EB%B3%B4_20260208/FeatureServer/0',
   vworldKey:""   /* 공식 브이월드 키 발급 시 입력 (테마지도와 동일) */
 };
 
@@ -273,13 +280,27 @@ const VW={
   alpha:0.75
 };
 const OVERLAYS=[
-  /* kind:'adm' — 구리시 행정동 서비스로 직접 그림(선·레이블 스타일 지정). kind:'cad' — 브이월드 WFS 필지를 선만·지번 크게 그리고, WFS 가 막히면 WMS 그림에서 채움을 걷어낸다 */
+  /* kind:'adm' — 구리시 행정동 서비스. kind:'cad' — kgeodata 연속지적도 서비스(구리시 필지만, 선·지번). kind:'vec' — 브이월드 WFS 로 받아 우리 색으로 칠하고 범례를 같은 색으로;
+     WFS 가 막히면 브이월드 WMS 그림으로 대체(그때 범례 색은 브이월드 그림과 다를 수 있음) */
   {key:'adm', label:'행정구역',   ic:'🗺️', c:'#2A6DB0', kind:'adm', note:'행정동 경계와 이름'},
-  {key:'cad', label:'연속지적도', ic:'📐', c:'#7A5FD0', kind:'cad', wfs:'lp_pa_cbnd_bubun', ids:['lp_pa_cbnd_bubun'], minScale:8000, note:'필지 경계선과 지번 · 더 확대해야 보여요'},
-  {key:'use', label:'용도지역',   ic:'🏘️', c:'#E07B27', ids:['lt_c_uq111'], legend:true, note:'주거·상업·공업·녹지 등 용도지역'},
+  {key:'cad', label:'연속지적도', ic:'📐', c:'#7A5FD0', kind:'cad', minScale:8000, note:'구리시 필지 경계선과 지번 · 더 확대해야 보여요'},
+  {key:'use', label:'용도지역',   ic:'🏘️', c:'#E07B27', kind:'vec', wfs:'lt_c_uq111', ids:['lt_c_uq111'], classes:'USE', legend:true, note:'주거·상업·공업·녹지 등 용도지역'},
   {key:'urb', label:'도시지역',   ic:'🏙️', c:'#0F8A8A', ids:['lt_c_upisuq151'], alt:[['lt_c_uq151']], note:'국토계획법상 도시지역 범위'},
-  {key:'her', label:'문화재보호', ic:'🏛️', c:'#8B5E34', ids:['lt_c_uo301'], alt:[['lt_c_uo302'],['lt_c_uq301']], legend:true, note:'문화재보호구역'}
+  {key:'her', label:'문화재보호', ic:'🏛️', c:'#8B5E34', kind:'vec', wfs:'lt_c_uo301', ids:['lt_c_uo301'], alt:[['lt_c_uo302'],['lt_c_uq301']], classes:'HER', legend:true, note:'문화재보호구역'}
 ];
+/* 우리가 칠하는 색 — 범례도 이 표에서 그린다. 이름에 포함된 글자로 분류(용도지역명 필드는 첫 행에서 자동으로 찾는다) */
+const CLASS_TABLES={
+  USE:{field:['uname','용도지역명','dgm_nm','name'],items:[
+    ['r1e','제1종전용주거','#FFF1B8'],['r2e','제2종전용주거','#FFE38A'],['r1g','제1종일반주거','#FFD65C'],['r2g','제2종일반주거','#FFC000'],['r3g','제3종일반주거','#F4A21B'],['rq','준주거','#E36C0A'],
+    ['cc','중심상업','#C00000'],['cg','일반상업','#E8464A'],['cn','근린상업','#F28C8C'],['cd','유통상업','#F5B7B1'],
+    ['ie','전용공업','#4F5BD5'],['ig','일반공업','#7B8CE0'],['iq','준공업','#A9B6F0'],
+    ['gp','보전녹지','#2E7D32'],['gm','생산녹지','#66BB6A'],['gn','자연녹지','#A5D6A7'],
+    ['mp','보전관리','#8BC34A'],['mm','생산관리','#C5E1A5'],['mc','계획관리','#DCE775'],
+    ['ag','농림지역','#6D8B3A'],['ne','자연환경보전','#26A69A'],['etc','그 밖의 용도지역','#BDBDBD']],
+    match:{r1e:'제1종전용주거',r2e:'제2종전용주거',r1g:'제1종일반주거',r2g:'제2종일반주거',r3g:'제3종일반주거',rq:'준주거',cc:'중심상업',cg:'일반상업',cn:'근린상업',cd:'유통상업',
+      ie:'전용공업',ig:'일반공업',iq:'준공업',gp:'보전녹지',gm:'생산녹지',gn:'자연녹지',mp:'보전관리',mm:'생산관리',mc:'계획관리',ag:'농림',ne:'자연환경보전'}},
+  HER:{field:['uname','명칭','name'],items:[['her','문화재보호구역','#8B5E34']],match:{}}
+};
 /* ids 가 안 맞으면(브이월드가 오류를 주면) alt 의 후보를 차례로 시도한다 — 레이어 ID 는 브이월드 2D 데이터 목록 기준 */
 /* 카카오 로드뷰: JavaScript 키를 넣고 카카오 개발자 콘솔에 kgeodata.com 을 등록하면 지도 옆 패널에서 바로 본다.
  * 키가 없으면 카카오맵 로드뷰를 새 창으로 연다. */
@@ -645,7 +666,8 @@ function refreshOverlays(){ Object.keys(ovLayers).forEach(k=>{ if(ovLayers[k].on
 function refreshOverlay(key){
   const L=ovLayers[key], o=ovDef(key), vb=viewBox(); if(!L||!o||!vb) return;
   if(o.kind==='adm') return;                                                      /* 벡터 레이어는 ArcGIS 가 알아서 */
-  if(o.kind==='cad'&&!L.wfsFailed) return refreshCadastre(key);
+  if(o.kind==='cad') return refreshCadastre(key);
+  if(o.kind==='vec'&&!L.wfsFailed) return refreshVector(key);
   if(o.minScale&&view.scale>o.minScale){ L.img.classList.remove('show'); return; }   /* 축소된 상태면 숨김 */
   const rb=requestBox(vb); const url=vwUrl(L.ids||o.ids,rb,rb.w,rb.h); if(L.url===url) return; L.url=url;
   const strip=o.kind==='cad'&&!L.corsFailed;   /* 지적도: 채움을 걷어내려면 픽셀을 읽어야 하므로 CORS 로 시도 */
@@ -730,7 +752,7 @@ function setAdmVisible(on){
   admLayers.forEach(l=>{ l.visible=on; });
 }
 
-/* ── 연속지적도: 브이월드 WFS 로 필지를 받아 선만(채움 없이) + 지번을 한 포인트 크게. WFS 가 막히면 WMS 그림으로 ── */
+/* ── 브이월드 WFS 주소(용도지역·문화재보호용). 막히면 WMS 그림으로 ── */
 function wfsUrl(type,rb,max){
   return VW.wmsUrl.replace(/\/wms$/,'/wfs')+'?SERVICE=WFS&REQUEST=GetFeature&VERSION=1.1.0&TYPENAME='+encodeURIComponent(type)+'&SRSNAME=EPSG:3857'
     +'&BBOX='+[rb.xmin,rb.ymin,rb.xmax,rb.ymax].join(',')+'&OUTPUT=application/json&MAXFEATURES='+(max||3000)
@@ -738,36 +760,68 @@ function wfsUrl(type,rb,max){
 }
 function toLngLatDeep(c){ if(typeof c[0]==='number'){ const ll=WMU? WMU.xyToLngLat(c[0],c[1]) : [c[0]/6378137*180/Math.PI,(2*Math.atan(Math.exp(c[1]/6378137))-Math.PI/2)*180/Math.PI]; return [ll[0],ll[1]]; } return c.map(toLngLatDeep); }
 function geojsonToWgs84(j){ (j.features||[]).forEach(f=>{ if(f.geometry&&f.geometry.coordinates) f.geometry.coordinates=toLngLatDeep(f.geometry.coordinates); }); delete j.crs; return j; }
-function cadastreLayer(j){
-  const blob=new Blob([JSON.stringify(j)],{type:'application/json'}); const url=URL.createObjectURL(blob);
-  return new GeoJSONCls({url,title:'연속지적도',popupEnabled:false,legendEnabled:false,listMode:'hide',outFields:['*'],
+/* 연속지적도: kgeodata 서비스를 그대로 그린다 — 구리시 필지만(PNU 앞 5자리), 채움 없이 선만, 지번을 11pt 로. 필드명은 서비스에서 자동으로 찾는다 */
+let cadLayer=null;
+function pickField(names,cands){ const low=names.map(n=>String(n).toLowerCase()); for(const c of cands){ const i=low.indexOf(c.toLowerCase()); if(i>-1) return names[i]; } for(const c of cands){ const i=low.findIndex(n=>n.indexOf(c.toLowerCase())>-1); if(i>-1) return names[i]; } return null; }
+function cadastreDef(fields){
+  const names=(fields||[]).map(f=>f.name);
+  const jibun=pickField(names,['jibun','지번','bchk_jibun'])||names[0], pnu=pickField(names,['pnu','필지고유번호']);
+  return {url:CITY.cadastreUrl,title:'연속지적도',outFields:[jibun].concat(pnu? [pnu]:[]),minScale:ovDef('cad').minScale||8000,
+    definitionExpression:pnu? pnu+" LIKE '"+CITY.sggCode+"%'" : undefined,
     renderer:{type:'simple',symbol:{type:'simple-fill',color:[0,0,0,0],outline:{color:'#7A5FD0',width:1.1}}},   /* 채움 없이 선만 */
-    labelsVisible:true,labelingInfo:[{labelExpressionInfo:{expression:'$feature.jibun'},labelPlacement:'always-horizontal',deconflictionStrategy:'static',
-      symbol:{type:'text',color:'#4A3A8A',haloColor:[255,255,255,.95],haloSize:1.5,font:{size:11,family:LBL_FONT.family,weight:'bold'}}}]});
+    labelsVisible:true,labelingInfo:[{labelExpressionInfo:{expression:'$feature.'+jibun},labelPlacement:'always-horizontal',deconflictionStrategy:'static',
+      symbol:{type:'text',color:'#4A3A8A',haloColor:[255,255,255,.95],haloSize:1.5,font:{size:11,family:LBL_FONT.family,weight:'bold'}}}]};
 }
 async function refreshCadastre(key){
+  const L=ovLayers[key]; if(!L||!L.on||!map||!FLCls) return;
+  if(cadLayer){ cadLayer.visible=true; return; }
+  if(L.loading) return; L.loading=true;
+  try{
+    const probe=new FLCls({url:CITY.cadastreUrl}); await probe.load();
+    const lyr=new FLCls(Object.assign({popupEnabled:false,legendEnabled:false,listMode:'hide'},cadastreDef(probe.fields)));
+    lyr.opacity=Math.min(1,VW.alpha+0.15); cadLayer=lyr; L.vec=lyr; map.add(lyr,(airLayer?1:0)+(cmpLayer?1:0)); lyr.visible=!!L.on;
+  }catch(e){ console.warn('[연속지적도]',e); toast('연속지적도를 불러오지 못했어요 ('+String((e&&e.message)||e).slice(0,40)+')',3600); }
+  finally{ L.loading=false; }
+}
+
+/* ── 용도지역·문화재보호: 브이월드 WFS 로 받아 우리 색으로 (범례와 같은 색) ── */
+function classArcade(table,field){
+  const parts=table.items.filter(([k])=>table.match[k]).map(([k])=>"IIf(Find('"+table.match[k]+"',n)>-1,'"+k+"',");
+  return 'var n=Text($feature["'+field+'"]); return '+parts.join('')+"'"+(table.items[table.items.length-1][0])+"'"+')'.repeat(parts.length);
+}
+function vectorLayer(o,j){
+  const table=CLASS_TABLES[o.classes]; const props=(j.features[0]&&j.features[0].properties)||{}; const field=pickField(Object.keys(props),table.field)||Object.keys(props)[0]||'uname';
+  const blob=new Blob([JSON.stringify(j)],{type:'application/json'}); const url=URL.createObjectURL(blob);
+  const renderer=table.items.length>1
+    ? {type:'unique-value',valueExpression:classArcade(table,field),uniqueValueInfos:table.items.map(([k,label,c])=>({value:k,label,symbol:{type:'simple-fill',color:c,outline:{color:[255,255,255,.7],width:.8}}})),
+        defaultSymbol:{type:'simple-fill',color:table.items[table.items.length-1][2],outline:{color:[255,255,255,.7],width:.8}}}
+    : {type:'simple',symbol:{type:'simple-fill',color:table.items[0][2],outline:{color:'#5a3d20',width:1.2}}};
+  return new GeoJSONCls({url,title:o.label,popupEnabled:false,legendEnabled:false,listMode:'hide',outFields:['*'],renderer});
+}
+async function refreshVector(key){
   const L=ovLayers[key], o=ovDef(key), vb=viewBox(); if(!L||!o||!vb||!L.on) return;
-  if(o.minScale&&view.scale>o.minScale){ if(L.vec) L.vec.visible=false; L.url=''; return; }
   const rb=requestBox(vb); const url=wfsUrl(o.wfs,rb); if(L.url===url) return; L.url=url;
   try{
     const r=await fetch(url); if(!r.ok) throw new Error('http '+r.status);
     const j=await r.json(); if(!j||!Array.isArray(j.features)) throw new Error('bad json');
     if(L.url!==url||!L.on) return;
-    const lyr=cadastreLayer(geojsonToWgs84(j)); const old=L.vec; L.vec=lyr;
+    const lyr=vectorLayer(o,geojsonToWgs84(j)); const old=L.vec; L.vec=lyr;
     map.add(lyr,(airLayer?1:0)+(cmpLayer?1:0)); lyr.opacity=VW.alpha;
     if(old){ try{ map.remove(old); }catch(e){} }
+    L.own=true; renderLegends(overlayKeys());
   }catch(e){
-    console.warn('[연속지적도] WFS 실패 → WMS 그림으로',String((e&&e.message)||e));
-    L.wfsFailed=true; L.url=''; if(L.vec){ try{ map.remove(L.vec); }catch(x){} L.vec=null; }
-    toast('지적도 선만 그리는 자료(WFS)를 받지 못해 그림에서 채움을 걷어내 보여요 ('+String((e&&e.message)||e).slice(0,40)+')',3600); refreshOverlay(key);
+    console.warn('['+o.label+'] WFS 실패 → WMS 그림으로',String((e&&e.message)||e));
+    L.wfsFailed=true; L.own=false; L.url=''; if(L.vec){ try{ map.remove(L.vec); }catch(x){} L.vec=null; }
+    refreshOverlay(key); renderLegends(overlayKeys());
   }
 }
-/* ── 범례: 용도지역·문화재보호는 브이월드 GetLegendGraphic 이미지를 붙인다 ── */
-function legendUrl(id){ return VW.wmsUrl+'?SERVICE=WMS&REQUEST=GetLegendGraphic&VERSION=1.1.1&FORMAT=image/png&LAYER='+encodeURIComponent(id)+'&STYLE='+encodeURIComponent(id)+'&KEY='+encodeURIComponent(VW.key)+'&DOMAIN='+encodeURIComponent(vwDomain('host')); }
+/* ── 범례: 우리가 칠한 색 표(CLASS_TABLES)를 그대로 보여 준다 ── */
 function renderLegends(onKeys){
-  const host=$('ovLegends'); if(!host) return; const items=onKeys.map(ovDef).filter(o=>o&&o.legend);
-  host.innerHTML=items.map(o=>'<div class="ov-legend" style="--c:'+o.c+'" data-key="'+o.key+'"><div class="t"><span class="dot"></span>'+esc(o.label)+' 범례</div>'
-    +'<img src="'+esc(legendUrl((ovLayers[o.key]&&ovLayers[o.key].ids||o.ids)[0]))+'" alt="'+esc(o.label)+' 범례" loading="lazy" onerror="this.parentNode.classList.add(\'none\')"><span class="no">브이월드가 이 자료의 범례 그림을 제공하지 않아요</span></div>').join('');
+  const host=$('ovLegends'); if(!host) return; const items=onKeys.map(ovDef).filter(o=>o&&o.legend&&CLASS_TABLES[o.classes]);
+  host.innerHTML=items.map(o=>{ const t=CLASS_TABLES[o.classes], L=ovLayers[o.key]; const fallback=L&&L.wfsFailed;
+    return '<div class="ov-legend" style="--c:'+o.c+'" data-key="'+o.key+'"><div class="t"><span class="dot"></span>'+esc(o.label)+' 범례</div>'
+      +'<div class="sw">'+t.items.map(([k,label,c])=>'<span class="it"><i style="background:'+c+'"></i>'+esc(label)+'</span>').join('')+'</div>'
+      +(fallback? '<div class="no show">지금은 브이월드 그림으로 보여서 지도 색이 이 표와 다를 수 있어요</div>' : '')+'</div>'; }).join('');
   host.classList.toggle('show',items.length>0);
 }
 function renderOvState(){
