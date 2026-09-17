@@ -108,7 +108,10 @@
    + '.gr-lb{position:fixed;inset:0;z-index:10002;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;padding:20px}'
    + '.gr-lb.on{display:flex}.gr-lb img{max-width:100%;max-height:92vh;border-radius:8px}'
    + '.gr-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#1E3229;color:#fff;font-size:13.5px;padding:10px 16px;border-radius:9px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:10003;max-width:90%;text-align:center;font-family:Pretendard,sans-serif}'
-   + '.gr-toast.on{opacity:1}';
+   + '.gr-toast.on{opacity:1}'
+   + '.gr-pick{position:fixed;inset:0;z-index:10001;cursor:crosshair;background:rgba(15,25,20,.22);user-select:none;-webkit-user-select:none;touch-action:none}'
+   + '.gr-pick .t{position:absolute;left:50%;top:14px;transform:translateX(-50%);background:#1E3229;color:#fff;font-size:13.5px;font-weight:600;padding:9px 15px;border-radius:9px;pointer-events:none;white-space:nowrap;font-family:Pretendard,sans-serif}'
+   + '.gr-pick .s{position:absolute;border:2px solid #fff;background:rgba(1,128,88,.14);box-shadow:0 0 0 9999px rgba(0,0,0,.3);display:none;pointer-events:none}';
 
   function el(tag, attrs, html) { var e = document.createElement(tag); if (attrs) for (var k in attrs) e.setAttribute(k, attrs[k]); if (html != null) e.innerHTML = html; return e; }
   function esc(s) { return (s || '').replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
@@ -137,7 +140,7 @@
       + '<div class="gr-g"><span class="gr-l">화면 캡처 <span>선택 · 원하는 부분만 드래그</span></span>'
       + '<div class="gr-cap"><button type="button" class="gr-capbtn" id="grCap">📷 화면 캡처</button>'
       + '<div class="gr-pend" id="grPend" hidden><img id="grPendImg" alt=""><button type="button" id="grPendDel">×</button></div>'
-      + '<span class="gr-hint">캡처 후 드래그로 영역 선택 · Ctrl+V 붙여넣기도 돼요</span></div></div>'
+      + '<span class="gr-hint">누르면 창이 잠깐 닫히고 지도 위에서 원하는 부분을 드래그해요 · 이어서 브라우저의 "공유"를 누르면 담겨요 · Ctrl+V 붙여넣기도 돼요</span></div></div>'
       + '<button type="button" class="gr-submit" id="grAdd">＋ 보내기</button>'
       + '</div>'
       + '<div class="gr-body" id="grList" style="display:none">'
@@ -215,19 +218,42 @@
   function endDrag() { if (!drag) return; drag = null; $('grCropUse').disabled = !(selRect && selRect.w > 6 && selRect.h > 6); }
 
   /* ── 화면 캡처 ── */
+  /* 캡처 흐름: 창을 잠깐 닫고 → 지도 위에서 원하는 부분을 드래그(그냥 클릭하면 전체) → 브라우저가 현재 탭을 잡도록 요청(preferCurrentTab) → 그 부분만 잘라 담고 창을 다시 연다 */
+  var pickDrag = null;
+  function pt(ev) { var t = ev.touches ? ev.touches[0] : (ev.changedTouches ? ev.changedTouches[0] : ev); return { x: t.clientX, y: t.clientY }; }
+  function rectOf(a, b) { return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(b.x - a.x), h: Math.abs(b.y - a.y) }; }
   function doCapture() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) { toast('이 브라우저는 화면 캡처를 지원 안 해요. Win+Shift+S로 캡처 후 Ctrl+V로 붙여넣어 주세요'); return; }
-    navigator.mediaDevices.getDisplayMedia({ video: true, audio: false }).then(function (stream) {
-      var video = document.createElement('video'); video.srcObject = stream; video.muted = true;
-      video.play().then(function () {
-        setTimeout(function () {
-          var c = document.createElement('canvas'); c.width = video.videoWidth; c.height = video.videoHeight;
-          c.getContext('2d').drawImage(video, 0, 0, c.width, c.height);
-          stream.getTracks().forEach(function (t) { t.stop(); });
-          openCrop(c.toDataURL('image/jpeg', 0.92));
-        }, 350);
+    close();
+    var ov = el('div', { class: 'gr-pick', id: 'grPick' }, '<div class="t">캡처할 부분을 드래그하세요 · 그냥 클릭하면 전체 화면 · Esc 취소</div><div class="s" id="grPickSel"></div>');
+    document.body.appendChild(ov);
+    var down = function (e) { e.preventDefault(); pickDrag = pt(e); };
+    var move = function (e) { if (!pickDrag) return; e.preventDefault(); var r = rectOf(pickDrag, pt(e)); var s = $('grPickSel'); s.style.display = 'block'; s.style.left = r.x + 'px'; s.style.top = r.y + 'px'; s.style.width = r.w + 'px'; s.style.height = r.h + 'px'; };
+    var up = function (e) { if (!pickDrag) return; var r = rectOf(pickDrag, pt(e)); pickDrag = null; endPick(); captureTab(r.w > 6 && r.h > 6 ? r : null); };
+    ov.addEventListener('mousedown', down); ov.addEventListener('mousemove', move); ov.addEventListener('mouseup', up);
+    ov.addEventListener('touchstart', down, { passive: false }); ov.addEventListener('touchmove', move, { passive: false }); ov.addEventListener('touchend', up);
+    document.addEventListener('keydown', pickEsc);
+  }
+  function pickEsc(e) { if (e.key === 'Escape') { pickDrag = null; endPick(); open(); } }
+  function endPick() { var ov = $('grPick'); if (ov) ov.parentNode.removeChild(ov); document.removeEventListener('keydown', pickEsc); }
+  function captureTab(rect) {
+    var opts = { video: { displaySurface: 'browser' }, audio: false, preferCurrentTab: true, selfBrowserSurface: 'include', surfaceSwitching: 'exclude', monitorTypeSurfaces: 'exclude', systemAudio: 'exclude' };
+    navigator.mediaDevices.getDisplayMedia(opts).then(function (stream) {
+      var video = document.createElement('video'); video.srcObject = stream; video.muted = true; video.playsInline = true;
+      return video.play().then(function () { return new Promise(function (res) { setTimeout(res, 400); }); }).then(function () {
+        var vw = video.videoWidth, vh = video.videoHeight;
+        var full = document.createElement('canvas'); full.width = vw; full.height = vh; full.getContext('2d').drawImage(video, 0, 0, vw, vh);
+        stream.getTracks().forEach(function (t) { t.stop(); });
+        if (!vw || !vh) { open(); toast('화면을 잡지 못했어요. 다시 해 주세요'); return; }
+        /* 잡힌 화면이 이 탭이 아니면(비율이 다르면) 전체를 담고 직접 자르게 한다 */
+        var sameTab = Math.abs((vw / vh) - (window.innerWidth / window.innerHeight)) < 0.03;
+        if (rect && !sameTab) { open(); openCrop(full.toDataURL('image/jpeg', 0.92)); toast('다른 화면이 잡혀서 직접 잘라 주세요'); return; }
+        var sx = vw / window.innerWidth, sy = vh / window.innerHeight;
+        var r = rect ? { x: Math.round(rect.x * sx), y: Math.round(rect.y * sy), w: Math.max(1, Math.round(rect.w * sx)), h: Math.max(1, Math.round(rect.h * sy)) } : { x: 0, y: 0, w: vw, h: vh };
+        var c = document.createElement('canvas'); c.width = r.w; c.height = r.h; c.getContext('2d').drawImage(full, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+        shrink(c.toDataURL('image/jpeg', 0.92), 1400, function (u) { setPending(u); open(); toast(rect ? '선택한 부분을 담았어요' : '전체 화면을 담았어요'); });
       });
-    }).catch(function () { });
+    }).catch(function () { open(); });
   }
 
   /* ── 서버 ── */
@@ -277,7 +303,14 @@
   function wire() {
     chipGroup('grScreens', 'screen'); chipGroup('grTypes', 'type'); chipGroup('grSev', 'sev');
     $('grClose').addEventListener('click', close);
-    $('grModal').addEventListener('click', function (e) { if (e.target === $('grModal')) close(); });
+    var downOutside = false;   /* 글을 드래그해 고르다 창 밖에서 마우스를 떼도 닫히지 않게: 밖에서 누르고 밖에서 뗐을 때만 닫는다 */
+    $('grModal').addEventListener('mousedown', function (e) { downOutside = e.target === $('grModal'); });
+    $('grModal').addEventListener('click', function (e) { if (e.target === $('grModal') && downOutside) close(); downOutside = false; });
+    /* 쓰던 글은 이 탭이 살아 있는 동안 남긴다(실수로 닫히거나 페이지가 새로고침돼도 복구) */
+    var DRAFT = 'guri_review_draft';
+    try { var d = JSON.parse(sessionStorage.getItem(DRAFT) || 'null'); if (d) { $('grText').value = d.text || ''; $('grLoc').value = d.loc || ''; } } catch (x) {}
+    var saveDraft = function () { try { sessionStorage.setItem(DRAFT, JSON.stringify({ text: $('grText').value, loc: $('grLoc').value })); } catch (x) {} };
+    $('grText').addEventListener('input', saveDraft); $('grLoc').addEventListener('input', saveDraft);
     $('grTabWrite').addEventListener('click', function () { switchTab('write'); });
     $('grTabList').addEventListener('click', function () { switchTab('list'); });
     $('grPendDel').addEventListener('click', function () { setPending(''); });
@@ -314,7 +347,7 @@
       $('grAdd').disabled = true;
       apiPost('add', { screen: sel.screen, type: sel.type, sev: sel.sev, loc: $('grLoc').value.trim(), content: content, who: '', shot: pending, owner: MYTOKEN, page_url: location.href })
         .then(function () {
-          $('grText').value = ''; $('grLoc').value = ''; setPending(''); sel.type = ''; sel.sev = '';
+          $('grText').value = ''; $('grLoc').value = ''; setPending(''); sel.type = ''; sel.sev = ''; try { sessionStorage.removeItem(DRAFT); } catch (x) {}
           ['grTypes', 'grSev'].forEach(function (g) { [].forEach.call($(g).children, function (x) { x.classList.remove('on'); }); });
           toast('보냈어요. 고맙습니다'); switchTab('list');
         })
