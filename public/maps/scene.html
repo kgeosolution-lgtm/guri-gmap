@@ -219,6 +219,7 @@ require(["esri/config","esri/WebScene","esri/views/SceneView","esri/core/reactiv
       beautify();
       prepBuildings();
       addOverlays(FeatureLayer);
+      addLandmarkLabels(FeatureLayer);
       await buildPlaces();
       renderSlides();
       $('cover').classList.add('hide');
@@ -439,18 +440,53 @@ async function addMountainLabels(FeatureLayer,layer,rows){
   const q=layer.createQuery(); q.where='1=1'; q.outFields=[key]; q.returnGeometry=true; q.outSpatialReference={wkid:4326}; q.maxAllowableOffset=0.0002;
   const fs=await layer.queryFeatures(q);
   const pts=mountainPoints(fs.features,key); if(!pts.length) return;
-  const lbl=new FeatureLayer({
-    title:'3D 산 이름', objectIdField:'oid', geometryType:'point', spatialReference:{wkid:4326},
-    fields:[{name:'oid',type:'oid'},{name:'name',type:'string'},{name:'n',type:'integer'}],
-    source:pts.map((p,i)=>({geometry:{type:'point',x:p.x,y:p.y,spatialReference:{wkid:4326}},attributes:{oid:i+1,name:p.name,n:p.n}})),
-    elevationInfo:{mode:'relative-to-ground',offset:35},           /* 숲 위로 살짝 띄운다 */
-    renderer:{type:'simple',symbol:{type:'simple-marker',size:1,color:[0,0,0,0],outline:null}},   /* 점은 안 보이고 글자만 */
-    labelsVisible:true, popupEnabled:false,
-    labelingInfo:[{labelExpressionInfo:{expression:'$feature.name'},labelPlacement:'center-center',deconflictionStrategy:'static',
-      symbol:{type:'label-3d',symbolLayers:[{type:'text',size:15,font:LABEL_FONT,material:{color:[34,72,44,255]},halo:{color:[255,255,255,240],size:2}}]}}]
-  });
-  lbl.__kind='mtn'; view.map.add(lbl);
+  const lbl=textPointLayer(FeatureLayer,{title:'3D 산 이름',kind:'mtn',points:pts,color:[34,72,44,255],size:15,
+    elevationInfo:{mode:'relative-to-ground',offset:35}});          /* 숲 위로 살짝 띄운다 */
+  view.map.add(lbl);
   console.log('[3D] 산 이름 레이블',pts.map(p=>p.name+'('+p.n+')').join(', '));
+}
+/* 글자만 보이는 점 레이어 (점 심볼은 투명) — 산 이름·주요 시설 이름에 쓴다 */
+function textPointLayer(FeatureLayer,o){
+  const lbl=new FeatureLayer({
+    title:o.title, objectIdField:'oid', geometryType:'point', spatialReference:{wkid:4326},
+    fields:[{name:'oid',type:'oid'},{name:'name',type:'string'},{name:'n',type:'integer'}],
+    source:o.points.map((p,i)=>({geometry:{type:'point',x:p.x,y:p.y,spatialReference:{wkid:4326}},attributes:{oid:i+1,name:p.name,n:p.n||0}})),
+    elevationInfo:o.elevationInfo,
+    renderer:{type:'simple',symbol:{type:'simple-marker',size:1,color:[0,0,0,0],outline:null}},
+    labelsVisible:true, popupEnabled:false,
+    labelingInfo:[{labelExpressionInfo:{expression:'$feature.name'},labelPlacement:o.placement||'center-center',deconflictionStrategy:'static',
+      symbol:{type:'label-3d',symbolLayers:[{type:'text',size:o.size,font:LABEL_FONT,material:{color:o.color},halo:{color:[255,255,255,240],size:2}}]}}]
+  });
+  lbl.__kind=o.kind; return lbl;
+}
+/* ── 주요 시설 이름: 구리시청 등 — 건물 레이어에서 이름으로 찾아 그 건물 위에, 못 찾으면 알려진 좌표에 ── */
+const LANDMARKS=[{name:'구리시청',x:127.1294,y:37.5942,where:"bldg_nm LIKE '%구리시청%' OR dtl_bldg_nm LIKE '%구리시청%'"}];
+function geomCenter(g){
+  if(!g) return null;
+  if(g.type==='point'||('x' in g&&'y' in g)) return {x:g.x,y:g.y};
+  const e=g.extent; if(e&&isFinite(e.xmin)) return {x:(e.xmin+e.xmax)/2,y:(e.ymin+e.ymax)/2};
+  const rings=g.rings||g.paths; if(rings&&rings.length){ let sx=0,sy=0,n=0; rings.forEach(r=>r.forEach(p=>{ sx+=p[0]; sy+=p[1]; n++; })); if(n) return {x:sx/n,y:sy/n}; }
+  return null;
+}
+async function landmarkPoint(lm){
+  const l=bldgLayers.find(x=>x.__kind==='bldg1')||bldgLayers[0];
+  if(l&&lm.where){
+    try{
+      const q=l.createQuery(); q.where=lm.where; q.outFields=['*']; q.returnGeometry=true; q.outSpatialReference={wkid:4326}; q.num=5;
+      const fs=await l.queryFeatures(q);
+      for(const f of (fs.features||[])){ const c=geomCenter(f.geometry); if(c&&isFinite(c.x)&&isFinite(c.y)) return {name:lm.name,x:c.x,y:c.y,found:true}; }
+    }catch(e){ console.warn('[3D] 시설 검색 실패',lm.name,String((e&&e.message)||e)); }
+  }
+  return {name:lm.name,x:lm.x,y:lm.y,found:false};
+}
+async function addLandmarkLabels(FeatureLayer){
+  try{
+    const pts=await Promise.all(LANDMARKS.map(landmarkPoint));
+    const lbl=textPointLayer(FeatureLayer,{title:'3D 주요 시설 이름',kind:'landmark',points:pts,color:[38,58,84,255],size:14,placement:'above-center',
+      elevationInfo:{mode:'relative-to-scene',offset:14}});          /* 건물 지붕 위에 */
+    view.map.add(lbl);
+    console.log('[3D] 주요 시설 레이블',pts.map(p=>p.name+(p.found? '(건물에서 찾음)' : '(기본 좌표)')).join(', '));
+  }catch(e){ console.warn('[3D] 주요 시설 레이블 실패',String((e&&e.message)||e)); }
 }
 function addOverlays(FeatureLayer){
   if(!view||!overlayDefs.length) return;

@@ -352,3 +352,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 조치: 등산로 구간마다 레이블을 붙이면 같은 산 이름이 수십 개 겹치므로, 등산로 레이어를 좌표와 함께 읽어 산명(`산명`/`산이름` 등, `mountainNameKey`)별로 모든 꼭짓점 평균에 가장 가까운 꼭짓점을 대표 지점으로 잡고(`mountainPoints`), 보이지 않는 점 레이어('3D 산 이름', 숲 위 35m)에 3D 텍스트(15px 굵게, 흰 테두리, 겹치면 자동 숨김)로 산 이름을 하나씩 띄웁니다(`addMountainLabels`). 산 이름 필드가 없으면 조용히 생략.
 - 브랜치: `work/kangmina-3d-mountain-labels` (base `design/service-home-refresh` ba64814).
 - 검증: 인라인 스크립트 `node --check`, 단위 검사(산 이름 필드 판별, 산별 대표 지점·구간 수, 레이어 생성·생략), `npm run build:deploy`, `git diff --check` 통과. 대표 지점 위치가 어색한 산이 있으면 배포 후 확인 필요.
+
+## 2026-09-17 3D 지도 구리시청 레이블 (담당: 강민아)
+
+- 요청: 구리시청 레이블 하나.
+- 조치: 산 이름에 쓰던 '글자만 보이는 점 레이어'를 공용 `textPointLayer`로 빼고, 주요 시설 목록 `LANDMARKS`(현재 구리시청)를 건물 레이어(LOD1)에서 이름(`bldg_nm`/`dtl_bldg_nm` LIKE '%구리시청%')으로 찾아 그 건물 중심 위(지붕 위 14m, `relative-to-scene`)에 14px 짙은 남색 3D 텍스트로 띄웁니다(`addLandmarkLabels`). 건물 조회가 안 되면 알려진 좌표(127.1294, 37.5942)에 놓습니다. 다른 시설을 더 넣으려면 `LANDMARKS`에 이름·좌표·검색식 한 줄을 추가.
+- 브랜치: `work/kangmina-3d-cityhall-label` (base `design/service-home-refresh` 01f676a).
+- 검증: 인라인 스크립트 `node --check`, 단위 검사(도형 중심 계산, 건물에서 찾은 경우·조회 실패·건물 레이어 없음의 좌표), `npm run build:deploy`, `git diff --check` 통과. 건물 검색이 실제 서버에서 되는지는 배포 후 콘솔의 '(건물에서 찾음)/(기본 좌표)' 로그로 확인.
