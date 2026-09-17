@@ -176,7 +176,8 @@ let PLACES=[];   /* [{title, thumb, kind, attrs, go:()=>Promise}] — 웹씬 슬
 let overlayDefs=[];   /* 스냅샷에서 떼어 낸 명소·축제·둘레길·등산로 레이어 정의 (페이지가 직접 그린다) */
 let overlayLayers=[];  /* 얹은 FeatureLayer 들 */
 const overlayRows={spot:[],fest:[],dulle:[],dulleFac:[],hiking:[],hikingFac:[]};   /* 팝업 링크·코스 색 판단용 전체 행 캐시 */
-let highlightHandle=null;   /* 클릭한 둘레길·등산로 구간 강조 */
+let highlightHandle=null;   /* 클릭한 둘레길·등산로 구간·건물 강조 */
+let bldgLayers=[];   /* 웹씬의 3D 건물(SceneLayer) — 팝업을 카드로 대신 그린다 */
 let view=null, scene=null, tourTimer=null, tilted=true;
 const $=id=>document.getElementById(id);
 function toast(msg,ms=2200){ const t=$('mapToast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),ms); }
@@ -207,6 +208,7 @@ require(["esri/config","esri/WebScene","esri/views/SceneView","esri/core/reactiv
     view=new SceneView({container:'map',map:scene,qualityProfile:'high',
       ui:{components:['attribution']},popup:{dockEnabled:true,dockOptions:{buttonEnabled:false,breakpoint:false,position:'bottom-right'}},
       highlightOptions:{color:[255,196,0],haloOpacity:.95,fillOpacity:.35},
+      popupEnabled:false,                                            /* 모든 팝업은 테마지도식 카드로 */
       environment:{atmosphereEnabled:true,starsEnabled:true,atmosphere:{quality:'high'}}});
     view.ui.move('attribution','bottom-right');
 
@@ -215,6 +217,7 @@ require(["esri/config","esri/WebScene","esri/views/SceneView","esri/core/reactiv
       await scene.load(); await view.when();
       clearTimeout(failTimer);
       beautify();
+      prepBuildings();
       addOverlays(FeatureLayer);
       await buildPlaces();
       renderSlides();
@@ -428,19 +431,56 @@ function addOverlays(FeatureLayer){
   });
   view.on('click',async ev=>{
     try{
-      const h=await view.hitTest(ev,{include:overlayLayers});
-      const hit=h.results.find(x=>x.graphic&&x.graphic.layer&&overlayLayers.includes(x.graphic.layer));
-      if(hit){ showCard(hit.graphic.layer.__kind,hit.graphic.attributes||{}); highlightGraphic(hit.graphic); }
-      else hideCard();
+      const h=await view.hitTest(ev,{include:overlayLayers.concat(bldgLayers)});
+      const hit=h.results.find(x=>x.graphic&&x.graphic.layer&&overlayLayers.includes(x.graphic.layer))
+              ||h.results.find(x=>x.graphic&&x.graphic.layer&&bldgLayers.includes(x.graphic.layer));
+      if(!hit){ hideCard(); return; }
+      const g=hit.graphic, kind=g.layer.__kind;
+      const attrs=(kind==='bldg1'||kind==='bldg2')? await bldgAttrs(g) : (g.attributes||{});
+      showCard(kind,attrs); highlightGraphic(g);
     }catch(e){}
   });
 }
 /* 클릭한 둘레길·등산로 구간은 노랗게 강조 (카드를 닫으면 해제) */
 function highlightGraphic(g){
-  clearHighlight(); if(!g||!g.layer||!/^(dulle|hiking)$/.test(g.layer.__kind||'')) return;
+  clearHighlight(); if(!g||!g.layer||!/^(dulle|hiking|bldg1|bldg2)$/.test(g.layer.__kind||'')) return;
   view.whenLayerView(g.layer).then(lv=>{ clearHighlight(); highlightHandle=lv.highlight(g); }).catch(()=>{});
 }
 function clearHighlight(){ if(highlightHandle){ try{ highlightHandle.remove(); }catch(e){} highlightHandle=null; } }
+
+/* ── 3D 건물: 웹씬 SceneLayer 의 ArcGIS 팝업(우하단)을 끄고 클릭하면 같은 정보를 좌상단 카드로 ──
+ * LOD1(건축물대장 3D_Buildings_LOD1_2508)은 bldg1, LOD2(국토지리정보원 Buildings_LOD2_2508)는 bldg2 */
+function bldgKindOf(l){ const u=String(l.url||''), t=String(l.title||''); if(/LOD2/i.test(u)||/LOD2/i.test(t)) return 'bldg2'; if(/LOD1/i.test(u)||/LOD1/i.test(t)) return 'bldg1'; return null; }
+function prepBuildings(){
+  bldgLayers=[];
+  try{
+    scene.allLayers.forEach(l=>{ if(l.type!=='scene') return; const kind=bldgKindOf(l); if(!kind) return;
+      l.popupEnabled=false; try{ l.outFields=['*']; }catch(e){}
+      l.__kind=kind; bldgLayers.push(l); });
+    console.log('[3D] 건물 레이어',bldgLayers.map(l=>l.title+'('+l.__kind+')').join(', ')||'없음');
+  }catch(e){ console.warn('[3D] 건물 레이어 준비 실패',e); }
+}
+/* 클릭한 건물의 전체 속성: 히트 결과에 없으면 ObjectID 로 다시 조회 */
+async function bldgAttrs(g){
+  const a=g.attributes||{}; const keys=Object.keys(a);
+  const need=g.layer.__kind==='bldg2'? ['buld_nm','bflr_co'] : ['bldg_nm','main_usg_nm'];
+  if(need.some(k=>keys.some(x=>x.toLowerCase()===k))) return a;
+  try{
+    const oidF=g.layer.objectIdField||'OBJECTID'; const oid=a[oidF]!==undefined? a[oidF] : (g.getObjectId? g.getObjectId() : null);
+    if(oid===null||oid===undefined) return a;
+    const q=g.layer.createQuery(); q.objectIds=[oid]; q.outFields=['*']; q.returnGeometry=false;
+    const fs=await g.layer.queryFeatures(q); const f=fs.features&&fs.features[0];
+    return f? Object.assign({},a,f.attributes) : a;
+  }catch(e){ console.warn('[3D] 건물 속성 조회 실패',String((e&&e.message)||e)); return a; }
+}
+/* 코드값 → 도메인 이름 (레이어 필드 정의에 코드 목록이 있으면) */
+function domainName(kind,field,code){
+  if(!valOK(code)) return null;
+  const l=bldgLayers.find(x=>x.__kind===kind);
+  try{ const f=(l&&l.fields||[]).find(x=>String(x.name).toLowerCase()===field.toLowerCase()); const cv=f&&f.domain&&f.domain.codedValues;
+    if(cv){ const hit=cv.find(c=>String(c.code)===String(code)); if(hit&&valOK(hit.name)) return String(hit.name); } }catch(e){}
+  return String(code).trim();
+}
 
 /* ═══ 팝업 카드 — 테마지도의 축제·구리 명소 팝업과 같은 구성 (네이버 길찾기만 없음) ═══ */
 function valOK(v){ if(v===null||v===undefined) return false; const s=String(v).trim(); return !(s===''||s==='None'||s==='null'||s==='-'||s==='–'||s==='—'||s==='.'); }
@@ -558,8 +598,41 @@ const CARD={
     cat:r=>{ const m=pv(r,['산명','산이름']); return valOK(m)? '⛰️ '+m : '등산로 시설'; },
     chips:r=>{ const b=pv(r,['상세지점명칭','상세명칭']); return valOK(b)? `<span class="pchip" style="background:#EFF3E7;color:#5A6B33">📍 ${esc(String(b))}</span>` : ''; },
     pop:[['🔢','등산로 지점순번',r=>pv(r,['등산로지점순번','지점순번','등산로순번','순번'])],['🥾','등산로',r=>pv(r,['등산로명','코스명'])],['ℹ️','기타사항',r=>pv(r,['기타사항','상세정보','비고','설명'])]],
-    telLabel:'문의처로 전화하기'}
+    telLabel:'문의처로 전화하기'},
+  /* 3D 건물 — 웹씬에 설정된 Arcade 팝업(칩·부제·정보 행·안내문)과 같은 구성 */
+  bldg1:{theme:'건물',accent:'#4E6E8E',addr:[],tel:[],
+    cat:()=>'🏢 건물 · 건축물대장',
+    title:r=>[bC(fx(r,'bldg_nm')),bC(fx(r,'dtl_bldg_nm'))].filter(Boolean).filter((v,i,arr)=>arr.indexOf(v)===i).join(' ')||bC(fx(r,'main_usg_nm'))||'건물',
+    chips:r=>{ let out=''; const add=(t,bg,fg)=>{ out+=`<span class="pchip" style="background:${bg};color:${fg}">${esc(t)}</span>`; };
+      const u=bC(fx(r,'main_usg_nm')), e=bC(fx(r,'etc_usg_nm')), st=bC(fx(r,'bdst_strc_nm'));
+      if(u) add('🏢 '+u,'#E8F0FD','#2A57A8'); if(e&&e!==u) add(e,'#EEF2FB','#3A5A93'); if(st) add('🧱 '+st,'#EEF0F2','#3F4E5A'); return out; },
+    pop:[['🏙️','층수',r=>{ let fl=''; const g=bPos(fx(r,'grnd_nofl')), u=bPos(fx(r,'udgd_nofl')), n=bPos(fx(r,'bldg_nofl'));
+            if(g>0) fl='지상 '+g+'층'; if(u>0) fl+=(fl? ' · ' : '')+'지하 '+u+'층'; if(!fl&&n>0) fl=n+'층'; return fl||null; }],
+         ['📏','높이',r=>bMtr(fx(r,'bldg_hgt'))],['📐','대지면적',r=>bArea(fx(r,'siar'))],['🏗️','건축면적',r=>bArea(fx(r,'bdar'))],['📊','연면적',r=>bArea(fx(r,'tfar'))],
+         ['🟦','건폐율',r=>bPct(fx(r,'bdcvrt'))],['🟩','용적률',r=>bPct(fx(r,'fart'))],
+         ['🏠','세대·가구',r=>{ let hh=''; const a=bPos(fx(r,'hh_cnt')), b=bPos(fx(r,'hshd_cnt')); if(a>0) hh=a+'세대'; if(b>0) hh+=(hh? ' · ' : '')+b+'가구'; return hh||null; }],
+         ['🪟','지붕',r=>bC(fx(r,'roof_nm'))],['📅','사용승인',r=>bYmd(fx(r,'use_aprv_ymd'))],['📍','행정구역',r=>bC(fx(r,'adm_nm'))],
+         ['🔖','건물번호',r=>bNo(fx(r,'bmno'),fx(r,'bsno'))],['🧾','필지고유번호',r=>bC(fx(r,'pnu'))]],
+    foot:'건축물대장 기준 정보라 실제 현황과 다를 수 있어요'},
+  bldg2:{theme:'건물',accent:'#4E6E8E',addr:[],tel:[],cat:()=>'🏢 건물 · 3D 건물(LOD2)',
+    title:r=>[bC(fx(r,'buld_nm')),bC(fx(r,'batc_nm'))].filter(Boolean).filter((v,i,arr)=>arr.indexOf(v)===i).join(' ')||'건물',
+    chips:r=>{ let out=''; const add=(t,bg,fg)=>{ out+=`<span class="pchip" style="background:${bg};color:${fg}">${esc(t)}</span>`; };
+      const u=domainName('bldg2','bprp_se',fx(r,'bprp_se')), se=domainName('bldg2','buld_se',fx(r,'buld_se'));
+      if(u) add('🏢 '+u,'#E8F0FD','#2A57A8'); if(se) add(se,'#EEF0F2','#3F4E5A'); return out; },
+    pop:[['🏙️','건물층수',r=>{ const n=bPos(fx(r,'bflr_co')); return n>0? n+'층' : null; }],['📏','기본높이',r=>bMtr(fx(r,'bldh_bv'))],
+         ['🔖','건물번호',r=>bNo(fx(r,'bldmn_no'),fx(r,'bldsl_no'))],['🧾','PNU 번호',r=>bC(fx(r,'pnu_no'))]],
+    foot:'국토지리정보원 3D 건물(LOD2) 기준 정보예요'}
 };
+/* 건물 팝업 헬퍼 — 웹씬 Arcade 의 C / Pos / Area / Pct / Mtr / Ymd 와 같은 규칙 */
+function fx(r,k){ if(!r) return null; const n=k.toLowerCase(); for(const key in r){ if(key.toLowerCase()===n) return r[key]; } return null; }   /* 필드명 대소문자 무시, 정확히 일치 */
+function bC(v){ if(v===null||v===undefined) return ''; const s=String(v).trim(); return (s==='-'||s.toLowerCase()==='null')? '' : s; }
+function bPos(v){ if(bC(v)==='') return -1; const n=Number(v); return isFinite(n)? n : -1; }
+const bNum=n=>n.toLocaleString('ko-KR',{maximumFractionDigits:1});
+function bArea(v){ const n=bPos(v); return n>0? bNum(n)+' ㎡' : null; }
+function bPct(v){ const n=bPos(v); return n>0? bNum(n)+'%' : null; }
+function bMtr(v){ const n=bPos(v); return n>0? bNum(n)+'m' : null; }
+function bYmd(v){ const s=bC(v); if(s.length<8) return s||null; return s.slice(0,4)+'.'+s.slice(4,6)+'.'+s.slice(6,8); }
+function bNo(a,b){ const m=bPos(a); if(m<=0) return null; const s=bPos(b); return s>0? m+'-'+s : String(m); }
 /* 테마지도 기본 주소·전화 후보와 칩·자동 행 수집 */
 const F_ADDR=['도로명주소','주소','소재지도로명주소','소재지','설치장소','설치위치','위치','지번주소','소재지지번주소'];
 const F_TEL=['전화번호','연락처','대표전화','전화','문의처','고장신고번호'];
@@ -694,13 +767,18 @@ function goHome(){
   else view.goTo({center:SCENE.city.center,scale:SCENE.city.scale,tilt:SCENE.city.tilt,heading:SCENE.city.heading},{duration:1200}).catch(()=>{});
 }
 function zoomBy(n){ if(view) view.goTo({zoom:view.zoom+n},{duration:300}).catch(()=>{}); }
+/* 지금 보고 있는 화면 중심(지면과 만나는 점)을 그대로 두고 기울기·방향만 바꾼다 — 카메라만 돌리면 화면이 다른 곳으로 가 버린다 */
+function pivotView(change,duration){
+  const cam=view.camera.clone(); const c=view.center;
+  if(c){ view.goTo(Object.assign({center:c.clone(),scale:view.scale,heading:cam.heading,tilt:cam.tilt},change),{duration}).catch(()=>{}); }
+  else{ Object.assign(cam,change); view.goTo(cam,{duration}).catch(()=>{}); }
+}
 function toggleTilt(){
   if(!view) return; stopTour();
-  const cam=view.camera.clone();
-  if(tilted){ cam.tilt=0; view.goTo(cam,{duration:700}).catch(()=>{}); toast('위에서 내려다보는 화면이에요',1600); }
-  else{ cam.tilt=62; view.goTo(cam,{duration:700}).catch(()=>{}); toast('비스듬히 보는 3D 화면이에요',1600); }
+  if(tilted){ pivotView({tilt:0},700); toast('위에서 내려다보는 화면이에요',1600); }
+  else{ pivotView({tilt:62},700); toast('비스듬히 보는 3D 화면이에요',1600); }
 }
-function faceNorth(){ if(!view) return; const cam=view.camera.clone(); cam.heading=0; view.goTo(cam,{duration:600}).catch(()=>{}); }
+function faceNorth(){ if(!view) return; pivotView({heading:0},600); }
 function locate(){
   if(!navigator.geolocation){ toast('이 브라우저는 위치 기능을 지원하지 않아요'); return; }
   navigator.geolocation.getCurrentPosition(p=>{
