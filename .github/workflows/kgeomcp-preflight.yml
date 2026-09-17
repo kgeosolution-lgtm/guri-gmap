@@ -1,4 +1,4 @@
-name: kgeoMCP health-only proxy diagnosis
+name: Stage endpoint-scoped IIS repair
 on:
   push:
     branches: [codex/kgeomcp-server-bootstrap]
@@ -9,16 +9,36 @@ jobs:
     runs-on: [self-hosted, Windows, X64, guri-preview]
     timeout-minutes: 5
     steps:
-      - name: kgeoMCP health-only proxy diagnosis
+      - name: Stage endpoint-scoped IIS repair
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
-          $file='D:\codesolution\kgeodata\kgeomcp\web.config'
-          $private='D:\services\kgeo-mcp-remote'
-          Copy-Item -LiteralPath $file -Destination (Join-Path $private 'proxy-before-diagnosis.config')
-          $original=Get-Content -LiteralPath $file -Raw
-          $healthOnly='<?xml version="1.0" encoding="UTF-8"?><configuration><system.webServer><rewrite><rules><clear /><rule name="KGEO health diagnosis" stopProcessing="true"><match url="^health.json$"/><action type="Rewrite" url="http://127.0.0.1:4187/app/kgeomcp/health.json" /></rule><rule name="KGEO temporary maintenance" stopProcessing="true"><match url=".*"/><action type="CustomResponse" statusCode="503" statusReason="Maintenance" statusDescription="Setup verification" /></rule></rules></rewrite><httpErrors existingResponse="PassThrough" /></system.webServer></configuration>'
-          [IO.File]::WriteAllText($file,$healthOnly,(New-Object Text.UTF8Encoding($false)))
-          try{$r=Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1/app/kgeomcp/health.json' -Headers @{Host='kgeodata.com'};Write-Output ('Health-only proxy HTTP '+$r.StatusCode);Write-Output $r.Content}catch{Write-Output ('Health-only proxy failed: '+$_.Exception.Message)}
-          Write-Output 'OAuth and MCP remain disabled by the maintenance rule.'
+          $script=@'
+          param([switch]$Apply)
+          $ErrorActionPreference='Stop'
+          $remoteRoot='D:\services\kgeo-mcp-remote'
+          $webFile='D:\codesolution\kgeodata\kgeomcp\web.config'
+          $appcmd="$env:windir\System32\inetsrv\appcmd.exe"
+          $identity=[Security.Principal.WindowsIdentity]::GetCurrent()
+          if(!(New-Object Security.Principal.WindowsPrincipal($identity)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)){throw 'Administrator PowerShell required for this endpoint-scoped IIS setting'}
+          $physical=& $appcmd list vdir 'Default Web Site/app' /text:physicalPath
+          if($LASTEXITCODE -ne 0 -or $physical.TrimEnd('\') -ne 'D:\codesolution\kgeodata'){throw 'Unexpected IIS app location'}
+          $old=Get-Content -LiteralPath $webFile -Raw
+          if($old -notmatch 'KGEO (remote MCP|temporary maintenance)'){throw 'Unexpected endpoint configuration'}
+          Write-Output 'Impact: correct IIS logging at Default Web Site/app/kgeomcp only, restore its proxy. No service/site restart.'
+          if(!$Apply){Write-Output 'Preflight complete; use -Apply.';exit 0}
+          Copy-Item -LiteralPath $webFile -Destination (Join-Path $remoteRoot ('web.before-proxy-repair-'+[guid]::NewGuid().ToString('N')+'.config'))
+          & $appcmd set config 'Default Web Site/app/kgeomcp' /section:system.webServer/httpLogging /dontLog:true /selectiveLogging:LogSuccessful /commit:apphost | Out-Null
+          if($LASTEXITCODE -ne 0){throw 'Endpoint-scoped log setting failed; maintenance retained'}
+          $replacement='<?xml version="1.0" encoding="UTF-8"?><configuration><system.webServer><rewrite><rules><clear /><rule name="KGEO remote MCP" stopProcessing="true"><match url="^(.*)$" /><action type="Rewrite" url="http://127.0.0.1:4187/app/kgeomcp/{R:1}" appendQueryString="true" /></rule></rules></rewrite><httpErrors existingResponse="PassThrough" /></system.webServer></configuration>'
+          [IO.File]::WriteAllText($webFile,$replacement,(New-Object Text.UTF8Encoding($false)))
+          [IO.File]::WriteAllText((Join-Path $remoteRoot 'web.config'),$replacement,(New-Object Text.UTF8Encoding($false)))
+          $health=Invoke-RestMethod 'https://kgeodata.com/app/kgeomcp/health.json'
+          if($health.health -ne 'ready'){throw 'External health still requires inspection'}
+          $health | ConvertTo-Json
+          Write-Output 'External proxy repaired. Browser OAuth verification can proceed.'
+          
+          '@
+          [IO.File]::WriteAllText('D:\services\kgeo-mcp-remote\repair-proxy.ps1',$script,(New-Object Text.UTF8Encoding($false)))
+          Write-Output 'Repair script staged; Administrator must apply the endpoint-scoped IIS setting.'
           
