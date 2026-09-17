@@ -53,7 +53,7 @@ def box_blur(a, w, h, r):
             if y - r >= 0: acc -= col[y-r]
     return out2
 
-def shadowed(w, h, px):
+def shadowed(w, h, px, PAD=PAD, OFF_Y=OFF_Y, RADIUS=RADIUS, OPACITY=OPACITY):
     W, H = w + PAD*2, h + PAD*2 + OFF_Y
     alpha = [0] * (W * H)
     for y in range(h):
@@ -76,9 +76,10 @@ def shadowed(w, h, px):
             out[si+3] = int(oa * 255)
     return W, H, out
 
-os.makedirs(DST, exist_ok=True); n = 0
-for f in sorted(os.listdir(SRC)):
-    if not f.endswith('.png') or f == 'pin.png': continue
-    w, h, px = read_png(os.path.join(SRC, f)); W, H, out = shadowed(w, h, px)
-    write_png(os.path.join(DST, f), W, H, out); n += 1
-print(f'shadow icons: {n} → {DST} ({W}x{H})')
+if __name__ == '__main__':
+    os.makedirs(DST, exist_ok=True); n = 0
+    for f in sorted(os.listdir(SRC)):
+        if not f.endswith('.png') or f == 'pin.png': continue
+        w, h, px = read_png(os.path.join(SRC, f)); W, H, out = shadowed(w, h, px)
+        write_png(os.path.join(DST, f), W, H, out); n += 1
+    print(f'shadow icons: {n} → {DST} ({W}x{H})')

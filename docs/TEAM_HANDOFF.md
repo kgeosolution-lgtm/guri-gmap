@@ -320,3 +320,13 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 심볼: `scripts/shadow-icons.py`(순수 파이썬 PNG 디코드·박스 블러·합성)로 `public/maps/sym/scene/shadow/*.png`(284×275, 아래로 7px 이동한 부드러운 그림자)를 만들어 사용. 그림 심볼은 명소 58px·축제 54px 로 키우고, 이름이 목록에 없는 곳의 초록 핀은 12×15 로 줄였습니다. 원본 PNG를 바꾸면 `python3 scripts/shadow-icons.py`로 다시 생성.
 - 브랜치: `work/kangmina-3d-polish` (base `design/service-home-refresh` e485ec4).
 - 검증: 인라인 스크립트 `node --check`, 레이블 축약·팝업 카드 조립 단위 검사(샘플 행), `npm run build:deploy`, `git diff --check` 통과. 실제 표시는 배포 후 확인 필요.
+
+## 2026-09-17 3D 지도 둘러보기 팝업·둘레길/등산로 3D 심볼·팝업 (담당: 강민아)
+
+- 둘러보기 팝업: 장소 바로가기·'한 바퀴 둘러보기'로 명소에 도착하면 그 명소의 팝업 카드가 자동으로 뜹니다(`PLACES`에 `attrs` 저장, `flyToSlide`가 비행이 끝난 뒤 `showCard`; 비행이 겹치면 마지막 것만). 카드를 읽을 수 있게 둘러보기 머무는 시간을 3.6초→5초로 늘렸고, 처음 화면으로 돌아가면 카드를 닫습니다.
+- 둘레길·등산로: 웹씬의 투박한 3D 심볼(원형 아이콘·20m 두께 관) 대신 테마지도와 같은 서비스 레이어 4개(둘레길 `culture_dulle/7`, 둘레길 시설물 `culture_dulle_fac/0`, 등산로 `culture_hiking_new/17`, 등산로 시설물 `culture_hiking_fac_new/0`)를 명소·축제처럼 스냅샷에서 떼어 내(`OVERLAY_KIND`) 페이지가 직접 그립니다(`trailLayer`).
+  - 선: 지면에 입힌 두 겹 선(흰 테두리 + 색, `lineSym3D`). 둘레길은 테마지도의 `COURSE_INFO`/`COURSE_COLORS`와 같은 코스 색(1 아차산-망우산길 초록, 2 구릉산-갈매마을길 주황, 3 왕숙천길 파랑, 4 한강코스모스길 분홍)으로 스냅샷 렌더러의 코스 값마다 색을 매기고, 4만 분의 1 이하로 다가가면 '1코스 아차산-망우산길' 식의 선 레이블이 붙습니다. 등산로는 초록(#5B8C5A) 선 위에 흰 점선 무늬.
+  - 시설물: 테마지도 픽토그램(`public/maps/sym/scene/src/*.png`, 테마지도 SYM 에서 추출)에서 흰 그림만 떼어 코스 색 바탕의 둥근 배지(흰 테두리·그림자)로 다시 그린 PNG(`public/maps/sym/scene/trail/`, 116×121)를 30px 그림 마커로 건물 위(relative-to-scene)에 띄웁니다. 둘레길 시설물은 행을 읽은 뒤 코스 필드(`둘레길이름` 등)를 찾아 코스별 배지로 바꾸고(`dulle_fac_1~8.png`, 기본 `dulle_fac_0.png`), 등산로 시설물은 `hiking_fac.png`. 시설물은 2만 5천 분의 1 이하에서, 이름 레이블은 6천 분의 1 이하에서 보입니다. `scripts/trail-icons.py`(순수 파이썬, `shadow-icons.py`의 PNG·그림자 함수를 재사용)로 생성하며 색·원본을 바꾸면 `python3 scripts/trail-icons.py`로 다시 만듭니다.
+  - 팝업: 테마지도 '시즌·가을'의 둘레길/둘레길 시설물/등산로/등산로 시설물 팝업과 같은 구성(`CARD.dulle/dulleFac/hiking/hikingFac`) — 제목·머리말·칩·소개·정보 행(등산로 길이 km·시간 분 변환 `hikeLen`/`hikeMin`, 119 안내문)과 테마지도의 자동 정보 행(`autoRows`, 시스템 필드 제외)까지 같고 네이버 길찾기만 없습니다. 카드 색은 코스 색을 따르고, 클릭한 둘레길·등산로 구간은 노랗게 강조(`layerView.highlight`)했다가 카드를 닫으면 풀립니다.
+- 브랜치: `work/kangmina-3d-trails` (base `design/service-home-refresh` 5e5a6c5).
+- 검증: 인라인 스크립트 `node --check`, 단위 검사(코스 번호·색·배지, 스냅샷 렌더러 값 추출과 코스 선 렌더러, 시설물 코스 배지 전환, 4종 팝업 카드 조립, 둘러보기 도착 후 팝업), `npm run build:deploy`(출력에 `maps/sym/scene/trail/` 10장 포함), `git diff --check` 통과. 실제 3D 표시(선 굵기·배지 크기·레이블 겹침)는 배포 후 확인 필요.

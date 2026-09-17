@@ -172,10 +172,11 @@ const SCENE={
   spotsUrl:'https://www.guri.go.kr/gmapsvr/rest/services/Hosted/autumn_foliage/FeatureServer/0',
   spotsMax:12
 };
-let PLACES=[];   /* [{title, thumb, go:()=>Promise}] — 웹씬 슬라이드 또는 명소 */
-let overlayDefs=[];   /* 스냅샷에서 떼어 낸 명소·축제 레이어 정의 (페이지가 직접 그린다) */
+let PLACES=[];   /* [{title, thumb, kind, attrs, go:()=>Promise}] — 웹씬 슬라이드 또는 명소 (attrs 가 있으면 도착 후 팝업 카드) */
+let overlayDefs=[];   /* 스냅샷에서 떼어 낸 명소·축제·둘레길·등산로 레이어 정의 (페이지가 직접 그린다) */
 let overlayLayers=[];  /* 얹은 FeatureLayer 들 */
-const overlayRows={spot:[],fest:[]};   /* 팝업 링크 판단용 전체 행 캐시 */
+const overlayRows={spot:[],fest:[],dulle:[],dulleFac:[],hiking:[],hikingFac:[]};   /* 팝업 링크·코스 색 판단용 전체 행 캐시 */
+let highlightHandle=null;   /* 클릭한 둘레길·등산로 구간 강조 */
 let view=null, scene=null, tourTimer=null, tilted=true;
 const $=id=>document.getElementById(id);
 function toast(msg,ms=2200){ const t=$('mapToast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),ms); }
@@ -187,8 +188,8 @@ function showError(title,text){
 
 if(!window.WebGLRenderingContext){ showError('이 브라우저에서는 3D를 볼 수 없어요','최신 크롬·엣지·사파리 브라우저로 열어 주세요.'); }
 
-require(["esri/config","esri/WebScene","esri/views/SceneView","esri/core/reactiveUtils","esri/layers/FeatureLayer","esri/PopupTemplate"],
-(esriConfig,WebScene,SceneView,reactiveUtils,FeatureLayer,PopupTemplate)=>{
+require(["esri/config","esri/WebScene","esri/views/SceneView","esri/core/reactiveUtils","esri/layers/FeatureLayer"],
+(esriConfig,WebScene,SceneView,reactiveUtils,FeatureLayer)=>{
   esriConfig.request.useIdentity=false;
   esriConfig.portalUrl=SCENE.portalUrl;
 
@@ -205,6 +206,7 @@ require(["esri/config","esri/WebScene","esri/views/SceneView","esri/core/reactiv
 
     view=new SceneView({container:'map',map:scene,qualityProfile:'high',
       ui:{components:['attribution']},popup:{dockEnabled:true,dockOptions:{buttonEnabled:false,breakpoint:false,position:'bottom-right'}},
+      highlightOptions:{color:[255,196,0],haloOpacity:.95,fillOpacity:.35},
       environment:{atmosphereEnabled:true,starsEnabled:true,atmosphere:{quality:'high'}}});
     view.ui.move('attribution','bottom-right');
 
@@ -213,7 +215,7 @@ require(["esri/config","esri/WebScene","esri/views/SceneView","esri/core/reactiv
       await scene.load(); await view.when();
       clearTimeout(failTimer);
       beautify();
-      addOverlays(FeatureLayer,PopupTemplate);
+      addOverlays(FeatureLayer);
       await buildPlaces();
       renderSlides();
       $('cover').classList.add('hide');
@@ -266,12 +268,13 @@ require(["esri/config","esri/WebScene","esri/views/SceneView","esri/core/reactiv
   };
 });
 
-/* ── 명소·축제: 웹씬의 3D 아이콘 대신 테마지도와 같은 서비스 레이어를 페이지가 직접 얹는다 ──
- * 심볼은 2D 그림 마커(빌보드)로 건물 위(relative-to-scene)에 띄워 가려지지 않게, 레이블은 3D 텍스트, 팝업은 웹씬의 Arcade 팝업을 그대로. */
-const OVERLAY_TITLES=['명소','축제'];
+/* ── 명소·축제·둘레길·등산로: 웹씬의 3D 심볼(투박한 원·두꺼운 관) 대신 테마지도와 같은 서비스 레이어를 페이지가 직접 얹는다 ──
+ * 점은 2D 그림 마커(빌보드)로 건물 위(relative-to-scene)에 띄워 가려지지 않게, 선은 지면에 입힌 두 겹 선(흰 테두리 + 코스 색),
+ * 레이블은 3D 텍스트, 팝업은 테마지도식 카드. */
+const OVERLAY_KIND={'명소':'spot','축제':'fest','둘레길':'dulle','둘레길 시설물':'dulleFac','등산로':'hiking','등산로 시설물':'hikingFac'};
 function takeOverlayDefs(j){
   const defs=[]; const keep=[];
-  (j.operationalLayers||[]).forEach(l=>{ if(OVERLAY_TITLES.includes(String(l.title||'').trim())) defs.push(l); else keep.push(l); });
+  (j.operationalLayers||[]).forEach(l=>{ if(OVERLAY_KIND[String(l.title||'').trim()]) defs.push(l); else keep.push(l); });
   j.operationalLayers=keep;
   return defs;
 }
@@ -302,37 +305,124 @@ function shortLabelJs(v){
   let t=v.replace(/\(.*$/,'').trim().split(/\s+/).filter(x=>x&&!/^제\d+회$/.test(x)&&!/^(19|20)\d\d$/.test(x)&&x!=='구리').join(' ');
   return t||v;
 }
-function addOverlays(FeatureLayer,PopupTemplate){
+
+/* ── 둘레길 코스 구분 — 테마지도의 COURSE_INFO / COURSE_COLORS 와 같은 색·이름 ── */
+const COURSE_INFO={
+  '1':{color:'#6AA84F',name:'아차산-망우산길',sub:'역사와 자연이 살아있는 둘레길'},
+  '2':{color:'#E07B27',name:'구릉산-갈매마을길',sub:'구릉산과 갈매마을을 잇는 둘레길'},
+  '3':{color:'#4A96B8',name:'왕숙천길',sub:'왕숙천과 도심생활공원이 조화로운 둘레길'},
+  '4':{color:'#D96B7B',name:'한강코스모스길',sub:'구리한강시민공원이 있는 둘레길'}
+};
+const COURSE_COLORS=['#6AA84F','#E07B27','#2F6FE4','#7A5FD0','#D9538A','#00A9C0','#8B5E34','#E5533C'];
+const COURSE_FIELDS=['코스','코스명','코스번호','노선번호','둘레길이름','길이름','노선명','명칭','구간'];
+function courseNoOf(v){ if(!valOK(v)) return null; const m=String(v).match(/(\d+)\s*코스|제?\s*(\d+)\s*구간|^\s*(\d+)/); const n=m? (m[1]||m[2]||m[3]) : null; return n? String(parseInt(n,10)) : null; }
+function courseNo(r){ return courseNoOf(pv(r,COURSE_FIELDS)); }
+function courseColorOf(n,fallback){ if(!n) return fallback; if(COURSE_INFO[n]) return COURSE_INFO[n].color; return COURSE_COLORS[(parseInt(n,10)-1)%COURSE_COLORS.length]; }
+function courseColor(r,fallback){ return courseColorOf(courseNo(r),fallback); }
+/* 둘레길 시설물 배지: 코스 색으로 물들인 PNG (scripts/trail-icons.py 가 만든다, 1~8코스 + 기본) */
+function courseBadge(n){ const k=n&&parseInt(n,10)>=1&&parseInt(n,10)<=8? n : '0'; return 'dulle_fac_'+k+'.png'; }
+
+/* 선 심볼: 흰 테두리 + 색 선 (+ 등산로는 흰 점선 무늬) — 지면에 입혀 지형을 따라 흐른다 */
+function lineSym3D(color,opt){
+  const w=(opt&&opt.w)||4.2;
+  const layers=[{type:'line',size:w+2.8,material:{color:[255,255,255,.9]},cap:'round',join:'round'},
+                {type:'line',size:w,material:{color},cap:'round',join:'round'}];
+  if(opt&&opt.dash) layers.push({type:'line',size:1.4,material:{color:[255,255,255,.85]},cap:'round',join:'round',pattern:{type:'style',style:'dash'}});
+  return {type:'line-3d',symbolLayers:layers};
+}
+const trailIcon=(file,W)=>({type:'picture-marker',url:new URL('sym/scene/trail/'+file,location.href).href,width:W,height:Math.round(W*121/116)});   /* 그림자 포함 PNG(116×121) 비율 */
+function rendererValues(r){   /* 스냅샷 렌더러에 적힌 고유값들 (uniqueValueInfos 또는 uniqueValueGroups) */
+  const out=[]; (r.uniqueValueInfos||[]).forEach(u=>out.push(u.value));
+  (r.uniqueValueGroups||[]).forEach(g=>(g.classes||[]).forEach(c=>(c.values||[]).forEach(v=>out.push(Array.isArray(v)? v[0] : v))));
+  return out.filter(valOK);
+}
+function courseLineRenderer(field,vals){
+  const seen={}; vals.forEach(v=>{ if(valOK(v)&&!(v in seen)) seen[v]=courseColorOf(courseNoOf(v),'#3FA796'); });
+  return {type:'unique-value',field,defaultSymbol:lineSym3D('#3FA796'),
+    uniqueValueInfos:Object.keys(seen).map(v=>({value:v,symbol:lineSym3D(seen[v])}))};
+}
+function courseLabelArcade(field){   /* '둘레길 1코스' → '1코스 아차산-망우산길' */
+  const pairs=Object.entries(COURSE_INFO).flatMap(([n,c])=>[JSON.stringify(n+'코스'),JSON.stringify(n+'코스 '+c.name)]).join(',');
+  return `var d=Dictionary(${pairs}); var s=Trim(Replace(Text($feature["${field}"]),'둘레길','')); return IIf(HasKey(d,s),d[s],s)`;
+}
+const LABEL_FONT={family:'Pretendard GOV, Noto Sans KR, sans-serif',weight:'bold'};
+function label3d(expr,color,size,placement,minScale){
+  return {labelExpressionInfo:{expression:expr},labelPlacement:placement,minScale:minScale||0,deconflictionStrategy:'static',
+    symbol:{type:'label-3d',symbolLayers:[{type:'text',size,font:LABEL_FONT,material:{color},halo:{color:[255,255,255,235],size:1.4}}]}};
+}
+function snapshotLabelExpr(ld){ try{ return ld.drawingInfo.labelingInfo[0].labelExpressionInfo.expression||null; }catch(e){ return null; } }
+
+/* 명소·축제: 담당자가 준 그림 심볼(그림자 입힌 PNG) + 짧은 레이블 */
+function placeLayer(FeatureLayer,d,kind){
+  const isFest=kind==='fest';
+  const ld=d.layerDefinition||{}; const r=(ld.drawingInfo&&ld.drawingInfo.renderer)||{};
+  const field=r.field1||r.field||(isFest? '축제명':'이름');
+  const W=isFest? 54 : 58, H=Math.round(W*275/284);          /* 그림자 포함 PNG(284×275) 비율 */
+  const uv=(r.uniqueValueInfos||[]).map(u=>{ const sl=((u.symbol||{}).symbolLayers||[])[0]; const href=sl&&sl.resource&&sl.resource.href;
+    if(!href) return null; const file=href.split('/').pop();
+    return {value:u.value,symbol:{type:'picture-marker',url:new URL('sym/scene/shadow/'+file,location.href).href,width:W,height:H}}; }).filter(Boolean);
+  const pin=new URL('sym/scene/pin.png',location.href).href;
+  const layer=new FeatureLayer({
+    url:d.url, title:'3D '+d.title, outFields:['*'],
+    definitionExpression:ld.definitionExpression||undefined,
+    elevationInfo:{mode:'relative-to-scene',offset:6},          /* 건물·지형 위에 놓여 가려지지 않는다 */
+    screenSizePerspectiveEnabled:false,
+    renderer:{type:'unique-value',field,uniqueValueInfos:uv,
+      defaultSymbol:{type:'picture-marker',url:pin,width:12,height:15}},   /* 이름이 목록에 없으면 작은 핀 */
+    labelsVisible:true,
+    labelingInfo:[label3d(shortLabelArcade(field),isFest? [138,47,81,255] : [122,59,18,255],11,'above-center')],
+    popupEnabled:false                                            /* 팝업은 테마지도식 카드로 직접 그린다 */
+  });
+  layer.__field=field; layer.__symCount=uv.length;
+  return layer;
+}
+/* 둘레길·등산로(선)와 시설물(배지): 테마지도의 색·코스 구분을 3D 에 맞게 */
+function trailLayer(FeatureLayer,d,kind){
+  const ld=d.layerDefinition||{}; const r=(ld.drawingInfo&&ld.drawingInfo.renderer)||{};
+  const base={url:d.url,title:'3D '+d.title,outFields:['*'],definitionExpression:ld.definitionExpression||undefined,popupEnabled:false,visible:d.visibility!==false};
+  if(kind==='dulle'){
+    const field=r.field1||r.field||'코스'; const vals=rendererValues(r);
+    const layer=new FeatureLayer({...base,elevationInfo:{mode:'on-the-ground'},renderer:courseLineRenderer(field,vals),
+      labelsVisible:true,labelingInfo:[label3d(courseLabelArcade(field),[24,84,72,255],11,'center-along',40000)]});
+    layer.__onRows=rows=>{ const more=rows.map(x=>x[field]).filter(v=>valOK(v)&&!vals.includes(v));   /* 스냅샷에 없는 코스 값이 있으면 색을 더한다 */
+      if(more.length) layer.renderer=courseLineRenderer(field,vals.concat(more)); };
+    return layer;
+  }
+  if(kind==='hiking'){
+    return new FeatureLayer({...base,elevationInfo:{mode:'on-the-ground'},renderer:{type:'simple',symbol:lineSym3D('#5B8C5A',{w:3.6,dash:true})}});
+  }
+  const W=30, isDulle=kind==='dulleFac';
+  const lexpr=snapshotLabelExpr(ld)||(isDulle? '$feature["관심지점정보"]' : '$feature["관리지점명칭"]');
+  const layer=new FeatureLayer({...base,
+    elevationInfo:{mode:'relative-to-scene',offset:3},
+    minScale:25000,                                                /* 시설물은 동네 크기로 다가가면 보인다 */
+    renderer:{type:'simple',symbol:trailIcon(isDulle? 'dulle_fac_0.png' : 'hiking_fac.png',W)},
+    labelsVisible:true,labelingInfo:[label3d(lexpr,[70,88,48,255],10,'above-center',6000)]});
+  if(isDulle) layer.__onRows=rows=>{                               /* 코스 필드를 찾아 코스 색 배지로 */
+    const m={}; if(rows[0]) Object.keys(rows[0]).forEach(k=>{ m[k.toLowerCase().replace(/[_\s]/g,'')]=k; });
+    let field=null;
+    for(const c of COURSE_FIELDS){ const k=m[c.toLowerCase().replace(/[_\s]/g,'')]; if(k&&rows.some(x=>courseNoOf(x[k]))){ field=k; break; } }
+    if(!field) return;
+    const seen={}; rows.forEach(x=>{ const v=x[field]; if(valOK(v)&&!(v in seen)) seen[v]=courseBadge(courseNoOf(v)); });
+    layer.renderer={type:'unique-value',field,defaultSymbol:trailIcon('dulle_fac_0.png',W),
+      uniqueValueInfos:Object.keys(seen).map(v=>({value:v,symbol:trailIcon(seen[v],W)}))};
+    console.log('[3D] 둘레길 시설물 코스 색',field,Object.keys(seen).length,'종');
+  };
+  return layer;
+}
+function addOverlays(FeatureLayer){
   if(!view||!overlayDefs.length) return;
   overlayLayers=[];
   overlayDefs.forEach(d=>{
     try{
-      const isFest=String(d.title).trim()==='축제', kind=isFest? 'fest':'spot';
-      const ld=d.layerDefinition||{}; const r=(ld.drawingInfo&&ld.drawingInfo.renderer)||{};
-      const field=r.field1||r.field||(isFest? '축제명':'이름');
-      const W=isFest? 54 : 58, H=Math.round(W*275/284);          /* 그림자 포함 PNG(284×275) 비율 */
-      const uv=(r.uniqueValueInfos||[]).map(u=>{ const sl=((u.symbol||{}).symbolLayers||[])[0]; const href=sl&&sl.resource&&sl.resource.href;
-        if(!href) return null; const file=href.split('/').pop();
-        return {value:u.value,symbol:{type:'picture-marker',url:new URL('sym/scene/shadow/'+file,location.href).href,width:W,height:H}}; }).filter(Boolean);
-      const pin=new URL('sym/scene/pin.png',location.href).href;
-      const layer=new FeatureLayer({
-        url:d.url, title:'3D '+d.title, outFields:['*'],
-        definitionExpression:ld.definitionExpression||undefined,
-        elevationInfo:{mode:'relative-to-scene',offset:6},          /* 건물·지형 위에 놓여 가려지지 않는다 */
-        screenSizePerspectiveEnabled:false,
-        renderer:{type:'unique-value',field,uniqueValueInfos:uv,
-          defaultSymbol:{type:'picture-marker',url:pin,width:12,height:15}},   /* 이름이 목록에 없으면 작은 핀 */
-        labelsVisible:true,
-        labelingInfo:[{labelExpressionInfo:{expression:shortLabelArcade(field)},labelPlacement:'above-center',deconflictionStrategy:'static',
-          symbol:{type:'label-3d',symbolLayers:[{type:'text',size:11,font:{family:'Pretendard GOV, Noto Sans KR, sans-serif',weight:'bold'},
-            material:{color:isFest? [138,47,81,255] : [122,59,18,255]},halo:{color:[255,255,255,235],size:1.4}}]}}],
-        popupEnabled:false                                            /* 팝업은 테마지도식 카드로 직접 그린다 */
-      });
-      layer.__kind=kind; layer.__field=field;
+      const kind=OVERLAY_KIND[String(d.title).trim()];
+      const layer=(kind==='spot'||kind==='fest')? placeLayer(FeatureLayer,d,kind) : trailLayer(FeatureLayer,d,kind);
+      layer.__kind=kind;
       view.map.add(layer); overlayLayers.push(layer);
-      layer.when(async()=>{ console.log('[3D] 얹은 레이어',layer.title,'| 심볼',uv.length,'| 필드',field);
+      layer.when(async()=>{ console.log('[3D] 얹은 레이어',layer.title,'| 종류',kind,layer.__field? '| 필드 '+layer.__field : '');
         try{ const q=layer.createQuery(); q.where='1=1'; q.outFields=['*']; q.returnGeometry=false;
-          overlayRows[kind]=(await layer.queryFeatures(q)).features.map(f=>f.attributes); }catch(e){} },
+          const rows=(await layer.queryFeatures(q)).features.map(f=>f.attributes);
+          overlayRows[kind]=rows; if(layer.__onRows) layer.__onRows(rows); }catch(e){ console.warn('[3D] 행 캐시 실패',layer.title,String((e&&e.message)||e)); } },
         e=>console.warn('[3D] 레이어 로딩 실패',d.title,String((e&&e.message)||e)));
     }catch(e){ console.warn('[3D] 레이어 얹기 실패',d.title,e); }
   });
@@ -340,11 +430,17 @@ function addOverlays(FeatureLayer,PopupTemplate){
     try{
       const h=await view.hitTest(ev,{include:overlayLayers});
       const hit=h.results.find(x=>x.graphic&&x.graphic.layer&&overlayLayers.includes(x.graphic.layer));
-      if(hit) showCard(hit.graphic.layer.__kind,hit.graphic.attributes||{});
+      if(hit){ showCard(hit.graphic.layer.__kind,hit.graphic.attributes||{}); highlightGraphic(hit.graphic); }
       else hideCard();
     }catch(e){}
   });
 }
+/* 클릭한 둘레길·등산로 구간은 노랗게 강조 (카드를 닫으면 해제) */
+function highlightGraphic(g){
+  clearHighlight(); if(!g||!g.layer||!/^(dulle|hiking)$/.test(g.layer.__kind||'')) return;
+  view.whenLayerView(g.layer).then(lv=>{ clearHighlight(); highlightHandle=lv.highlight(g); }).catch(()=>{});
+}
+function clearHighlight(){ if(highlightHandle){ try{ highlightHandle.remove(); }catch(e){} highlightHandle=null; } }
 
 /* ═══ 팝업 카드 — 테마지도의 축제·구리 명소 팝업과 같은 구성 (네이버 길찾기만 없음) ═══ */
 function valOK(v){ if(v===null||v===undefined) return false; const s=String(v).trim(); return !(s===''||s==='None'||s==='null'||s==='-'||s==='–'||s==='—'||s==='.'); }
@@ -390,6 +486,14 @@ function festLink(r){ const v=pv(r,FEST_URL_F); if(!valOK(v)) return null; const
   if(!path||/^\/?(www|index\.[a-z]+)?$/i.test(path)) return null;
   const same=(overlayRows.fest||[]).filter(b=>String(pv(b,FEST_URL_F)||'').trim()===u).length; if(same>1) return null; return u; }
 
+/* 등산로 길이·시간 단위 — 데이터는 길이 km(예: 2.39), 시간 분(예: 42) 단위의 숫자로 온다 (테마지도와 같은 규칙) */
+function hikeLen(v){ if(!valOK(v)) return null; const s=String(v).trim(); if(/[a-zA-Z가-힣]/.test(s)) return s;
+  const n=Number(s.replace(/,/g,'')); if(!isFinite(n)) return s;
+  if(n<100) return (Math.round(n*100)/100).toLocaleString('ko-KR',{maximumFractionDigits:2})+'km'; return Math.round(n).toLocaleString('ko-KR')+'m'; }
+function hikeMin(v){ if(!valOK(v)) return null; const s=String(v).trim(); if(/[가-힣]/.test(s)) return s;
+  const n=Number(s.replace(/,/g,'')); if(!isFinite(n)) return s; const m=Math.round(n), h=Math.floor(m/60), r=m%60;
+  return h? (r? `${h}시간 ${r}분` : `${h}시간`) : `${m}분`; }
+
 const CARD={
   spot:{accent:'#C1652B',cat:r=>{ const m=pv(r,['분류']); return valOK(m)? '⛰️ '+m : '구리 명소'; },
     name:['이름','명칭','관광지명'],addr:['주소','도로명주소','소재지'],tel:['문의처','전화번호','연락처'],photos:['사진주소','사진','이미지'],
@@ -418,24 +522,84 @@ const CARD={
          ['🏛️','주최·주관',r=>{ const a=String(pv(r,['주최'])||'').trim(), b=String(pv(r,['주관'])||'').trim(); return a&&b? (a===b? a : a+' · '+b) : (a||b||null); }],
          ['🎪','연계행사',r=>pv(r,['연계행사'])],['ℹ️','참고',r=>festNote(r)]],
     links:r=>{ const u=festLink(r); return u? [['🔗 공식페이지 바로가기',u]] : []; },
-    telLabel:'문의처로 전화하기',foot:'일정·장소는 주최 측 사정으로 바뀔 수 있어요. 공식페이지에서 한 번 더 확인해 주세요'}
+    telLabel:'문의처로 전화하기',foot:'일정·장소는 주최 측 사정으로 바뀔 수 있어요. 공식페이지에서 한 번 더 확인해 주세요'},
+  /* 둘레길·등산로 — 테마지도 '시즌·가을'의 둘레길/둘레길 시설물/등산로/등산로 시설물 팝업과 같은 구성 */
+  dulle:{theme:'둘레길',accent:'#3FA796',accentFn:r=>courseColor(r,'#3FA796'),
+    title:r=>{ const nm=pv(r,['길이름','코스명','노선명','명칭'])||'둘레길'; const n=courseNo(r), s=String(nm); return (n&&s.indexOf(n+'코스')<0)? `${n}코스 ${s}` : s; },
+    chips:r=>chipsFrom(r,[['코스','코스명','구간'],['난이도','등급']]),
+    guide:r=>{ const n=courseNo(r), c=n&&COURSE_INFO[n]; if(c) return esc(c.sub); const v=pv(r,['코스설명','설명','비고']); return valOK(v)? esc(String(v)) : '가을에 걷기 좋은 둘레길이에요'; },
+    pop:[['📏','길이',r=>pv(r,['구간길이','거리','총연장'])],['🕐','소요시간',r=>pv(r,['시간','소요시간'])],['ℹ️','코스설명',r=>pv(r,['코스설명','설명','비고'])]],
+    auto:true,marks:['길이름','코스명','노선명','명칭','코스','구간','난이도','등급','구간길이','거리','총연장','시간','소요시간','코스설명','설명','비고'],
+    telLabel:'문의처로 전화하기'},
+  dulleFac:{theme:'둘레길 시설물',short:'둘레길시설',accent:'#6C9E3E',accentFn:r=>courseColor(r,'#6C9E3E'),
+    name:['관심지점정보','시설명','명칭','시설물명'],
+    cat:(r,name)=>{ const c=pv(r,['둘레길이름','코스명','길이름']); const s=valOK(c)? String(c) : '둘레길 시설물'; return s===name? '둘레길시설' : s; },
+    chips:r=>chipsFrom(r,[['시설구분','구분','유형']]),
+    pop:[['🏷️','시설구분',r=>pv(r,['시설구분','구분','유형'])],['🥾','둘레길',r=>pv(r,['둘레길이름','코스명','길이름'])],['ℹ️','상세',r=>pv(r,['상세정보','설명','기타사항'])]],
+    auto:true,marks:['관심지점정보','시설명','명칭','시설물명','둘레길이름','코스명','길이름','시설구분','구분','유형','상세정보','설명','기타사항'],
+    telLabel:'문의처로 전화하기'},
+  hiking:{theme:'등산로',accent:'#5B8C5A',
+    title:r=>{ const g=pv(r,['등산로명','등산로이름','코스명']), n=pv(r,['등산로순번','순번']); if(valOK(g)) return String(g)+(valOK(n)? ' ('+n+')' : ''); return String(pv(r,['산명','산이름'])||'등산로'); },
+    cat:r=>{ const m=pv(r,['산명','산이름']); return valOK(m)? '⛰️ '+m : '등산로'; },
+    chips:r=>{ let out=''; const d=pv(r,['등산로난이도명','난이도명','난이도']);
+      if(valOK(d)) out+=`<span class="pchip" style="background:#EAF3E7;color:#3F6B3A">⛰️ 등산난이도 ${esc(String(d))}</span>`;
+      const w=pv(r,['등산로위험구간내용','위험구간내용','위험구간','위험구간여부']);
+      if(valOK(w)&&!/없음|해당없음|없슴|무/.test(String(w))) out+=`<span class="pchip" style="background:#FDECEA;color:#B3261E">⚠️ 위험구간 있음</span>`;
+      return out; },
+    pop:[['🔢','등산로순번',r=>pv(r,['등산로순번','순번'])],['📏','등산로 길이',r=>hikeLen(pv(r,['등산로길이','길이','연장','구간길이']))],
+         ['⬆️','상행시간',r=>hikeMin(pv(r,['상행시간','올라가는시간']))],['⬇️','하행시간',r=>hikeMin(pv(r,['하행시간','내려오는시간']))],
+         ['⚠️','위험구간',r=>{ const v=pv(r,['등산로위험구간내용','위험구간내용','위험구간']); if(!valOK(v)||/^(없음|해당없음|없슴|무|-)$/.test(String(v).trim())) return null; return String(v); }]],
+    telLabel:'문의처로 전화하기',foot:'산에서 사고가 나면 이 등산로 이름과 순번을 119에 알려주세요'},
+  hikingFac:{theme:'등산로 시설물',accent:'#8A9C50',
+    title:r=>{ const a=pv(r,['관리지점명칭','시설명']); return valOK(a)? String(a) : String(pv(r,['상세지점명칭','상세명칭'])||'등산로 시설'); },
+    cat:r=>{ const m=pv(r,['산명','산이름']); return valOK(m)? '⛰️ '+m : '등산로 시설'; },
+    chips:r=>{ const b=pv(r,['상세지점명칭','상세명칭']); return valOK(b)? `<span class="pchip" style="background:#EFF3E7;color:#5A6B33">📍 ${esc(String(b))}</span>` : ''; },
+    pop:[['🔢','등산로 지점순번',r=>pv(r,['등산로지점순번','지점순번','등산로순번','순번'])],['🥾','등산로',r=>pv(r,['등산로명','코스명'])],['ℹ️','기타사항',r=>pv(r,['기타사항','상세정보','비고','설명'])]],
+    telLabel:'문의처로 전화하기'}
 };
+/* 테마지도 기본 주소·전화 후보와 칩·자동 행 수집 */
+const F_ADDR=['도로명주소','주소','소재지도로명주소','소재지','설치장소','설치위치','위치','지번주소','소재지지번주소'];
+const F_TEL=['전화번호','연락처','대표전화','전화','문의처','고장신고번호'];
+function chipsFrom(r,list){ let out=''; list.forEach(c=>{ const v=pv(r,c); if(!valOK(v)||/^\s*[-–—]\s*$/.test(String(v))||/휴무|없음|미운영|해당없음/.test(String(v))) return;
+  out+=`<span class="pchip">${esc(String(v))}</span>`; }); return out; }
+const SYSF=/(^(objectid|oid|fid|globalid|shape|se_anno|x$|y$|x좌표|y좌표|경도|위도|lon$|lng$|lat$|longitude|latitude|no$|__))|(연번|일련번호|순번|관리번호|고유번호|정제|wgs84|refine|좌표|경위도|위경도|created_user|created_date|last_edited|editor|creator|globalid|읍면동|행정동|법정동|시도명|시군명|시군구명|우편번호|지번주소|상세주소|이미지|기준일|등록일|수정일|데이터)/i;
+function autoRows(r,t,name,skipVals){   /* 설정에 없는 필드 중 보여줄 만한 것 (테마지도 autoRows 와 같은 규칙) */
+  const used=new Set(); const mk={}; Object.keys(r).forEach(k=>{ mk[k.toLowerCase().replace(/[_\s]/g,'')]=k; });
+  const mark=c=>[].concat(c||[]).forEach(x=>{ const n=String(x).toLowerCase().replace(/[_\s]/g,''); if(mk[n]) used.add(mk[n]); });
+  mark(t.name); mark(t.addr||F_ADDR); mark(t.tel||F_TEL); mark(t.photos); mark(t.marks); mark(['지번주소','소재지지번주소','구주소']);
+  for(const k in r){ if(/명$|명칭|이름|상호/.test(k)&&String(r[k])===String(name)) used.add(k); }
+  const out=[]; const skip=(skipVals||[]).filter(Boolean).map(s=>String(s).trim());
+  for(const k in r){
+    if(k.startsWith('_')||SYSF.test(k)||used.has(k)) continue;
+    const v=r[k]; if(!valOK(v)) continue;
+    if(typeof v==='number'&&Math.abs(v)>1e6) continue;
+    const s=String(v); if(s.length>60||/^https?:\/\//.test(s)||skip.includes(s.trim())) continue;
+    if(/^(시설물|시설구분명|테마|분야|레이어|자료구분|데이터구분)$/i.test(k)) continue;
+    if(t.hidePat&&t.hidePat.test(k)) continue;
+    out.push([k,s]); if(out.length>=5) break;
+  }
+  return out;
+}
 function showCard(kind,row){
   const t=CARD[kind]; const el=$('infocard'); if(!t||!el) return;
   try{
-    const name=String(pv(row,t.name)||'-'), addr=pv(row,t.addr), tel=pv(row,t.tel), telClean=tel? String(tel).replace(/[^\d]/g,'') : '';
-    const st=t.status(row), chips=t.chips(row), guide=t.guide(row);
-    let photo=''; const raw=pv(row,t.photos);
+    const name=String((t.title? t.title(row) : pv(row,t.name))||'-'), addr=pv(row,t.addr||F_ADDR), tel=pv(row,t.tel||F_TEL), telClean=tel? String(tel).replace(/[^\d]/g,'') : '';
+    const catTx=t.cat? String(t.cat(row,name)||t.theme||'') : (t.theme||'');
+    const st=t.status? t.status(row) : null, chips=t.chips? t.chips(row) : '', guide=t.guide? t.guide(row) : null;
+    let photo=''; const raw=t.photos? pv(row,t.photos) : null;
     if(valOK(raw)){ const list=String(raw).split(/[\n;,\s]+/).map(x=>x.trim()).filter(x=>/^https?:\/\//.test(x)).slice(0,8).map(u=>u.replace(/^http:\/\//,'https://'));
       if(list.length) photo=`<div class="pgal">`+list.map(u=>`<img src="${esc(u)}" alt="" loading="lazy" onerror="this.style.display='none'">`).join('')+`</div>`; }
-    let kv=''; t.pop.forEach(([ic,k,fn])=>{ let v=null; try{ v=fn(row); }catch(e){} if(!valOK(v)) return; const sv=String(v);
+    let kv=''; (t.pop||[]).forEach(([ic,k,fn])=>{ let v=null; try{ v=fn(row); }catch(e){} if(!valOK(v)) return; const sv=String(v);
       if(/^https?:\/\//.test(sv)) return; if([name,addr,tel].some(x=>valOK(x)&&String(x).trim()===sv.trim())) return;
       kv+=`<div class="kv"><span class="k">${ic} ${esc(k)}</span><span class="v">${esc(sv)}</span></div>`; });
-    const links=t.links(row).map(([label,u])=>`<a class="btn-alt" target="_blank" rel="noopener" href="${esc(u)}">${esc(label)}</a>`).join('');
-    const soft=t.accent+'1A';
-    el.style.setProperty('--accent',t.accent); el.style.setProperty('--accent-soft',soft);
+    if(t.auto) autoRows(row,t,name,[t.theme,t.short,catTx]).forEach(([k,v])=>{ let val=v;
+      if(/요금|가격|이용료/.test(k)&&/^\d+$/.test(val.trim())) val=Number(val).toLocaleString('ko-KR')+'원';
+      kv+=`<div class="kv"><span class="k">${esc(k)}</span><span class="v">${esc(val)}</span></div>`; });
+    const links=(t.links? t.links(row) : []).map(([label,u])=>`<a class="btn-alt" target="_blank" rel="noopener" href="${esc(u)}">${esc(label)}</a>`).join('');
+    const accent=(t.accentFn&&t.accentFn(row))||t.accent, soft=accent+'1A';
+    el.style.setProperty('--accent',accent); el.style.setProperty('--accent-soft',soft);
     el.innerHTML=`
-    <div class="hd"><div class="cat">${esc(t.cat(row))}</div><div class="nm">${esc(name)}</div>
+    <div class="hd"><div class="cat">${esc(catTx)}</div><div class="nm">${esc(name)}</div>
       <button class="close" onclick="hideCard()" aria-label="닫기">✕</button></div>
     <div class="bd">
       ${photo}
@@ -450,9 +614,9 @@ function showCard(kind,row){
       ${t.foot?`<div class="foot">${esc(t.foot)}</div>`:''}
     </div>`;
     el.classList.add('open'); $('main').classList.add('card-open'); el.scrollTop=0;
-  }catch(err){ console.warn('[3D 팝업 오류]',err); el.innerHTML=`<div class="hd"><div class="nm">${esc(String(pv(row,t.name)||'-'))}</div><button class="close" onclick="hideCard()">✕</button></div><div class="bd">정보를 표시하는 중 문제가 있었어요.</div>`; el.classList.add('open'); }
+  }catch(err){ console.warn('[3D 팝업 오류]',err); el.innerHTML=`<div class="hd"><div class="nm">${esc(String((t.title? t.title(row) : pv(row,t.name))||'-'))}</div><button class="close" onclick="hideCard()">✕</button></div><div class="bd">정보를 표시하는 중 문제가 있었어요.</div>`; el.classList.add('open'); }
 }
-function hideCard(){ const el=$('infocard'); if(!el) return; el.classList.remove('open'); $('main').classList.remove('card-open'); }
+function hideCard(){ clearHighlight(); const el=$('infocard'); if(!el) return; el.classList.remove('open'); $('main').classList.remove('card-open'); }
 
 /* 웹씬 JSON 의 아이콘 href 가 '/maps/…' 처럼 루트 상대 주소면 ArcGIS 가 포털 기준으로 풀어 못 찾는다 → 이 페이지 기준 절대 주소로 */
 function absolutizeIcons(j){
@@ -476,7 +640,7 @@ async function buildPlaces(){
     (j.features||[]).forEach((f,i)=>{
       if(!f.geometry||f.attributes==null) return; const t=name(f.attributes); if(!t) return;
       const x=f.geometry.x, y=f.geometry.y;
-      PLACES.push({title:t,thumb:null,
+      PLACES.push({title:t,thumb:null,kind:'spot',attrs:f.attributes,   /* 도착하면 명소 팝업 카드를 띄운다 */
         go:()=>view.goTo({center:[x,y],scale:2600,tilt:60,heading:(i*40)%360},{duration:1600,easing:'in-out-cubic'})});
     });
     console.log('[3D] 명소 바로가기',PLACES.length,'곳');
@@ -496,10 +660,13 @@ function renderSlides(){
   });
   $('barHint').textContent=PLACES.length? '장소를 누르면 그곳으로 날아가요' : '마우스로 지도를 돌려가며 둘러보세요';
 }
+let flightSeq=0;
 function flyToSlide(i){
   const p=PLACES[i]; if(!p||!view) return Promise.resolve();
   document.querySelectorAll('.slide').forEach(b=>b.classList.toggle('is-on',b.dataset.i==i));
-  return Promise.resolve().then(()=>p.go()).catch(()=>{});
+  const seq=++flightSeq;
+  return Promise.resolve().then(()=>p.go()).catch(()=>{})
+    .then(()=>{ if(seq===flightSeq&&p.attrs) showCard(p.kind||'spot',p.attrs); });   /* 도착한 뒤(마지막 비행일 때만) 그 장소의 팝업 */
 }
 async function toggleTour(){ if(tourTimer) return stopTour(); startTour(); }
 async function startTour(){
@@ -508,7 +675,7 @@ async function startTour(){
   let i=0; tourTimer=true;
   while(tourTimer){
     await flyToSlide(i%list.length);
-    for(let k=0;k<30&&tourTimer;k++) await new Promise(r=>setTimeout(r,120));   /* 3.6초 머문다 */
+    for(let k=0;k<42&&tourTimer;k++) await new Promise(r=>setTimeout(r,120));   /* 팝업을 읽을 수 있게 5초쯤 머문다 */
     i++;
   }
 }
@@ -518,7 +685,7 @@ function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;'
 /* ── 도구 ── */
 function hasInitialView(){ try{ return !!(scene&&scene.initialViewProperties&&scene.initialViewProperties.viewpoint); }catch(e){ return false; } }
 function goHome(){
-  if(!view) return; stopTour();
+  if(!view) return; stopTour(); hideCard(); flightSeq++;
   document.querySelectorAll('.slide').forEach(b=>b.classList.remove('is-on'));
   if(hasInitialView()) view.goTo(scene.initialViewProperties.viewpoint,{duration:1200}).catch(()=>{});
   else view.goTo({center:SCENE.city.center,scale:SCENE.city.scale,tilt:SCENE.city.tilt,heading:SCENE.city.heading},{duration:1200}).catch(()=>{});
