@@ -446,3 +446,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 브라우저 제약: 브라우저 정책상 화면 고르기 창 자체는 없앨 수 없어 "공유" 클릭 한 번은 남습니다(크롬은 현재 탭이 미리 선택됨).
 - 브랜치: `work/kangmina-review-capture` (base `design/service-home-refresh` d545104).
 - 검증: 헤드리스 크롬에서 `getDisplayMedia`를 캔버스 스트림으로 흉내 내어 드래그 100×60px → 2배 화면에서 200×120px 이미지가 담기고 창이 다시 열리는 것, 안에서 누르고 밖에서 떼면 안 닫히고 밖에서 누르고 떼면 닫히는 것, 초안 저장을 확인. `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과. 실제 크롬의 화면 고르기 동작은 배포 후 확인 필요.
+
+## 2026-09-17 푸터 구리시 로고의 흰 박스 제거 (담당: 강민아)
+
+- 증상: 홈 푸터의 구리시 CI(`public/images/guri-ci.png`)가 회색 푸터 위에 흰 상자처럼 보임. CSS 문제가 아니라 PNG 자체가 알파 없는 RGB(흰 배경이 그림에 박힘, 인터레이스)였습니다.
+- 조치: 헤드리스 크롬 캔버스로 흰 바탕 위 합성을 되돌려(알파 = 255 − min(R,G,B), 색은 언블렌딩) 투명 배경 RGBA PNG(137×56, 5.8KB)로 교체. 같은 파일을 쓰는 푸터 하단 작은 로고와 홈 `page.tsx`의 로고도 함께 투명해집니다. 회색·짙은 배경 위 합성 미리보기로 가장자리 확인.
+- 브랜치: `work/kangmina-footer-logo` (base `design/service-home-refresh` 215c909).
+- 검증: PNG 헤더(colortype 6, 비인터레이스) 확인, 순수 파이썬 합성 미리보기, `npm run build:deploy`, `git diff --check` 통과.
