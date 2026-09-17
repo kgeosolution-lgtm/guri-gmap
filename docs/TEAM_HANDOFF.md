@@ -359,3 +359,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 조치: 산 이름에 쓰던 '글자만 보이는 점 레이어'를 공용 `textPointLayer`로 빼고, 주요 시설 목록 `LANDMARKS`(현재 구리시청)를 건물 레이어(LOD1)에서 이름(`bldg_nm`/`dtl_bldg_nm` LIKE '%구리시청%')으로 찾아 그 건물 중심 위(지붕 위 14m, `relative-to-scene`)에 14px 짙은 남색 3D 텍스트로 띄웁니다(`addLandmarkLabels`). 건물 조회가 안 되면 알려진 좌표(127.1294, 37.5942)에 놓습니다. 다른 시설을 더 넣으려면 `LANDMARKS`에 이름·좌표·검색식 한 줄을 추가.
 - 브랜치: `work/kangmina-3d-cityhall-label` (base `design/service-home-refresh` 01f676a).
 - 검증: 인라인 스크립트 `node --check`, 단위 검사(도형 중심 계산, 건물에서 찾은 경우·조회 실패·건물 레이어 없음의 좌표), `npm run build:deploy`, `git diff --check` 통과. 건물 검색이 실제 서버에서 되는지는 배포 후 콘솔의 '(건물에서 찾음)/(기본 좌표)' 로그로 확인.
+
+## 2026-09-17 3D 지도 명소·축제 심볼이 건물에 가려지지 않게 (담당: 강민아)
+
+- 증상: 건물 사이에 있는 명소(예: 구리전통시장 곱창골목)의 심볼이 시점에 따라 옆 건물에 가려 보였다 안 보였다 함. 심볼이 지면(또는 지붕) 6m 위에 놓여 있어 더 높은 이웃 건물이 시선을 막았습니다.
+- 조치: 명소·축제 심볼을 2D 그림 마커 대신 `point-3d`(같은 그림자 PNG, `IconSymbol3DLayer`)로 바꾸고 `verticalOffset`(화면 44px, 세계 좌표 최소 28m·최대 260m)로 공중에 띄운 뒤 흰 지시선(`callout`)으로 실제 자리를 가리키게 했습니다(`placeSym`). 빽빽한 도심에서 점 심볼이 가려지지 않게 하는 ArcGIS 권장 방식입니다. 이름이 목록에 없는 곳의 초록 핀도 같은 방식(아래 기준점).
+- 예전 방식으로 비교하려면 주소 뒤에 `?nocallout`(`USE_CALLOUT=false` → 2D 그림 마커, 6m 오프셋).
+- 브랜치: `work/kangmina-3d-callout` (base `design/service-home-refresh` 1568843).
+- 검증: 인라인 스크립트 `node --check`, 단위 검사(심볼 구조·지시선·기본 핀 기준점·레이어 오프셋), `npm run build:deploy`, `git diff --check` 통과. 띄우는 높이(44px)와 지시선 굵기는 배포 후 눈으로 확인 필요.
