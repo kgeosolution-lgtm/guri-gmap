@@ -395,9 +395,9 @@ function trailLayer(FeatureLayer,d,kind){
   const lexpr=snapshotLabelExpr(ld)||(isDulle? '$feature["관심지점정보"]' : '$feature["관리지점명칭"]');
   const layer=new FeatureLayer({...base,
     elevationInfo:{mode:'relative-to-scene',offset:3},
-    minScale:25000,                                                /* 시설물은 동네 크기로 다가가면 보인다 */
+    minScale:3000,                                                 /* 시설물은 길 하나가 화면에 차게(약 1:3000) 다가가야 보인다 — 멀리서는 너무 많다 */
     renderer:{type:'simple',symbol:trailIcon(isDulle? 'dulle_fac_0.png' : 'hiking_fac.png',W)},
-    labelsVisible:true,labelingInfo:[label3d(lexpr,[70,88,48,255],10,'above-center',6000)]});
+    labelsVisible:true,labelingInfo:[label3d(lexpr,[70,88,48,255],10,'above-center',1500)]});
   if(isDulle) layer.__onRows=rows=>{                               /* 코스 필드를 찾아 코스 색 배지로 */
     const m={}; if(rows[0]) Object.keys(rows[0]).forEach(k=>{ m[k.toLowerCase().replace(/[_\s]/g,'')]=k; });
     let field=null;
@@ -445,7 +445,10 @@ function clearHighlight(){ if(highlightHandle){ try{ highlightHandle.remove(); }
 /* ═══ 팝업 카드 — 테마지도의 축제·구리 명소 팝업과 같은 구성 (네이버 길찾기만 없음) ═══ */
 function valOK(v){ if(v===null||v===undefined) return false; const s=String(v).trim(); return !(s===''||s==='None'||s==='null'||s==='-'||s==='–'||s==='—'||s==='.'); }
 function pv(r,cands){ if(!r) return null; const m={}; Object.keys(r).forEach(k=>{ m[k.toLowerCase().replace(/[_\s]/g,'')]=k; });
-  for(const c of [].concat(cands)){ const n=String(c).toLowerCase().replace(/[_\s]/g,''); if(m[n]&&valOK(r[m[n]])) return r[m[n]]; } return null; }
+  const norm=c=>String(c).toLowerCase().replace(/[_\s]/g,'');
+  for(const c of [].concat(cands)){ const n=norm(c); if(m[n]&&valOK(r[m[n]])) return r[m[n]]; }
+  for(const c of [].concat(cands)){ const n=norm(c); for(const k in m){ if(k.indexOf(n)>-1&&valOK(r[m[k]])) return r[m[k]]; } }   /* 부분일치 폴백 (테마지도 pickVal 과 같음: '등산로상행시간' 도 '상행시간' 으로 찾는다) */
+  return null; }
 function briefText(s,maxLen,maxSent){
   if(!valOK(s)) return null;
   let t=String(s).replace(/\s+/g,' ').trim();
