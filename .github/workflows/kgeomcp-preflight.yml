@@ -1,24 +1,28 @@
-name: kgeoMCP server preflight
+name: kgeoMCP server stage
 on:
   push:
     branches: [codex/kgeomcp-server-bootstrap]
 permissions:
   contents: read
 jobs:
-  inspect:
+  stage:
     runs-on: [self-hosted, Windows, X64, guri-preview]
-    timeout-minutes: 5
+    timeout-minutes: 12
     steps:
-      - name: Read kgeodata server prerequisites
+      - name: Receive private release and stage
         shell: powershell
+        env:
+          KGEO_TRANSFER_URL: ${{ secrets.KGEOMCP_STAGE_URL }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $node = 'C:\Program Files\nodejs\node.exe'
-          $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-          $result = [ordered]@{Computer=$env:COMPUTERNAME;Identity=$identity.Name;Node=(& $node --version);Admin=(New-Object Security.Principal.WindowsPrincipal($identity)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator);Paths=@();Ports=@();Tasks=@()}
-          foreach($p in @('D:\services','D:\codesolution\kgeodata','C:\inetpub\wwwroot','C:\Windows\System32\inetsrv\config\applicationHost.config')) {
-            try { $exists=Test-Path -LiteralPath $p; $acl=if($exists){(Get-Acl -LiteralPath $p).Access | ForEach-Object { [ordered]@{Identity=$_.IdentityReference.Value;Rights=$_.FileSystemRights.ToString();Type=$_.AccessControlType.ToString()} }}else{@()}; $result.Paths += [ordered]@{Path=$p;Exists=$exists;Acl=$acl} } catch { $result.Paths += [ordered]@{Path=$p;Readable=$false} }
-          }
-          foreach($port in @(4186,4187)) { $result.Ports += [ordered]@{Port=$port;Listening=[bool](Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue)} }
-          try { $result.Tasks=@(Get-ScheduledTask -TaskName 'KGEO*' -ErrorAction Stop | Select-Object TaskName,State) } catch { $result.Tasks=@('unavailable') }
-          $result | ConvertTo-Json -Depth 6
+          $ProgressPreference = 'SilentlyContinue'
+          $temporary = Join-Path $env:RUNNER_TEMP 'kgeomcp-6a9c2d0dd74bdc26'
+          New-Item -ItemType Directory -Path $temporary -Force | Out-Null
+          & icacls.exe $temporary /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-20:(OI)(CI)F' | Out-Null
+          if($LASTEXITCODE -ne 0){throw 'Private transfer ACL failed'}
+          $archive = Join-Path $temporary 'transfer.zip'
+          try { Invoke-WebRequest -UseBasicParsing -Uri $env:KGEO_TRANSFER_URL -OutFile $archive } catch { throw 'Private transfer failed. Refresh the short-lived download capability.' }
+          $env:KGEO_TRANSFER_URL = $null
+          if((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'dc033cad50f61e40de0ff5d48fca03f94f489017a402d8237ca22cc5faf12e56'){throw 'Transfer hash mismatch'}
+          Expand-Archive -LiteralPath $archive -DestinationPath $temporary
+          & (Join-Path $temporary 'stage-release.ps1') -Package (Join-Path $temporary 'kgeoMCP.zip') -Manifest (Join-Path $temporary 'manifest.json') -Configuration (Join-Path $temporary 'config.json')
