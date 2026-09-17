@@ -561,14 +561,27 @@ function syncUrl(){
  * 화면이 움직이는 동안은 마지막 그림을 CSS transform 으로 맞춰 두고, 멈추면 현재 범위(1.4배 여유)로 다시 받는다. */
 let rvLayer=null, rvMode=false, rvObj=null, rvClient=null, rvSdk=null, refreshTimer=null;
 const ovLayers={};   /* key → {on, img, ext, w, h, warned} */
-function vwUrl(ids,extent,width,height){
-  const e=extent; const bbox=[e.xmin,e.ymin,e.xmax,e.ymax].join(',');
-  const L=[].concat(ids).join(',');
-  return VW.wmsUrl+'?SERVICE=WMS&REQUEST=GetMap&VERSION=1.1.1&LAYERS='+encodeURIComponent(L)+'&STYLES='+encodeURIComponent(L)
-    +'&SRS=EPSG:3857&BBOX='+bbox+'&WIDTH='+width+'&HEIGHT='+height+'&FORMAT=image/png&TRANSPARENT=true&BGCOLOR=0xFFFFFF&EXCEPTIONS=text/xml'
-    +'&KEY='+encodeURIComponent(VW.key)+'&DOMAIN='+encodeURIComponent(vwDomain());
+/* 브이월드가 받아 주는 요청 형식(버전·DOMAIN 표기)이 문서와 다를 수 있어, 첫 그림이 실패하면 아래 순서로 바꿔 가며 시도하고 성공한 형식을 기억한다 */
+const VW_VARIANTS=[
+  {ver:'1.1.1',dom:'host'},{ver:'1.3.0',dom:'host'},{ver:'1.1.1',dom:'origin'},{ver:'1.3.0',dom:'origin'},
+  {ver:'1.1.1',dom:'none'},{ver:'1.3.0',dom:'none'},{ver:'1.1.1',dom:'cfg'},{ver:'1.3.0',dom:'cfg'}
+];
+let vwVariant=0, vwLocked=false;
+function vwDomain(mode){
+  const h=(typeof location!=='undefined'&&location.hostname)||'', local=/^(localhost|127\.0\.0\.1|)$/.test(h);
+  if(mode==='none') return null;
+  if(mode==='cfg') return VW.domain;
+  if(mode==='origin') return local? VW.domain : ((typeof location!=='undefined'&&location.origin)||('https://'+h));
+  return local? VW.domain : h;   /* host */
 }
-function vwDomain(){ const h=(typeof location!=='undefined'&&location.hostname)||''; return /^(localhost|127\.0\.0\.1|)$/.test(h)? VW.domain : h;
+function vwUrl(ids,extent,width,height,variant){
+  const v=VW_VARIANTS[variant==null? vwVariant : variant]||VW_VARIANTS[0];
+  const e=extent; const bbox=[e.xmin,e.ymin,e.xmax,e.ymax].join(',');
+  const L=[].concat(ids).join(','); const dom=vwDomain(v.dom);
+  return VW.wmsUrl+'?SERVICE=WMS&REQUEST=GetMap&VERSION='+v.ver+'&LAYERS='+encodeURIComponent(L)+'&STYLES='+encodeURIComponent(L)
+    +(v.ver==='1.3.0'? '&CRS=EPSG:3857' : '&SRS=EPSG:3857')+'&BBOX='+bbox+'&WIDTH='+width+'&HEIGHT='+height
+    +'&FORMAT=image/png&TRANSPARENT=true&BGCOLOR=0xFFFFFF&EXCEPTIONS=text/xml'
+    +'&KEY='+encodeURIComponent(VW.key)+(dom? '&DOMAIN='+encodeURIComponent(dom) : '');
 }
 function ovDef(key){ return OVERLAYS.find(o=>o.key===key)||null; }
 function ovOn(key){ return !!(ovLayers[key]&&ovLayers[key].on); }
@@ -594,17 +607,23 @@ function refreshOverlay(key){
   const L=ovLayers[key], o=ovDef(key), vb=viewBox(); if(!L||!o||!vb) return;
   if(o.minScale&&view.scale>o.minScale){ L.img.classList.remove('show'); return; }   /* 축소된 상태면 숨김 */
   const rb=requestBox(vb); const url=vwUrl(o.ids,rb,rb.w,rb.h); if(L.url===url) return; L.url=url;
-  const im=new Image(); im.onload=()=>{ if(L.url!==url||!L.on) return; L.ext=rb; L.w=rb.w; L.h=rb.h; L.img.src=url; L.img.style.transform=overlayTransform(L,viewBox()||vb); L.img.classList.add('show'); };
-  im.onerror=()=>{ if(L.url!==url) return; L.img.classList.remove('show'); vwDiagnose(o,url,L); };
+  const im=new Image(); im.onload=()=>{ if(L.url!==url||!L.on) return; vwLocked=true; L.ext=rb; L.w=rb.w; L.h=rb.h; L.img.src=url; L.img.style.transform=overlayTransform(L,viewBox()||vb); L.img.classList.add('show'); };
+  im.onerror=()=>{ if(L.url!==url) return; L.img.classList.remove('show');
+    if(!vwLocked&&vwVariant<VW_VARIANTS.length-1){ vwVariant++; L.url=''; refreshOverlay(key); return; }   /* 다른 요청 형식으로 다시 */
+    vwDiagnose(o,url,L); };
   im.src=url;
 }
-/* 실패 원인 알림: 브이월드가 CORS 를 허용하면 오류 XML 의 메시지를 읽어 보여 준다 */
+/* 실패 원인 알림: 브이월드가 CORS 를 허용하면 오류 XML 의 메시지를 읽어 보여 주고, 못 읽으면 요청 주소를 새 창으로 열어 볼 수 있게 한다 */
 function vwDiagnose(o,url,L){
   if(L.warned) return; L.warned=true;
+  const first=vwUrl(o.ids,L.ext||viewBox()||{xmin:0,ymin:0,xmax:1,ymax:1},256,256,0);
+  const link=' <a href="'+first.replace(/"/g,'&quot;')+'" target="_blank" rel="noopener" style="color:#9fe3c9;text-decoration:underline">원인 보기 ↗</a>';
   fetch(url).then(r=>r.text()).then(t=>{ const m=t.match(/<ServiceException[^>]*>([\s\S]*?)<\/ServiceException>|<message>([\s\S]*?)<\/message>|<error[^>]*>([\s\S]*?)<\/error>/i);
-    const msg=m? (m[1]||m[2]||m[3]||'').replace(/<[^>]+>/g,'').trim().slice(0,120) : ''; toast(o.label+'을(를) 불러오지 못했어요'+(msg? ': '+msg : ' (브이월드 키·도메인·레이어 ID 확인)'),6000); })
-    .catch(()=>toast(o.label+'을(를) 불러오지 못했어요 (브이월드 키·도메인·레이어 ID 확인)',5000));
+    const msg=m? (m[1]||m[2]||m[3]||'').replace(/<[^>]+>/g,'').trim().slice(0,120) : ''; toastHtml(esc(o.label)+'을(를) 불러오지 못했어요'+(msg? ': '+esc(msg) : '')+link,9000); })
+    .catch(()=>toastHtml(esc(o.label)+'을(를) 불러오지 못했어요.'+link,9000));
 }
+function esc(s){ return String(s==null? '' : s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function toastHtml(html,ms){ const t=$('mapToast'); t.innerHTML=html; t.style.pointerEvents='auto'; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>{ t.classList.remove('show'); t.style.pointerEvents=''; },ms||6000); }
 function initOverlays(){
   const host=$('ovChips'); host.innerHTML='';
   const rv=document.createElement('button'); rv.type='button'; rv.className='ov-chip rv'; rv.id='ovRv'; rv.innerHTML='<span class="ic">🚶</span>로드뷰 보기';
@@ -646,8 +665,8 @@ function overlayKeys(){ return OVERLAYS.filter(o=>ovOn(o.key)).map(o=>o.key); }
 /* ── 로드뷰 (카카오) ── */
 function rvOn(){
   rvMode=true; $('main').classList.add('rv-mode'); renderOvState();
-  if(KAKAO.jsKey){ $('main').classList.add('rv-open'); loadKakao().catch(()=>{ $('rvEmpty').textContent='카카오 지도 SDK 를 불러오지 못했어요. 새 창으로 열어 드릴게요.'; }); }
-  toast(KAKAO.jsKey? '지도에서 길 위를 클릭하면 로드뷰가 열려요' : '지도를 클릭하면 카카오맵 로드뷰가 새 창으로 열려요',3000);
+  if(KAKAO.jsKey) loadKakao().catch(()=>{});   /* SDK 는 미리 받아 두고, 패널은 클릭해서 로드뷰를 찾았을 때 연다 */
+  toast(KAKAO.jsKey? '지도에서 길 위를 클릭하면 그곳의 로드뷰가 오른쪽에 열려요' : '지도를 클릭하면 카카오맵 로드뷰가 새 창으로 열려요',3200);
 }
 function rvOff(){
   rvMode=false; $('main').classList.remove('rv-mode','rv-open'); if(rvLayer) rvLayer.removeAll(); renderOvState();
@@ -656,25 +675,31 @@ function loadKakao(){
   if(rvSdk) return rvSdk;
   rvSdk=new Promise((res,rej)=>{
     const sc=document.createElement('script'); sc.src='https://dapi.kakao.com/v2/maps/sdk.js?appkey='+encodeURIComponent(KAKAO.jsKey)+'&autoload=false';
-    sc.onload=()=>{ try{ kakao.maps.load(()=>{ rvObj=new kakao.maps.Roadview($('rvView')); rvClient=new kakao.maps.RoadviewClient();
-      kakao.maps.event.addListener(rvObj,'position_changed',()=>{ const p=rvObj.getPosition(); if(p) placeRvMarker(p.getLng(),p.getLat()); });
-      res(); }); }catch(e){ rej(e); } };
+    sc.onload=()=>{ try{ kakao.maps.load(()=>{ rvClient=new kakao.maps.RoadviewClient(); res(); }); }catch(e){ rej(e); } };
     sc.onerror=()=>rej(new Error('sdk'));
     document.head.appendChild(sc);
   });
   return rvSdk;
 }
+const RV_RADIUS=150;   /* 클릭 지점에서 이 거리(m) 안의 가장 가까운 로드뷰를 찾는다 */
 function rvPick(pt){
   if(!pt) return;
   const ll=WMU? WMU.xyToLngLat(pt.x,pt.y) : [pt.longitude,pt.latitude]; const lng=ll[0], lat=ll[1];
   placeRvMarker(lng,lat);
-  if(!KAKAO.jsKey||!rvClient){ window.open('https://map.kakao.com/link/roadview/'+lat.toFixed(6)+','+lng.toFixed(6),'_blank','noopener'); return; }
-  const pos=new kakao.maps.LatLng(lat,lng);
-  rvClient.getNearestPanoId(pos,60,panoId=>{
-    if(!panoId){ toast('이 근처에는 로드뷰가 없어요. 길 위를 눌러 보세요'); return; }
-    $('rvEmpty').style.display='none'; rvObj.setPanoId(panoId,pos);
-    $('rvAddr').textContent=lat.toFixed(5)+', '+lng.toFixed(5);
-  });
+  const fallback=()=>window.open('https://map.kakao.com/link/roadview/'+lat.toFixed(6)+','+lng.toFixed(6),'_blank','noopener');
+  if(!KAKAO.jsKey){ fallback(); return; }
+  loadKakao().then(()=>{
+    const pos=new kakao.maps.LatLng(lat,lng);
+    rvClient.getNearestPanoId(pos,RV_RADIUS,panoId=>{
+      if(!panoId){ toast('이 근처 '+RV_RADIUS+'m 안에는 로드뷰가 없어요. 길 위를 눌러 보세요',3000); return; }
+      $('main').classList.add('rv-open');                                  /* 찾았을 때만 패널을 연다 */
+      if(!rvObj){ rvObj=new kakao.maps.Roadview($('rvView'));
+        kakao.maps.event.addListener(rvObj,'position_changed',()=>{ const p=rvObj.getPosition(); if(p){ placeRvMarker(p.getLng(),p.getLat()); $('rvAddr').textContent=p.getLat().toFixed(5)+', '+p.getLng().toFixed(5); } }); }
+      $('rvEmpty').style.display='none';
+      setTimeout(()=>{ try{ rvObj.relayout(); }catch(e){} rvObj.setPanoId(panoId,pos); },60);   /* 패널이 펼쳐진 뒤 크기를 다시 재고 파노라마를 놓는다 */
+      $('rvAddr').textContent=lat.toFixed(5)+', '+lng.toFixed(5);
+    });
+  }).catch(()=>{ toast('카카오 지도를 불러오지 못해 새 창으로 열어요',2500); fallback(); });
 }
 function placeRvMarker(lng,lat){
   if(!rvLayer||!GraphicCls) return; rvLayer.removeAll();
