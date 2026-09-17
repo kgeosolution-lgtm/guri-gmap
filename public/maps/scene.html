@@ -392,7 +392,9 @@ function trailLayer(FeatureLayer,d,kind){
     return layer;
   }
   if(kind==='hiking'){
-    return new FeatureLayer({...base,elevationInfo:{mode:'on-the-ground'},renderer:{type:'simple',symbol:lineSym3D('#5B8C5A',{w:3.6,dash:true})}});
+    const layer=new FeatureLayer({...base,elevationInfo:{mode:'on-the-ground'},renderer:{type:'simple',symbol:lineSym3D('#5B8C5A',{w:3.6,dash:true})}});
+    layer.__onRows=rows=>{ addMountainLabels(FeatureLayer,layer,rows).catch(e=>console.warn('[3D] 산 이름 레이블 실패',String((e&&e.message)||e))); };
+    return layer;
   }
   const W=30, isDulle=kind==='dulleFac';
   const lexpr=snapshotLabelExpr(ld)||(isDulle? '$feature["관심지점정보"]' : '$feature["관리지점명칭"]');
@@ -412,6 +414,43 @@ function trailLayer(FeatureLayer,d,kind){
     console.log('[3D] 둘레길 시설물 코스 색',field,Object.keys(seen).length,'종');
   };
   return layer;
+}
+/* ── 등산로의 산 이름: 구간마다 붙이지 않고 산마다 대표 지점 하나에만 ──
+ * 등산로 구간 전체를 좌표와 함께 읽어 산명별로 모든 꼭짓점의 평균에 가장 가까운 꼭짓점을 대표 지점으로 삼고,
+ * 보이지 않는 점 레이어 위에 3D 텍스트 레이블로 띄운다. */
+const MTN_FIELDS=['산명','산이름','대표산명','산'];
+function mountainPoints(features,nameKey){
+  const groups={};
+  (features||[]).forEach(f=>{ const a=f.attributes||{}; const nm=String(a[nameKey]||'').trim(); if(!nm||!f.geometry) return;
+    const g=groups[nm]||(groups[nm]={name:nm,pts:[],n:0}); g.n++;
+    (f.geometry.paths||[]).forEach(path=>path.forEach(p=>{ if(isFinite(p[0])&&isFinite(p[1])) g.pts.push([p[0],p[1]]); })); });
+  return Object.values(groups).filter(g=>g.pts.length).map(g=>{
+    const mx=g.pts.reduce((s,p)=>s+p[0],0)/g.pts.length, my=g.pts.reduce((s,p)=>s+p[1],0)/g.pts.length;
+    let best=g.pts[0], bd=Infinity; g.pts.forEach(p=>{ const d=(p[0]-mx)**2+(p[1]-my)**2; if(d<bd){ bd=d; best=p; } });
+    return {name:g.name,x:best[0],y:best[1],n:g.n}; });
+}
+function mountainNameKey(rows){
+  const m={}; if(rows&&rows[0]) Object.keys(rows[0]).forEach(k=>{ m[k.toLowerCase().replace(/[_\s]/g,'')]=k; });
+  for(const c of MTN_FIELDS){ const k=m[c.toLowerCase()]; if(k&&rows.some(r=>valOK(r[k]))) return k; }
+  return null;
+}
+async function addMountainLabels(FeatureLayer,layer,rows){
+  const key=mountainNameKey(rows); if(!key){ console.log('[3D] 등산로에 산 이름 필드가 없어 산 레이블을 생략'); return; }
+  const q=layer.createQuery(); q.where='1=1'; q.outFields=[key]; q.returnGeometry=true; q.outSpatialReference={wkid:4326}; q.maxAllowableOffset=0.0002;
+  const fs=await layer.queryFeatures(q);
+  const pts=mountainPoints(fs.features,key); if(!pts.length) return;
+  const lbl=new FeatureLayer({
+    title:'3D 산 이름', objectIdField:'oid', geometryType:'point', spatialReference:{wkid:4326},
+    fields:[{name:'oid',type:'oid'},{name:'name',type:'string'},{name:'n',type:'integer'}],
+    source:pts.map((p,i)=>({geometry:{type:'point',x:p.x,y:p.y,spatialReference:{wkid:4326}},attributes:{oid:i+1,name:p.name,n:p.n}})),
+    elevationInfo:{mode:'relative-to-ground',offset:35},           /* 숲 위로 살짝 띄운다 */
+    renderer:{type:'simple',symbol:{type:'simple-marker',size:1,color:[0,0,0,0],outline:null}},   /* 점은 안 보이고 글자만 */
+    labelsVisible:true, popupEnabled:false,
+    labelingInfo:[{labelExpressionInfo:{expression:'$feature.name'},labelPlacement:'center-center',deconflictionStrategy:'static',
+      symbol:{type:'label-3d',symbolLayers:[{type:'text',size:15,font:LABEL_FONT,material:{color:[34,72,44,255]},halo:{color:[255,255,255,240],size:2}}]}}]
+  });
+  lbl.__kind='mtn'; view.map.add(lbl);
+  console.log('[3D] 산 이름 레이블',pts.map(p=>p.name+'('+p.n+')').join(', '));
 }
 function addOverlays(FeatureLayer){
   if(!view||!overlayDefs.length) return;
