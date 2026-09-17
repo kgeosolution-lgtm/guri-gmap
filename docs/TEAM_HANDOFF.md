@@ -312,3 +312,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 포털에서 직접 읽는 대체 경로(스냅샷 없음)에서는 이 처리가 없고 웹씬 정의를 그대로 씁니다.
 - 브랜치: `work/kangmina-3d-overlay-layers` (base `design/service-home-refresh` ab75c12).
 - 검증: 인라인 스크립트 `node --check`, 단위 검사(레이어 분리·렌더러 22개 심볼 URL·기본 핀·레이블 식·팝업 요소), `npm run build:deploy`, `git diff --check` 통과. 실제 표시는 배포 후 확인 필요.
+
+## 2026-09-16 3D 지도 레이블 축약·테마지도식 팝업·심볼 그림자 (담당: 강민아)
+
+- 레이블: `LABEL_SHORT` 지정 목록(예: "2026 구리 코스모스축제" → "코스모스 축제", "갈매구릉산자락길(무장애나눔길)" → "갈매구릉산자락길")을 Arcade Dictionary 로 넣고, 목록에 없으면 '제n회'·연도·괄호·'구리'를 떼어 짧게 만듭니다(`shortLabelArcade`).
+- 팝업: ArcGIS 팝업 대신 테마지도의 축제·구리 명소 팝업과 같은 구성의 카드(`#infocard`, CSS 이식)를 페이지가 직접 그립니다(`showCard`, `CARD` 설정). 사진 여러 장, 상태·칩, 소개, 주소(복사)·전화, 정보 행, 전화·홈페이지 버튼, 안내 문구까지 같고 네이버 길찾기만 뺐습니다. 축제의 참고 문장 정리·공식페이지 조건(`festNote`/`festLink`, 전체 행 캐시로 중복 주소 제외)도 동일. 얹은 레이어는 `popupEnabled:false`, `view.hitTest`로 클릭한 피처의 속성을 카드에 표시.
+- 심볼: `scripts/shadow-icons.py`(순수 파이썬 PNG 디코드·박스 블러·합성)로 `public/maps/sym/scene/shadow/*.png`(284×275, 아래로 7px 이동한 부드러운 그림자)를 만들어 사용. 그림 심볼은 명소 58px·축제 54px 로 키우고, 이름이 목록에 없는 곳의 초록 핀은 12×15 로 줄였습니다. 원본 PNG를 바꾸면 `python3 scripts/shadow-icons.py`로 다시 생성.
+- 브랜치: `work/kangmina-3d-polish` (base `design/service-home-refresh` e485ec4).
+- 검증: 인라인 스크립트 `node --check`, 레이블 축약·팝업 카드 조립 단위 검사(샘플 행), `npm run build:deploy`, `git diff --check` 통과. 실제 표시는 배포 후 확인 필요.

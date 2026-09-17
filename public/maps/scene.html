@@ -75,8 +75,43 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 @keyframes sp{to{transform:rotate(360deg)}}
 .cover.err .spin{display:none}
 
+/* 팝업 카드 — 테마지도 infocard 와 같은 구성 (네이버 길찾기 제외) */
+.infocard{position:absolute;left:12px;top:12px;width:min(360px,calc(100% - 24px));max-height:calc(100% - 150px);overflow-y:auto;
+  background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:0 10px 26px rgba(34,48,63,.18);z-index:12;display:none;
+  --accent:#018058;--accent-soft:#0180581A;font-size:13px;line-height:1.5}
+.infocard.open{display:block;animation:up .2s ease}
+.main.card-open .hint{display:none}
+@keyframes up{from{transform:translateY(10px);opacity:0}to{transform:none;opacity:1}}
+.infocard .hd{padding:13px 15px 10px;color:#fff;position:relative;background:var(--accent)}
+.infocard .hd .cat{font-size:11px;font-weight:800;opacity:.92}
+.infocard .hd .nm{font-size:17px;font-weight:800;margin-top:2px;padding-right:26px;word-break:keep-all}
+.infocard .close{position:absolute;top:10px;right:10px;width:28px;height:28px;border-radius:6px;background:rgba(255,255,255,.25);color:#fff;font-size:13px;display:grid;place-items:center}
+.infocard .bd{padding:12px 15px 14px}
+.infocard .chips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:9px}
+.infocard .pchip{font-size:11px;font-weight:700;border-radius:6px;padding:3px 9px;background:#EEF2F0;color:#4A5A53}
+.infocard .st{display:inline-flex;align-items:center;height:auto;padding:4px 11px;border-radius:4px;font-size:10.5px;font-weight:800;white-space:nowrap}
+.st.live{background:#fde8ec;color:#b3234a}.st.soon{background:#FCF1DC;color:#B77410}.st.plan{background:#EEF1F4;color:#5b6770}.st.done,.st.off{background:var(--line);color:var(--sub)}
+.infocard .pgal{display:flex;gap:7px;overflow-x:auto;margin-bottom:9px;padding-bottom:3px;scrollbar-width:thin}
+.infocard .pgal img{height:170px;border-radius:12px;object-fit:cover;flex:0 0 auto;background:#EEF2F0}
+.infocard .pgal img:only-child{width:100%}
+.infocard .guide{border-radius:6px;padding:11px 13px;font-size:12.5px;font-weight:700;line-height:1.55;text-align:center;margin-bottom:9px;word-break:keep-all;background:var(--accent-soft);color:var(--accent)}
+.infocard .pcard{background:#F5F8F6;border-radius:6px;padding:11px 13px;margin-bottom:9px}
+.infocard .pcard .ttl{font-size:11.5px;font-weight:800;color:var(--sub);margin-bottom:7px;display:flex;gap:5px;align-items:center}
+.infocard .kv{display:flex;gap:9px;font-size:13px;line-height:1.55;margin-bottom:4px}
+.infocard .kv .k{flex:none;min-width:52px;color:var(--faint);font-size:12px;font-weight:700}
+.infocard .kv .v{flex:1;color:var(--ink);word-break:break-word}
+.infocard .kv:last-child{margin-bottom:0}
+.infocard .row-tel{font-size:15px;font-weight:800;text-decoration:none;color:var(--accent)}
+.infocard .copy-btn{font-size:10.5px;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:4px;padding:2px 8px;margin-left:6px}
+.infocard .btnstack{display:flex;flex-direction:column;gap:7px;margin-top:11px}
+.infocard .btnstack a{text-align:center;font-size:14px;font-weight:800;border-radius:6px;padding:12px 0;text-decoration:none}
+.infocard .btn-tel{background:var(--accent);color:#fff}
+.infocard .btn-alt{background:#fff;border:1.5px solid var(--line);color:var(--sub)}
+.infocard .foot{font-size:11px;color:var(--faint);text-align:center;margin-top:9px;line-height:1.5}
+
 @media (max-width:640px){
   .hint{display:none}
+  .infocard{left:8px;right:8px;width:auto;top:8px;max-height:calc(100% - 130px)}
   .bar{left:8px;right:8px;transform:none;width:auto;max-width:none;min-width:0;bottom:8px;padding:8px 10px 10px}
   .bar-hint{display:none}
   .bar-opts{margin-left:0;font-size:12px}
@@ -118,6 +153,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
   </div>
 
   <div class="cover" id="cover"><div class="box"><div class="spin"></div><b id="coverTitle">3D 지도를 불러오는 중…</b><p id="coverText">건물과 지형 자료를 준비하고 있어요. 잠시만 기다려 주세요.</p><div id="coverActions"></div></div></div>
+  <div class="infocard" id="infocard" role="dialog" aria-label="장소 정보"></div>
   <div class="map-toast" id="mapToast"></div>
 </div>
 
@@ -138,6 +174,8 @@ const SCENE={
 };
 let PLACES=[];   /* [{title, thumb, go:()=>Promise}] — 웹씬 슬라이드 또는 명소 */
 let overlayDefs=[];   /* 스냅샷에서 떼어 낸 명소·축제 레이어 정의 (페이지가 직접 그린다) */
+let overlayLayers=[];  /* 얹은 FeatureLayer 들 */
+const overlayRows={spot:[],fest:[]};   /* 팝업 링크 판단용 전체 행 캐시 */
 let view=null, scene=null, tourTimer=null, tilted=true;
 const $=id=>document.getElementById(id);
 function toast(msg,ms=2200){ const t=$('mapToast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),ms); }
@@ -237,16 +275,45 @@ function takeOverlayDefs(j){
   j.operationalLayers=keep;
   return defs;
 }
+/* 레이블 축약: 긴 이름은 뜻이 통하는 짧은 이름으로 (지정 목록 → 없으면 '제n회'·연도·괄호·'구리' 제거) */
+const LABEL_SHORT={
+  '갈매구릉산자락길(무장애나눔길)':'갈매구릉산자락길','광개토태왕비&동상':'광개토태왕비','구리농수산물도매시장':'농수산물도매시장',
+  '아차산&고구려대장간마을':'고구려대장간마을','구리전통시장(돌다리곱창골목)':'구리전통시장','구리타워&곤충생태관':'구리타워',
+  '구리토평가족캠핑장':'토평가족캠핑장',
+  '2026 구리 빛 축제':'빛 축제','2026 구리 코스모스축제':'코스모스 축제','2026 인창 한마음 정원 페스타':'인창 정원 페스타',
+  '제7회 광개토축제':'광개토축제','제8회 검배 별빛 축제':'검배 별빛 축제','제8회 수택2동 통통수이 골목축제':'통통수이 골목축제',
+  '제8회 장자못축제':'장자못축제','제8회 주민과 함께하는 하나되는 동구동 축제':'동구동 축제','제8회 호수에 피어나는 행복, 이문안호수공원축제':'이문안호수공원축제'
+};
+function shortLabelArcade(field){
+  const pairs=Object.entries(LABEL_SHORT).flatMap(([k,v])=>[JSON.stringify(k),JSON.stringify(v)]).join(',');
+  return `var m=Dictionary(${pairs}); var v=Trim(Text($feature.${field}));
+if(HasKey(m,v)){ return m[v] }
+var s=v; var p=Find('(',s); if(p>0){ s=Left(s,p) } s=Trim(s);
+var parts=Split(s,' '); var out='';
+for(var i in parts){ var t=Trim(parts[i]); if(t==''){ continue }
+  if(Left(t,1)=='제' && Right(t,1)=='회' && Count(t)<=5){ continue }
+  if(Count(t)==4 && !IsNan(Number(t)) && Number(t)>1900){ continue }
+  if(t=='구리'){ continue }
+  out=IIf(out=='',t,out+' '+t) }
+return IIf(out=='',v,out)`;
+}
+function shortLabelJs(v){
+  v=String(v||'').trim(); if(LABEL_SHORT[v]) return LABEL_SHORT[v];
+  let t=v.replace(/\(.*$/,'').trim().split(/\s+/).filter(x=>x&&!/^제\d+회$/.test(x)&&!/^(19|20)\d\d$/.test(x)&&x!=='구리').join(' ');
+  return t||v;
+}
 function addOverlays(FeatureLayer,PopupTemplate){
   if(!view||!overlayDefs.length) return;
-  overlayDefs.forEach((d,idx)=>{
+  overlayLayers=[];
+  overlayDefs.forEach(d=>{
     try{
-      const isFest=String(d.title).trim()==='축제';
+      const isFest=String(d.title).trim()==='축제', kind=isFest? 'fest':'spot';
       const ld=d.layerDefinition||{}; const r=(ld.drawingInfo&&ld.drawingInfo.renderer)||{};
       const field=r.field1||r.field||(isFest? '축제명':'이름');
-      const size=isFest? 40 : 44;
+      const W=isFest? 54 : 58, H=Math.round(W*275/284);          /* 그림자 포함 PNG(284×275) 비율 */
       const uv=(r.uniqueValueInfos||[]).map(u=>{ const sl=((u.symbol||{}).symbolLayers||[])[0]; const href=sl&&sl.resource&&sl.resource.href;
-        if(!href) return null; return {value:u.value,symbol:{type:'picture-marker',url:href,width:size,height:size*(240/256),angle:0}}; }).filter(Boolean);
+        if(!href) return null; const file=href.split('/').pop();
+        return {value:u.value,symbol:{type:'picture-marker',url:new URL('sym/scene/shadow/'+file,location.href).href,width:W,height:H}}; }).filter(Boolean);
       const pin=new URL('sym/scene/pin.png',location.href).href;
       const layer=new FeatureLayer({
         url:d.url, title:'3D '+d.title, outFields:['*'],
@@ -254,20 +321,139 @@ function addOverlays(FeatureLayer,PopupTemplate){
         elevationInfo:{mode:'relative-to-scene',offset:6},          /* 건물·지형 위에 놓여 가려지지 않는다 */
         screenSizePerspectiveEnabled:false,
         renderer:{type:'unique-value',field,uniqueValueInfos:uv,
-          defaultSymbol:{type:'picture-marker',url:pin,width:16,height:20}},
+          defaultSymbol:{type:'picture-marker',url:pin,width:12,height:15}},   /* 이름이 목록에 없으면 작은 핀 */
         labelsVisible:true,
-        labelingInfo:[{labelExpressionInfo:{expression:'$feature.'+field},labelPlacement:'above-center',deconflictionStrategy:'static',
+        labelingInfo:[{labelExpressionInfo:{expression:shortLabelArcade(field)},labelPlacement:'above-center',deconflictionStrategy:'static',
           symbol:{type:'label-3d',symbolLayers:[{type:'text',size:11,font:{family:'Pretendard GOV, Noto Sans KR, sans-serif',weight:'bold'},
             material:{color:isFest? [138,47,81,255] : [122,59,18,255]},halo:{color:[255,255,255,235],size:1.4}}]}}],
-        popupTemplate:d.popupInfo? PopupTemplate.fromJSON(d.popupInfo) : undefined,
-        popupEnabled:true
+        popupEnabled:false                                            /* 팝업은 테마지도식 카드로 직접 그린다 */
       });
-      view.map.add(layer);
-      layer.when(()=>console.log('[3D] 얹은 레이어',layer.title,'| 심볼',uv.length,'| 필드',field),
+      layer.__kind=kind; layer.__field=field;
+      view.map.add(layer); overlayLayers.push(layer);
+      layer.when(async()=>{ console.log('[3D] 얹은 레이어',layer.title,'| 심볼',uv.length,'| 필드',field);
+        try{ const q=layer.createQuery(); q.where='1=1'; q.outFields=['*']; q.returnGeometry=false;
+          overlayRows[kind]=(await layer.queryFeatures(q)).features.map(f=>f.attributes); }catch(e){} },
         e=>console.warn('[3D] 레이어 로딩 실패',d.title,String((e&&e.message)||e)));
     }catch(e){ console.warn('[3D] 레이어 얹기 실패',d.title,e); }
   });
+  view.on('click',async ev=>{
+    try{
+      const h=await view.hitTest(ev,{include:overlayLayers});
+      const hit=h.results.find(x=>x.graphic&&x.graphic.layer&&overlayLayers.includes(x.graphic.layer));
+      if(hit) showCard(hit.graphic.layer.__kind,hit.graphic.attributes||{});
+      else hideCard();
+    }catch(e){}
+  });
 }
+
+/* ═══ 팝업 카드 — 테마지도의 축제·구리 명소 팝업과 같은 구성 (네이버 길찾기만 없음) ═══ */
+function valOK(v){ if(v===null||v===undefined) return false; const s=String(v).trim(); return !(s===''||s==='None'||s==='null'||s==='-'||s==='–'||s==='—'||s==='.'); }
+function pv(r,cands){ if(!r) return null; const m={}; Object.keys(r).forEach(k=>{ m[k.toLowerCase().replace(/[_\s]/g,'')]=k; });
+  for(const c of [].concat(cands)){ const n=String(c).toLowerCase().replace(/[_\s]/g,''); if(m[n]&&valOK(r[m[n]])) return r[m[n]]; } return null; }
+function briefText(s,maxLen,maxSent){
+  if(!valOK(s)) return null;
+  let t=String(s).replace(/\s+/g,' ').trim();
+  const sents=t.split(/(?<=[.!?요다])\s+/).filter(Boolean); let out='';
+  for(const x of sents){ if(out&&(out.length+x.length)>maxLen) break; out=out? out+' '+x : x; if(maxSent&&out.split(/(?<=[.!?요다])\s+/).length>=maxSent) break; }
+  if(!out) out=t;
+  if(out.length>maxLen){ out=out.slice(0,maxLen); const sp=out.lastIndexOf(' '); if(sp>maxLen*0.6) out=out.slice(0,sp); }
+  if(out.length<t.length) out=out.replace(/[,·\s]+$/,'')+'…';
+  return out;
+}
+const shortAddr=s=>String(s||'').replace(/^경기도\s*구리시\s*/,'').trim();
+const looksAddr=v=>/(시|군|구)\s|[가-힣]+(로|길)\s*\d|\d+번지|[가-힣]+동\s*\d/.test(String(v||''));
+async function copyAddr(btn,addr){ try{ await navigator.clipboard.writeText(addr); toast('주소가 복사되었습니다'); btn.textContent='복사됨'; setTimeout(()=>btn.textContent='복사',1500); }catch(e){ toast('복사에 실패했어요'); } }
+function toDate(v){ if(!valOK(v)) return null; if(typeof v==='number') return new Date(v); const s=String(v).trim();
+  if(/^\d{8}$/.test(s)) return new Date(+s.slice(0,4),+s.slice(4,6)-1,+s.slice(6,8));
+  if(/^\d{10,13}$/.test(s)) return new Date(Number(s.length===10? s*1000 : s));
+  const d=new Date(s.replace(/\./g,'-').replace(/(\d)T(\d)/,'$1 $2')); return isNaN(d.getTime())? null : d; }
+const festDay=d=>new Date(d.getFullYear(),d.getMonth(),d.getDate());
+function festState(r){
+  const s=toDate(pv(r,['시작일','시작','개최일'])), e=toDate(pv(r,['종료일','종료']))||s, stat=String(pv(r,['상태'])||''), today=festDay(new Date());
+  if(s){ const s0=festDay(s), e0=festDay(e&&e>=s? e : s);
+    if(today<s0){ const days=Math.round((s0-today)/864e5); return {k:'soon',t:'📅 예정 · '+(days===0?'오늘':days+'일 뒤')+' 시작'}; }
+    if(today>e0) return {k:'done',t:'종료'};
+    return {k:'live',t:s0.getTime()===e0.getTime()? '🎉 오늘 개최' : '🎪 진행중'}; }
+  if(/종료/.test(stat)) return {k:'done',t:'종료'};
+  if(/미공개|미정|미확인/.test(stat)) return {k:'plan',t:'일정 미정'};
+  return {k:'plan',t:'🗓️ 계획'}; }
+const festFmtD=d=>{ const W='일월화수목금토'; return `${d.getMonth()+1}.${d.getDate()}(${W[d.getDay()]})`; };
+function festPeriod(r){ const s=toDate(pv(r,['시작일','시작','개최일'])); if(!s) return null; const e=toDate(pv(r,['종료일','종료'])); const a=festFmtD(s), b=e? festFmtD(e) : a; return a===b? a : `${a} ~ ${b}`; }
+function festHM(v){ if(!valOK(v)) return null; if(typeof v==='number'){ const d=new Date(v); return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); }
+  const m=String(v).match(/(\d{1,2})\s*[:시]\s*(\d{2})?/); if(!m) return String(v).trim()||null; return ('0'+m[1]).slice(-2)+':'+(m[2]||'00'); }
+function festTime(r){ const a=festHM(pv(r,['시작시간'])), b=festHM(pv(r,['종료시간'])); return a&&b? `${a} ~ ${b}` : (a? a+' 시작' : (b? b+' 종료' : null)); }
+function festNote(r){ const v=pv(r,['비고']); if(!valOK(v)) return null; const drop=/개최장소|장소.{0,8}사용|과거\s*장소|위치\s*근거|데이터의 연속성/;
+  const kept=String(v).split(/(?<=[.。!?])\s+|\n+/).map(x=>x.trim()).filter(x=>x&&!drop.test(x)); return kept.length? briefText(kept.join(' '),110,2) : null; }
+const FEST_URL_F=['공식페이지','홈페이지','url','링크'];
+function festLink(r){ const v=pv(r,FEST_URL_F); if(!valOK(v)) return null; const u=String(v).trim(); if(!/^https?:\/\/\S+$/i.test(u)) return null;
+  let path=''; try{ const o=new URL(u); path=(o.pathname||'/').replace(/\/+$/,'')+(o.search||''); }catch(e){ return null; }
+  if(!path||/^\/?(www|index\.[a-z]+)?$/i.test(path)) return null;
+  const same=(overlayRows.fest||[]).filter(b=>String(pv(b,FEST_URL_F)||'').trim()===u).length; if(same>1) return null; return u; }
+
+const CARD={
+  spot:{accent:'#C1652B',cat:r=>{ const m=pv(r,['분류']); return valOK(m)? '⛰️ '+m : '구리 명소'; },
+    name:['이름','명칭','관광지명'],addr:['주소','도로명주소','소재지'],tel:['문의처','전화번호','연락처'],photos:['사진주소','사진','이미지'],
+    status:r=>{ const off=pv(r,['휴무일']); return valOK(off)? {k:'off',t:'🚪 '+String(off)} : null; },
+    chips:r=>{ let out=''; const add=(t,bg,fg)=>{ out+=`<span class="pchip" style="background:${bg};color:${fg}">${t}</span>`; };
+      const yes=f=>String(pv(r,[f])||'').trim().toUpperCase()==='O';
+      if(yes('주차장')) add('🅿️ 주차장','#E8F0FD','#2A57A8'); if(yes('화장실')) add('🚻 화장실','#E4F7EF','#0F6E56');
+      if(yes('수유실')) add('🍼 수유실','#FFF1E4','#B85E05'); if(yes('유모차대여')) add('👶 유모차 대여','#FFF1E4','#B85E05');
+      if(yes('자전거출입')) add('🚲 자전거','#EDE7FB','#5A3FC0'); if(yes('반려동물')) add('🐾 반려동물','#EDE7FB','#5A3FC0');
+      if(!valOK(pv(r,['이용요금']))) add('무료','#E4F7EF','#0F6E56'); return out; },
+    guide:r=>{ const s=briefText(pv(r,['소개']),110,2); return s? esc(s) : null; },
+    pop:[['⏰','이용시간',r=>pv(r,['이용시간'])],['💰','이용요금',r=>briefText(pv(r,['이용요금']),70,1)],['🗣️','해설안내',r=>pv(r,['해설안내'])],
+         ['📖','이야깃거리',r=>briefText(pv(r,['이야깃거리']),150,2)],['🚌','가는 길',r=>briefText(pv(r,['교통안내']),120,2)],['ℹ️','안내',r=>briefText(pv(r,['이용안내기타','이용안내_기타']),120,2)]],
+    links:r=>{ const v=pv(r,['홈페이지','url','상세링크']); if(!valOK(v)) return []; let u=String(v).trim(); if(!/^https?:\/\//.test(u)) u='http://'+u; return [['🔗 홈페이지 바로가기',u]]; },
+    telLabel:'문의처로 전화하기',foot:'이용시간·요금은 구리 문화관광 안내 기준이라 달라질 수 있어요'},
+  fest:{accent:'#D6455F',cat:r=>{ const t=pv(r,['축제유형']); return valOK(t)? '🎪 '+t : '축제'; },
+    name:['축제명','행사명','명칭'],addr:['주소','장소명','개최장소'],tel:['문의처','전화번호','연락처'],photos:['이미지URL','이미지url','사진주소','사진','이미지'],
+    status:r=>festState(r),
+    chips:r=>{ let out=''; const add=(t,bg,fg)=>{ out+=`<span class="pchip" style="background:${bg};color:${fg}">${esc(t)}</span>`; };
+      String(pv(r,['축제유형'])||'').split(/[·,/]/).map(x=>x.trim()).filter(Boolean).slice(0,3).forEach(x=>add(x,'#FFF1E4','#B85E05'));
+      if(/^무료/.test(String(pv(r,['요금'])||'').trim())) add('무료','#E4F7EF','#0F6E56');
+      const rel=pv(r,['연계행사']); if(valOK(rel)) add('🎪 연계 '+String(rel),'#EDE7FB','#5A3FC0'); return out; },
+    guide:r=>{ const s=briefText(pv(r,['축제소개','소개']),110,2); return s? esc(s) : null; },
+    pop:[['📅','기간',r=>festPeriod(r)],['⏰','시간',r=>festTime(r)],['📍','장소',r=>pv(r,['장소명'])],
+         ['🎯','주요 프로그램',r=>briefText(pv(r,['주요프로그램','프로그램']),140,2)],['💰','요금',r=>briefText(pv(r,['요금','이용요금']),70,1)],
+         ['🏛️','주최·주관',r=>{ const a=String(pv(r,['주최'])||'').trim(), b=String(pv(r,['주관'])||'').trim(); return a&&b? (a===b? a : a+' · '+b) : (a||b||null); }],
+         ['🎪','연계행사',r=>pv(r,['연계행사'])],['ℹ️','참고',r=>festNote(r)]],
+    links:r=>{ const u=festLink(r); return u? [['🔗 공식페이지 바로가기',u]] : []; },
+    telLabel:'문의처로 전화하기',foot:'일정·장소는 주최 측 사정으로 바뀔 수 있어요. 공식페이지에서 한 번 더 확인해 주세요'}
+};
+function showCard(kind,row){
+  const t=CARD[kind]; const el=$('infocard'); if(!t||!el) return;
+  try{
+    const name=String(pv(row,t.name)||'-'), addr=pv(row,t.addr), tel=pv(row,t.tel), telClean=tel? String(tel).replace(/[^\d]/g,'') : '';
+    const st=t.status(row), chips=t.chips(row), guide=t.guide(row);
+    let photo=''; const raw=pv(row,t.photos);
+    if(valOK(raw)){ const list=String(raw).split(/[\n;,\s]+/).map(x=>x.trim()).filter(x=>/^https?:\/\//.test(x)).slice(0,8).map(u=>u.replace(/^http:\/\//,'https://'));
+      if(list.length) photo=`<div class="pgal">`+list.map(u=>`<img src="${esc(u)}" alt="" loading="lazy" onerror="this.style.display='none'">`).join('')+`</div>`; }
+    let kv=''; t.pop.forEach(([ic,k,fn])=>{ let v=null; try{ v=fn(row); }catch(e){} if(!valOK(v)) return; const sv=String(v);
+      if(/^https?:\/\//.test(sv)) return; if([name,addr,tel].some(x=>valOK(x)&&String(x).trim()===sv.trim())) return;
+      kv+=`<div class="kv"><span class="k">${ic} ${esc(k)}</span><span class="v">${esc(sv)}</span></div>`; });
+    const links=t.links(row).map(([label,u])=>`<a class="btn-alt" target="_blank" rel="noopener" href="${esc(u)}">${esc(label)}</a>`).join('');
+    const soft=t.accent+'1A';
+    el.style.setProperty('--accent',t.accent); el.style.setProperty('--accent-soft',soft);
+    el.innerHTML=`
+    <div class="hd"><div class="cat">${esc(t.cat(row))}</div><div class="nm">${esc(name)}</div>
+      <button class="close" onclick="hideCard()" aria-label="닫기">✕</button></div>
+    <div class="bd">
+      ${photo}
+      ${st||chips?`<div class="chips">${st?`<span class="st ${st.k}">${st.t}</span>`:''}${chips}</div>`:''}
+      ${guide?`<div class="guide">💡 ${guide}</div>`:''}
+      ${(addr||tel||kv)?`<div class="pcard">
+        ${addr?`<div class="ttl">📍 주소</div><div>${esc(shortAddr(String(addr)))}${looksAddr(addr)?`<button class="copy-btn" onclick="copyAddr(this,'${esc(String(addr)).replace(/'/g,"\\'")}')">복사</button>`:''}</div>`:''}
+        ${tel?`<div class="ttl" style="margin-top:${addr?'10px':'0'}">📞 전화</div><a class="row-tel" href="tel:${telClean}">${esc(String(tel))}</a>`:''}
+        ${kv?`<div style="margin-top:${(addr||tel)?'10px':'0'}">${kv}</div>`:''}
+      </div>`:''}
+      ${(telClean||links)?`<div class="btnstack">${telClean?`<a class="btn-tel" href="tel:${telClean}">📞 ${esc(t.telLabel)}</a>`:''}${links}</div>`:''}
+      ${t.foot?`<div class="foot">${esc(t.foot)}</div>`:''}
+    </div>`;
+    el.classList.add('open'); $('main').classList.add('card-open'); el.scrollTop=0;
+  }catch(err){ console.warn('[3D 팝업 오류]',err); el.innerHTML=`<div class="hd"><div class="nm">${esc(String(pv(row,t.name)||'-'))}</div><button class="close" onclick="hideCard()">✕</button></div><div class="bd">정보를 표시하는 중 문제가 있었어요.</div>`; el.classList.add('open'); }
+}
+function hideCard(){ const el=$('infocard'); if(!el) return; el.classList.remove('open'); $('main').classList.remove('card-open'); }
+
 /* 웹씬 JSON 의 아이콘 href 가 '/maps/…' 처럼 루트 상대 주소면 ArcGIS 가 포털 기준으로 풀어 못 찾는다 → 이 페이지 기준 절대 주소로 */
 function absolutizeIcons(j){
   let n=0;
