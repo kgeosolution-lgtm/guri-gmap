@@ -485,3 +485,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 로드뷰(카카오): "로드뷰 보기" 칩을 켜면 지도 커서가 십자로 바뀌고 클릭한 곳에 주황 점 표시. `KAKAO.jsKey`(JavaScript 키, 카카오 개발자 콘솔에 kgeodata.com 등록 필요)가 있으면 지도 오른쪽 46%(모바일은 아래 절반) 패널에서 `kakao.maps.Roadview` 로 바로 보고(가장 가까운 파노라마 60m 탐색, 로드뷰 안에서 이동하면 지도 점도 따라감), 키가 없으면 `map.kakao.com/link/roadview/위도,경도` 를 새 창으로 연다(현재 상태). gomap 은 접근이 막혀 참고하지 못했고, 카카오 로드뷰 표준 방식으로 구현.
 - 브랜치: `work/kangmina-aerial-overlays` (base `design/service-home-refresh` acebf7a).
 - 검증: 인라인 스크립트 `node --check`, 가짜 DOM·지도 하네스로 WMS URL 구성, 칩 6개+로드뷰 칩 생성, 주소 `ov=` 복원·갱신, 지적도 확대 안내, 모두 끄기, 로드뷰 새 창 URL 검사 통과. 칩 카드 CSS 는 정적 미리보기로 확인. `npm run build:deploy`, `git diff --check` 통과. 실제 브이월드 응답(키·도메인·레이어 ID)과 카카오 로드뷰는 배포 후 확인 필요.
+
+## 2026-09-17 시계열 항공사진: 브이월드 요청 형식 자동 탐색·원인 보기, 로드뷰 패널은 클릭 후 (담당: 강민아)
+
+- 증상: `<img>` 방식으로 바꿔도 브이월드 6종이 안 보이고 "불러오지 못했어요 (키·도메인·레이어 ID 확인)"만 뜸. 담당자 확인: 키에 kgeodata.com·구리시·고양시 도메인이 모두 등록됨. 로드뷰는 켜자마자 빈 패널이 열리고, 클릭해도 내용이 없음.
+- 브이월드 조치: 브이월드가 받아 주는 요청 표기가 문서와 다를 수 있어(WMS 1.1.1/SRS vs 1.3.0/CRS, `DOMAIN` 을 호스트/`https://호스트`/생략/설정값 중 무엇으로) 첫 그림이 실패하면 `VW_VARIANTS` 8가지를 차례로 시도하고 성공한 형식을 기억(`vwLocked`). 모두 실패하면 안내 토스트에 **"원인 보기 ↗"** 링크(첫 형식의 GetMap 주소)를 넣어 새 창에서 브이월드의 오류 XML(도메인 불일치·레이어 없음 등)을 바로 볼 수 있게 함. 사이트에서는 CORS 때문에 오류 본문을 스크립트가 읽지 못할 수 있어 링크가 가장 확실한 진단 수단.
+- 로드뷰 조치(담당자 요청): "로드뷰 보기"를 켜면 SDK 만 미리 받고 패널은 열지 않음. 지도를 클릭하면 반경 150m(`RV_RADIUS`) 안의 가장 가까운 파노라마를 찾고, **찾았을 때만** 오른쪽 패널을 열어 그때 `kakao.maps.Roadview` 를 만들고 `relayout()` 후 파노라마를 놓음(숨겨진 상태에서 만들어 크기가 0이 되던 문제 방지). 없으면 "150m 안에는 로드뷰가 없어요" 안내만. SDK 로드 실패 시 새 창 폴백.
+- 브랜치: `work/kangmina-aerial-overlays-fix2` (base `design/service-home-refresh` e8d4984).
+- 검증: 하네스에 요청 형식 폴백(1.1.1 실패→1.3.0 성공·형식 고정, origin/생략 표기), 전부 실패 시 '원인 보기' 링크 토스트, 가짜 카카오 SDK 로 켜기만으로는 패널 안 열림·로드뷰 없는 곳은 안내·찾으면 패널 열림+relayout+setPanoId 검사 추가 통과. `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
