@@ -1,0 +1,24 @@
+name: kgeoMCP server preflight
+on:
+  push:
+    branches: [codex/kgeomcp-server-bootstrap]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 5
+    steps:
+      - name: Read kgeodata server prerequisites
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $node = 'C:\Program Files\nodejs\node.exe'
+          $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+          $result = [ordered]@{Computer=$env:COMPUTERNAME;Identity=$identity.Name;Node=(& $node --version);Admin=(New-Object Security.Principal.WindowsPrincipal($identity)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator);Paths=@();Ports=@();Tasks=@()}
+          foreach($p in @('D:\services','D:\codesolution\kgeodata','C:\inetpub\wwwroot','C:\Windows\System32\inetsrv\config\applicationHost.config')) {
+            try { $exists=Test-Path -LiteralPath $p; $acl=if($exists){(Get-Acl -LiteralPath $p).Access | ForEach-Object { [ordered]@{Identity=$_.IdentityReference.Value;Rights=$_.FileSystemRights.ToString();Type=$_.AccessControlType.ToString()} }}else{@()}; $result.Paths += [ordered]@{Path=$p;Exists=$exists;Acl=$acl} } catch { $result.Paths += [ordered]@{Path=$p;Readable=$false} }
+          }
+          foreach($port in @(4186,4187)) { $result.Ports += [ordered]@{Port=$port;Listening=[bool](Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue)} }
+          try { $result.Tasks=@(Get-ScheduledTask -TaskName 'KGEO*' -ErrorAction Stop | Select-Object TaskName,State) } catch { $result.Tasks=@('unavailable') }
+          $result | ConvertTo-Json -Depth 6
