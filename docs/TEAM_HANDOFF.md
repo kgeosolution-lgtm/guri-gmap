@@ -460,3 +460,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 조치: 캡처 보기(`.gr-lb`)를 화면 전체를 어둡게 덮는 사진 뷰어로 바꿈 — 위쪽 막대에 화면·위치·시간, 내려받기(`guri-review-<id>.jpg`), "실제 크기/화면에 맞춤", 닫기. 사진은 화면에 맞춰 크게(최대 100vw−32px × 100vh−76px), 사진을 누르면 실제 크기로 토글, 배경 클릭·닫기·Esc 로 닫힘. 페이지 CSS 가 `img` 를 건드려도 흐트러지지 않게 크기·배경·테두리는 `!important`.
 - 브랜치: `work/kangmina-review-lightbox` (base `design/service-home-refresh` 71204c2).
 - 검증: 헤드리스 크롬에서 썸네일 클릭 → 뷰어 열림·제목·내려받기 이름, 사진 클릭 → 실제 크기, Esc → 닫힘 확인. `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
+
+## 2026-09-17 "수정 요청" 목록 오류 수정·허용 창 없는 캡처 (담당: 강민아)
+
+- 오류: 목록 탭에 `TypeError: (s || "").replace is not a function`. 시트 셀에 숫자만 적힌 값(예: 위치 "4567")이 숫자로 와서 `esc()`가 문자열 메서드를 못 찾던 것. `esc`가 어떤 값이든 문자열로 바꾼 뒤 처리하도록 고쳤고, `Code.gs`의 목록도 모든 칸을 문자열로 보내게(`S_`) 했습니다(재배포 필요).
+- 캡처 허용 창: 브라우저의 "이 탭을 보도록 허용" 창은 웹 페이지가 없앨 수 없는 보안 절차라, 그 절차를 거치지 않는 방식을 먼저 씁니다 — 드래그 뒤 페이지를 직접 그림(`captureLocal`): 지도(WebGL)는 ArcGIS `view.takeScreenshot()`으로, 헤더·카드·버튼 등 나머지는 html2canvas(cdnjs, 처음 캡처 때 한 번 로드)로 그려 지도 스크린샷 위에 겹칩니다(캔버스 요소는 제외, 지도 자리와 조상 배경은 복제본에서 투명 처리, 위젯 자신은 제외). 네 지도 페이지의 전역 `view`를 그대로 씁니다. html2canvas 로드나 그리기에 실패하면 예전 브라우저 화면 캡처(허용 창)로 자동 전환.
+- 한계: html2canvas 는 CSS 를 흉내 내어 그리므로 그림자·일부 폰트·고정 요소가 실제와 조금 다를 수 있습니다. 지도 위 팝업 카드·버튼은 포함되지만 ArcGIS 팝업처럼 캔버스에 그려지는 것은 지도 스크린샷 쪽에 들어갑니다.
+- 브랜치: `work/kangmina-review-capture2` (base `design/service-home-refresh` 9317ba2).
+- 검증: 헤드리스 크롬에서 숫자 값이 섞인 목록 렌더, 가짜 `view.takeScreenshot`·html2canvas 로 드래그 100×80 영역이 지도(아래)+화면(위)로 합성되고 `getDisplayMedia`는 호출되지 않음, 지도 표시 속성 정리, 창 다시 열림 확인. Apps Script 하네스에 숫자 셀 문자열화 검사 추가. `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과. 실제 페이지에서의 html2canvas 렌더 품질은 배포 후 확인 필요.

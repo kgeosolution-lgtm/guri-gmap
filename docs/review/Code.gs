@@ -66,6 +66,9 @@ function out_(obj) {
     ContentService.MimeType.JSON,
   );
 }
+function S_(v) {
+  return v === null || v === undefined ? '' : String(v);
+} /* 시트의 숫자 셀도 문자열로 */
 function toIso_(v) {
   if (!v) return '';
   return v instanceof Date ? v.toISOString() : String(v);
@@ -101,15 +104,15 @@ function list_() {
         created_at: toIso_(r.created_at),
         status: normStatus_(r.status),
         done_at: toIso_(r.done_at),
-        screen: r.screen || '',
-        type: r.type || '',
-        sev: r.sev || '',
-        loc: r.loc || '',
-        content: r.content || '',
-        who: r.who || '',
-        owner: r.owner || '',
-        shot_id: r.shot_id || '',
-        page_url: r.page_url || '',
+        screen: S_(r.screen),
+        type: S_(r.type),
+        sev: S_(r.sev),
+        loc: S_(r.loc),
+        content: S_(r.content),
+        who: S_(r.who),
+        owner: S_(r.owner),
+        shot_id: S_(r.shot_id),
+        page_url: S_(r.page_url),
       };
     })
     .sort(function (a, b) {

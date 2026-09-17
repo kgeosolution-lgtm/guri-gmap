@@ -123,7 +123,7 @@
    + '.gr-pick .s{position:absolute;border:2px solid #fff;background:rgba(1,128,88,.14);box-shadow:0 0 0 9999px rgba(0,0,0,.3);display:none;pointer-events:none}';
 
   function el(tag, attrs, html) { var e = document.createElement(tag); if (attrs) for (var k in attrs) e.setAttribute(k, attrs[k]); if (html != null) e.innerHTML = html; return e; }
-  function esc(s) { return (s || '').replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }   /* 시트에서 숫자로 오는 값도 안전하게 */
   function fmt(ts) { var d = new Date(ts), p = function (n) { return ('0' + n).slice(-2); }; return d.getFullYear() + '.' + p(d.getMonth() + 1) + '.' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()); }
   var $ = function (id) { return document.getElementById(id); };
   function toast(m) { var t = $('grToast'); t.textContent = m; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(function () { t.classList.remove('on'); }, 2600); }
@@ -149,7 +149,7 @@
       + '<div class="gr-g"><span class="gr-l">화면 캡처 <span>선택 · 원하는 부분만 드래그</span></span>'
       + '<div class="gr-cap"><button type="button" class="gr-capbtn" id="grCap">📷 화면 캡처</button>'
       + '<div class="gr-pend" id="grPend" hidden><img id="grPendImg" alt=""><button type="button" id="grPendDel">×</button></div>'
-      + '<span class="gr-hint">누르면 창이 잠깐 닫히고 지도 위에서 원하는 부분을 드래그해요 · 이어서 브라우저의 "공유"를 누르면 담겨요 · Ctrl+V 붙여넣기도 돼요</span></div></div>'
+      + '<span class="gr-hint">누르면 창이 잠깐 닫히고 화면 위에서 원하는 부분을 드래그해요(그냥 클릭하면 전체) · Ctrl+V 붙여넣기도 돼요</span></div></div>'
       + '<button type="button" class="gr-submit" id="grAdd">＋ 보내기</button>'
       + '</div>'
       + '<div class="gr-body" id="grList" style="display:none">'
@@ -240,13 +240,53 @@
     document.body.appendChild(ov);
     var down = function (e) { e.preventDefault(); pickDrag = pt(e); };
     var move = function (e) { if (!pickDrag) return; e.preventDefault(); var r = rectOf(pickDrag, pt(e)); var s = $('grPickSel'); s.style.display = 'block'; s.style.left = r.x + 'px'; s.style.top = r.y + 'px'; s.style.width = r.w + 'px'; s.style.height = r.h + 'px'; };
-    var up = function (e) { if (!pickDrag) return; var r = rectOf(pickDrag, pt(e)); pickDrag = null; endPick(); captureTab(r.w > 6 && r.h > 6 ? r : null); };
+    var up = function (e) { if (!pickDrag) return; var r = rectOf(pickDrag, pt(e)); pickDrag = null; endPick(); captureAny(r.w > 6 && r.h > 6 ? r : null); };
     ov.addEventListener('mousedown', down); ov.addEventListener('mousemove', move); ov.addEventListener('mouseup', up);
     ov.addEventListener('touchstart', down, { passive: false }); ov.addEventListener('touchmove', move, { passive: false }); ov.addEventListener('touchend', up);
     document.addEventListener('keydown', pickEsc);
   }
   function pickEsc(e) { if (e.key === 'Escape') { pickDrag = null; endPick(); open(); } }
   function endPick() { var ov = $('grPick'); if (ov) ov.parentNode.removeChild(ov); document.removeEventListener('keydown', pickEsc); }
+  /* 허용 창 없이 담기: 페이지를 직접 그린다 — 지도(WebGL)는 ArcGIS 의 view.takeScreenshot 으로, 나머지 화면(헤더·카드·버튼)은 html2canvas 로 그려 겹친다.
+     html2canvas 를 못 불러오거나 그리기에 실패하면 브라우저 화면 캡처(허용 창)로 넘어간다. */
+  var H2C_URL = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+  function loadH2C() {
+    if (window.html2canvas) return Promise.resolve(window.html2canvas);
+    return new Promise(function (res, rej) { var sc = document.createElement('script'); sc.src = H2C_URL; sc.onload = function () { window.html2canvas ? res(window.html2canvas) : rej('html2canvas 없음'); }; sc.onerror = function () { rej('html2canvas 로드 실패'); }; document.head.appendChild(sc); });
+  }
+  function mapView() { try { var v = (typeof view !== 'undefined' && view) || window.view; return v && v.container && typeof v.takeScreenshot === 'function' ? v : null; } catch (e) { return null; } }
+  function loadImg(src) { return new Promise(function (res, rej) { var im = new Image(); im.onload = function () { res(im); }; im.onerror = rej; im.src = src; }); }
+  function captureLocal(rect) {
+    var W = window.innerWidth, H = window.innerHeight, scale = Math.min(2, window.devicePixelRatio || 1);
+    var v = mapView(), mapRect = null, mapShot = null;
+    return loadH2C().then(function (h2c) {
+      var p = Promise.resolve();
+      if (v) { mapRect = v.container.getBoundingClientRect(); v.container.setAttribute('data-gr-map', '1');
+        p = v.takeScreenshot({ format: 'jpg', quality: 92 }).then(function (s) { return loadImg(s.dataUrl); }).then(function (im) { mapShot = im; }).catch(function () { mapShot = null; }); }
+      return p.then(function () {
+        return h2c(document.documentElement, {
+          scale: scale, useCORS: true, allowTaint: false, backgroundColor: null, logging: false,
+          x: window.scrollX, y: window.scrollY, width: W, height: H, windowWidth: W, windowHeight: H, scrollX: 0, scrollY: 0,
+          ignoreElements: function (el) { if (el.tagName === 'CANVAS') return true; var c = el.classList; return !!(c && (c.contains('gr-modal') || c.contains('gr-pick') || c.contains('gr-toast') || c.contains('gr-lb') || c.contains('gr-crop'))); },
+          onclone: function (doc) { var e = doc.querySelector('[data-gr-map]'); while (e) { e.style.background = 'transparent'; e = e.parentElement; } }   /* 지도 자리와 그 조상은 투명하게 → 아래에 깐 지도 스크린샷이 보인다 */
+        });
+      });
+    }).then(function (domCanvas) {
+      if (v) v.container.removeAttribute('data-gr-map');
+      var c = document.createElement('canvas'); c.width = Math.round(W * scale); c.height = Math.round(H * scale); var g = c.getContext('2d');
+      g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+      if (mapShot && mapRect) g.drawImage(mapShot, 0, 0, mapShot.width, mapShot.height, mapRect.left * scale, mapRect.top * scale, mapRect.width * scale, mapRect.height * scale);
+      g.drawImage(domCanvas, 0, 0, c.width, c.height);
+      var r = rect || { x: 0, y: 0, w: W, h: H };
+      var o = document.createElement('canvas'); o.width = Math.max(1, Math.round(r.w * scale)); o.height = Math.max(1, Math.round(r.h * scale));
+      o.getContext('2d').drawImage(c, Math.round(r.x * scale), Math.round(r.y * scale), o.width, o.height, 0, 0, o.width, o.height);
+      return o.toDataURL('image/jpeg', 0.92);
+    }, function (err) { if (v) v.container.removeAttribute('data-gr-map'); throw err; });
+  }
+  function captureAny(rect) {
+    captureLocal(rect).then(function (u) { shrink(u, 1400, function (u2) { setPending(u2); open(); toast(rect ? '선택한 부분을 담았어요' : '전체 화면을 담았어요'); }); })
+      .catch(function (err) { try { console.warn('[수정 요청] 페이지 그리기 실패, 브라우저 캡처로 전환', err); } catch (x) {} captureTab(rect); });
+  }
   function captureTab(rect) {
     var opts = { video: { displaySurface: 'browser' }, audio: false, preferCurrentTab: true, selfBrowserSurface: 'include', surfaceSwitching: 'exclude', monitorTypeSurfaces: 'exclude', systemAudio: 'exclude' };
     navigator.mediaDevices.getDisplayMedia(opts).then(function (stream) {
