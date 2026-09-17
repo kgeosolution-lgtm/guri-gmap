@@ -299,8 +299,12 @@ const CLASS_TABLES={
     ['ag','농림지역','#6D8B3A'],['ne','자연환경보전','#26A69A'],['etc','그 밖의 용도지역','#BDBDBD']],
     match:{r1e:'제1종전용주거',r2e:'제2종전용주거',r1g:'제1종일반주거',r2g:'제2종일반주거',r3g:'제3종일반주거',rq:'준주거',cc:'중심상업',cg:'일반상업',cn:'근린상업',cd:'유통상업',
       ie:'전용공업',ig:'일반공업',iq:'준공업',gp:'보전녹지',gm:'생산녹지',gn:'자연녹지',mp:'보전관리',mm:'생산관리',mc:'계획관리',ag:'농림',ne:'자연환경보전'}},
-  HER:{field:['uname','명칭','name'],items:[['her','문화재보호구역','#8B5E34']],match:{}}
+  HER:{field:['uname','명칭','name'],items:[['her','문화재보호구역','#8B5E34']],match:{},
+    /* 레이블: 문화재 이름 + 지정한 곳(지정기관·지정종목 등, 자료에 있는 항목을 찾아 씀) */
+    label:['crltsn_nm','ccbamnm1','문화재명','uname','명칭','nm','name'],who:['ccbaadmin','ccba_admin','지정기관','desig_org','dgnt','ccmaname','ccma_name','지정종목','ccbakdcd','kind_nm','manage_nm','mng_nm','admin'],labelMin:25000}
 };
+/* 용도지역 레이블: 용도지역 이름(자료의 이름 항목 그대로), 1:10,000 이하에서 */
+CLASS_TABLES.USE.label=CLASS_TABLES.USE.field; CLASS_TABLES.USE.labelMin=10000;
 /* ids 가 안 맞으면(브이월드가 오류를 주면) alt 의 후보를 차례로 시도한다 — 레이어 ID 는 브이월드 2D 데이터 목록 기준 */
 /* 카카오 로드뷰: JavaScript 키를 넣고 카카오 개발자 콘솔에 kgeodata.com 을 등록하면 지도 옆 패널에서 바로 본다.
  * 키가 없으면 카카오맵 로드뷰를 새 창으로 연다. */
@@ -758,7 +762,8 @@ function wfsUrl(type,rb,max){
     +'&BBOX='+[rb.xmin,rb.ymin,rb.xmax,rb.ymax].join(',')+'&OUTPUT=application/json&MAXFEATURES='+(max||3000)
     +'&KEY='+encodeURIComponent(VW.key)+'&DOMAIN='+encodeURIComponent(vwDomain('host'));
 }
-function toLngLatDeep(c){ if(typeof c[0]==='number'){ const ll=WMU? WMU.xyToLngLat(c[0],c[1]) : [c[0]/6378137*180/Math.PI,(2*Math.atan(Math.exp(c[1]/6378137))-Math.PI/2)*180/Math.PI]; return [ll[0],ll[1]]; } return c.map(toLngLatDeep); }
+function xyToLL(x,y){ const ll=WMU? WMU.xyToLngLat(x,y) : [x/6378137*180/Math.PI,(2*Math.atan(Math.exp(y/6378137))-Math.PI/2)*180/Math.PI]; return [ll[0],ll[1]]; }
+function toLngLatDeep(c){ if(typeof c[0]==='number') return xyToLL(c[0],c[1]); return c.map(toLngLatDeep); }
 function geojsonToWgs84(j){ (j.features||[]).forEach(f=>{ if(f.geometry&&f.geometry.coordinates) f.geometry.coordinates=toLngLatDeep(f.geometry.coordinates); }); delete j.crs; return j; }
 /* 연속지적도: kgeodata 서비스를 그대로 그린다 — 구리시 필지만(PNU 앞 5자리), 채움 없이 선만, 지번을 11pt 로. 필드명은 서비스에서 자동으로 찾는다 */
 let cadLayer=null;
@@ -789,6 +794,16 @@ function classArcade(table,field){
   const parts=table.items.filter(([k])=>table.match[k]).map(([k])=>"IIf(Find('"+table.match[k]+"',n)>-1,'"+k+"',");
   return 'var n=Text($feature["'+field+'"]); return '+parts.join('')+"'"+(table.items[table.items.length-1][0])+"'"+')'.repeat(parts.length);
 }
+/* 확대했을 때 레이블: 용도지역은 용도지역 이름, 문화재는 이름 + 지정한 곳. 항목 이름은 첫 피처에서 찾는다(없으면 레이블 없음) */
+function vectorLabels(table,props){
+  const keys=Object.keys(props); const name=pickField(keys,table.label||table.field); if(!name) return null;
+  const who=table.who? pickField(keys,table.who) : null;
+  const expr=who
+    ? 'var n=Text(DefaultValue($feature["'+name+'"],"")); var d=Text(DefaultValue($feature["'+who+'"],"")); IIf(d=="",n,n+TextFormatting.NewLine+d)'
+    : '$feature["'+name+'"]';
+  return {name,who,info:[{labelExpressionInfo:{expression:expr},labelPlacement:'always-horizontal',minScale:table.labelMin||10000,
+    symbol:{type:'text',color:'#2b2118',haloColor:[255,255,255,.95],haloSize:1.5,font:{size:11,family:LBL_FONT.family,weight:'bold'}}}]};
+}
 function vectorLayer(o,j){
   const table=CLASS_TABLES[o.classes]; const props=(j.features[0]&&j.features[0].properties)||{}; const field=pickField(Object.keys(props),table.field)||Object.keys(props)[0]||'uname';
   const blob=new Blob([JSON.stringify(j)],{type:'application/json'}); const url=URL.createObjectURL(blob);
@@ -796,21 +811,55 @@ function vectorLayer(o,j){
     ? {type:'unique-value',valueExpression:classArcade(table,field),uniqueValueInfos:table.items.map(([k,label,c])=>({value:k,label,symbol:{type:'simple-fill',color:c,outline:{color:[255,255,255,.7],width:.8}}})),
         defaultSymbol:{type:'simple-fill',color:table.items[table.items.length-1][2],outline:{color:[255,255,255,.7],width:.8}}}
     : {type:'simple',symbol:{type:'simple-fill',color:table.items[0][2],outline:{color:'#5a3d20',width:1.2}}};
-  return new GeoJSONCls({url,title:o.label,popupEnabled:false,legendEnabled:false,listMode:'hide',outFields:['*'],renderer});
+  const lab=vectorLabels(table,props);
+  const lyr=new GeoJSONCls(Object.assign({url,title:o.label,popupEnabled:false,legendEnabled:false,listMode:'hide',outFields:['*'],renderer},lab? {labelsVisible:true,labelingInfo:lab.info} : {}));
+  lyr.__fields={cls:field,label:lab&&lab.name,who:lab&&lab.who}; return lyr;
+}
+/* 자료 받기 — ① 브이월드 WFS(fetch) ② 브이월드 2D 데이터 API(fetch) ③ 같은 API 를 JSONP(script) 로: fetch 가 CORS 로 막혀도 ③ 은 통한다.
+ * 데이터 API 는 한 번에 1,000건까지라 최대 3쪽까지 이어 받는다. 레이어 ID 후보(alt)도 차례로 */
+function dataApiUrl(id,rb,page,cb){
+  const a=xyToLL(rb.xmin,rb.ymin), b=xyToLL(rb.xmax,rb.ymax);
+  return 'https://api.vworld.kr/req/data?service=data&version=2.0&request=GetFeature&data='+encodeURIComponent(String(id).toUpperCase())
+    +'&geomFilter='+encodeURIComponent('BOX('+[a[0].toFixed(6),a[1].toFixed(6),b[0].toFixed(6),b[1].toFixed(6)].join(',')+')')
+    +'&size=1000&page='+(page||1)+'&format=json&crs=EPSG:4326&geometry=true&attribute=true&key='+encodeURIComponent(VW.key)+'&domain='+encodeURIComponent(vwDomain('host'))+(cb? '&callback='+cb : '');
+}
+let jsonpSeq=0;
+function jsonp(makeUrl,ms){ return new Promise((res,rej)=>{ const cb='vwcb'+(++jsonpSeq); let done=false; const sc=document.createElement('script');
+  const fin=(ok,v)=>{ if(done) return; done=true; clearTimeout(t); try{ delete window[cb]; }catch(e){ window[cb]=undefined; } if(sc.parentNode) sc.parentNode.removeChild(sc); ok? res(v) : rej(v); };
+  const t=setTimeout(()=>fin(false,new Error('timeout')),ms||12000); window[cb]=v=>fin(true,v); sc.onerror=()=>fin(false,new Error('script')); sc.src=makeUrl(cb); document.head.appendChild(sc); }); }
+function dataApiPage(j){
+  const r=j&&j.response; if(!r) throw new Error('bad'); if(r.status==='NOT_FOUND') return {features:[],more:0};
+  if(r.status!=='OK') throw new Error(r.status+(r.error? ' '+(r.error.text||r.error.code||'') : ''));
+  const fc=r.result&&r.result.featureCollection; if(!fc||!Array.isArray(fc.features)) throw new Error('no features');
+  const pg=r.page||{}; return {features:fc.features,more:(+pg.current||1)<(+pg.total||1)? (+pg.current||1)+1 : 0};
+}
+async function fetchVector(o,L,rb){
+  const errs=[]; const blocked=e=>{ if(/fetch|network|cors/i.test(String((e&&e.message)||e))) L.fetchBlocked=true; };
+  if(!L.fetchBlocked){ try{ const r=await fetch(wfsUrl(o.wfs,rb)); if(!r.ok) throw new Error('http '+r.status); const j=await r.json(); if(!j||!Array.isArray(j.features)) throw new Error('bad json'); return {j:geojsonToWgs84(j),via:'wfs'}; }
+    catch(e){ errs.push('wfs:'+String((e&&e.message)||e)); blocked(e); } }
+  const ids=[o.wfs].concat((o.alt||[]).map(a=>a[0])).filter(Boolean);
+  for(const id of ids){
+    for(const mode of ['fetch','jsonp']){ if(mode==='fetch'&&L.fetchBlocked) continue;
+      try{ const feats=[]; let page=1; for(let n=0;n<3&&page;n++){ const j=mode==='fetch'? await (await fetch(dataApiUrl(id,rb,page))).json() : await jsonp(cb=>dataApiUrl(id,rb,page,cb)); const pg=dataApiPage(j); feats.push.apply(feats,pg.features); page=pg.more; }
+        return {j:{type:'FeatureCollection',features:feats},via:mode+':'+id}; }
+      catch(e){ errs.push(id+'/'+mode+':'+String((e&&e.message)||e)); if(mode==='fetch') blocked(e); }
+    }
+  }
+  throw new Error(errs.join(' | '));
 }
 async function refreshVector(key){
   const L=ovLayers[key], o=ovDef(key), vb=viewBox(); if(!L||!o||!vb||!L.on) return;
   const rb=requestBox(vb); const url=wfsUrl(o.wfs,rb); if(L.url===url) return; L.url=url;
   try{
-    const r=await fetch(url); if(!r.ok) throw new Error('http '+r.status);
-    const j=await r.json(); if(!j||!Array.isArray(j.features)) throw new Error('bad json');
+    const got=await fetchVector(o,L,rb);
     if(L.url!==url||!L.on) return;
-    const lyr=vectorLayer(o,geojsonToWgs84(j)); const old=L.vec; L.vec=lyr;
+    const lyr=vectorLayer(o,got.j); const old=L.vec; L.vec=lyr; L.via=got.via;
     map.add(lyr,(airLayer?1:0)+(cmpLayer?1:0)); lyr.opacity=VW.alpha;
     if(old){ try{ map.remove(old); }catch(e){} }
     L.own=true; renderLegends(overlayKeys());
+    console.info('['+o.label+'] '+got.j.features.length+'건 ('+got.via+'), 분류·레이블 항목:',lyr.__fields,'항목 전체:',Object.keys((got.j.features[0]&&got.j.features[0].properties)||{}).join(','));
   }catch(e){
-    console.warn('['+o.label+'] WFS 실패 → WMS 그림으로',String((e&&e.message)||e));
+    console.warn('['+o.label+'] 벡터 자료 실패 → WMS 그림으로',String((e&&e.message)||e));
     L.wfsFailed=true; L.own=false; L.url=''; if(L.vec){ try{ map.remove(L.vec); }catch(x){} L.vec=null; }
     refreshOverlay(key); renderLegends(overlayKeys());
   }
@@ -821,7 +870,8 @@ function renderLegends(onKeys){
   host.innerHTML=items.map(o=>{ const t=CLASS_TABLES[o.classes], L=ovLayers[o.key]; const fallback=L&&L.wfsFailed;
     return '<div class="ov-legend" style="--c:'+o.c+'" data-key="'+o.key+'"><div class="t"><span class="dot"></span>'+esc(o.label)+' 범례</div>'
       +'<div class="sw">'+t.items.map(([k,label,c])=>'<span class="it"><i style="background:'+c+'"></i>'+esc(label)+'</span>').join('')+'</div>'
-      +(fallback? '<div class="no show">지금은 브이월드 그림으로 보여서 지도 색이 이 표와 다를 수 있어요</div>' : '')+'</div>'; }).join('');
+      +(fallback? '<div class="no show">지금은 브이월드 그림으로 보여서 지도 색이 이 표와 다를 수 있고, 확대해도 레이블이 안 나와요</div>'
+        : (L&&L.vec&&L.vec.__fields&&L.vec.__fields.label? '<div class="no show">확대하면 '+(o.classes==='HER'? '이름'+(L.vec.__fields.who? '과 지정한 곳':'') : '용도지역 이름')+'이 보여요</div>' : ''))+'</div>'; }).join('');
   host.classList.toggle('show',items.length>0);
 }
 function renderOvState(){
