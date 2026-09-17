@@ -773,13 +773,16 @@ let cadLayer=null;
 function pickField(names,cands){ const low=names.map(n=>String(n).toLowerCase()); for(const c of cands){ const i=low.indexOf(c.toLowerCase()); if(i>-1) return names[i]; } for(const c of cands){ const i=low.findIndex(n=>n.indexOf(c.toLowerCase())>-1); if(i>-1) return names[i]; } return null; }
 function cadastreDef(fields,url){
   const names=(fields||[]).map(f=>f.name);
-  const jibun=pickField(names,['jibun','지번','bchk_jibun'])||names[0], pnu=pickField(names,['pnu','필지고유번호']);
+  /* 레이블은 '지번지목부호'(예: 123-4 대) — 항목 이름이나 별칭(alias)에서 찾고, 없으면 지번 */
+  const aliases=(fields||[]).map(f=>f.alias||f.name); const byAlias=c=>{ const a=pickField(aliases,c); return a? names[aliases.indexOf(a)] : null; };
+  const JJ=['지번지목부호','jibun_jimok','jibunjimok','jimok'];
+  const jibun=pickField(names,JJ)||byAlias(JJ)||pickField(names,['jibun','지번','bchk_jibun'])||byAlias(['지번'])||names[0], pnu=pickField(names,['pnu','필지고유번호']);
   const pnuF=(fields||[]).find(f=>f.name===pnu); const pnuText=!!pnuF&&/string|text/i.test(String(pnuF.type||''));   /* 문자 항목일 때만 LIKE (숫자면 시 경계 필터만) */
   return {url:url||CITY.cadastreUrl,title:'연속지적도',outFields:[jibun].concat(pnu? [pnu]:[]),minScale:ovDef('cad').minScale||8000,
     definitionExpression:pnuText? pnu+" LIKE '"+CITY.sggCode+"%'" : undefined,
     renderer:{type:'simple',symbol:{type:'simple-fill',color:[0,0,0,0],outline:{color:'#7A5FD0',width:1.1}}},   /* 채움 없이 선만 */
     labelsVisible:true,labelingInfo:[{labelExpressionInfo:{expression:'$feature.'+jibun},labelPlacement:'always-horizontal',deconflictionStrategy:'static',
-      symbol:{type:'text',color:'#4A3A8A',haloColor:[255,255,255,.95],haloSize:1.5,font:{size:11,family:LBL_FONT.family,weight:'bold'}}}]};
+      symbol:{type:'text',color:'#4A3A8A',haloColor:[255,255,255,.95],haloSize:1.4,font:{size:10,family:LBL_FONT.family,weight:'bold'}}}]};   /* 11 → 10pt */
 }
 let cadLV=null;
 function withTimeout(p,ms,what){ return Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error(what+' 시간 초과')),ms))]); }
