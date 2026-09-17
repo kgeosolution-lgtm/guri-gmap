@@ -1,4 +1,4 @@
-name: kgeoMCP proxy diagnosis
+name: kgeoMCP health-only proxy diagnosis
 on:
   push:
     branches: [codex/kgeomcp-server-bootstrap]
@@ -7,12 +7,18 @@ permissions:
 jobs:
   inspect:
     runs-on: [self-hosted, Windows, X64, guri-preview]
-    timeout-minutes: 3
+    timeout-minutes: 5
     steps:
-      - name: Inspect new endpoint response only
+      - name: kgeoMCP health-only proxy diagnosis
         shell: powershell
         run: |
-          $ErrorActionPreference = 'Stop'
-          foreach($url in @('http://127.0.0.1:4187/app/kgeomcp/health.json','http://127.0.0.1/app/kgeomcp/health.json')) {
-            try { $r=Invoke-WebRequest -UseBasicParsing -Uri $url -Headers @{Host='kgeodata.com'} -MaximumRedirection 0; Write-Output ($url+' HTTP '+$r.StatusCode); Write-Output $r.Content } catch { Write-Output ('Local proxy error: '+$_.Exception.Message); if($_.ErrorDetails.Message){Write-Output ($_.ErrorDetails.Message -replace '<[^>]+>',' ')} }
-          }
+          $ErrorActionPreference='Stop'
+          $file='D:\codesolution\kgeodata\kgeomcp\web.config'
+          $private='D:\services\kgeo-mcp-remote'
+          Copy-Item -LiteralPath $file -Destination (Join-Path $private 'proxy-before-diagnosis.config')
+          $original=Get-Content -LiteralPath $file -Raw
+          $healthOnly='<?xml version="1.0" encoding="UTF-8"?><configuration><system.webServer><rewrite><rules><clear /><rule name="KGEO health diagnosis" stopProcessing="true"><match url="^health.json$"/><action type="Rewrite" url="http://127.0.0.1:4187/app/kgeomcp/health.json" /></rule><rule name="KGEO temporary maintenance" stopProcessing="true"><match url=".*"/><action type="CustomResponse" statusCode="503" statusReason="Maintenance" statusDescription="Setup verification" /></rule></rules></rewrite><httpErrors existingResponse="PassThrough" /></system.webServer></configuration>'
+          [IO.File]::WriteAllText($file,$healthOnly,(New-Object Text.UTF8Encoding($false)))
+          try{$r=Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1/app/kgeomcp/health.json' -Headers @{Host='kgeodata.com'};Write-Output ('Health-only proxy HTTP '+$r.StatusCode);Write-Output $r.Content}catch{Write-Output ('Health-only proxy failed: '+$_.Exception.Message)}
+          Write-Output 'OAuth and MCP remain disabled by the maintenance rule.'
+          
