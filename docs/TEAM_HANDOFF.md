@@ -330,3 +330,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
   - 팝업: 테마지도 '시즌·가을'의 둘레길/둘레길 시설물/등산로/등산로 시설물 팝업과 같은 구성(`CARD.dulle/dulleFac/hiking/hikingFac`) — 제목·머리말·칩·소개·정보 행(등산로 길이 km·시간 분 변환 `hikeLen`/`hikeMin`, 119 안내문)과 테마지도의 자동 정보 행(`autoRows`, 시스템 필드 제외)까지 같고 네이버 길찾기만 없습니다. 카드 색은 코스 색을 따르고, 클릭한 둘레길·등산로 구간은 노랗게 강조(`layerView.highlight`)했다가 카드를 닫으면 풀립니다.
 - 브랜치: `work/kangmina-3d-trails` (base `design/service-home-refresh` 5e5a6c5).
 - 검증: 인라인 스크립트 `node --check`, 단위 검사(코스 번호·색·배지, 스냅샷 렌더러 값 추출과 코스 선 렌더러, 시설물 코스 배지 전환, 4종 팝업 카드 조립, 둘러보기 도착 후 팝업), `npm run build:deploy`(출력에 `maps/sym/scene/trail/` 10장 포함), `git diff --check` 통과. 실제 3D 표시(선 굵기·배지 크기·레이블 겹침)는 배포 후 확인 필요.
+
+## 2026-09-17 3D 지도 등산로 팝업 상행·하행시간 누락·시설물 표시 축척 (담당: 강민아)
+
+- 증상: 3D 지도 등산로 팝업에 상행시간·하행시간이 빠짐. 서비스 필드명이 후보('상행시간')보다 긴 형태라 정확히 일치하는 이름만 찾던 3D 페이지의 `pv`가 놓쳤습니다(테마지도 `pickVal`은 부분일치 폴백이 있어 보였음).
+- 조치: `pv`에 테마지도와 같은 부분일치 폴백(키에 후보가 포함되면 사용)을 넣어 네 레이어 팝업이 테마지도와 같은 항목을 보이게 했습니다.
+- 시설물 축척: 둘레길·등산로 시설물이 멀리서도 다 보여 복잡하다는 의견으로 `minScale`을 25,000 → 3,000(길 하나가 화면에 차는 정도)으로, 이름 레이블은 6,000 → 1,500으로 좁혔습니다.
+- 브랜치: `work/kangmina-3d-trails-fix` (base `design/service-home-refresh` d931375).
+- 검증: 인라인 스크립트 `node --check`, 단위 검사(긴 필드명 행의 상행·하행시간 표시, 축척값), `npm run build:deploy`, `git diff --check` 통과.
