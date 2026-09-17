@@ -527,3 +527,12 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 남은 확인: 브이월드 WFS 의 CORS 허용 여부는 배포 후 확인. 정확한 색을 보장하려면 용도지역·문화재보호도 지적도처럼 kgeodata 서버에 올리고 `CITY` 에 URL 만 넣으면 됨(같은 `CLASS_TABLES` 로 칠하도록 확장 가능). 도시지역·문화재보호의 브이월드 레이어 ID 는 추정값(`alt` 로 재시도).
 - 브랜치: `work/kangmina-aerial-overlays-7` (base `design/service-home-refresh` 07311c6).
 - 검증: 하네스 개편 — 용도지역 WFS→GeoJSON(unique-value 22종, Arcade 괄호 짝, r2g=#FFC000, 범례에 같은 색·주의문 없음, 이동 시 새 조각으로 교체), 연속지적도 FeatureLayer(kgeodata URL, `pnu LIKE '41310%'`, 채움 0·선 #7A5FD0, 지번 11pt, minScale 8000, 한 번만 생성·visible 토글), 문화재보호 WFS 실패→WMS 그림+대체 ID+범례 주의문, 형식 폴백·원인 보기·로드뷰 검사 통과. `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
+
+## 2026-09-17 시계열 항공사진: 용도지역·문화재 레이블, 브이월드 자료를 데이터 API·JSONP 로도 받기 (담당: 강민아)
+
+- 요청: "범례랑 매칭이 잘 안된다. 범례는 그대로 두고, 확대하면 용도지역은 어떤 용도인지, 문화재는 누가 지정했는지 레이블을 보이게".
+- 레이블(`vectorLabels`): 용도지역은 용도지역 이름 항목(`uname` 등) 그대로, 1:10,000 이하에서. 문화재는 이름(`crltsn_nm`·`uname`·`nm`…) + 지정한 곳(`ccbaAdmin`·지정기관·지정종목… 자료에 있는 항목을 `CLASS_TABLES.HER.who` 후보에서 찾음)을 두 줄로, 1:25,000 이하에서. 11pt 굵게·흰 halo. 항목은 첫 피처의 속성에서 자동으로 찾고 없으면 레이블 없음. 실제로 어떤 항목을 썼는지는 콘솔 `console.info('[용도지역] n건 (경로), 분류·레이블 항목 …')` 로 확인 가능.
+- 범례 "매칭 안 됨"의 원인: 브이월드 WFS 가 CORS 로 막히면 그림(WMS)으로 대체되는데 그 그림은 브이월드 색이라 우리 범례와 다름. 그래서 벡터 자료 받는 경로를 셋으로(`fetchVector`): ① WFS fetch → ② 브이월드 2D 데이터 API(`/req/data`, fetch, EPSG:4326, 1,000건×최대 3쪽) → ③ 같은 API 를 `callback=` JSONP(`<script>`)로. ③ 은 CORS 와 무관하게 통하므로 브이월드가 JSONP 를 받아 주면 색·레이블이 모두 우리 것으로 나옴. fetch 가 CORS 로 막힌 것을 기억(`fetchBlocked`)해 다음부턴 바로 JSONP. 레이어 ID 후보(`alt`)도 차례로.
+- 그래도 다 실패하면 예전처럼 그림으로 대체하고 범례에 "그림이라 색이 다를 수 있고 확대해도 레이블이 안 나와요" 표시. 벡터로 성공하면 범례에 "확대하면 …이 보여요" 안내.
+- 브랜치: `work/kangmina-aerial-overlays-8` (base `design/service-home-refresh` ea000ae).
+- 검증: 하네스 — 용도지역 레이블(`$feature["uname"]`, minScale 10,000), 문화재 WFS http 오류→데이터 API fetch 2쪽 이어 받기·이름+지정한 곳 레이블(NewLine)·범례 안내, CORS 차단→JSONP 경로(막힌 fetch 재시도 없음, 콜백 정리), 전부 실패→그림+대체 ID+주의문 검사 통과. `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과. 배포 후 확인: 용도지역을 켜고 콘솔에 `(jsonp:…)` 또는 `(wfs)` 가 찍히면 성공, "벡터 자료 실패" 경고면 브이월드가 JSONP 도 안 주는 것이라 kgeodata 서버에 올리는 방법으로 가야 함.
