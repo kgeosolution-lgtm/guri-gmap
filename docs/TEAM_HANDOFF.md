@@ -367,3 +367,13 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 예전 방식으로 비교하려면 주소 뒤에 `?nocallout`(`USE_CALLOUT=false` → 2D 그림 마커, 6m 오프셋).
 - 브랜치: `work/kangmina-3d-callout` (base `design/service-home-refresh` 1568843).
 - 검증: 인라인 스크립트 `node --check`, 단위 검사(심볼 구조·지시선·기본 핀 기준점·레이어 오프셋), `npm run build:deploy`, `git diff --check` 통과. 띄우는 높이(44px)와 지시선 굵기는 배포 후 눈으로 확인 필요.
+
+## 2026-09-17 3D 지도 구리시 밖 회색 처리·시 밖 건물 (담당: 강민아)
+
+- 요청: 웹씬에 넣은 '구리외건물'(ArcGIS Online Esri 3D 건물, 시 안쪽은 필터로 제외, 팝업·범례 없음)과 'Korea_Boundary SE'(시 밖 회색 처리)를 3D 지도에도.
+- 조치(포털 웹씬 JSON 을 사이트에서 읽을 수 없어 페이지가 직접 만든다, `addOutsideMask`):
+  - 시 경계: 행정동 경계 서비스(`SCENE.dongUrl`)를 뷰 좌표계로 읽어 합치고 항공사진 페이지와 같은 `cleanOutline` 규칙으로 바깥 고리만 남깁니다.
+  - 회색 덮개: 시 크기의 25배 사각형(시계 방향)에 시 경계를 구멍(반시계 방향)으로 뚫은 폴리곤(`maskRings`)을 지면에 입혀 맨 아래 레이어로 추가(색 `SCENE.maskColor`, 흰 테두리). 웹씬의 'Korea_Boundary SE' 벡터 타일은 겹치지 않게 숨깁니다.
+  - 시 밖 건물: `SCENE.outsideBuildingsUrl`(Esri3D_Buildings_v1 SceneServer)을 SceneLayer 로 얹고 `filter`(시 경계와 disjoint)로 시 안쪽은 제외, 회색 mesh 렌더러, `popupEnabled/legendEnabled=false`, 목록 숨김. 클릭 대상에도 넣지 않았습니다. 주소가 틀리면 콘솔에 '로딩 실패' 경고만 남기고 레이어를 뺍니다.
+- 브랜치: `work/kangmina-3d-outside` (base `design/service-home-refresh` 6dd8d5d).
+- 검증: 인라인 스크립트 `node --check`, 단위 검사(고리 방향, 덮개 고리 구성, 경계 정리, 레이어 추가·필터·팝업/범례 끔·웹씬 타일 숨김, 경계 실패 시 생략), `npm run build:deploy`, `git diff --check` 통과. Esri 3D 건물 서비스 주소는 샌드박스에서 확인 불가 — 배포 후 콘솔 확인 필요(틀리면 웹씬 '구리외건물' 레이어의 URL 로 `SCENE.outsideBuildingsUrl` 교체).
