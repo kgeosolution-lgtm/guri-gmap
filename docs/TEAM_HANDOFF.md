@@ -438,3 +438,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 첫 목록 응답에 헤더 이름이 값으로 들어간 행(`id:"id"`)이 보여, 첫 요청 두 개가 동시에 와 헤더를 두 번 넣은 것으로 판단. `Code.gs` 를 고침: 헤더 유무를 1행 1열 값(`id`)으로 판단하고 잠금 안에서만 넣으며(이미 데이터가 있으면 1행에 삽입), 목록에서 `id` 값이 `id` 인 행은 건너뜀. **담당자가 시트의 중복 헤더 행을 지우고, Apps Script 를 새 버전으로 재배포해야 반영**(배포 → 배포 관리 → 연필 → 새 버전 → 배포, URL 유지).
 - 브랜치: `work/kangmina-review-url` (base `design/service-home-refresh` 4a22e4c).
 - 검증: Apps Script 하네스에 헤더 중복 행 제외·헤더 없는 시트에 1행 삽입 검사 추가 통과, review.js 헤드리스 크롬 검사 통과, `npm run build:deploy`, prettier, `git diff --check` 통과.
+
+## 2026-09-17 "수정 요청" 창이 갑자기 닫히는 문제·지도 위에서 바로 드래그 캡처 (담당: 강민아)
+
+- 증상 1: 글을 쓰다가 창이 갑자기 사라짐. 원인은 글을 드래그해 고르다 창 밖에서 마우스를 떼면 브라우저가 그것을 바깥 클릭으로 보고 닫던 것. 밖에서 누르고 밖에서 뗐을 때만 닫도록 고쳤고, 쓰던 글(내용·위치)은 `sessionStorage`에 남겨 실수로 닫히거나 새로고침돼도 복구됩니다(보내면 지움).
+- 증상 2: 캡처가 브라우저 화면 고르기부터 시작해 원하는 부분만 담기 번거로움. 흐름을 바꿈 — 📷 을 누르면 창이 잠깐 닫히고 지도 위에 반투명 오버레이가 떠서 원하는 부분을 드래그(그냥 클릭하면 전체, Esc 취소) → `getDisplayMedia`에 `preferCurrentTab`·`selfBrowserSurface:'include'`·`surfaceSwitching/monitorTypeSurfaces:'exclude'`를 줘 브라우저 고르기 창에 현재 탭이 바로 잡히게(사용자는 "공유"만 누름) → 잡힌 화면에서 드래그한 부분만 잘라(뷰포트 대비 비율로 좌표 변환) 담고 창을 다시 엽니다. 잡힌 화면 비율이 이 탭과 다르면(다른 창을 골랐을 때) 전체를 담고 예전 크롭 화면으로 넘겨 직접 자르게 합니다. Ctrl+V 붙여넣기 흐름은 그대로.
+- 브라우저 제약: 브라우저 정책상 화면 고르기 창 자체는 없앨 수 없어 "공유" 클릭 한 번은 남습니다(크롬은 현재 탭이 미리 선택됨).
+- 브랜치: `work/kangmina-review-capture` (base `design/service-home-refresh` d545104).
+- 검증: 헤드리스 크롬에서 `getDisplayMedia`를 캔버스 스트림으로 흉내 내어 드래그 100×60px → 2배 화면에서 200×120px 이미지가 담기고 창이 다시 열리는 것, 안에서 누르고 밖에서 떼면 안 닫히고 밖에서 누르고 떼면 닫히는 것, 초안 저장을 확인. `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과. 실제 크롬의 화면 고르기 동작은 배포 후 확인 필요.
