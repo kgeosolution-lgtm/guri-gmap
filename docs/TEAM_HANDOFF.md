@@ -338,3 +338,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 시설물 축척: 둘레길·등산로 시설물이 멀리서도 다 보여 복잡하다는 의견으로 `minScale`을 25,000 → 3,000(길 하나가 화면에 차는 정도)으로, 이름 레이블은 6,000 → 1,500으로 좁혔습니다.
 - 브랜치: `work/kangmina-3d-trails-fix` (base `design/service-home-refresh` d931375).
 - 검증: 인라인 스크립트 `node --check`, 단위 검사(긴 필드명 행의 상행·하행시간 표시, 축척값), `npm run build:deploy`, `git diff --check` 통과.
+
+## 2026-09-17 3D 지도 건물 팝업 카드화·기울기/북쪽 전환 시 화면 중심 유지 (담당: 강민아)
+
+- 건물 팝업: 웹씬 3D 건물(SceneLayer LOD1 `3D_Buildings_LOD1_2508`, LOD2 `Buildings_LOD2_2508`)의 ArcGIS 기본 팝업(우하단 도킹)을 끄고(`view.popupEnabled=false`, `prepBuildings`), 클릭하면 웹씬에 설정된 Arcade 팝업과 같은 구성(용도·구조 칩, 층수·높이·면적·건폐율·용적률·세대·지붕·사용승인·행정구역·건물번호·PNU, 안내문)을 명소·둘레길과 같은 좌상단 카드로 그립니다(`CARD.bldg1/bldg2`, 헬퍼 `bC/bPos/bArea/bPct/bMtr/bYmd/bNo`는 Arcade 의 C/Pos/Area/Pct/Mtr/Ymd 규칙과 동일, LOD2 코드값은 레이어 필드 도메인으로 이름 변환 `domainName`). 히트 결과에 속성이 없으면 ObjectID 로 다시 조회(`bldgAttrs`). 클릭한 건물은 노랗게 강조.
+- 기울기·북쪽: '위에서 보기/비스듬히 보기'와 '북쪽 맞추기'가 카메라 위치를 그대로 두고 기울기만 바꿔 화면이 다른 곳으로 가던 것을, 지금 보는 화면 중심(`view.center`)·축척을 유지한 채 기울기·방향만 바꾸도록 고쳤습니다(`pivotView`).
+- 브랜치: `work/kangmina-3d-bldg-popup` (base `design/service-home-refresh` e70576c).
+- 검증: 인라인 스크립트 `node --check`, 단위 검사(레이어 종류 판별, 도메인 이름, LOD1/LOD2 카드 조립과 0 값·중복 숨김, ObjectID 재조회, 기울기·북쪽 전환 시 중심·축척 유지), `npm run build:deploy`, `git diff --check` 통과. 실제 SceneLayer 히트 속성·조회 동작은 배포 후 확인 필요.
