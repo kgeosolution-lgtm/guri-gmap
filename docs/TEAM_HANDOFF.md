@@ -561,3 +561,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 그 문구의 원인 "Layer not found": `CITY.cadastreUrl` 의 층 번호 `/0` 이 서비스에 없음. `resolveCadastreUrl` 이 `…/FeatureServer?f=json` 목록을 읽어(같은 사이트) 요청한 번호가 없으면 폴리곤 층(없으면 첫 층)의 번호로 바꿔 씀. 콘솔에 `층 번호를 0 → n 로 바꿔 씀` 이 찍힘. 맞는 번호를 알면 `CITY.cadastreUrl` 에 직접 넣어도 됨.
 - 브랜치: `work/kangmina-aerial-overlays-11` (base `design/service-home-refresh` cf3d094).
 - 검증: 하네스 — 실패 시 토스트 없음, 목록에 0 이 없고 폴리곤 층 5 가 있으면 `/5` 로 성공 검사 통과. `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
+
+## 2026-09-17 시계열 항공사진: 케이지오 연속지적도 레이블을 지번지목부호로, 10pt (담당: 강민아)
+
+- 케이지오 연속지적도가 보이기 시작함(층 번호 자동 찾기 효과). 담당자 요청으로 레이블을 **지번지목부호**(예: 123-4 대) 항목으로, 글자를 11 → 10pt 로.
+- 항목 찾기(`cadastreDef`): 항목 이름 또는 별칭(alias)에서 `지번지목부호`·`jibun_jimok`·`jimok` 순으로 찾고, 없으면 지번(`jibun`·별칭 `지번`), 그래도 없으면 첫 항목. 실제로 어떤 항목이 잡혔는지는 레이어 `outFields` 첫 값으로 확인.
+- 브랜치: `work/kangmina-aerial-overlays-12` (base `design/service-home-refresh` b855c94).
+- 검증: 하네스 — 이름 `jibun_jimok` 로 찾기, 별칭 `지번지목부호`(이름 `field_9`)로 찾기, 없으면 `jibun`, 10pt 검사 통과. `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
