@@ -468,3 +468,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 한계: html2canvas 는 CSS 를 흉내 내어 그리므로 그림자·일부 폰트·고정 요소가 실제와 조금 다를 수 있습니다. 지도 위 팝업 카드·버튼은 포함되지만 ArcGIS 팝업처럼 캔버스에 그려지는 것은 지도 스크린샷 쪽에 들어갑니다.
 - 브랜치: `work/kangmina-review-capture2` (base `design/service-home-refresh` 9317ba2).
 - 검증: 헤드리스 크롬에서 숫자 값이 섞인 목록 렌더, 가짜 `view.takeScreenshot`·html2canvas 로 드래그 100×80 영역이 지도(아래)+화면(위)로 합성되고 `getDisplayMedia`는 호출되지 않음, 지도 표시 속성 정리, 창 다시 열림 확인. Apps Script 하네스에 숫자 셀 문자열화 검사 추가. `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과. 실제 페이지에서의 html2canvas 렌더 품질은 배포 후 확인 필요.
+
+## 2026-09-17 3D 지도 모든 건물에 투명도 40%·진한 회색 얇은 외곽선 (담당: 강민아)
+
+- 요청: 3D 지도의 모든 건물에 투명도 40%, 외곽선을 진한 회색으로 얇게.
+- 조치: `SCENE.building={opacity:0.6, edgeColor:[64,68,72,.9], edgeSize:0.6}`. 구리 건물(LOD1·LOD2 SceneLayer)은 레이어가 로드된 뒤 `applyBuildingStyle`로 `mesh-3d` 심볼을 새로 입힘 — 원래 렌더러가 단순 심볼이면 그 색과 colorMixMode(텍스처 tint 등)를 살리고 불투명도만 0.6으로, 없으면 흰색. 외곽선은 `edges:{type:'solid', color, size:0.6pt}`. 시 밖 Esri 건물도 같은 `meshSym`(회색 + 같은 투명도·외곽선). 클릭 강조·팝업 카드는 그대로.
+- 브랜치: `work/kangmina-3d-building-style` (base `design/service-home-refresh` 0a57b6a).
+- 검증: 단위 검사(원래 색·mix 보존 + 0.6, 렌더러 없을 때 흰색, 시 밖 건물 심볼, prepBuildings 적용), `node --check`, `npm run build:deploy`, `git diff --check` 통과. 실제 투명 건물의 겹침·외곽선 굵기는 배포 후 확인 필요.
