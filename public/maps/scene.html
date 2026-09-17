@@ -356,6 +356,18 @@ function label3d(expr,color,size,placement,minScale){
 }
 function snapshotLabelExpr(ld){ try{ return ld.drawingInfo.labelingInfo[0].labelExpressionInfo.expression||null; }catch(e){ return null; } }
 
+/* 명소·축제 심볼: 건물 사이(예: 전통시장 곱창골목)에 있으면 옆 건물에 가려 보였다 안 보였다 하므로,
+ * 화면 기준 높이(verticalOffset)만큼 공중에 띄우고 지시선(callout)으로 자리를 가리킨다 — 빽빽한 도심에서 심볼이 가려지지 않게 하는 ArcGIS 권장 방식.
+ * 문제가 생기면 주소 뒤에 ?nocallout 을 붙여 예전 방식(2D 그림 마커)으로 볼 수 있다. */
+const USE_CALLOUT=!/[?&]nocallout\b/.test(location.search);
+const CALLOUT_LIFT={screenLength:44,minWorldLength:28,maxWorldLength:260};   /* 화면 44px, 세계 좌표로는 최소 28m·최대 260m */
+function placeSym(url,W,H,anchor){
+  if(!USE_CALLOUT) return {type:'picture-marker',url,width:W,height:H};
+  return {type:'point-3d',
+    symbolLayers:[{type:'icon',resource:{href:url},size:Math.max(W,H),anchor:anchor||'center'}],
+    verticalOffset:CALLOUT_LIFT,
+    callout:{type:'line',size:1.6,color:[255,255,255,.95],border:{color:[70,58,44,.75]}}};
+}
 /* 명소·축제: 담당자가 준 그림 심볼(그림자 입힌 PNG) + 짧은 레이블 */
 function placeLayer(FeatureLayer,d,kind){
   const isFest=kind==='fest';
@@ -364,15 +376,15 @@ function placeLayer(FeatureLayer,d,kind){
   const W=isFest? 54 : 58, H=Math.round(W*275/284);          /* 그림자 포함 PNG(284×275) 비율 */
   const uv=(r.uniqueValueInfos||[]).map(u=>{ const sl=((u.symbol||{}).symbolLayers||[])[0]; const href=sl&&sl.resource&&sl.resource.href;
     if(!href) return null; const file=href.split('/').pop();
-    return {value:u.value,symbol:{type:'picture-marker',url:new URL('sym/scene/shadow/'+file,location.href).href,width:W,height:H}}; }).filter(Boolean);
+    return {value:u.value,symbol:placeSym(new URL('sym/scene/shadow/'+file,location.href).href,W,H)}; }).filter(Boolean);
   const pin=new URL('sym/scene/pin.png',location.href).href;
   const layer=new FeatureLayer({
     url:d.url, title:'3D '+d.title, outFields:['*'],
     definitionExpression:ld.definitionExpression||undefined,
-    elevationInfo:{mode:'relative-to-scene',offset:6},          /* 건물·지형 위에 놓여 가려지지 않는다 */
+    elevationInfo:{mode:'relative-to-scene',offset:USE_CALLOUT? 0 : 6},   /* 지붕·지면에서 시작해 지시선으로 띄운다 */
     screenSizePerspectiveEnabled:false,
     renderer:{type:'unique-value',field,uniqueValueInfos:uv,
-      defaultSymbol:{type:'picture-marker',url:pin,width:12,height:15}},   /* 이름이 목록에 없으면 작은 핀 */
+      defaultSymbol:placeSym(pin,12,15,'bottom')},                    /* 이름이 목록에 없으면 작은 핀 */
     labelsVisible:true,
     labelingInfo:[label3d(shortLabelArcade(field),isFest? [138,47,81,255] : [122,59,18,255],11,'above-center')],
     popupEnabled:false                                            /* 팝업은 테마지도식 카드로 직접 그린다 */
