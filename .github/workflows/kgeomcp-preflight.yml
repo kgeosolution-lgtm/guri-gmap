@@ -1,44 +1,28 @@
-name: Stage endpoint-scoped IIS repair
+name: kgeoMCP server stage
 on:
   push:
     branches: [codex/kgeomcp-server-bootstrap]
 permissions:
   contents: read
 jobs:
-  inspect:
+  stage:
     runs-on: [self-hosted, Windows, X64, guri-preview]
-    timeout-minutes: 5
+    timeout-minutes: 12
     steps:
-      - name: Stage endpoint-scoped IIS repair
+      - name: Receive private release and stage
         shell: powershell
+        env:
+          KGEO_TRANSFER_URL: ${{ secrets.KGEOMCP_STAGE_URL }}
         run: |
-          $ErrorActionPreference='Stop'
-          $script=@'
-          param([switch]$Apply)
-          $ErrorActionPreference='Stop'
-          $remoteRoot='D:\services\kgeo-mcp-remote'
-          $webFile='D:\codesolution\kgeodata\kgeomcp\web.config'
-          $appcmd="$env:windir\System32\inetsrv\appcmd.exe"
-          $identity=[Security.Principal.WindowsIdentity]::GetCurrent()
-          if(!(New-Object Security.Principal.WindowsPrincipal($identity)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)){throw 'Administrator PowerShell required for this endpoint-scoped IIS setting'}
-          $physical=& $appcmd list vdir 'Default Web Site/app' /text:physicalPath
-          if($LASTEXITCODE -ne 0 -or $physical.TrimEnd('\') -ne 'D:\codesolution\kgeodata'){throw 'Unexpected IIS app location'}
-          $old=Get-Content -LiteralPath $webFile -Raw
-          if($old -notmatch 'KGEO (remote MCP|temporary maintenance)'){throw 'Unexpected endpoint configuration'}
-          Write-Output 'Impact: correct IIS logging at Default Web Site/app/kgeomcp only, restore its proxy. No service/site restart.'
-          if(!$Apply){Write-Output 'Preflight complete; use -Apply.';exit 0}
-          Copy-Item -LiteralPath $webFile -Destination (Join-Path $remoteRoot ('web.before-proxy-repair-'+[guid]::NewGuid().ToString('N')+'.config'))
-          & $appcmd set config 'Default Web Site/app/kgeomcp' /section:system.webServer/httpLogging /dontLog:true /selectiveLogging:LogSuccessful /commit:apphost | Out-Null
-          if($LASTEXITCODE -ne 0){throw 'Endpoint-scoped log setting failed; maintenance retained'}
-          $replacement='<?xml version="1.0" encoding="UTF-8"?><configuration><system.webServer><rewrite><rules><clear /><rule name="KGEO remote MCP" stopProcessing="true"><match url="^(.*)$" /><action type="Rewrite" url="http://127.0.0.1:4187/app/kgeomcp/{R:1}" appendQueryString="true" /></rule></rules></rewrite><httpErrors existingResponse="PassThrough" /></system.webServer></configuration>'
-          [IO.File]::WriteAllText($webFile,$replacement,(New-Object Text.UTF8Encoding($false)))
-          [IO.File]::WriteAllText((Join-Path $remoteRoot 'web.config'),$replacement,(New-Object Text.UTF8Encoding($false)))
-          $health=Invoke-RestMethod 'https://kgeodata.com/app/kgeomcp/health.json'
-          if($health.health -ne 'ready'){throw 'External health still requires inspection'}
-          $health | ConvertTo-Json
-          Write-Output 'External proxy repaired. Browser OAuth verification can proceed.'
-          
-          '@
-          [IO.File]::WriteAllText('D:\services\kgeo-mcp-remote\repair-proxy.ps1',$script,(New-Object Text.UTF8Encoding($false)))
-          Write-Output 'Repair script staged; Administrator must apply the endpoint-scoped IIS setting.'
-          
+          $ErrorActionPreference = 'Stop'
+          $ProgressPreference = 'SilentlyContinue'
+          $temporary = Join-Path $env:RUNNER_TEMP 'kgeomcp-95baa19ea84e9e60'
+          New-Item -ItemType Directory -Path $temporary -Force | Out-Null
+          & icacls.exe $temporary /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-20:(OI)(CI)F' | Out-Null
+          if($LASTEXITCODE -ne 0){throw 'Private transfer ACL failed'}
+          $archive = Join-Path $temporary 'transfer.zip'
+          try { Invoke-WebRequest -UseBasicParsing -Uri $env:KGEO_TRANSFER_URL -OutFile $archive } catch { throw 'Private transfer failed. Refresh the short-lived download capability.' }
+          $env:KGEO_TRANSFER_URL = $null
+          if((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne '973d3a45934b156b82dc069f837cc1d966977658784fb8bea14a39375ac7efd5'){throw 'Transfer hash mismatch'}
+          Expand-Archive -LiteralPath $archive -DestinationPath $temporary
+          & (Join-Path $temporary 'stage-release.ps1') -Package (Join-Path $temporary 'kgeoMCP.zip') -Manifest (Join-Path $temporary 'manifest.json') -Configuration (Join-Path $temporary 'config.json')
