@@ -508,3 +508,13 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 레이어가 다시 안 보인 원인 판단: #52 에서 넣은 시 경계 자르기(SVG `clipPath` 참조)가 브라우저·레이아웃에 따라 이미지 층을 통째로 가릴 수 있어(요청은 성공해도 화면에 안 보임), 자르기를 화면 좌표 CSS `clip-path: polygon(...)` 으로 바꿈: 시 경계의 가장 큰 고리를 Douglas–Peucker(1.5m)로 간추려 두고(`simplifyRing`), 화면이 움직일 때마다 화면 픽셀 좌표로 polygon 문자열을 다시 씀(`updateCityClip`). 주소 뒤 `?noclip` 이면 자르지 않음(진단용).
 - 브랜치: `work/kangmina-aerial-overlays-4` (base `design/service-home-refresh` f438f14).
 - 검증: 하네스에 간추리기(직선 점 제거·꺾임 유지), 큰 고리 선택, polygon 좌표 변환, 칩 문구 검사 통과. `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과. 실제로 레이어가 보이는지는 배포 후 확인(안 보이면 `?noclip` 으로 자르기 여부를 갈라 볼 것).
+
+## 2026-09-17 시계열 항공사진: 행정구역 벡터 스타일·통리반, 지적도 선만+지번 크게, 범례, 로드뷰 재선택, 공공문화체육시설 삭제 (담당: 강민아)
+
+- 로드뷰: 패널이 열린 뒤 다른 곳을 찍으면 바로 그곳으로 옮김(첫 열림에만 `relayout` 지연, 이후는 즉시 `setPanoId`). 로드뷰 객체는 하나만 만든다.
+- 행정구역: 브이월드 WMS 대신 구리시 행정동경계 서비스를 우리 스타일로 그림(`kind:'adm'`, `admLayerDefs`) — 흰 테두리 5px 아래 파란 선 2px, 아주 옅은 파란 채움, 동 이름 13pt 굵게·흰 halo(`always-horizontal`, 겹치면 숨김). 통리반은 `CITY.tongUrl`(구리시 서비스 층 URL)·`tongNameField` 를 넣으면 1:12,000 이하에서 점선 1.2px + 11pt 레이블로 보임. **현재 통리반 서비스 URL 이 없어 비어 있음 — 담당자에게 요청.** 구리시 자료라 시 경계 자르기 불필요.
+- 연속지적도: 브이월드 WFS(`lp_pa_cbnd_bubun`, EPSG:3857, 최대 3,000필지)로 필지를 받아 GeoJSONLayer 로 그림(`refreshCadastre`/`cadastreLayer`) — 채움 없이 보라 선 1.1px, 지번(`jibun`) 11pt 굵게(브이월드 기본보다 한 포인트 큼). 좌표는 경위도로 변환(`geojsonToWgs84`). 1:8,000 이하에서만. WFS 가 CORS 등으로 막히면 예전 WMS 그림으로 자동 대체하고 안내(`wfsFailed`).
+- 범례: 용도지역·문화재보호(`legend:true`)를 켜면 카드 아래에 브이월드 `GetLegendGraphic` 이미지가 붙음(`renderLegends`). 브이월드가 범례 그림을 안 주면 "제공하지 않아요" 문구.
+- 공공문화체육시설 삭제. 레이어 목록: 행정구역·연속지적도·용도지역·도시지역·문화재보호.
+- 브랜치: `work/kangmina-aerial-overlays-5` (base `design/service-home-refresh` 5c484ab).
+- 검증: 하네스에 레이어 목록, 행정동 2겹 레이어·레이블 13pt·표시/숨김, 지적도 WFS→GeoJSON(채움 0·지번 11pt·blob URL·지도 추가)와 WFS 실패→WMS 대체, 범례 이미지(용도지역만), 로드뷰 두 번째 클릭 즉시 이동·객체 1개 검사 추가 통과. `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과. 브이월드 WFS 의 CORS 허용 여부·범례 제공 여부는 배포 후 확인.

@@ -119,6 +119,13 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .ov-foot button:hover{color:var(--brand)}
 .ov-note{font-size:11.5px;color:var(--sub);margin-top:6px;line-height:1.4;word-break:keep-all;display:none}
 .ov-note.show{display:block}
+.ov-legends{display:none;flex-direction:column;gap:8px;margin-top:8px;max-height:230px;overflow:auto;border-top:1px solid var(--line);padding-top:8px}
+.ov-legends.show{display:flex}
+.ov-legend .t{font-size:12px;font-weight:700;color:var(--ink);margin-bottom:4px;display:flex;align-items:center;gap:6px}
+.ov-legend .t .dot{width:9px;height:9px;border-radius:50%;background:var(--c)}
+.ov-legend img{display:block;max-width:100%;height:auto;background:#fff;border:1px solid var(--line);border-radius:6px}
+.ov-legend.none img{display:none}.ov-legend.none .no{display:block}
+.ov-legend .no{display:none;font-size:11.5px;color:var(--faint)}
 
 /* 겹쳐 보기 이미지 층: 지도 캔버스 위에 놓이는 <img> (WebGL·CORS 와 무관하게 그린다). 구리시 경계 clipPath 로 시 밖은 잘림 */
 .ov-clip{position:absolute;width:0;height:0;overflow:hidden}
@@ -186,6 +193,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
     <div class="ov-chips" id="ovChips"></div>
     <div class="ov-foot" id="ovFoot"><span>진하기</span><input type="range" id="ovAlpha" min="30" max="100" step="5" value="75" aria-label="겹쳐 보기 진하기"><button type="button" onclick="clearOverlays()">모두 끄기</button></div>
     <p class="ov-note" id="ovNote" role="status" aria-live="polite"></p>
+    <div class="ov-legends" id="ovLegends"></div>
   </div>
   <div class="rv-panel" id="rvPanel" aria-label="로드뷰">
     <div class="rv-head"><span class="kico" aria-hidden="true"><svg viewBox="0 0 24 32"><path d="M12 1C6 1 1.5 5.5 1.5 11.5 1.5 19 12 31 12 31S22.5 19 22.5 11.5C22.5 5.5 18 1 12 1z" fill="#2F6FE4"/><circle cx="12" cy="11.5" r="4.2" fill="#fff"/></svg></span><b>로드뷰</b><span class="addr" id="rvAddr">지도에서 보고 싶은 곳을 클릭하세요</span><button type="button" onclick="rvOff()">닫기 ✕</button></div>
@@ -228,6 +236,8 @@ const CITY={
   boundaryUrl:"https://www.guri.go.kr/gmapsvr/rest/services/Hosted/%EA%B5%AC%EB%A6%AC%EC%8B%9C%EA%B2%BD%EA%B3%84/FeatureServer/0",
   dongUrl:"https://www.guri.go.kr/gmapsvr/rest/services/Hosted/%ED%96%89%EC%A0%95%EB%8F%99%EA%B2%BD%EA%B3%84/FeatureServer/0",
   dongNameField:'adm_dr_nm',
+  /* 통·리·반 경계 서비스(구리시 gmapsvr FeatureServer 층 URL). 비어 있으면 통리반은 표시하지 않는다 */
+  tongUrl:'', tongNameField:'통반명',
   vworldKey:""   /* 공식 브이월드 키 발급 시 입력 (테마지도와 동일) */
 };
 
@@ -265,12 +275,12 @@ const VW={
   alpha:0.75
 };
 const OVERLAYS=[
-  {key:'adm', label:'행정구역',   ic:'🗺️', c:'#2A6DB0', ids:['lt_c_adsigg','lt_c_ademd'], note:'시군구·읍면동 경계와 이름'},
-  {key:'cad', label:'연속지적도', ic:'📐', c:'#7A5FD0', ids:['lp_pa_cbnd_bubun'], minScale:18000, note:'필지 경계와 지번 · 더 확대해야 보여요'},
-  {key:'use', label:'용도지역',   ic:'🏘️', c:'#E07B27', ids:['lt_c_uq111'], note:'주거·상업·공업·녹지 등 용도지역'},
+  /* kind:'adm' — 구리시 행정동(+통리반) 서비스로 직접 그림(선·레이블 스타일 지정). kind:'cad' — 브이월드 WFS 필지를 선만·지번 크게 그리고, WFS 가 막히면 WMS 그림으로 */
+  {key:'adm', label:'행정구역',   ic:'🗺️', c:'#2A6DB0', kind:'adm', note:'행정동 경계와 이름 · 통리반은 확대하면 보여요'},
+  {key:'cad', label:'연속지적도', ic:'📐', c:'#7A5FD0', kind:'cad', wfs:'lp_pa_cbnd_bubun', ids:['lp_pa_cbnd_bubun'], minScale:8000, note:'필지 경계선과 지번 · 더 확대해야 보여요'},
+  {key:'use', label:'용도지역',   ic:'🏘️', c:'#E07B27', ids:['lt_c_uq111'], legend:true, note:'주거·상업·공업·녹지 등 용도지역'},
   {key:'urb', label:'도시지역',   ic:'🏙️', c:'#0F8A8A', ids:['lt_c_upisuq151'], alt:[['lt_c_uq151']], note:'국토계획법상 도시지역 범위'},
-  {key:'her', label:'문화재보호', ic:'🏛️', c:'#8B5E34', ids:['lt_c_uo301'], alt:[['lt_c_uo302'],['lt_c_uq301']], note:'문화재보호구역'},
-  {key:'pub', label:'공공문화체육시설', ic:'🏟️', c:'#3A8F3A', ids:['lt_c_uq124'], note:'학교·공공청사·문화·체육시설 등 도시계획시설'}
+  {key:'her', label:'문화재보호', ic:'🏛️', c:'#8B5E34', ids:['lt_c_uo301'], alt:[['lt_c_uo302'],['lt_c_uq301']], legend:true, note:'문화재보호구역'}
 ];
 /* ids 가 안 맞으면(브이월드가 오류를 주면) alt 의 후보를 차례로 시도한다 — 레이어 ID 는 브이월드 2D 데이터 목록 기준 */
 /* 카카오 로드뷰: JavaScript 키를 넣고 카카오 개발자 콘솔에 kgeodata.com 을 등록하면 지도 옆 패널에서 바로 본다.
@@ -297,9 +307,10 @@ require([
   "esri/config","esri/Map","esri/Basemap","esri/views/MapView",
   "esri/layers/WebTileLayer","esri/layers/VectorTileLayer","esri/layers/FeatureLayer","esri/layers/BaseTileLayer",
   "esri/request","esri/geometry/Point","esri/geometry/SpatialReference","esri/geometry/projection",
-  "esri/geometry/support/webMercatorUtils","esri/widgets/Swipe","esri/widgets/Search","esri/layers/GraphicsLayer","esri/Graphic","esri/core/reactiveUtils","esri/geometry/Extent","esri/geometry/geometryEngine"
+  "esri/geometry/support/webMercatorUtils","esri/widgets/Swipe","esri/widgets/Search","esri/layers/GraphicsLayer","esri/Graphic","esri/core/reactiveUtils","esri/geometry/Extent","esri/geometry/geometryEngine",
+  "esri/layers/GeoJSONLayer"
 ],(esriConfig,Map,Basemap,MapView,WebTileLayer,VectorTileLayer,FeatureLayer,BaseTileLayer,
-   esriRequest,Point,SpatialReference,projection,webMercatorUtils,Swipe,Search,GraphicsLayer,Graphic,reactiveUtils,Extent,geometryEngine)=>{
+   esriRequest,Point,SpatialReference,projection,webMercatorUtils,Swipe,Search,GraphicsLayer,Graphic,reactiveUtils,Extent,geometryEngine,GeoJSONLayer)=>{
 
   esriConfig.request.useIdentity=false;
   SwipeCls=Swipe;
@@ -410,7 +421,7 @@ require([
   loadDongs();
   reactiveUtils.when(()=>view.stationary,()=>{ if(view.stationary) syncDongToCenter(); });
   reactiveUtils.watch(()=>view.scale,()=>updateNote());
-  GraphicCls=Graphic; WMU=webMercatorUtils; ExtentCls=Extent;
+  GraphicCls=Graphic; WMU=webMercatorUtils; ExtentCls=Extent; FLCls=FeatureLayer; GeoJSONCls=GeoJSONLayer;
   if(!NGII.apiKey) $('keyWarn').style.display='block';
 
   rvLayer=new GraphicsLayer({listMode:'hide'}); map.add(rvLayer);
@@ -568,7 +579,7 @@ function syncUrl(){
 /* ═══ 지도 위에 함께 보기 ═══
  * 브이월드 WMS 그림을 ArcGIS 레이어(WebGL, CORS 필요) 대신 지도 위 <img> 로 얹는다 — 남원 지도처럼 서버 CORS 설정과 무관하게 보인다.
  * 화면이 움직이는 동안은 마지막 그림을 CSS transform 으로 맞춰 두고, 멈추면 현재 범위(1.4배 여유)로 다시 받는다. */
-let rvLayer=null, rvMode=false, rvObj=null, rvClient=null, rvSdk=null, refreshTimer=null;
+let rvLayer=null, rvMode=false, rvObj=null, rvClient=null, rvSdk=null, refreshTimer=null, FLCls=null, GeoJSONCls=null;
 const ovLayers={};   /* key → {on, img, ext, w, h, warned} */
 /* 브이월드가 받아 주는 요청 형식(버전·DOMAIN 표기)이 문서와 다를 수 있어, 첫 그림이 실패하면 아래 순서로 바꿔 가며 시도하고 성공한 형식을 기억한다 */
 const VW_VARIANTS=[
@@ -635,6 +646,8 @@ function scheduleRefresh(){ clearTimeout(refreshTimer); refreshTimer=setTimeout(
 function refreshOverlays(){ Object.keys(ovLayers).forEach(k=>{ if(ovLayers[k].on) refreshOverlay(k); }); }
 function refreshOverlay(key){
   const L=ovLayers[key], o=ovDef(key), vb=viewBox(); if(!L||!o||!vb) return;
+  if(o.kind==='adm') return;                                                      /* 벡터 레이어는 ArcGIS 가 알아서 */
+  if(o.kind==='cad'&&!L.wfsFailed) return refreshCadastre(key);
   if(o.minScale&&view.scale>o.minScale){ L.img.classList.remove('show'); return; }   /* 축소된 상태면 숨김 */
   const rb=requestBox(vb); const url=vwUrl(L.ids||o.ids,rb,rb.w,rb.h); if(L.url===url) return; L.url=url;
   const im=new Image(); im.onload=()=>{ if(L.url!==url||!L.on) return; vwLocked=true; L.ext=rb; L.w=rb.w; L.h=rb.h; L.img.src=url; L.img.style.transform=overlayTransform(L,viewBox()||vb); L.img.classList.add('show'); };
@@ -666,7 +679,7 @@ function initOverlays(){
     b.onclick=()=>setOverlay(o.key,!ovOn(o.key)); host.appendChild(b);
   });
   $('ovAlpha').value=Math.round(VW.alpha*100);
-  $('ovAlpha').addEventListener('input',e=>{ VW.alpha=e.target.value/100; Object.values(ovLayers).forEach(L=>{ L.img.style.opacity=VW.alpha; }); });
+  $('ovAlpha').addEventListener('input',e=>{ VW.alpha=e.target.value/100; Object.values(ovLayers).forEach(L=>{ L.img.style.opacity=VW.alpha; if(L.vec) L.vec.opacity=VW.alpha; }); (admLayers||[]).forEach(l=>{ l.opacity=Math.min(1,VW.alpha+0.25); }); });
   (qs.get('ov')||'').split(',').filter(Boolean).forEach(k=>{ if(ovDef(k)) setOverlay(k,true,true); });
   if(!VW.key) $('ovNote').textContent='브이월드 인증키가 없어 겹쳐 보기 자료를 불러올 수 없어요.';
   renderOvState();
@@ -675,18 +688,85 @@ function setOverlay(key,on,silent){
   const o=ovDef(key); if(!o) return;
   if(!ovLayers[key]){
     const img=document.createElement('img'); img.alt=''; img.decoding='async'; img.dataset.key=key; img.style.opacity=VW.alpha;
-    $('ovImgs').appendChild(img); ovLayers[key]={on:false,img,ext:null,w:0,h:0,url:'',warned:false,ids:o.ids,altIdx:0};
+    $('ovImgs').appendChild(img); ovLayers[key]={on:false,img,ext:null,w:0,h:0,url:'',warned:false,ids:o.ids,altIdx:0,wfsFailed:false,vec:null};
   }
   const L=ovLayers[key]; L.on=on;
-  if(on){ refreshOverlay(key); } else { L.img.classList.remove('show'); L.url=''; }
+  if(o.kind==='adm'){ setAdmVisible(on); }
+  if(on){ refreshOverlay(key); } else { L.img.classList.remove('show'); L.url=''; if(L.vec){ L.vec.visible=false; } }
   if(on&&!silent&&o.minScale&&view&&view.scale>o.minScale) toast(o.label+'은(는) 더 확대해야 보여요 (1:'+o.minScale.toLocaleString('ko-KR')+' 이하)',2600);
   renderOvState(); syncUrl();
 }
-function clearOverlays(){ Object.keys(ovLayers).forEach(k=>{ ovLayers[k].on=false; ovLayers[k].img.classList.remove('show'); ovLayers[k].url=''; }); renderOvState(); syncUrl(); }
+function clearOverlays(){ Object.keys(ovLayers).forEach(k=>{ const L=ovLayers[k]; L.on=false; L.img.classList.remove('show'); L.url=''; if(L.vec) L.vec.visible=false; }); setAdmVisible(false); renderOvState(); syncUrl(); }
+
+/* ── 행정구역: 구리시 행정동 경계를 우리 스타일로 (흰 테두리 + 파란 선, 이름 레이블), 통리반은 확대했을 때 ── */
+let admLayers=null;
+const LBL_FONT={family:'Pretendard GOV, Noto Sans KR, sans-serif',weight:'bold'};
+function admLayerDefs(){
+  const url=CITY.dongUrl, f=CITY.dongNameField;
+  const defs=[
+    {url,title:'행정동 테두리',renderer:{type:'simple',symbol:{type:'simple-fill',color:[0,0,0,0],outline:{color:[255,255,255,.9],width:5}}}},
+    {url,title:'행정동',outFields:[f],renderer:{type:'simple',symbol:{type:'simple-fill',color:[42,109,176,.05],outline:{color:'#2A6DB0',width:2}}},
+      labelingInfo:[{labelExpressionInfo:{expression:'$feature.'+f},labelPlacement:'always-horizontal',deconflictionStrategy:'static',
+        symbol:{type:'text',color:'#1F4F8A',haloColor:[255,255,255,.95],haloSize:2,font:{size:13,family:LBL_FONT.family,weight:'bold'}}}]}
+  ];
+  if(CITY.tongUrl) defs.push({url:CITY.tongUrl,title:'통리반',outFields:[CITY.tongNameField],minScale:12000,
+    renderer:{type:'simple',symbol:{type:'simple-fill',color:[0,0,0,0],outline:{color:'#5B8BC7',width:1.2,style:'short-dash'}}},
+    labelingInfo:[{labelExpressionInfo:{expression:'$feature.'+CITY.tongNameField},labelPlacement:'always-horizontal',deconflictionStrategy:'static',minScale:12000,
+      symbol:{type:'text',color:'#3A5F8F',haloColor:[255,255,255,.95],haloSize:1.6,font:{size:11,family:LBL_FONT.family,weight:'bold'}}}]});
+  return defs;
+}
+function setAdmVisible(on){
+  if(!admLayers){ if(!on||!map||!FLCls) return;
+    admLayers=admLayerDefs().map(d=>new FLCls(Object.assign({popupEnabled:false,legendEnabled:false,listMode:'hide',labelsVisible:true},d)));
+    admLayers.forEach(l=>map.add(l)); }
+  admLayers.forEach(l=>{ l.visible=on; });
+}
+
+/* ── 연속지적도: 브이월드 WFS 로 필지를 받아 선만(채움 없이) + 지번을 한 포인트 크게. WFS 가 막히면 WMS 그림으로 ── */
+function wfsUrl(type,rb,max){
+  return VW.wmsUrl.replace(/\/wms$/,'/wfs')+'?SERVICE=WFS&REQUEST=GetFeature&VERSION=1.1.0&TYPENAME='+encodeURIComponent(type)+'&SRSNAME=EPSG:3857'
+    +'&BBOX='+[rb.xmin,rb.ymin,rb.xmax,rb.ymax].join(',')+',EPSG:3857&OUTPUT=application/json&MAXFEATURES='+(max||3000)
+    +'&KEY='+encodeURIComponent(VW.key)+'&DOMAIN='+encodeURIComponent(vwDomain('host'));
+}
+function toLngLatDeep(c){ if(typeof c[0]==='number'){ const ll=WMU? WMU.xyToLngLat(c[0],c[1]) : [c[0]/6378137*180/Math.PI,(2*Math.atan(Math.exp(c[1]/6378137))-Math.PI/2)*180/Math.PI]; return [ll[0],ll[1]]; } return c.map(toLngLatDeep); }
+function geojsonToWgs84(j){ (j.features||[]).forEach(f=>{ if(f.geometry&&f.geometry.coordinates) f.geometry.coordinates=toLngLatDeep(f.geometry.coordinates); }); delete j.crs; return j; }
+function cadastreLayer(j){
+  const blob=new Blob([JSON.stringify(j)],{type:'application/json'}); const url=URL.createObjectURL(blob);
+  return new GeoJSONCls({url,title:'연속지적도',popupEnabled:false,legendEnabled:false,listMode:'hide',outFields:['*'],
+    renderer:{type:'simple',symbol:{type:'simple-fill',color:[0,0,0,0],outline:{color:'#7A5FD0',width:1.1}}},   /* 채움 없이 선만 */
+    labelsVisible:true,labelingInfo:[{labelExpressionInfo:{expression:'$feature.jibun'},labelPlacement:'always-horizontal',deconflictionStrategy:'static',
+      symbol:{type:'text',color:'#4A3A8A',haloColor:[255,255,255,.95],haloSize:1.5,font:{size:11,family:LBL_FONT.family,weight:'bold'}}}]});
+}
+async function refreshCadastre(key){
+  const L=ovLayers[key], o=ovDef(key), vb=viewBox(); if(!L||!o||!vb||!L.on) return;
+  if(o.minScale&&view.scale>o.minScale){ if(L.vec) L.vec.visible=false; L.url=''; return; }
+  const rb=requestBox(vb); const url=wfsUrl(o.wfs,rb); if(L.url===url) return; L.url=url;
+  try{
+    const r=await fetch(url); if(!r.ok) throw new Error('http '+r.status);
+    const j=await r.json(); if(!j||!Array.isArray(j.features)) throw new Error('bad json');
+    if(L.url!==url||!L.on) return;
+    const lyr=cadastreLayer(geojsonToWgs84(j)); const old=L.vec; L.vec=lyr;
+    map.add(lyr,(airLayer?1:0)+(cmpLayer?1:0)); lyr.opacity=VW.alpha;
+    if(old){ try{ map.remove(old); }catch(e){} }
+  }catch(e){
+    console.warn('[연속지적도] WFS 실패 → WMS 그림으로',String((e&&e.message)||e));
+    L.wfsFailed=true; L.url=''; if(L.vec){ try{ map.remove(L.vec); }catch(x){} L.vec=null; }
+    toast('지적도를 선만 그리는 자료(WFS)를 받지 못해 브이월드 그림으로 보여요',3200); refreshOverlay(key);
+  }
+}
+/* ── 범례: 용도지역·문화재보호는 브이월드 GetLegendGraphic 이미지를 붙인다 ── */
+function legendUrl(id){ return VW.wmsUrl+'?SERVICE=WMS&REQUEST=GetLegendGraphic&VERSION=1.1.1&FORMAT=image/png&LAYER='+encodeURIComponent(id)+'&STYLE='+encodeURIComponent(id)+'&KEY='+encodeURIComponent(VW.key)+'&DOMAIN='+encodeURIComponent(vwDomain('host')); }
+function renderLegends(onKeys){
+  const host=$('ovLegends'); if(!host) return; const items=onKeys.map(ovDef).filter(o=>o&&o.legend);
+  host.innerHTML=items.map(o=>'<div class="ov-legend" style="--c:'+o.c+'" data-key="'+o.key+'"><div class="t"><span class="dot"></span>'+esc(o.label)+' 범례</div>'
+    +'<img src="'+esc(legendUrl((ovLayers[o.key]&&ovLayers[o.key].ids||o.ids)[0]))+'" alt="'+esc(o.label)+' 범례" loading="lazy" onerror="this.parentNode.classList.add(\'none\')"><span class="no">브이월드가 이 자료의 범례 그림을 제공하지 않아요</span></div>').join('');
+  host.classList.toggle('show',items.length>0);
+}
 function renderOvState(){
   const onKeys=OVERLAYS.filter(o=>ovOn(o.key)).map(o=>o.key);
   document.querySelectorAll('.ov-chip[data-key]').forEach(b=>{ const on=onKeys.includes(b.dataset.key); b.classList.toggle('is-on',on); b.setAttribute('aria-pressed',on?'true':'false'); });
   $('ovFoot').classList.toggle('show',onKeys.length>0);
+  renderLegends(onKeys);
   const note=$('ovNote'); if(!VW.key){ note.classList.add('show'); return; }
   const last=onKeys.length? ovDef(onKeys[onKeys.length-1]) : null;
   note.textContent=last? (last.note||'') : ''; note.classList.toggle('show',!!last&&!!last.note);
@@ -724,12 +804,14 @@ function rvPick(pt){
     const pos=new kakao.maps.LatLng(lat,lng);
     rvClient.getNearestPanoId(pos,RV_RADIUS,panoId=>{
       if(!panoId){ toast('이 근처 '+RV_RADIUS+'m 안에는 로드뷰가 없어요. 길 위를 눌러 보세요',3000); return; }
+      const firstOpen=!$('main').classList.contains('rv-open');
       $('main').classList.add('rv-open');                                  /* 찾았을 때만 패널을 연다 */
       if(!rvObj){ rvObj=new kakao.maps.Roadview($('rvView'));
         kakao.maps.event.addListener(rvObj,'position_changed',()=>{ const p=rvObj.getPosition(); if(p){ placeRvMarker(p.getLng(),p.getLat()); $('rvAddr').textContent=p.getLat().toFixed(5)+', '+p.getLng().toFixed(5); } }); }
       $('rvEmpty').style.display='none';
-      setTimeout(()=>{ try{ rvObj.relayout(); }catch(e){} rvObj.setPanoId(panoId,pos); },60);   /* 패널이 펼쳐진 뒤 크기를 다시 재고 파노라마를 놓는다 */
       $('rvAddr').textContent=lat.toFixed(5)+', '+lng.toFixed(5);
+      const go=()=>{ try{ rvObj.relayout(); }catch(e){} rvObj.setPanoId(panoId,pos); };
+      if(firstOpen) setTimeout(go,60); else go();                            /* 이미 열려 있으면 바로 그곳으로 옮긴다 */
     });
   }).catch(()=>{ toast('카카오 지도를 불러오지 못해 새 창으로 열어요',2500); fallback(); });
 }
