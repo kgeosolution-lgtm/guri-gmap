@@ -363,9 +363,10 @@ function courseLabelArcade(field){   /* '둘레길 1코스' → '1코스 아차�
   return `var d=Dictionary(${pairs}); var s=Trim(Replace(Text($feature["${field}"]),'둘레길','')); return IIf(HasKey(d,s),d[s],s)`;
 }
 const LABEL_FONT={family:'Pretendard GOV, Noto Sans KR, sans-serif',weight:'bold'};
-function label3d(expr,color,size,placement,minScale){
-  return {labelExpressionInfo:{expression:expr},labelPlacement:placement,minScale:minScale||0,deconflictionStrategy:'static',
-    symbol:{type:'label-3d',symbolLayers:[{type:'text',size,font:LABEL_FONT,material:{color},halo:{color:[255,255,255,235],size:1.4}}]}};
+function label3d(expr,color,size,placement,minScale,lift){
+  const sym={type:'label-3d',symbolLayers:[{type:'text',size,font:LABEL_FONT,material:{color},halo:{color:[255,255,255,235],size:1.4}}]};
+  if(lift) sym.verticalOffset=lift;   /* 심볼을 띄운 만큼 레이블도 같이 띄워 심볼 바로 위에 붙는다 */
+  return {labelExpressionInfo:{expression:expr},labelPlacement:placement,minScale:minScale||0,deconflictionStrategy:'static',symbol:sym};
 }
 function snapshotLabelExpr(ld){ try{ return ld.drawingInfo.labelingInfo[0].labelExpressionInfo.expression||null; }catch(e){ return null; } }
 
@@ -373,13 +374,26 @@ function snapshotLabelExpr(ld){ try{ return ld.drawingInfo.labelingInfo[0].label
  * 화면 기준 높이(verticalOffset)만큼 공중에 띄우고 지시선(callout)으로 자리를 가리킨다 — 빽빽한 도심에서 심볼이 가려지지 않게 하는 ArcGIS 권장 방식.
  * 문제가 생기면 주소 뒤에 ?nocallout 을 붙여 예전 방식(2D 그림 마커)으로 볼 수 있다. */
 const USE_CALLOUT=!/[?&]nocallout\b/.test(location.search);
-const CALLOUT_LIFT={screenLength:44,minWorldLength:28,maxWorldLength:260};   /* 화면 44px, 세계 좌표로는 최소 28m·최대 260m */
+const CALLOUT_LIFT={screenLength:30,minWorldLength:16,maxWorldLength:220};   /* 화면 30px, 세계 좌표로는 최소 16m·최대 220m */
+/* 지시선은 눈에 거슬려 투명하게 두고(띄우기만 유지), 실제 자리는 아래 '땅 점'(placeDotLayer)으로 표시한다 */
 function placeSym(url,W,H,anchor){
   if(!USE_CALLOUT) return {type:'picture-marker',url,width:W,height:H};
   return {type:'point-3d',
     symbolLayers:[{type:'icon',resource:{href:url},size:Math.max(W,H),anchor:anchor||'center'}],
     verticalOffset:CALLOUT_LIFT,
-    callout:{type:'line',size:1.6,color:[255,255,255,.95],border:{color:[70,58,44,.75]}}};
+    callout:{type:'line',size:0.5,color:[0,0,0,0]}};
+}
+/* 심볼이 가리키는 실제 자리: 지면(건물 위)에 작은 색 점 — 클릭하면 같은 카드 */
+function placeDotLayer(FeatureLayer,d,kind){
+  const ld=d.layerDefinition||{};
+  return new FeatureLayer({
+    url:d.url, title:'3D '+d.title+' 위치점', outFields:['*'], listMode:'hide', legendEnabled:false,
+    definitionExpression:ld.definitionExpression||undefined,
+    elevationInfo:{mode:'relative-to-scene',offset:1},
+    screenSizePerspectiveEnabled:false,
+    renderer:{type:'simple',symbol:{type:'simple-marker',style:'circle',size:7,color:kind==='fest'? '#D6455F' : '#C1652B',outline:{color:[255,255,255,.95],width:1.5}}},
+    labelsVisible:false, popupEnabled:false
+  });
 }
 /* 명소·축제: 담당자가 준 그림 심볼(그림자 입힌 PNG) + 짧은 레이블 */
 function placeLayer(FeatureLayer,d,kind){
@@ -399,10 +413,11 @@ function placeLayer(FeatureLayer,d,kind){
     renderer:{type:'unique-value',field,uniqueValueInfos:uv,
       defaultSymbol:placeSym(pin,12,15,'bottom')},                    /* 이름이 목록에 없으면 작은 핀 */
     labelsVisible:true,
-    labelingInfo:[label3d(shortLabelArcade(field),isFest? [138,47,81,255] : [122,59,18,255],11,'above-center')],
+    labelingInfo:[label3d(shortLabelArcade(field),isFest? [138,47,81,255] : [122,59,18,255],11,'above-center',0,USE_CALLOUT? CALLOUT_LIFT : null)],
     popupEnabled:false                                            /* 팝업은 테마지도식 카드로 직접 그린다 */
   });
   layer.__field=field; layer.__symCount=uv.length;
+  if(USE_CALLOUT) layer.__dot=placeDotLayer(FeatureLayer,d,kind);
   return layer;
 }
 /* 둘레길·등산로(선)와 시설물(배지): 테마지도의 색·코스 구분을 3D 에 맞게 */
@@ -522,6 +537,7 @@ function addOverlays(FeatureLayer){
       const layer=(kind==='spot'||kind==='fest')? placeLayer(FeatureLayer,d,kind) : trailLayer(FeatureLayer,d,kind);
       layer.__kind=kind;
       view.map.add(layer); overlayLayers.push(layer);
+      if(layer.__dot){ layer.__dot.__kind=kind; view.map.add(layer.__dot); overlayLayers.push(layer.__dot); }   /* 땅 점도 클릭 대상 */
       layer.when(async()=>{ console.log('[3D] 얹은 레이어',layer.title,'| 종류',kind,layer.__field? '| 필드 '+layer.__field : '');
         try{ const q=layer.createQuery(); q.where='1=1'; q.outFields=['*']; q.returnGeometry=false;
           const rows=(await layer.queryFeatures(q)).features.map(f=>f.attributes);

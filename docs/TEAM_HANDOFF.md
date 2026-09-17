@@ -394,3 +394,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
   - 시 밖 건물 SceneLayer 는 `load()`를 먼저 기다려 주소·권한 오류를 잡고, 경계·덮개·건물 실패 시 화면 토스트로 원인(오류 메시지 앞 90자)을 보여 줍니다. Esri 3D 건물 서비스가 API 키를 요구하면 토스트에 403 계열 메시지가 뜰 것이며, 그때는 `esriConfig.apiKey` 설정이 필요합니다.
 - 브랜치: `work/kangmina-3d-outside-fix` (base `design/service-home-refresh` 55bc9da).
 - 검증: 인라인 스크립트 `node --check`, 단위 검사(OID 필드명 사용, 기본 polygon 모드 덮개·건물, 건물 로드 실패 토스트, 경계 실패 토스트·생략, tile 대안), `npm run build:deploy`, `git diff --check` 통과.
+
+## 2026-09-17 3D 지도 명소·축제 지시선 제거·레이블 간격 (담당: 강민아)
+
+- 의견: 심볼을 띄우는 흰 지시선이 눈에 거슬림. 축제·명소 심볼과 레이블 사이가 먼 것도 있음.
+- 원인: 레이블은 원래 지점(지면) 기준으로 놓이고 심볼만 44px 띄워져 있어, 보는 각도에 따라 레이블이 심볼 위·아래로 멀리 떨어졌습니다.
+- 조치: 지시선은 투명(`callout` 색 0)으로 두고 띄우기만 유지하되 높이를 44→30px(최소 16m)로 낮췄습니다. 레이블(`LabelSymbol3D`)에도 같은 `verticalOffset`을 줘 심볼 바로 위에 붙게 했습니다(`label3d`의 `lift`). 실제 자리는 지면(건물 위) 7px 색 점(명소 주황·축제 분홍, 흰 테두리)으로 표시하는 별도 레이어(`placeDotLayer`, 목록·범례 숨김)를 얹었고, 점을 눌러도 같은 카드가 뜹니다.
+- 브랜치: `work/kangmina-3d-callout-tune` (base `design/service-home-refresh` 9f336f0).
+- 검증: 인라인 스크립트 `node --check`, 단위 검사(투명 지시선·30px, 레이블 동일 오프셋, 땅 점 레이어 색·크기·팝업 끔), `npm run build:deploy`, `git diff --check` 통과. 띄우는 높이·점 크기는 배포 후 눈으로 확인 필요.
