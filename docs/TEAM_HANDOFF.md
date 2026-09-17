@@ -453,3 +453,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 조치: 헤드리스 크롬 캔버스로 흰 바탕 위 합성을 되돌려(알파 = 255 − min(R,G,B), 색은 언블렌딩) 투명 배경 RGBA PNG(137×56, 5.8KB)로 교체. 같은 파일을 쓰는 푸터 하단 작은 로고와 홈 `page.tsx`의 로고도 함께 투명해집니다. 회색·짙은 배경 위 합성 미리보기로 가장자리 확인.
 - 브랜치: `work/kangmina-footer-logo` (base `design/service-home-refresh` 215c909).
 - 검증: PNG 헤더(colortype 6, 비인터레이스) 확인, 순수 파이썬 합성 미리보기, `npm run build:deploy`, `git diff --check` 통과.
+
+## 2026-09-17 "수정 요청" 캡처 보기를 사진 앱처럼 (담당: 강민아)
+
+- 의견: 목록의 캡처를 누르면 작은 흰 상자 안에 어정쩡하게 떠서, 캡처 이미지만 크게 보고 싶음.
+- 조치: 캡처 보기(`.gr-lb`)를 화면 전체를 어둡게 덮는 사진 뷰어로 바꿈 — 위쪽 막대에 화면·위치·시간, 내려받기(`guri-review-<id>.jpg`), "실제 크기/화면에 맞춤", 닫기. 사진은 화면에 맞춰 크게(최대 100vw−32px × 100vh−76px), 사진을 누르면 실제 크기로 토글, 배경 클릭·닫기·Esc 로 닫힘. 페이지 CSS 가 `img` 를 건드려도 흐트러지지 않게 크기·배경·테두리는 `!important`.
+- 브랜치: `work/kangmina-review-lightbox` (base `design/service-home-refresh` 71204c2).
+- 검증: 헤드리스 크롬에서 썸네일 클릭 → 뷰어 열림·제목·내려받기 이름, 사진 클릭 → 실제 크기, Esc → 닫힘 확인. `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.

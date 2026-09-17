@@ -105,8 +105,17 @@
    + '.gr-cbar{display:flex;gap:10px;justify-content:center;padding-top:12px;flex-wrap:wrap}'
    + '.gr-cbar button{border-radius:9px;padding:11px 18px;font-size:14px;font-weight:700;border:none;cursor:pointer;font-family:inherit}'
    + '.gr-cbar .gh{background:rgba(255,255,255,.16);color:#fff}.gr-cbar .pr{background:#018058;color:#fff}.gr-cbar .pr:disabled{opacity:.5;cursor:default}'
-   + '.gr-lb{position:fixed;inset:0;z-index:10002;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;padding:20px}'
-   + '.gr-lb.on{display:flex}.gr-lb img{max-width:100%;max-height:92vh;border-radius:8px}'
+   /* 캡처 보기: 사진 앱처럼 화면 전체를 어둡게 하고 크게 (페이지 CSS 가 img 를 건드려도 !important 로 지킨다) */
+   + '.gr-lb{position:fixed;inset:0;z-index:10002;background:rgba(8,12,10,.94);display:none;flex-direction:column;font-family:Pretendard,-apple-system,"Malgun Gothic",sans-serif}'
+   + '.gr-lb.on{display:flex}'
+   + '.gr-lb .bar{display:flex;align-items:center;gap:8px;padding:12px 16px;color:#fff;font-size:13.5px}'
+   + '.gr-lb .bar .ttl{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.9}'
+   + '.gr-lb .bar button,.gr-lb .bar a{background:rgba(255,255,255,.14);color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;text-decoration:none;line-height:1.2}'
+   + '.gr-lb .bar button:hover,.gr-lb .bar a:hover{background:rgba(255,255,255,.26)}'
+   + '.gr-lb .stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:auto;padding:0 16px 16px}'
+   + '.gr-lb .stage img{display:block!important;width:auto!important;height:auto!important;max-width:calc(100vw - 32px)!important;max-height:calc(100vh - 76px)!important;background:transparent!important;border:0!important;border-radius:6px!important;box-shadow:0 14px 44px rgba(0,0,0,.6);cursor:zoom-in;object-fit:contain;margin:auto}'
+   + '.gr-lb.zoom .stage{align-items:flex-start;justify-content:flex-start}'
+   + '.gr-lb.zoom .stage img{max-width:none!important;max-height:none!important;cursor:zoom-out;margin:0}'
    + '.gr-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#1E3229;color:#fff;font-size:13.5px;padding:10px 16px;border-radius:9px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:10003;max-width:90%;text-align:center;font-family:Pretendard,sans-serif}'
    + '.gr-toast.on{opacity:1}'
    + '.gr-pick{position:fixed;inset:0;z-index:10001;cursor:crosshair;background:rgba(15,25,20,.22);user-select:none;-webkit-user-select:none;touch-action:none}'
@@ -156,7 +165,9 @@
       + '<div class="gr-cbar"><button class="gh" id="grCropCancel">취소</button><button class="gh" id="grCropFull">전체 사용</button><button class="pr" id="grCropUse" disabled>선택 영역 사용</button></div>';
     document.body.appendChild(crop);
 
-    document.body.appendChild(el('div', { class: 'gr-lb', id: 'grLb' }, '<img id="grLbImg" alt="">'));
+    document.body.appendChild(el('div', { class: 'gr-lb', id: 'grLb', role: 'dialog', 'aria-label': '캡처 보기' },
+      '<div class="bar"><span class="ttl" id="grLbTtl"></span><a id="grLbDl" download="capture.jpg" href="#">내려받기</a><button type="button" id="grLbZoom">실제 크기</button><button type="button" id="grLbClose">닫기 ✕</button></div>'
+      + '<div class="stage" id="grLbStage"><img id="grLbImg" alt="캡처"></div>'));
     document.body.appendChild(el('div', { class: 'gr-toast', id: 'grToast' }));
 
     /* 메뉴/버튼 붙이기: 헤더 nav 있으면 "수정 요청" 링크, 없으면 떠있는 버튼 */
@@ -299,6 +310,17 @@
     }).join('');
   }
 
+  /* ── 캡처 보기 ── */
+  function openLb(it, src) {
+    var t = [it.screen, it.loc ? '📍 ' + it.loc : '', it.created_at ? fmt(it.created_at) : ''].filter(Boolean).join(' · ');
+    $('grLbTtl').textContent = t || '캡처';
+    $('grLbImg').src = src; $('grLbDl').href = src; $('grLbDl').setAttribute('download', 'guri-review-' + (it.id || 'capture') + '.jpg');
+    $('grLb').classList.remove('zoom'); $('grLbZoom').textContent = '실제 크기';
+    $('grLb').classList.add('on');
+  }
+  function closeLb() { $('grLb').classList.remove('on'); $('grLb').classList.remove('zoom'); }
+  function toggleZoom() { var z = $('grLb').classList.toggle('zoom'); $('grLbZoom').textContent = z ? '화면에 맞춤' : '실제 크기'; }
+
   /* ── 이벤트 ── */
   function wire() {
     chipGroup('grScreens', 'screen'); chipGroup('grTypes', 'type'); chipGroup('grSev', 'sev');
@@ -367,9 +389,14 @@
       var del = e.target.closest('[data-del]');
       if (del) { if (!confirm('이 요청을 지울까요?')) return; apiPost('delete', { id: del.getAttribute('data-del'), owner: MYTOKEN, key: SENDKEY }).then(loadList).catch(function (err) { toast(String(err)); }); return; }
       var img = e.target.closest('[data-full]');
-      if (img) { var it = items.find(function (x) { return String(x.id) === img.getAttribute('data-full'); }); var src = it && it.shot_id && shotCache[it.shot_id]; if (src) { $('grLbImg').src = src; $('grLb').classList.add('on'); } }
+      if (img) { var it = items.find(function (x) { return String(x.id) === img.getAttribute('data-full'); }); var src = it && it.shot_id && shotCache[it.shot_id]; if (src) openLb(it, src); }
     });
-    $('grLb').addEventListener('click', function () { $('grLb').classList.remove('on'); });
+    /* 캡처 보기: 배경 클릭·닫기·Esc 로 닫고, 사진을 누르면 실제 크기 ↔ 화면 맞춤 */
+    $('grLbClose').addEventListener('click', closeLb);
+    $('grLbStage').addEventListener('click', function (e) { if (e.target === $('grLbStage')) closeLb(); });
+    $('grLbImg').addEventListener('click', toggleZoom);
+    $('grLbZoom').addEventListener('click', toggleZoom);
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && $('grLb').classList.contains('on')) closeLb(); });
   }
 
   function init() { build(); wire(); }
