@@ -377,3 +377,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
   - 시 밖 건물: `SCENE.outsideBuildingsUrl`(Esri3D_Buildings_v1 SceneServer)을 SceneLayer 로 얹고 `filter`(시 경계와 disjoint)로 시 안쪽은 제외, 회색 mesh 렌더러, `popupEnabled/legendEnabled=false`, 목록 숨김. 클릭 대상에도 넣지 않았습니다. 주소가 틀리면 콘솔에 '로딩 실패' 경고만 남기고 레이어를 뺍니다.
 - 브랜치: `work/kangmina-3d-outside` (base `design/service-home-refresh` 6dd8d5d).
 - 검증: 인라인 스크립트 `node --check`, 단위 검사(고리 방향, 덮개 고리 구성, 경계 정리, 레이어 추가·필터·팝업/범례 끔·웹씬 타일 숨김, 경계 실패 시 생략), `npm run build:deploy`, `git diff --check` 통과. Esri 3D 건물 서비스 주소는 샌드박스에서 확인 불가 — 배포 후 콘솔 확인 필요(틀리면 웹씬 '구리외건물' 레이어의 URL 로 `SCENE.outsideBuildingsUrl` 교체).
+
+## 2026-09-17 3D 지도 시 밖 회색을 Korea_Boundary SE 벡터 타일로·시 밖 건물 주소 확정 (담당: 강민아)
+
+- 시 밖 건물 주소를 담당자가 알려 준 `https://basemaps3d.arcgis.com/arcgis/rest/services/Esri3D_Buildings_v1/SceneServer/layers/0`으로 확정(`SCENE.outsideBuildingsUrl`).
+- 시 밖 회색 처리는 담당자 요청대로 웹씬의 'Korea_Boundary SE' 벡터 타일(`https://www.guri.go.kr/gmapsvr/rest/services/Hosted/Korea_Boundary/VectorTileServer`)을 씁니다(`SCENE.maskMode:'tile'`, `addBoundaryTile`): 스냅샷에 있으면 켜고(앞선 변경에서 숨겼던 것을 되돌림), 없으면 그 주소로 맨 아래에 추가. 행정동 경계로 만든 회색 폴리곤 덮개는 `maskMode:'polygon'`으로 남겨 두어, 벡터 타일이 3D 에서 회색으로 안 보이면 값 하나로 바꿀 수 있습니다. 시 경계(행정동 합집합)는 시 밖 건물 필터에만 쓰고, 경계 로드에 실패하면 타일만 켜고 건물은 생략.
+- 브랜치: `work/kangmina-3d-outside-tile` (base `design/service-home-refresh` 98ea20d).
+- 검증: 인라인 스크립트 `node --check`, 단위 검사(타일 켬/추가, 건물 주소·필터·팝업/범례 끔, 경계 실패 시 생략, polygon 대안), `npm run build:deploy`, `git diff --check` 통과. 벡터 타일이 3D 뷰에서 실제로 회색으로 그려지는지는 배포 후 확인 필요.
