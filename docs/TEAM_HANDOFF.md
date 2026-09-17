@@ -402,3 +402,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 조치: 지시선은 투명(`callout` 색 0)으로 두고 띄우기만 유지하되 높이를 44→30px(최소 16m)로 낮췄습니다. 레이블(`LabelSymbol3D`)에도 같은 `verticalOffset`을 줘 심볼 바로 위에 붙게 했습니다(`label3d`의 `lift`). 실제 자리는 지면(건물 위) 7px 색 점(명소 주황·축제 분홍, 흰 테두리)으로 표시하는 별도 레이어(`placeDotLayer`, 목록·범례 숨김)를 얹었고, 점을 눌러도 같은 카드가 뜹니다.
 - 브랜치: `work/kangmina-3d-callout-tune` (base `design/service-home-refresh` 9f336f0).
 - 검증: 인라인 스크립트 `node --check`, 단위 검사(투명 지시선·30px, 레이블 동일 오프셋, 땅 점 레이어 색·크기·팝업 끔), `npm run build:deploy`, `git diff --check` 통과. 띄우는 높이·점 크기는 배포 후 눈으로 확인 필요.
+
+## 2026-09-17 3D 지도 명소·축제 심볼을 지면·건물 위로 되돌림, 땅 점 제거 (담당: 강민아)
+
+- 의견: 심볼이 있는데 점을 또 찍는 것은 이상함. 심볼은 지면이나 건물 위에, 레이블은 심볼 가까이.
+- 조치: 지시선·띄우기·땅 점(`placeDotLayer`)을 모두 걷어내고, 명소·축제 심볼을 원래의 2D 그림 마커로 지면·건물 지붕 바로 위(`relative-to-scene` 3m)에 놓습니다. 레이블은 띄우지 않고 심볼 바로 위(`above-center`). 지시선 방식은 주소 뒤 `?callout`으로만 비교 가능(`USE_CALLOUT` 기본 false).
+- 알려진 한계: 건물 사이의 명소(예: 곱창골목)는 시점에 따라 옆 건물에 가려질 수 있습니다(담당자 판단으로 지면 배치를 우선).
+- 브랜치: `work/kangmina-3d-symbols-ground` (base `design/service-home-refresh` c574f22).
+- 검증: 인라인 스크립트 `node --check`, 단위 검사(2D 그림 마커, 3m 오프셋, 땅 점 없음, 레이블 미부양), `npm run build:deploy`, `git diff --check` 통과.
