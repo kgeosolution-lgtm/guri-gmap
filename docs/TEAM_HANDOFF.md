@@ -422,3 +422,12 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 백엔드(지시서 (2), `kgeo_api175` 저장소): 이 세션에서 접근 가능한 저장소가 아니라 **아직 미적용**. 테이블 `guri_review` 생성, `routes/guriReview.js`, `app.js`의 `app.use('/api/guri-review', …)`, 환경변수 `GURI_REVIEW_KEY`(기본 guri)를 지시서대로 넣어야 목록 조회·저장이 동작합니다. 그 전까지 위젯의 목록 탭은 "서버 연결(API)을 확인해 주세요"로 표시됩니다.
 - 브랜치: `work/kangmina-review-widget` (base `design/service-home-refresh` 6f3a1f7).
 - 검증: `node --check review.js`, 헤드리스 크롬으로 헤더 스텁에 붙여 링크 2개 생성·클릭 시 창 열림 확인, `npm run build:deploy` 후 `out/review/review.js` 존재와 홈·지도 페이지의 경로가 `/app/guri/review/review.js`로 치환됨 확인, prettier·`git diff --check` 통과. 실제 캡처(https 전용)·서버 연동은 백엔드 적용 후 확인 필요.
+
+## 2026-09-17 "수정 요청" 저장소를 구글 시트 + Apps Script 로 (담당: 강민아)
+
+- 배경: 지시서의 백엔드(kgeo_api175, Express+PostgreSQL)는 이 세션에서 접근할 수 없고 guri-gmap 은 정적 사이트라 서버 코드를 실행할 수 없음. 담당자 결정으로 서버 없이 구글 시트 한 장에 저장하는 방식으로 변경.
+- 백엔드 대체: `docs/review/Code.gs`(Apps Script) — `GET ?action=list`(목록, status 를 todo/done 으로 정규화, 시트에서 '수정완료'라고 적어도 done), `GET ?action=shot&id=`(드라이브의 캡처를 data URL 로 반환 → 파일 공유 설정 불필요), `POST {action:add|status|delete}`(본문 JSON 문자열, 관리자 암호 `ADMIN_KEY`=guri, 삭제는 본인 토큰 또는 관리자). 시트 `수정요청` 탭과 드라이브 폴더 `구리 생활지도 수정요청 캡처`는 스크립트가 만든다. 설치 순서는 `docs/review/README.md`.
+- 프론트: `public/review/review.js` 의 API 층만 교체 — `API` 상수(웹 앱 URL, 아직 `PASTE_APPS_SCRIPT_WEB_APP_URL` 자리표시), GET/POST 를 Apps Script 규약으로(POST 에 Content-Type 헤더를 붙이지 않아 사전 요청 회피), 캡처는 `shot_id` 로 목록에 싣고 화면에서 늦게 불러와 캐시(`loadShots`), 요청에 `page_url` 추가. UI·캡처·크롭 로직은 그대로.
+- 남은 일: 담당자가 시트를 만들고 Code.gs 를 웹 앱으로 배포한 뒤 **웹 앱 URL 을 `review.js` 의 `API` 에 넣어 커밋**해야 동작. 그 전에는 목록 탭에 "API 주소가 아직 설정되지 않았어요" 표시.
+- 브랜치: `work/kangmina-review-sheets` (base `design/service-home-refresh` 2fadac3).
+- 검증: Code.gs 는 Apps Script 전역(SpreadsheetApp/DriveApp/Utilities/ContentService/LockService)을 흉내 낸 Node 하네스로 목록·추가(캡처 저장)·빈 내용 거부·상태(관리자만)·시트 직접 편집 인식·삭제(본인/관리자, 캡처 휴지통)·잘못된 요청을 검사. review.js 는 헤드리스 크롬에서 fetch 를 흉내 내어 목록 2건 렌더·캡처 늦은 로드·관리자 완료 버튼 POST(status, key)·보내기 POST(add, page_url) 확인. `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과. 실제 Apps Script 배포 후의 CORS·리다이렉트 동작은 배포해 봐야 확인 가능.
