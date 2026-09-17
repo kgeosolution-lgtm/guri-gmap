@@ -545,3 +545,12 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 레이블: 9pt(`LABEL_PT`), halo 1.3. 문화재 둘째 줄(지정한 곳)은 번호·코드 항목(`WHO_SKIP`: no/cd/code/num/seq/id…)을 후보에서 빼고, 값이 숫자면 항목 자체를 안 쓰며, Arcade 에서도 숫자면 이름만 표시.
 - 브랜치: `work/kangmina-aerial-overlays-9` (base `design/service-home-refresh` 9132ca8).
 - 검증: 하네스 — 표준 색·채움 알파, 슬라이더로 채움만 변경, 시 경계 자르기(밖 버림·걸침 자르기·구멍 고리·경위도 되돌림·고리 방향), 레이블 9pt, 지정한 곳 후보 필터(번호 항목·숫자 값 제외) 통과. `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
+
+## 2026-09-17 시계열 항공사진: 연속지적도 케이지오 실패 시 브이월드 그림으로 자동 복구, 칩 3+3 배치 (담당: 강민아)
+
+- 증상: 담당자 화면에서 케이지오(kgeodata) 연속지적도 서비스가 안 보임(원인은 이 환경에서 kgeodata.com 에 접속할 수 없어 확인 못 함 — 권한·좌표계·PNU 항목형 등 가능).
+- 조치(`refreshCadastre`): ① 서비스 `load()` 15초 시간 제한 ② PNU 항목이 **문자형일 때만** `LIKE '41310%'` 조건(숫자형이면 조건 없이) ③ 지도에 올리기 전에 `queryFeatureCount`(조건식 + 화면 범위)로 실제 질의가 되는지 확인 ④ 레이어뷰 생성 오류(`layerview-create-error`)도 감지. 어느 단계든 실패하면 `cadastreFallback` 이 케이지오 레이어를 걷어내고 `L.kgFailed` 를 세워 예전 **브이월드 지적도 그림**(`lp_pa_cbnd_bubun`, 채움 걷어내기 `stripFill`)으로 자동 대체, 토스트로 원인 한 줄 안내. 콘솔 `[연속지적도] 케이지오 서비스 실패 → …` 에 원인이 남으니 담당자에게 그 줄을 받아 보면 서비스 쪽 원인을 알 수 있음.
+- 구리시만: 케이지오 레이어는 조건식 대신(또는 더해서) 레이어뷰 `filter={geometry:시 경계}` 로 화면에서 걸러 냄(`applyCadastreClip`, 경계가 늦게 오면 `setCityClip` 에서 다시 적용). 이때 벡터(용도지역·문화재)도 다시 잘라 냄.
+- 칩: 로드뷰 + 5개 = 6개를 3열 격자(`.ov-chips{display:grid;grid-template-columns:repeat(3,1fr)}`)로 위 3개·아래 3개. 칩은 칸을 꽉 채우고 가운데 정렬, 모바일은 안쪽 여백을 줄임.
+- 브랜치: `work/kangmina-aerial-overlays-10` (base `design/service-home-refresh` 5aeca6f).
+- 검증: 하네스 — 건수 질의(조건식·화면 범위), 시 경계 필터(경계가 늦게 와도 적용), 숫자 PNU 는 조건식 없음, 접속 실패·질의 오류 → 브이월드 그림 + 토스트(실패 레이어는 지도에 없음), 칩 6개·3열 격자 검사 통과. `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.

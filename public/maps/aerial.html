@@ -100,8 +100,8 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .ov-head{display:flex;align-items:center;gap:8px;margin-bottom:7px}
 .ov-title{font-weight:700;font-size:13px;white-space:nowrap}
 .ov-src{font-size:11px;color:var(--faint);margin-left:auto;white-space:nowrap}
-.ov-chips{display:flex;flex-wrap:wrap;gap:6px}
-.ov-chip{height:32px;padding:0 11px 0 9px;border-radius:16px;border:1px solid var(--gray20);background:#fff;font-size:13px;font-weight:600;color:var(--gray70);display:inline-flex;align-items:center;gap:6px;transition:all .13s;white-space:nowrap}
+.ov-chips{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}   /* 로드뷰 + 5개 = 6개 → 위 3개, 아래 3개 */
+.ov-chip{height:32px;padding:0 10px 0 9px;border-radius:16px;border:1px solid var(--gray20);background:#fff;font-size:13px;font-weight:600;color:var(--gray70);display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:all .13s;white-space:nowrap;width:100%;min-width:0}
 .ov-chip .ic{font-size:15px;line-height:1}
 .ov-chip .dot{width:9px;height:9px;border-radius:50%;background:var(--c,#999);flex:none;box-shadow:0 0 0 1px rgba(0,0,0,.08) inset}
 .ov-chip:hover{border-color:var(--c,var(--brand));color:var(--ink)}
@@ -157,7 +157,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 
 @media (max-width:640px){
   .ov-bar{top:112px;left:8px;right:8px;width:auto;padding:7px 8px 8px}
-  .ov-chip{height:30px;font-size:12px;padding:0 9px 0 8px}
+  .ov-chip{height:30px;font-size:12px;padding:0 6px 0 6px;gap:5px}
   .ov-src{display:none}
   .rv-panel{top:auto;left:0;right:0;bottom:0;width:auto;height:50%;border-left:none;border-top:1px solid rgba(255,255,255,.15)}
   .main.rv-open #map,.main.rv-open .ov-imgs{right:0;bottom:50%}
@@ -283,7 +283,7 @@ const OVERLAYS=[
   /* kind:'adm' — 구리시 행정동 서비스. kind:'cad' — kgeodata 연속지적도 서비스(구리시 필지만, 선·지번). kind:'vec' — 브이월드 WFS 로 받아 우리 색으로 칠하고 범례를 같은 색으로;
      WFS 가 막히면 브이월드 WMS 그림으로 대체(그때 범례 색은 브이월드 그림과 다를 수 있음) */
   {key:'adm', label:'행정구역',   ic:'🗺️', c:'#2A6DB0', kind:'adm', note:'행정동 경계와 이름'},
-  {key:'cad', label:'연속지적도', ic:'📐', c:'#7A5FD0', kind:'cad', minScale:8000, note:'구리시 필지 경계선과 지번 · 더 확대해야 보여요'},
+  {key:'cad', label:'연속지적도', ic:'📐', c:'#7A5FD0', kind:'cad', ids:['lp_pa_cbnd_bubun'], minScale:8000, note:'구리시 필지 경계선과 지번 · 더 확대해야 보여요'},   /* ids: 케이지오 서비스가 안 되면 브이월드 그림으로 */
   {key:'use', label:'용도지역',   ic:'🏘️', c:'#E07B27', kind:'vec', wfs:'lt_c_uq111', ids:['lt_c_uq111'], classes:'USE', legend:true, note:'주거·상업·공업·녹지 등 용도지역'},
   {key:'urb', label:'도시지역',   ic:'🏙️', c:'#0F8A8A', ids:['lt_c_upisuq151'], alt:[['lt_c_uq151']], note:'국토계획법상 도시지역 범위'},
   {key:'her', label:'문화재보호', ic:'🏛️', c:'#8B5E34', kind:'vec', wfs:'lt_c_uo301', ids:['lt_c_uo301'], alt:[['lt_c_uo302'],['lt_c_uq301']], classes:'HER', legend:true, note:'문화재보호구역'}
@@ -663,6 +663,7 @@ function setCityClip(poly){
   const area=r=>{ let a=0; for(let i=0,j=r.length-1;i<r.length;j=i++) a+=(r[j][0]+r[i][0])*(r[j][1]-r[i][1]); return Math.abs(a/2); };
   const ring=poly.rings.slice().sort((a,b)=>area(b)-area(a))[0];   /* 가장 큰 고리 하나 (CSS polygon 은 고리 하나만) */
   cityClip=simplifyRing(ring.map(p=>[p[0],p[1]]),CLIP_TOL); cityPoly=poly;
+  applyCadastreClip(); Object.keys(ovLayers).forEach(k=>{ const L=ovLayers[k]; if(L.on&&L.own) L.url=''; }); scheduleRefresh();   /* 경계가 늦게 오면 벡터 자료도 다시 잘라 낸다 */
   const vb=viewBox(); if(vb) updateCityClip(vb);
 }
 function clipPolygon(vb){ const r=(vb.xmax-vb.xmin)/vb.w; let out='polygon('; for(let i=0;i<cityClip.length;i++){ const p=cityClip[i]; out+=(i? ',':'')+((p[0]-vb.xmin)/r).toFixed(1)+'px '+((vb.ymax-p[1])/r).toFixed(1)+'px'; } return out+')'; }
@@ -672,7 +673,7 @@ function refreshOverlays(){ Object.keys(ovLayers).forEach(k=>{ if(ovLayers[k].on
 function refreshOverlay(key){
   const L=ovLayers[key], o=ovDef(key), vb=viewBox(); if(!L||!o||!vb) return;
   if(o.kind==='adm') return;                                                      /* 벡터 레이어는 ArcGIS 가 알아서 */
-  if(o.kind==='cad') return refreshCadastre(key);
+  if(o.kind==='cad'&&!L.kgFailed) return refreshCadastre(key);   /* 케이지오가 안 되면(kgFailed) 아래 브이월드 그림 경로로 */
   if(o.kind==='vec'&&!L.wfsFailed) return refreshVector(key);
   if(o.minScale&&view.scale>o.minScale){ L.img.classList.remove('show'); return; }   /* 축소된 상태면 숨김 */
   const rb=requestBox(vb); const url=vwUrl(L.ids||o.ids,rb,rb.w,rb.h); if(L.url===url) return; L.url=url;
@@ -773,23 +774,41 @@ function pickField(names,cands){ const low=names.map(n=>String(n).toLowerCase())
 function cadastreDef(fields){
   const names=(fields||[]).map(f=>f.name);
   const jibun=pickField(names,['jibun','지번','bchk_jibun'])||names[0], pnu=pickField(names,['pnu','필지고유번호']);
+  const pnuF=(fields||[]).find(f=>f.name===pnu); const pnuText=!!pnuF&&/string|text/i.test(String(pnuF.type||''));   /* 문자 항목일 때만 LIKE (숫자면 시 경계 필터만) */
   return {url:CITY.cadastreUrl,title:'연속지적도',outFields:[jibun].concat(pnu? [pnu]:[]),minScale:ovDef('cad').minScale||8000,
-    definitionExpression:pnu? pnu+" LIKE '"+CITY.sggCode+"%'" : undefined,
+    definitionExpression:pnuText? pnu+" LIKE '"+CITY.sggCode+"%'" : undefined,
     renderer:{type:'simple',symbol:{type:'simple-fill',color:[0,0,0,0],outline:{color:'#7A5FD0',width:1.1}}},   /* 채움 없이 선만 */
     labelsVisible:true,labelingInfo:[{labelExpressionInfo:{expression:'$feature.'+jibun},labelPlacement:'always-horizontal',deconflictionStrategy:'static',
       symbol:{type:'text',color:'#4A3A8A',haloColor:[255,255,255,.95],haloSize:1.5,font:{size:11,family:LBL_FONT.family,weight:'bold'}}}]};
+}
+let cadLV=null;
+function withTimeout(p,ms,what){ return Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error(what+' 시간 초과')),ms))]); }
+/* 케이지오 서비스가 안 되면(접속·권한·질의 오류·시간 초과) 브이월드 지적도 그림으로 바꿔 보여 준다 */
+function cadastreFallback(key,L,why){
+  console.warn('[연속지적도] 케이지오 서비스 실패 → 브이월드 그림으로',why);
+  if(cadLayer){ try{ map.remove(cadLayer); }catch(e){} } cadLayer=null; cadLV=null; L.vec=null; L.kgFailed=true; L.url='';
+  if(!L.fellBack){ L.fellBack=true; toast('케이지오 연속지적도를 못 불러와 브이월드 지적도로 보여요 ('+String(why).slice(0,50)+')',4200); }
+  if(L.on) refreshOverlay(key);
 }
 async function refreshCadastre(key){
   const L=ovLayers[key]; if(!L||!L.on||!map||!FLCls) return;
   if(cadLayer){ cadLayer.visible=true; return; }
   if(L.loading) return; L.loading=true;
+  let lyr=null;
   try{
-    const probe=new FLCls({url:CITY.cadastreUrl}); await probe.load();
-    const lyr=new FLCls(Object.assign({popupEnabled:false,legendEnabled:false,listMode:'hide'},cadastreDef(probe.fields)));
+    const probe=new FLCls({url:CITY.cadastreUrl}); await withTimeout(probe.load(),15000,'접속');
+    lyr=new FLCls(Object.assign({popupEnabled:false,legendEnabled:false,listMode:'hide'},cadastreDef(probe.fields)));
+    /* 실제로 질의가 되는지 먼저 확인(조건식·좌표계·권한 문제를 여기서 걸러 낸다) */
+    const q={where:lyr.definitionExpression||'1=1',returnGeometry:false}; if(view&&view.extent){ q.geometry=view.extent; q.spatialRelationship='intersects'; }
+    await withTimeout(lyr.queryFeatureCount(q),15000,'질의');
     lyr.opacity=Math.min(1,VW.alpha+0.15); cadLayer=lyr; L.vec=lyr; map.add(lyr,(airLayer?1:0)+(cmpLayer?1:0)); lyr.visible=!!L.on;
-  }catch(e){ console.warn('[연속지적도]',e); toast('연속지적도를 불러오지 못했어요 ('+String((e&&e.message)||e).slice(0,40)+')',3600); }
+    if(lyr.on) lyr.on('layerview-create-error',ev=>cadastreFallback(key,L,(ev&&ev.error&&ev.error.message)||'layerview'));
+    if(view&&view.whenLayerView) view.whenLayerView(lyr).then(lv=>{ cadLV=lv; applyCadastreClip(); }).catch(()=>{});
+  }catch(e){ if(lyr&&cadLayer!==lyr){ try{ map.remove(lyr); }catch(x){} } cadastreFallback(key,L,String((e&&e.message)||e)); }
   finally{ L.loading=false; }
 }
+/* 구리시 안만: 시 경계 폴리곤으로 화면 필터(경계가 늦게 오면 그때 적용) */
+function applyCadastreClip(){ if(cadLV&&cityPoly){ try{ cadLV.filter={geometry:cityPoly,spatialRelationship:'intersects'}; }catch(e){} } }
 
 /* ── 용도지역·문화재보호: 브이월드 WFS 로 받아 우리 색으로 (범례와 같은 색) ── */
 function classArcade(table,field){
