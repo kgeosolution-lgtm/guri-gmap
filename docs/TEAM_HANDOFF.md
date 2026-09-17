@@ -501,3 +501,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 조치: `AirPhotoLayer.fetchTile` 에서 소스 타일을 사방 `BLEED=0.75px` 씩 넓혀 그림(`drawImage(img,0,0,T,T,-B,-B,T+2B,T+2B)`). 겹침은 0.75px 이라 사진 왜곡은 없음.
 - 브랜치: `work/kangmina-aerial-seams` (base `design/service-home-refresh` d3ac9e1).
 - 검증: 인접 타일 4장 변환 합성 실험(여유 0 → 493, 0.5/0.75/1 → 0), `node --check`, 겹쳐 보기 하네스, `npm run build:deploy`, `git diff --check` 통과.
+
+## 2026-09-17 시계열 항공사진: 로드뷰 칩 흰색 기본/짙은 켜짐, 패널 아이콘, 시 경계 자르기를 CSS polygon 으로 (담당: 강민아)
+
+- 로드뷰 칩: 기본은 다른 칩처럼 흰 바탕 + 카카오 아이콘 + "로드뷰", 켜면 짙은 배경·흰 글씨(담당자 시안). 패널 머리의 사람 모양 이모지도 카카오 아이콘으로.
+- 레이어가 다시 안 보인 원인 판단: #52 에서 넣은 시 경계 자르기(SVG `clipPath` 참조)가 브라우저·레이아웃에 따라 이미지 층을 통째로 가릴 수 있어(요청은 성공해도 화면에 안 보임), 자르기를 화면 좌표 CSS `clip-path: polygon(...)` 으로 바꿈: 시 경계의 가장 큰 고리를 Douglas–Peucker(1.5m)로 간추려 두고(`simplifyRing`), 화면이 움직일 때마다 화면 픽셀 좌표로 polygon 문자열을 다시 씀(`updateCityClip`). 주소 뒤 `?noclip` 이면 자르지 않음(진단용).
+- 브랜치: `work/kangmina-aerial-overlays-4` (base `design/service-home-refresh` f438f14).
+- 검증: 하네스에 간추리기(직선 점 제거·꺾임 유지), 큰 고리 선택, polygon 좌표 변환, 칩 문구 검사 통과. `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과. 실제로 레이어가 보이는지는 배포 후 확인(안 보이면 `?noclip` 으로 자르기 여부를 갈라 볼 것).
