@@ -107,7 +107,11 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .ov-chip:hover{border-color:var(--c,var(--brand));color:var(--ink)}
 .ov-chip.is-on{background:var(--c,var(--brand));border-color:var(--c,var(--brand));color:#fff}
 .ov-chip.is-on .dot{background:#fff}
-.ov-chip.rv.is-on{background:#1E3229;border-color:#1E3229}
+.ov-chip.rv{background:#1E3229;border-color:#1E3229;color:#fff;padding-left:6px;gap:8px}
+.ov-chip.rv:hover{background:#2c4a3c;color:#fff}
+.ov-chip.rv .kico{width:22px;height:22px;border-radius:5px;background:#FAE100;display:inline-grid;place-items:center;flex:none}
+.ov-chip.rv .kico svg{width:14px;height:14px;display:block}
+.ov-chip.rv.is-on{box-shadow:0 0 0 2px #FAE100 inset,0 0 0 3px rgba(250,225,0,.35)}
 .ov-foot{display:none;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--sub)}
 .ov-foot.show{display:flex}
 .ov-foot input[type=range]{flex:1;accent-color:var(--brand);min-width:80px}
@@ -116,7 +120,8 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .ov-note{font-size:11.5px;color:var(--sub);margin-top:6px;line-height:1.4;word-break:keep-all;display:none}
 .ov-note.show{display:block}
 
-/* 겹쳐 보기 이미지 층: 지도 캔버스 위에 놓이는 <img> (WebGL·CORS 와 무관하게 그린다) */
+/* 겹쳐 보기 이미지 층: 지도 캔버스 위에 놓이는 <img> (WebGL·CORS 와 무관하게 그린다). 구리시 경계 clipPath 로 시 밖은 잘림 */
+.ov-clip{position:absolute;width:0;height:0;overflow:hidden}
 .ov-imgs{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:2}
 .ov-imgs img{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform;display:none;max-width:none}
 .ov-imgs img.show{display:block}
@@ -129,7 +134,8 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .main.rv-open .map-ctl{right:calc(46% + 12px)}
 .main.rv-open .region{right:calc(46% + 54px)}
 .main.rv-open .cmp-lbl.r{right:calc(46% + 12px)}
-.main.rv-mode #map{cursor:crosshair}
+/* 로드뷰 모드 커서: 파란 점이 있는 흰 핀 (끝점이 클릭 지점) */
+.main.rv-mode #map,.main.rv-mode #map *{cursor:url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='34' viewBox='0 0 26 34'%3E%3Cpath d='M13 1.5C7 1.5 2.5 6 2.5 12c0 7.5 10.5 20 10.5 20S23.5 19.5 23.5 12C23.5 6 19 1.5 13 1.5z' fill='%23fff' stroke='%23555' stroke-width='1.6'/%3E%3Ccircle cx='13' cy='12' r='4.6' fill='%232F6FE4'/%3E%3C/svg%3E") 13 33, crosshair !important}
 .rv-head{display:flex;align-items:center;gap:8px;padding:8px 10px;background:#1E3229;color:#fff;font-size:13px}
 .rv-head b{font-size:14px}
 .rv-head .addr{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.85}
@@ -262,10 +268,11 @@ const OVERLAYS=[
   {key:'adm', label:'행정구역',   ic:'🗺️', c:'#2A6DB0', ids:['lt_c_adsigg','lt_c_ademd'], note:'시군구·읍면동 경계와 이름'},
   {key:'cad', label:'연속지적도', ic:'📐', c:'#7A5FD0', ids:['lp_pa_cbnd_bubun'], minScale:18000, note:'필지 경계와 지번 · 더 확대해야 보여요'},
   {key:'use', label:'용도지역',   ic:'🏘️', c:'#E07B27', ids:['lt_c_uq111'], note:'주거·상업·공업·녹지 등 용도지역'},
-  {key:'urb', label:'도시지역',   ic:'🏙️', c:'#0F8A8A', ids:['lt_c_upisuq151'], note:'국토계획법상 도시지역 범위'},
-  {key:'pln', label:'국토계획구역', ic:'📋', c:'#B26A00', ids:['lt_c_uq113','lt_c_uq129'], note:'용도구역·지구단위계획구역'},
-  {key:'spc', label:'공간시설',   ic:'🌳', c:'#3A8F3A', ids:['lt_c_uq122'], note:'공원·녹지·광장 등 도시계획 공간시설'}
+  {key:'urb', label:'도시지역',   ic:'🏙️', c:'#0F8A8A', ids:['lt_c_upisuq151'], alt:[['lt_c_uq151']], note:'국토계획법상 도시지역 범위'},
+  {key:'her', label:'문화재보호', ic:'🏛️', c:'#8B5E34', ids:['lt_c_uo301'], alt:[['lt_c_uo302'],['lt_c_uq301']], note:'문화재보호구역'},
+  {key:'pub', label:'공공문화체육시설', ic:'🏟️', c:'#3A8F3A', ids:['lt_c_uq124'], note:'학교·공공청사·문화·체육시설 등 도시계획시설'}
 ];
+/* ids 가 안 맞으면(브이월드가 오류를 주면) alt 의 후보를 차례로 시도한다 — 레이어 ID 는 브이월드 2D 데이터 목록 기준 */
 /* 카카오 로드뷰: JavaScript 키를 넣고 카카오 개발자 콘솔에 kgeodata.com 을 등록하면 지도 옆 패널에서 바로 본다.
  * 키가 없으면 카카오맵 로드뷰를 새 창으로 연다. */
 const KAKAO={jsKey:'1aaa3d696d031abed6bbd1762ac532c7'};
@@ -461,6 +468,7 @@ function drawCityOutline(){
     symbol:{type:'simple-fill',color:[0,0,0,0],outline:{color:[255,255,255,.85],width:5}}}));
   bndLayer.add(new GraphicCls({geometry:city,   /* 초록 본선 */
     symbol:{type:'simple-fill',color:[0,0,0,0],outline:{color:'#018058',width:2}}}));
+  try{ setCityClip(city); }catch(e){ console.warn('[함께 보기] 시 경계 자르기 실패',e); }   /* 겹쳐 보기는 구리시 안만 */
 }
 function pip(x,y,rings){ let inside=false;
   for(const ring of rings){ for(let i=0,j=ring.length-1;i<ring.length;j=i++){
@@ -601,23 +609,41 @@ function overlayTransform(img,vb){
   const x=(img.ext.xmin-vb.xmin)/r, y=(vb.ymax-img.ext.ymax)/r;
   return 'translate('+x.toFixed(2)+'px,'+y.toFixed(2)+'px) scale('+s.toFixed(6)+')';
 }
-function repositionOverlays(){ const vb=viewBox(); if(!vb) return; Object.values(ovLayers).forEach(L=>{ if(L.on&&L.ext) L.img.style.transform=overlayTransform(L,vb); }); }
+function repositionOverlays(){ const vb=viewBox(); if(!vb) return; Object.values(ovLayers).forEach(L=>{ if(L.on&&L.ext) L.img.style.transform=overlayTransform(L,vb); }); updateCityClip(vb); }
+/* 구리시 밖은 잘라낸다: 시 경계(뷰 좌표계)를 SVG clipPath 로 두고, 화면이 움직이면 경로의 transform 만 바꾼다 */
+let cityClip=null;   /* {path, ox, oy} */
+function setCityClip(poly){
+  if(!poly||!poly.rings||!poly.rings.length) return;
+  const ext=poly.extent; const ox=ext? (ext.xmin+ext.xmax)/2 : poly.rings[0][0][0], oy=ext? (ext.ymin+ext.ymax)/2 : poly.rings[0][0][1];
+  const d=poly.rings.map(r=>r.map((p,i)=>(i? 'L':'M')+(p[0]-ox).toFixed(1)+' '+(p[1]-oy).toFixed(1)).join('')+'Z').join('');
+  const NS='http://www.w3.org/2000/svg';
+  let svg=$('ovClipSvg');
+  if(!svg){ svg=document.createElementNS(NS,'svg'); svg.setAttribute('id','ovClipSvg'); svg.setAttribute('class','ov-clip'); svg.setAttribute('width','0'); svg.setAttribute('height','0'); svg.setAttribute('aria-hidden','true');
+    const cp=document.createElementNS(NS,'clipPath'); cp.setAttribute('id','ovCityClip'); cp.setAttribute('clipPathUnits','userSpaceOnUse');
+    const path=document.createElementNS(NS,'path'); path.setAttribute('id','ovClipPath'); cp.appendChild(path); svg.appendChild(cp); $('main').appendChild(svg); }
+  const path=$('ovClipPath'); path.setAttribute('d',d); cityClip={path,ox,oy};
+  $('ovImgs').style.clipPath='url(#ovCityClip)'; $('ovImgs').style.webkitClipPath='url(#ovCityClip)';
+  const vb=viewBox(); if(vb) updateCityClip(vb);
+}
+function clipTransform(vb){ const r=(vb.xmax-vb.xmin)/vb.w, k=1/r; return 'matrix('+k.toFixed(8)+' 0 0 '+(-k).toFixed(8)+' '+((cityClip.ox-vb.xmin)*k).toFixed(2)+' '+((vb.ymax-cityClip.oy)*k).toFixed(2)+')'; }
+function updateCityClip(vb){ if(!cityClip) return; cityClip.path.setAttribute('transform',clipTransform(vb)); }
 function scheduleRefresh(){ clearTimeout(refreshTimer); refreshTimer=setTimeout(refreshOverlays,120); }
 function refreshOverlays(){ Object.keys(ovLayers).forEach(k=>{ if(ovLayers[k].on) refreshOverlay(k); }); }
 function refreshOverlay(key){
   const L=ovLayers[key], o=ovDef(key), vb=viewBox(); if(!L||!o||!vb) return;
   if(o.minScale&&view.scale>o.minScale){ L.img.classList.remove('show'); return; }   /* 축소된 상태면 숨김 */
-  const rb=requestBox(vb); const url=vwUrl(o.ids,rb,rb.w,rb.h); if(L.url===url) return; L.url=url;
+  const rb=requestBox(vb); const url=vwUrl(L.ids||o.ids,rb,rb.w,rb.h); if(L.url===url) return; L.url=url;
   const im=new Image(); im.onload=()=>{ if(L.url!==url||!L.on) return; vwLocked=true; L.ext=rb; L.w=rb.w; L.h=rb.h; L.img.src=url; L.img.style.transform=overlayTransform(L,viewBox()||vb); L.img.classList.add('show'); };
   im.onerror=()=>{ if(L.url!==url) return; L.img.classList.remove('show');
     if(!vwLocked&&vwVariant<VW_VARIANTS.length-1){ vwVariant++; L.url=''; refreshOverlay(key); return; }   /* 다른 요청 형식으로 다시 */
+    if(o.alt&&L.altIdx<o.alt.length){ L.ids=o.alt[L.altIdx++]; L.url=''; refreshOverlay(key); return; }      /* 다른 레이어 ID 후보로 다시 */
     vwDiagnose(o,url,L); };
   im.src=url;
 }
 /* 실패 원인 알림: 브이월드가 CORS 를 허용하면 오류 XML 의 메시지를 읽어 보여 주고, 못 읽으면 요청 주소를 새 창으로 열어 볼 수 있게 한다 */
 function vwDiagnose(o,url,L){
   if(L.warned) return; L.warned=true;
-  const first=vwUrl(o.ids,L.ext||viewBox()||{xmin:0,ymin:0,xmax:1,ymax:1},256,256,0);
+  const first=vwUrl(L.ids||o.ids,L.ext||viewBox()||{xmin:0,ymin:0,xmax:1,ymax:1},256,256,0);
   const link=' <a href="'+first.replace(/"/g,'&quot;')+'" target="_blank" rel="noopener" style="color:#9fe3c9;text-decoration:underline">원인 보기 ↗</a>';
   fetch(url).then(r=>r.text()).then(t=>{ const m=t.match(/<ServiceException[^>]*>([\s\S]*?)<\/ServiceException>|<message>([\s\S]*?)<\/message>|<error[^>]*>([\s\S]*?)<\/error>/i);
     const msg=m? (m[1]||m[2]||m[3]||'').replace(/<[^>]+>/g,'').trim().slice(0,120) : ''; toastHtml(esc(o.label)+'을(를) 불러오지 못했어요'+(msg? ': '+esc(msg) : '')+link,9000); })
@@ -627,7 +653,8 @@ function esc(s){ return String(s==null? '' : s).replace(/[&<>"']/g,c=>({'&':'&am
 function toastHtml(html,ms){ const t=$('mapToast'); t.innerHTML=html; t.style.pointerEvents='auto'; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>{ t.classList.remove('show'); t.style.pointerEvents=''; },ms||6000); }
 function initOverlays(){
   const host=$('ovChips'); host.innerHTML='';
-  const rv=document.createElement('button'); rv.type='button'; rv.className='ov-chip rv'; rv.id='ovRv'; rv.innerHTML='<span class="ic">🚶</span>로드뷰 보기';
+  const rv=document.createElement('button'); rv.type='button'; rv.className='ov-chip rv'; rv.id='ovRv';
+  rv.innerHTML='<span class="kico" aria-hidden="true"><svg viewBox="0 0 24 32"><path d="M12 1C6 1 1.5 5.5 1.5 11.5 1.5 19 12 31 12 31S22.5 19 22.5 11.5C22.5 5.5 18 1 12 1z" fill="#2F6FE4"/><circle cx="12" cy="11.5" r="4.2" fill="#fff"/></svg></span>카카오 로드뷰';
   rv.title='지도를 클릭하면 그곳의 로드뷰를 열어요'; rv.onclick=()=>{ rvMode? rvOff() : rvOn(); }; host.appendChild(rv);
   OVERLAYS.forEach(o=>{
     const b=document.createElement('button'); b.type='button'; b.className='ov-chip'; b.dataset.key=o.key; b.style.setProperty('--c',o.c);
@@ -644,7 +671,7 @@ function setOverlay(key,on,silent){
   const o=ovDef(key); if(!o) return;
   if(!ovLayers[key]){
     const img=document.createElement('img'); img.alt=''; img.decoding='async'; img.dataset.key=key; img.style.opacity=VW.alpha;
-    $('ovImgs').appendChild(img); ovLayers[key]={on:false,img,ext:null,w:0,h:0,url:'',warned:false};
+    $('ovImgs').appendChild(img); ovLayers[key]={on:false,img,ext:null,w:0,h:0,url:'',warned:false,ids:o.ids,altIdx:0};
   }
   const L=ovLayers[key]; L.on=on;
   if(on){ refreshOverlay(key); } else { L.img.classList.remove('show'); L.url=''; }
