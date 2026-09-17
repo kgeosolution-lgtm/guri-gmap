@@ -39,8 +39,15 @@ function sheet_() {
   return sh;
 }
 function folder_() {
-  var it = DriveApp.getFoldersByName(FOLDER_NAME);
-  return it.hasNext() ? it.next() : DriveApp.createFolder(FOLDER_NAME);
+  /* 캡처 폴더는 이 시트가 들어 있는 폴더(공유 드라이브 포함) 안에 만든다 — 팀이 같은 폴더에서 캡처를 볼 수 있게. 못 찾으면 내 드라이브 루트 */
+  var parent = null;
+  try {
+    var ps = DriveApp.getFileById(SpreadsheetApp.getActiveSpreadsheet().getId()).getParents();
+    if (ps.hasNext()) parent = ps.next();
+  } catch (x) {}
+  var it = parent ? parent.getFoldersByName(FOLDER_NAME) : DriveApp.getFoldersByName(FOLDER_NAME);
+  if (it.hasNext()) return it.next();
+  return parent ? parent.createFolder(FOLDER_NAME) : DriveApp.createFolder(FOLDER_NAME);
 }
 function out_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(
