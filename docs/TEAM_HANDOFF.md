@@ -536,3 +536,12 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 그래도 다 실패하면 예전처럼 그림으로 대체하고 범례에 "그림이라 색이 다를 수 있고 확대해도 레이블이 안 나와요" 표시. 벡터로 성공하면 범례에 "확대하면 …이 보여요" 안내.
 - 브랜치: `work/kangmina-aerial-overlays-8` (base `design/service-home-refresh` ea000ae).
 - 검증: 하네스 — 용도지역 레이블(`$feature["uname"]`, minScale 10,000), 문화재 WFS http 오류→데이터 API fetch 2쪽 이어 받기·이름+지정한 곳 레이블(NewLine)·범례 안내, CORS 차단→JSONP 경로(막힌 fetch 재시도 없음, 콜백 정리), 전부 실패→그림+대체 ID+주의문 검사 통과. `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과. 배포 후 확인: 용도지역을 켜고 콘솔에 `(jsonp:…)` 또는 `(wfs)` 가 찍히면 성공, "벡터 자료 실패" 경고면 브이월드가 JSONP 도 안 주는 것이라 kgeodata 서버에 올리는 방법으로 가야 함.
+
+## 2026-09-17 시계열 항공사진: 용도지역·문화재를 구리시 안만, 표준 색·투명도, 레이블 작게, 문화재 둘째 줄 숫자 제거 (담당: 강민아)
+
+- 구리시 안만(`clipToCity`): 벡터로 받은 용도지역·문화재 폴리곤을 시 경계 폴리곤(`cityPoly`, 행정동 합집합)으로 잘라 냄 — 안에 있으면 그대로, 걸치면 `geometryEngine.intersect` 로 안쪽만, 밖이면 버림. 잘린 결과의 고리는 시계 방향(바깥)·반시계(구멍)로 나눠 GeoJSON Polygon/MultiPolygon 으로 되돌림. `?noclip` 이면 자르지 않음. 콘솔에 `n건/전체 구리시 안` 으로 표시.
+- 색: 담당자 요청("아까 쓰던 색")에 따라 `CLASS_TABLES.USE` 를 도시·군관리계획 도면 표준 색 계열(브이월드 용도지역 그림과 같은 계열: 주거 노랑→주황, 상업 빨강·분홍, 공업 파랑·보라, 녹지 초록, 관리 연두·황갈, 농림 진초록, 자연환경보전 청록)로 바꿈. 범례는 같은 표에서 그리므로 자동으로 맞음. **브이월드의 정확한 색 값은 이 환경에서 읽을 수 없어 표준 색으로 맞춘 것** — 특정 용도가 다르게 보이면 표의 색만 고치면 됨.
+- 투명도: 레이어 투명도 대신 채움 색에 알파(`fillAlpha` = 진하기×0.6, 기본 0.45)를 줘서 레이블은 또렷하게. 진하기 슬라이더는 렌더러를 다시 만들어(`__mk`) 채움만 바꿈.
+- 레이블: 9pt(`LABEL_PT`), halo 1.3. 문화재 둘째 줄(지정한 곳)은 번호·코드 항목(`WHO_SKIP`: no/cd/code/num/seq/id…)을 후보에서 빼고, 값이 숫자면 항목 자체를 안 쓰며, Arcade 에서도 숫자면 이름만 표시.
+- 브랜치: `work/kangmina-aerial-overlays-9` (base `design/service-home-refresh` 9132ca8).
+- 검증: 하네스 — 표준 색·채움 알파, 슬라이더로 채움만 변경, 시 경계 자르기(밖 버림·걸침 자르기·구멍 고리·경위도 되돌림·고리 방향), 레이블 9pt, 지정한 곳 후보 필터(번호 항목·숫자 값 제외) 통과. `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.

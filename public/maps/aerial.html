@@ -291,12 +291,13 @@ const OVERLAYS=[
 /* 우리가 칠하는 색 — 범례도 이 표에서 그린다. 이름에 포함된 글자로 분류(용도지역명 필드는 첫 행에서 자동으로 찾는다) */
 const CLASS_TABLES={
   USE:{field:['uname','용도지역명','dgm_nm','name'],items:[
-    ['r1e','제1종전용주거','#FFF1B8'],['r2e','제2종전용주거','#FFE38A'],['r1g','제1종일반주거','#FFD65C'],['r2g','제2종일반주거','#FFC000'],['r3g','제3종일반주거','#F4A21B'],['rq','준주거','#E36C0A'],
-    ['cc','중심상업','#C00000'],['cg','일반상업','#E8464A'],['cn','근린상업','#F28C8C'],['cd','유통상업','#F5B7B1'],
-    ['ie','전용공업','#4F5BD5'],['ig','일반공업','#7B8CE0'],['iq','준공업','#A9B6F0'],
-    ['gp','보전녹지','#2E7D32'],['gm','생산녹지','#66BB6A'],['gn','자연녹지','#A5D6A7'],
-    ['mp','보전관리','#8BC34A'],['mm','생산관리','#C5E1A5'],['mc','계획관리','#DCE775'],
-    ['ag','농림지역','#6D8B3A'],['ne','자연환경보전','#26A69A'],['etc','그 밖의 용도지역','#BDBDBD']],
+    /* 도시·군관리계획 도면 표준 색 계열(브이월드 용도지역 그림과 같은 계열): 주거 노랑→주황, 상업 빨강·분홍, 공업 파랑·보라, 녹지 초록, 관리 연두·황갈, 농림 진초록, 자연환경보전 청록 */
+    ['r1e','제1종전용주거','#FFFFCC'],['r2e','제2종전용주거','#FFFF99'],['r1g','제1종일반주거','#FFFF66'],['r2g','제2종일반주거','#FFFF00'],['r3g','제3종일반주거','#FFCC00'],['rq','준주거','#FF9900'],
+    ['cc','중심상업','#FF4D4D'],['cg','일반상업','#FF7F7F'],['cn','근린상업','#FFA6A6'],['cd','유통상업','#FFCCCC'],
+    ['ie','전용공업','#6666FF'],['ig','일반공업','#9999FF'],['iq','준공업','#CCCCFF'],
+    ['gp','보전녹지','#009900'],['gm','생산녹지','#66CC66'],['gn','자연녹지','#CCFFCC'],
+    ['mp','보전관리','#99CC99'],['mm','생산관리','#CCE6B4'],['mc','계획관리','#E6E6B4'],
+    ['ag','농림지역','#339933'],['ne','자연환경보전','#009999'],['etc','그 밖의 용도지역','#CCCCCC']],
     match:{r1e:'제1종전용주거',r2e:'제2종전용주거',r1g:'제1종일반주거',r2g:'제2종일반주거',r3g:'제3종일반주거',rq:'준주거',cc:'중심상업',cg:'일반상업',cn:'근린상업',cd:'유통상업',
       ie:'전용공업',ig:'일반공업',iq:'준공업',gp:'보전녹지',gm:'생산녹지',gn:'자연녹지',mp:'보전관리',mm:'생산관리',mc:'계획관리',ag:'농림',ne:'자연환경보전'}},
   HER:{field:['uname','명칭','name'],items:[['her','문화재보호구역','#8B5E34']],match:{},
@@ -647,6 +648,7 @@ function repositionOverlays(){ const vb=viewBox(); if(!vb) return; Object.values
 /* 구리시 밖은 잘라낸다: 시 경계(뷰 좌표계)의 가장 큰 고리를 간추려 두고, 화면이 움직일 때마다 화면 좌표 CSS polygon 으로 다시 쓴다.
  * (SVG clipPath 참조 방식은 브라우저·레이아웃에 따라 통째로 가려지는 경우가 있어 단순한 polygon 으로) 주소 뒤 ?noclip 이면 자르지 않는다 */
 let cityClip=null;   /* [[x,y],…] 뷰 좌표계 */
+let cityPoly=null;   /* 시 경계 폴리곤(뷰 좌표계) — 벡터 자료를 이 안으로 잘라 낸다 */
 const CLIP_TOL=1.5;  /* 간추리기 허용 오차(m) */
 function simplifyRing(pts,tol){   /* Douglas–Peucker */
   if(pts.length<5) return pts.slice();
@@ -660,7 +662,7 @@ function setCityClip(poly){
   if(qs.has('noclip')||!poly||!poly.rings||!poly.rings.length) return;
   const area=r=>{ let a=0; for(let i=0,j=r.length-1;i<r.length;j=i++) a+=(r[j][0]+r[i][0])*(r[j][1]-r[i][1]); return Math.abs(a/2); };
   const ring=poly.rings.slice().sort((a,b)=>area(b)-area(a))[0];   /* 가장 큰 고리 하나 (CSS polygon 은 고리 하나만) */
-  cityClip=simplifyRing(ring.map(p=>[p[0],p[1]]),CLIP_TOL);
+  cityClip=simplifyRing(ring.map(p=>[p[0],p[1]]),CLIP_TOL); cityPoly=poly;
   const vb=viewBox(); if(vb) updateCityClip(vb);
 }
 function clipPolygon(vb){ const r=(vb.xmax-vb.xmin)/vb.w; let out='polygon('; for(let i=0;i<cityClip.length;i++){ const p=cityClip[i]; out+=(i? ',':'')+((p[0]-vb.xmin)/r).toFixed(1)+'px '+((vb.ymax-p[1])/r).toFixed(1)+'px'; } return out+')'; }
@@ -717,7 +719,7 @@ function initOverlays(){
     b.onclick=()=>setOverlay(o.key,!ovOn(o.key)); host.appendChild(b);
   });
   $('ovAlpha').value=Math.round(VW.alpha*100);
-  $('ovAlpha').addEventListener('input',e=>{ VW.alpha=e.target.value/100; Object.values(ovLayers).forEach(L=>{ L.img.style.opacity=VW.alpha; if(L.vec) L.vec.opacity=VW.alpha; }); (admLayers||[]).forEach(l=>{ l.opacity=Math.min(1,VW.alpha+0.25); }); });
+  $('ovAlpha').addEventListener('input',e=>{ VW.alpha=e.target.value/100; Object.values(ovLayers).forEach(L=>{ L.img.style.opacity=VW.alpha; if(L.vec){ if(L.vec.__mk) L.vec.renderer=L.vec.__mk(VW.alpha); else L.vec.opacity=VW.alpha; } }); (admLayers||[]).forEach(l=>{ l.opacity=Math.min(1,VW.alpha+0.25); }); });
   (qs.get('ov')||'').split(',').filter(Boolean).forEach(k=>{ if(ovDef(k)) setOverlay(k,true,true); });
   if(!VW.key) $('ovNote').textContent='브이월드 인증키가 없어 겹쳐 보기 자료를 불러올 수 없어요.';
   renderOvState();
@@ -795,25 +797,55 @@ function classArcade(table,field){
   return 'var n=Text($feature["'+field+'"]); return '+parts.join('')+"'"+(table.items[table.items.length-1][0])+"'"+')'.repeat(parts.length);
 }
 /* 확대했을 때 레이블: 용도지역은 용도지역 이름, 문화재는 이름 + 지정한 곳. 항목 이름은 첫 피처에서 찾는다(없으면 레이블 없음) */
+const WHO_SKIP=/(no|cd|code|num|seq|id|cnt|dt|date|yn)$/i;   /* 번호·코드 항목은 '지정한 곳'으로 안 씀 */
 function vectorLabels(table,props){
   const keys=Object.keys(props); const name=pickField(keys,table.label||table.field); if(!name) return null;
-  const who=table.who? pickField(keys,table.who) : null;
-  const expr=who
-    ? 'var n=Text(DefaultValue($feature["'+name+'"],"")); var d=Text(DefaultValue($feature["'+who+'"],"")); IIf(d=="",n,n+TextFormatting.NewLine+d)'
+  let who=table.who? pickField(keys.filter(k=>k!==name&&!WHO_SKIP.test(k)),table.who) : null;
+  if(who&&(typeof props[who]==='number'||/^\s*[\d.\-]+\s*$/.test(String(props[who])))) who=null;   /* 값이 숫자면 뺀다 */
+  const expr=who   /* 둘째 줄은 글자일 때만(숫자·빈값이면 이름만) */
+    ? 'var n=Text(DefaultValue($feature["'+name+'"],"")); var d=Trim(Text(DefaultValue($feature["'+who+'"],""))); IIf(d==""||!IsNan(Number(d)),n,n+TextFormatting.NewLine+d)'
     : '$feature["'+name+'"]';
   return {name,who,info:[{labelExpressionInfo:{expression:expr},labelPlacement:'always-horizontal',minScale:table.labelMin||10000,
-    symbol:{type:'text',color:'#2b2118',haloColor:[255,255,255,.95],haloSize:1.5,font:{size:11,family:LBL_FONT.family,weight:'bold'}}}]};
+    symbol:{type:'text',color:'#2b2118',haloColor:[255,255,255,.95],haloSize:1.3,font:{size:LABEL_PT,family:LBL_FONT.family,weight:'bold'}}}]};
+}
+const LABEL_PT=9;   /* 용도지역·문화재 레이블 글자 크기(pt) */
+/* 채움 색에 투명도를 주되(레이블은 또렷하게) 진하기 슬라이더로 조절: alpha 0.75 → 채움 0.45 */
+function fillAlpha(a){ return Math.max(0.15,Math.min(0.85,Math.round(a*60)/100)); }
+function rgba(hex,a){ const n=parseInt(hex.slice(1),16); return [(n>>16)&255,(n>>8)&255,n&255,a]; }
+function fillRenderer(table,field,alpha){
+  const a=fillAlpha(alpha), line={color:[255,255,255,.7],width:.8};
+  return table.items.length>1
+    ? {type:'unique-value',valueExpression:classArcade(table,field),uniqueValueInfos:table.items.map(([k,label,c])=>({value:k,label,symbol:{type:'simple-fill',color:rgba(c,a),outline:line}})),
+        defaultSymbol:{type:'simple-fill',color:rgba(table.items[table.items.length-1][2],a),outline:line}}
+    : {type:'simple',symbol:{type:'simple-fill',color:rgba(table.items[0][2],a),outline:{color:'#5a3d20',width:1.2}}};
+}
+/* 구리시 안만: 시 경계 폴리곤으로 잘라 낸다(경계에 걸친 폴리곤은 안쪽 부분만). 경계 자료가 아직 없으면 그대로 */
+function llToXY(lng,lat){ if(WMU) return WMU.lngLatToXY(lng,lat); return [lng*20037508.34/180,Math.log(Math.tan((90+lat)*Math.PI/360))/(Math.PI/180)*20037508.34/180]; }
+function ringIsCW(r){ let a=0; for(let i=0,j=r.length-1;i<r.length;j=i++) a+=(r[i][0]-r[j][0])*(r[i][1]+r[j][1]); return a>0; }   /* y 위 좌표계에서 합이 양수면 시계 방향(ArcGIS 바깥 고리) */
+function clipToCity(j){
+  if(!cityPoly||!geomEngine||!GraphicCls||!j||!j.features) return j;
+  const out=[];
+  j.features.forEach(f=>{
+    const g=f.geometry; if(!g||!g.coordinates){ return; }
+    const polys=g.type==='Polygon'? [g.coordinates] : (g.type==='MultiPolygon'? g.coordinates : null); if(!polys){ out.push(f); return; }
+    const rings=[].concat.apply([],polys).map(r=>r.map(c=>llToXY(c[0],c[1])));
+    let geom; try{ geom=new GraphicCls({geometry:{type:'polygon',rings,spatialReference:cityPoly.spatialReference}}).geometry; }catch(e){ out.push(f); return; }
+    try{
+      if(geomEngine.contains(cityPoly,geom)){ out.push(f); return; }
+      const cut=geomEngine.intersect(cityPoly,geom); if(!cut||!cut.rings||!cut.rings.length) return;   /* 시 밖 → 버림 */
+      const ps=[]; cut.rings.forEach(r=>{ const ll=r.map(c=>xyToLL(c[0],c[1])); if(ringIsCW(r)||!ps.length) ps.push([ll]); else ps[ps.length-1].push(ll); });
+      out.push(Object.assign({},f,{geometry:ps.length===1? {type:'Polygon',coordinates:ps[0]} : {type:'MultiPolygon',coordinates:ps}}));
+    }catch(e){ out.push(f); }
+  });
+  return Object.assign({},j,{features:out});
 }
 function vectorLayer(o,j){
   const table=CLASS_TABLES[o.classes]; const props=(j.features[0]&&j.features[0].properties)||{}; const field=pickField(Object.keys(props),table.field)||Object.keys(props)[0]||'uname';
   const blob=new Blob([JSON.stringify(j)],{type:'application/json'}); const url=URL.createObjectURL(blob);
-  const renderer=table.items.length>1
-    ? {type:'unique-value',valueExpression:classArcade(table,field),uniqueValueInfos:table.items.map(([k,label,c])=>({value:k,label,symbol:{type:'simple-fill',color:c,outline:{color:[255,255,255,.7],width:.8}}})),
-        defaultSymbol:{type:'simple-fill',color:table.items[table.items.length-1][2],outline:{color:[255,255,255,.7],width:.8}}}
-    : {type:'simple',symbol:{type:'simple-fill',color:table.items[0][2],outline:{color:'#5a3d20',width:1.2}}};
+  const renderer=fillRenderer(table,field,VW.alpha);
   const lab=vectorLabels(table,props);
   const lyr=new GeoJSONCls(Object.assign({url,title:o.label,popupEnabled:false,legendEnabled:false,listMode:'hide',outFields:['*'],renderer},lab? {labelsVisible:true,labelingInfo:lab.info} : {}));
-  lyr.__fields={cls:field,label:lab&&lab.name,who:lab&&lab.who}; return lyr;
+  lyr.__fields={cls:field,label:lab&&lab.name,who:lab&&lab.who}; lyr.__mk=a=>fillRenderer(table,field,a); return lyr;
 }
 /* 자료 받기 — ① 브이월드 WFS(fetch) ② 브이월드 2D 데이터 API(fetch) ③ 같은 API 를 JSONP(script) 로: fetch 가 CORS 로 막혀도 ③ 은 통한다.
  * 데이터 API 는 한 번에 1,000건까지라 최대 3쪽까지 이어 받는다. 레이어 ID 후보(alt)도 차례로 */
@@ -853,11 +885,12 @@ async function refreshVector(key){
   try{
     const got=await fetchVector(o,L,rb);
     if(L.url!==url||!L.on) return;
+    const total=got.j.features.length; got.j=clipToCity(got.j);
     const lyr=vectorLayer(o,got.j); const old=L.vec; L.vec=lyr; L.via=got.via;
-    map.add(lyr,(airLayer?1:0)+(cmpLayer?1:0)); lyr.opacity=VW.alpha;
+    map.add(lyr,(airLayer?1:0)+(cmpLayer?1:0));
     if(old){ try{ map.remove(old); }catch(e){} }
     L.own=true; renderLegends(overlayKeys());
-    console.info('['+o.label+'] '+got.j.features.length+'건 ('+got.via+'), 분류·레이블 항목:',lyr.__fields,'항목 전체:',Object.keys((got.j.features[0]&&got.j.features[0].properties)||{}).join(','));
+    console.info('['+o.label+'] '+got.j.features.length+'건/'+total+'건 구리시 안 ('+got.via+'), 분류·레이블 항목:',lyr.__fields,'항목 전체:',Object.keys((got.j.features[0]&&got.j.features[0].properties)||{}).join(','));
   }catch(e){
     console.warn('['+o.label+'] 벡터 자료 실패 → WMS 그림으로',String((e&&e.message)||e));
     L.wfsFailed=true; L.own=false; L.url=''; if(L.vec){ try{ map.remove(L.vec); }catch(x){} L.vec=null; }
