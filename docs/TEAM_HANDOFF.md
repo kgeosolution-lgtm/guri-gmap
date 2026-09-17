@@ -345,3 +345,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 기울기·북쪽: '위에서 보기/비스듬히 보기'와 '북쪽 맞추기'가 카메라 위치를 그대로 두고 기울기만 바꿔 화면이 다른 곳으로 가던 것을, 지금 보는 화면 중심(`view.center`)·축척을 유지한 채 기울기·방향만 바꾸도록 고쳤습니다(`pivotView`).
 - 브랜치: `work/kangmina-3d-bldg-popup` (base `design/service-home-refresh` e70576c).
 - 검증: 인라인 스크립트 `node --check`, 단위 검사(레이어 종류 판별, 도메인 이름, LOD1/LOD2 카드 조립과 0 값·중복 숨김, ObjectID 재조회, 기울기·북쪽 전환 시 중심·축척 유지), `npm run build:deploy`, `git diff --check` 통과. 실제 SceneLayer 히트 속성·조회 동작은 배포 후 확인 필요.
+
+## 2026-09-17 3D 지도 등산로 산 이름 레이블 (담당: 강민아)
+
+- 요청: 등산로에 대표 산 이름 하나만 나오게.
+- 조치: 등산로 구간마다 레이블을 붙이면 같은 산 이름이 수십 개 겹치므로, 등산로 레이어를 좌표와 함께 읽어 산명(`산명`/`산이름` 등, `mountainNameKey`)별로 모든 꼭짓점 평균에 가장 가까운 꼭짓점을 대표 지점으로 잡고(`mountainPoints`), 보이지 않는 점 레이어('3D 산 이름', 숲 위 35m)에 3D 텍스트(15px 굵게, 흰 테두리, 겹치면 자동 숨김)로 산 이름을 하나씩 띄웁니다(`addMountainLabels`). 산 이름 필드가 없으면 조용히 생략.
+- 브랜치: `work/kangmina-3d-mountain-labels` (base `design/service-home-refresh` ba64814).
+- 검증: 인라인 스크립트 `node --check`, 단위 검사(산 이름 필드 판별, 산별 대표 지점·구간 수, 레이어 생성·생략), `npm run build:deploy`, `git diff --check` 통과. 대표 지점 위치가 어색한 산이 있으면 배포 후 확인 필요.
