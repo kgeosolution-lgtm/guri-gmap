@@ -179,6 +179,8 @@ const SCENE={
   maskMode:'polygon',
   boundaryTileUrl:'https://www.guri.go.kr/gmapsvr/rest/services/Hosted/Korea_Boundary/VectorTileServer',
   maskColor:[92,102,114,.5],          /* polygon 방식일 때 덮개 색 */
+  /* 모든 3D 건물(구리 LOD1·LOD2, 시 밖 Esri 건물)의 겉모습: 투명도 40%(불투명 0.6), 진한 회색 얇은 외곽선 */
+  building:{opacity:0.6,edgeColor:[64,68,72,.9],edgeSize:0.6},
   outsideBuildingColor:[168,174,182,1]  /* 시 바깥 건물 색 */
 };
 let ESRI=null;   /* require 로 받은 모듈 묶음 (require 밖 함수에서 쓴다) */
@@ -609,7 +611,7 @@ async function addOutsideMask(){
   try{
     outsideLayer=new ESRI.SceneLayer({url:SCENE.outsideBuildingsUrl,title:'3D 시 밖 건물',
       popupEnabled:false,legendEnabled:false,listMode:'hide',
-      renderer:{type:'simple',symbol:{type:'mesh-3d',symbolLayers:[{type:'fill',material:{color:SCENE.outsideBuildingColor,colorMixMode:'replace'}}]}},
+      renderer:{type:'simple',symbol:meshSym(SCENE.outsideBuildingColor,'replace')},   /* 같은 투명도·외곽선 */
       filter:{geometries:[cityOutline],spatialRelationship:'disjoint'}});   /* 구리시 안쪽 건물은 우리 건물 레이어가 있으니 제외 */
     await outsideLayer.load();                                              /* 주소·권한 문제를 여기서 잡는다 */
     view.map.add(outsideLayer);
@@ -620,12 +622,28 @@ async function addOutsideMask(){
 /* ── 3D 건물: 웹씬 SceneLayer 의 ArcGIS 팝업(우하단)을 끄고 클릭하면 같은 정보를 좌상단 카드로 ──
  * LOD1(건축물대장 3D_Buildings_LOD1_2508)은 bldg1, LOD2(국토지리정보원 Buildings_LOD2_2508)는 bldg2 */
 function bldgKindOf(l){ const u=String(l.url||''), t=String(l.title||''); if(/LOD2/i.test(u)||/LOD2/i.test(t)) return 'bldg2'; if(/LOD1/i.test(u)||/LOD1/i.test(t)) return 'bldg1'; return null; }
+/* 건물 심볼: 원래 색(있으면)을 살리되 투명도와 외곽선을 입힌다 */
+function meshSym(color,mix){
+  const B=SCENE.building; const c=color||[255,255,255];
+  return {type:'mesh-3d',symbolLayers:[{type:'fill',material:{color:[c[0],c[1],c[2],B.opacity],colorMixMode:mix||'replace'},
+    edges:{type:'solid',color:B.edgeColor,size:B.edgeSize}}]};
+}
+function applyBuildingStyle(layer,baseColor){
+  let color=baseColor||null, mix='replace';
+  try{
+    const r=layer.renderer; const sym=r&&r.type==='simple'? r.symbol : null;
+    const sl=sym&&sym.symbolLayers? (sym.symbolLayers.getItemAt? sym.symbolLayers.getItemAt(0) : sym.symbolLayers[0]) : null;
+    if(sl&&sl.material){ const mc=sl.material.color; if(!color&&mc&&mc.r!==undefined) color=[mc.r,mc.g,mc.b]; if(sl.material.colorMixMode) mix=sl.material.colorMixMode; }
+  }catch(e){}
+  try{ layer.renderer={type:'simple',symbol:meshSym(color,mix)}; }catch(e){ console.warn('[3D] 건물 심볼 적용 실패',layer.title,String((e&&e.message)||e)); }
+}
 function prepBuildings(){
   bldgLayers=[];
   try{
     scene.allLayers.forEach(l=>{ if(l.type!=='scene') return; const kind=bldgKindOf(l); if(!kind) return;
       l.popupEnabled=false; try{ l.outFields=['*']; }catch(e){}
-      l.__kind=kind; bldgLayers.push(l); });
+      l.__kind=kind; bldgLayers.push(l);
+      if(typeof l.when==='function') l.when(()=>applyBuildingStyle(l),()=>{}); else applyBuildingStyle(l); });
     console.log('[3D] 건물 레이어',bldgLayers.map(l=>l.title+'('+l.__kind+')').join(', ')||'없음');
   }catch(e){ console.warn('[3D] 건물 레이어 준비 실패',e); }
 }
