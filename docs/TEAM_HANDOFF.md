@@ -431,3 +431,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 남은 일: 담당자가 시트를 만들고 Code.gs 를 웹 앱으로 배포한 뒤 **웹 앱 URL 을 `review.js` 의 `API` 에 넣어 커밋**해야 동작. 그 전에는 목록 탭에 "API 주소가 아직 설정되지 않았어요" 표시.
 - 브랜치: `work/kangmina-review-sheets` (base `design/service-home-refresh` 2fadac3).
 - 검증: Code.gs 는 Apps Script 전역(SpreadsheetApp/DriveApp/Utilities/ContentService/LockService)을 흉내 낸 Node 하네스로 목록·추가(캡처 저장)·빈 내용 거부·상태(관리자만)·시트 직접 편집 인식·삭제(본인/관리자, 캡처 휴지통)·잘못된 요청을 검사. review.js 는 헤드리스 크롬에서 fetch 를 흉내 내어 목록 2건 렌더·캡처 늦은 로드·관리자 완료 버튼 POST(status, key)·보내기 POST(add, page_url) 확인. `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과. 실제 Apps Script 배포 후의 CORS·리다이렉트 동작은 배포해 봐야 확인 가능.
+
+## 2026-09-17 "수정 요청" 웹 앱 URL 연결·헤더 중복 방지 (담당: 강민아)
+
+- 담당자가 회사 공유 드라이브 구리시 폴더에 시트를 만들고 Code.gs 를 웹 앱으로 배포(액세스: 모든 사용자). 그 URL 을 `public/review/review.js` 의 `API` 에 넣어 위젯이 실제 저장소와 연결됨.
+- 첫 목록 응답에 헤더 이름이 값으로 들어간 행(`id:"id"`)이 보여, 첫 요청 두 개가 동시에 와 헤더를 두 번 넣은 것으로 판단. `Code.gs` 를 고침: 헤더 유무를 1행 1열 값(`id`)으로 판단하고 잠금 안에서만 넣으며(이미 데이터가 있으면 1행에 삽입), 목록에서 `id` 값이 `id` 인 행은 건너뜀. **담당자가 시트의 중복 헤더 행을 지우고, Apps Script 를 새 버전으로 재배포해야 반영**(배포 → 배포 관리 → 연필 → 새 버전 → 배포, URL 유지).
+- 브랜치: `work/kangmina-review-url` (base `design/service-home-refresh` 4a22e4c).
+- 검증: Apps Script 하네스에 헤더 중복 행 제외·헤더 없는 시트에 1행 삽입 검사 추가 통과, review.js 헤드리스 크롬 검사 통과, `npm run build:deploy`, prettier, `git diff --check` 통과.

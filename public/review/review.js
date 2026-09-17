@@ -12,7 +12,7 @@
   'use strict';
   /* 저장소: 구글 시트 + Apps Script 웹 앱 (docs/review/Code.gs 를 배포한 URL 을 아래에 넣으세요)
      서버 없이 시트 한 장에 쌓이고, 캡처는 드라이브 폴더에 저장됩니다. */
-  var API = 'PASTE_APPS_SCRIPT_WEB_APP_URL';      // 예: https://script.google.com/macros/s/AKfy.../exec
+  var API = 'https://script.google.com/macros/s/AKfycbxQjmkmJZgRNlfBt3-GSYToamhxfGJ6zU3H7QshLQQ3xGs4IQDjLhTtEDhsA6rvpzUP4A/exec';      // 예: https://script.google.com/macros/s/AKfy.../exec
   var ADMIN_PARAM = 'review';                    // 관리자 모드 URL 파라미터 이름
   var ADMIN_VALUE = 'guri';                      // 이 값과 같아야 관리자 (Code.gs 의 ADMIN_KEY 와 동일)
   var API_READY = /^https?:\/\//.test(API);

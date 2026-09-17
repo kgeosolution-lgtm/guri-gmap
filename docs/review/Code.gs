@@ -27,14 +27,26 @@ var HEADERS = [
 function sheet_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(SHEET_NAME) || ss.insertSheet(SHEET_NAME);
-  if (sh.getLastRow() === 0) {
-    sh.appendRow(HEADERS);
-    sh.setFrozenRows(1);
-    var rule = SpreadsheetApp.newDataValidation()
-      .requireValueInList(['todo', 'done'], true)
-      .setAllowInvalid(true)
-      .build();
-    sh.getRange(2, HEADERS.indexOf('status') + 1, 5000, 1).setDataValidation(rule);
+  var first = sh.getLastRow() ? String(sh.getRange(1, 1).getValue()) : '';
+  if (first !== 'id') {
+    /* 헤더가 없으면 1행에 넣는다 (동시에 두 요청이 와도 두 번 넣지 않게 잠금) */
+    var lock = LockService.getScriptLock();
+    lock.tryLock(10000);
+    try {
+      first = sh.getLastRow() ? String(sh.getRange(1, 1).getValue()) : '';
+      if (first !== 'id') {
+        if (sh.getLastRow() > 0) sh.insertRowBefore(1);
+        sh.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+        sh.setFrozenRows(1);
+        var rule = SpreadsheetApp.newDataValidation()
+          .requireValueInList(['todo', 'done'], true)
+          .setAllowInvalid(true)
+          .build();
+        sh.getRange(2, HEADERS.indexOf('status') + 1, 5000, 1).setDataValidation(rule);
+      }
+    } finally {
+      lock.releaseLock();
+    }
   }
   return sh;
 }
@@ -72,7 +84,7 @@ function rows_() {
   for (var i = 1; i < v.length; i++) {
     var r = { _row: i + 1 };
     for (var c = 0; c < h.length; c++) r[h[c]] = v[i][c];
-    if (r.id) out.push(r);
+    if (r.id && String(r.id) !== 'id') out.push(r); /* 실수로 헤더가 두 번 들어간 행은 건너뛴다 */
   }
   return out;
 }
