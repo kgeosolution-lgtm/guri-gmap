@@ -410,3 +410,15 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 알려진 한계: 건물 사이의 명소(예: 곱창골목)는 시점에 따라 옆 건물에 가려질 수 있습니다(담당자 판단으로 지면 배치를 우선).
 - 브랜치: `work/kangmina-3d-symbols-ground` (base `design/service-home-refresh` c574f22).
 - 검증: 인라인 스크립트 `node --check`, 단위 검사(2D 그림 마커, 3m 오프셋, 땅 점 없음, 레이블 미부양), `npm run build:deploy`, `git diff --check` 통과.
+
+## 2026-09-17 오픈 전 검토용 "수정 요청" 위젯 (담당: 강민아)
+
+- 요청: 담당자가 준 설치 지시서대로 헤더 "테마 찾기" 옆에 "수정 요청" 메뉴를 붙이고, 화면·종류·내용·중요도·드래그 캡처를 서버에 모아 여러 명이 상태(수정전/수정완료)를 함께 보게.
+- 프론트(이 저장소, 지시서 (1)):
+  - `public/review/review.js` — 지시서의 내용 그대로(접두사 `gr-`로 페이지 CSS와 분리, 자기 UI를 스스로 붙임). `.service-nav`와 모바일 `header nav` 양쪽에 "수정 요청" 링크가 붙고, 없으면 떠 있는 버튼. API 는 `/api/guri-review`(같은 kgeodata 서버), 관리자는 주소 뒤 `?review=guri`.
+  - 네 지도 페이지(`theme/animal/aerial/scene.html`) `</body>` 앞에 `<script src="/review/review.js" defer>` 한 줄, 홈은 `src/app/layout.tsx`에 `next/script`(basePath 붙임).
+  - `scripts/build-deploy.mjs`: 배포 치환 목록에 `review/` 추가(→ `/app/guri/review/review.js`), 필수 출력에 `review/review.js` 추가. 지도 조회·필터·렌더 로직은 건드리지 않음.
+  - 오픈할 때: 페이지 5곳의 그 한 줄만 지우면 사라짐(파일·백엔드는 남겨도 화면엔 안 보임).
+- 백엔드(지시서 (2), `kgeo_api175` 저장소): 이 세션에서 접근 가능한 저장소가 아니라 **아직 미적용**. 테이블 `guri_review` 생성, `routes/guriReview.js`, `app.js`의 `app.use('/api/guri-review', …)`, 환경변수 `GURI_REVIEW_KEY`(기본 guri)를 지시서대로 넣어야 목록 조회·저장이 동작합니다. 그 전까지 위젯의 목록 탭은 "서버 연결(API)을 확인해 주세요"로 표시됩니다.
+- 브랜치: `work/kangmina-review-widget` (base `design/service-home-refresh` 6f3a1f7).
+- 검증: `node --check review.js`, 헤드리스 크롬으로 헤더 스텁에 붙여 링크 2개 생성·클릭 시 창 열림 확인, `npm run build:deploy` 후 `out/review/review.js` 존재와 홈·지도 페이지의 경로가 `/app/guri/review/review.js`로 치환됨 확인, prettier·`git diff --check` 통과. 실제 캡처(https 전용)·서버 연동은 백엔드 적용 후 확인 필요.
