@@ -174,8 +174,9 @@ const SCENE={
   /* 구리시 경계(행정동 합집합)로 시 바깥을 회색으로 덮고, 시 바깥 건물은 Esri 3D 건물(ArcGIS Online)을 회색으로 */
   dongUrl:'https://www.guri.go.kr/gmapsvr/rest/services/Hosted/%ED%96%89%EC%A0%95%EB%8F%99%EA%B2%BD%EA%B3%84/FeatureServer/0',
   outsideBuildingsUrl:'https://basemaps3d.arcgis.com/arcgis/rest/services/Esri3D_Buildings_v1/SceneServer/layers/0',
-  /* 시 바깥 회색 처리: 'tile' = 웹씬의 Korea_Boundary SE 벡터 타일(없으면 아래 주소로 추가), 'polygon' = 행정동 경계로 만든 회색 폴리곤 덮개 */
-  maskMode:'tile',
+  /* 시 바깥 회색 처리: 'polygon' = 행정동 경계로 만든 회색 폴리곤 덮개(기본), 'tile' = 웹씬의 Korea_Boundary SE 벡터 타일(없으면 아래 주소로 추가).
+     Korea_Boundary 벡터 타일은 3D 뷰에서 그려지지 않아(웹씬 뷰어 목록에서도 흐리게 표시) 폴리곤 방식을 기본으로 둔다 */
+  maskMode:'polygon',
   boundaryTileUrl:'https://www.guri.go.kr/gmapsvr/rest/services/Hosted/Korea_Boundary/VectorTileServer',
   maskColor:[92,102,114,.5],          /* polygon 방식일 때 덮개 색 */
   outsideBuildingColor:[168,174,182,1]  /* 시 바깥 건물 색 */
@@ -574,8 +575,10 @@ function maskRings(cityRings,ext,pad){
 }
 let cityOutline=null, outsideLayer=null;
 async function loadCityOutline(){
-  const q={where:'1=1',outFields:['OBJECTID'],returnGeometry:true,outSpatialReference:view.spatialReference,maxAllowableOffset:2};
   const dong=new ESRI.FeatureLayer({url:SCENE.dongUrl});
+  await dong.load();
+  /* outFields 는 레이어의 실제 OID 필드명으로 (호스트 서비스는 'objectid' 처럼 소문자일 수 있어 'OBJECTID' 를 적으면 조회가 실패한다) */
+  const q={where:'1=1',outFields:[dong.objectIdField||'OBJECTID'],returnGeometry:true,outSpatialReference:view.spatialReference,maxAllowableOffset:2};
   const fs=await dong.queryFeatures(q);
   const polys=(fs.features||[]).map(f=>f.geometry).filter(Boolean);
   if(!polys.length) throw new Error('행정동 경계가 비어 있음');
@@ -599,18 +602,19 @@ function addMaskPolygon(){
 async function addOutsideMask(){
   if(!ESRI||!view) return;
   if(SCENE.maskMode==='tile'){ try{ addBoundaryTile(); }catch(e){ console.warn('[3D] 시 밖 회색 타일 실패',String((e&&e.message)||e)); } }
-  try{ cityOutline=await loadCityOutline(); }catch(e){ console.warn('[3D] 시 경계 로드 실패 — 시 밖 건물(과 polygon 덮개) 생략',String((e&&e.message)||e)); return; }
-  if(SCENE.maskMode!=='tile'){ try{ addMaskPolygon(); }catch(e){ console.warn('[3D] 시 밖 덮개 실패',String((e&&e.message)||e)); } }
+  const fail=(what,e)=>{ const m=String((e&&e.message)||e); console.warn('[3D]',what,'실패',m,e); toast(what+'을(를) 불러오지 못했어요: '+m.slice(0,90),6000); };
+  try{ cityOutline=await loadCityOutline(); }catch(e){ fail('구리시 경계',e); return; }
+  if(SCENE.maskMode!=='tile'){ try{ addMaskPolygon(); }catch(e){ fail('시 밖 회색 덮개',e); } }
   if(!SCENE.outsideBuildingsUrl) return;
   try{
     outsideLayer=new ESRI.SceneLayer({url:SCENE.outsideBuildingsUrl,title:'3D 시 밖 건물',
       popupEnabled:false,legendEnabled:false,listMode:'hide',
       renderer:{type:'simple',symbol:{type:'mesh-3d',symbolLayers:[{type:'fill',material:{color:SCENE.outsideBuildingColor,colorMixMode:'replace'}}]}},
       filter:{geometries:[cityOutline],spatialRelationship:'disjoint'}});   /* 구리시 안쪽 건물은 우리 건물 레이어가 있으니 제외 */
+    await outsideLayer.load();                                              /* 주소·권한 문제를 여기서 잡는다 */
     view.map.add(outsideLayer);
-    outsideLayer.when(()=>console.log('[3D] 시 밖 건물 레이어',SCENE.outsideBuildingsUrl),
-      e=>{ console.warn('[3D] 시 밖 건물 레이어 로딩 실패 — 주소를 확인해 주세요',String((e&&e.message)||e)); try{ view.map.remove(outsideLayer); }catch(x){} });
-  }catch(e){ console.warn('[3D] 시 밖 건물 실패',String((e&&e.message)||e)); }
+    console.log('[3D] 시 밖 건물 레이어',SCENE.outsideBuildingsUrl);
+  }catch(e){ fail('시 밖 건물',e); try{ if(outsideLayer) view.map.remove(outsideLayer); }catch(x){} }
 }
 
 /* ── 3D 건물: 웹씬 SceneLayer 의 ArcGIS 팝업(우하단)을 끄고 클릭하면 같은 정보를 좌상단 카드로 ──
