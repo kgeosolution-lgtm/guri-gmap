@@ -107,11 +107,11 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .ov-chip:hover{border-color:var(--c,var(--brand));color:var(--ink)}
 .ov-chip.is-on{background:var(--c,var(--brand));border-color:var(--c,var(--brand));color:#fff}
 .ov-chip.is-on .dot{background:#fff}
-.ov-chip.rv{background:#1E3229;border-color:#1E3229;color:#fff;padding-left:6px;gap:8px}
-.ov-chip.rv:hover{background:#2c4a3c;color:#fff}
-.ov-chip.rv .kico{width:22px;height:22px;border-radius:5px;background:#FAE100;display:inline-grid;place-items:center;flex:none}
-.ov-chip.rv .kico svg{width:14px;height:14px;display:block}
-.ov-chip.rv.is-on{box-shadow:0 0 0 2px #FAE100 inset,0 0 0 3px rgba(250,225,0,.35)}
+.ov-chip.rv{padding-left:6px;gap:8px;font-weight:700;color:var(--ink)}
+.ov-chip.rv:hover{border-color:#1E3229}
+.kico{width:22px;height:22px;border-radius:5px;background:#FAE100;display:inline-grid;place-items:center;flex:none}
+.kico svg{width:14px;height:14px;display:block}
+.ov-chip.rv.is-on{background:#1E3229;border-color:#1E3229;color:#fff}
 .ov-foot{display:none;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--sub)}
 .ov-foot.show{display:flex}
 .ov-foot input[type=range]{flex:1;accent-color:var(--brand);min-width:80px}
@@ -188,7 +188,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
     <p class="ov-note" id="ovNote" role="status" aria-live="polite"></p>
   </div>
   <div class="rv-panel" id="rvPanel" aria-label="로드뷰">
-    <div class="rv-head"><b>🚶 로드뷰</b><span class="addr" id="rvAddr">지도에서 보고 싶은 곳을 클릭하세요</span><button type="button" onclick="rvOff()">닫기 ✕</button></div>
+    <div class="rv-head"><span class="kico" aria-hidden="true"><svg viewBox="0 0 24 32"><path d="M12 1C6 1 1.5 5.5 1.5 11.5 1.5 19 12 31 12 31S22.5 19 22.5 11.5C22.5 5.5 18 1 12 1z" fill="#2F6FE4"/><circle cx="12" cy="11.5" r="4.2" fill="#fff"/></svg></span><b>로드뷰</b><span class="addr" id="rvAddr">지도에서 보고 싶은 곳을 클릭하세요</span><button type="button" onclick="rvOff()">닫기 ✕</button></div>
     <div class="rv-view" id="rvView"><div class="rv-empty" id="rvEmpty">지도에서 길 위를 클릭하면<br>그곳의 로드뷰가 여기에 열려요</div></div>
   </div>
   <div class="cmp-lbl l" id="cmpL"></div>
@@ -610,23 +610,27 @@ function overlayTransform(img,vb){
   return 'translate('+x.toFixed(2)+'px,'+y.toFixed(2)+'px) scale('+s.toFixed(6)+')';
 }
 function repositionOverlays(){ const vb=viewBox(); if(!vb) return; Object.values(ovLayers).forEach(L=>{ if(L.on&&L.ext) L.img.style.transform=overlayTransform(L,vb); }); updateCityClip(vb); }
-/* 구리시 밖은 잘라낸다: 시 경계(뷰 좌표계)를 SVG clipPath 로 두고, 화면이 움직이면 경로의 transform 만 바꾼다 */
-let cityClip=null;   /* {path, ox, oy} */
+/* 구리시 밖은 잘라낸다: 시 경계(뷰 좌표계)의 가장 큰 고리를 간추려 두고, 화면이 움직일 때마다 화면 좌표 CSS polygon 으로 다시 쓴다.
+ * (SVG clipPath 참조 방식은 브라우저·레이아웃에 따라 통째로 가려지는 경우가 있어 단순한 polygon 으로) 주소 뒤 ?noclip 이면 자르지 않는다 */
+let cityClip=null;   /* [[x,y],…] 뷰 좌표계 */
+const CLIP_TOL=1.5;  /* 간추리기 허용 오차(m) */
+function simplifyRing(pts,tol){   /* Douglas–Peucker */
+  if(pts.length<5) return pts.slice();
+  const keep=new Uint8Array(pts.length); keep[0]=keep[pts.length-1]=1; const st=[[0,pts.length-1]];
+  while(st.length){ const [i0,i1]=st.pop(); let md=-1, mi=-1; const [x0,y0]=pts[i0],[x1,y1]=pts[i1]; const dx=x1-x0, dy=y1-y0, L2=dx*dx+dy*dy;
+    for(let i=i0+1;i<i1;i++){ const [x,y]=pts[i]; let d; if(!L2) d=Math.hypot(x-x0,y-y0); else { const t=Math.max(0,Math.min(1,((x-x0)*dx+(y-y0)*dy)/L2)); d=Math.hypot(x-(x0+t*dx),y-(y0+t*dy)); } if(d>md){ md=d; mi=i; } }
+    if(md>tol){ keep[mi]=1; st.push([i0,mi],[mi,i1]); } }
+  return pts.filter((p,i)=>keep[i]);
+}
 function setCityClip(poly){
-  if(!poly||!poly.rings||!poly.rings.length) return;
-  const ext=poly.extent; const ox=ext? (ext.xmin+ext.xmax)/2 : poly.rings[0][0][0], oy=ext? (ext.ymin+ext.ymax)/2 : poly.rings[0][0][1];
-  const d=poly.rings.map(r=>r.map((p,i)=>(i? 'L':'M')+(p[0]-ox).toFixed(1)+' '+(p[1]-oy).toFixed(1)).join('')+'Z').join('');
-  const NS='http://www.w3.org/2000/svg';
-  let svg=$('ovClipSvg');
-  if(!svg){ svg=document.createElementNS(NS,'svg'); svg.setAttribute('id','ovClipSvg'); svg.setAttribute('class','ov-clip'); svg.setAttribute('width','0'); svg.setAttribute('height','0'); svg.setAttribute('aria-hidden','true');
-    const cp=document.createElementNS(NS,'clipPath'); cp.setAttribute('id','ovCityClip'); cp.setAttribute('clipPathUnits','userSpaceOnUse');
-    const path=document.createElementNS(NS,'path'); path.setAttribute('id','ovClipPath'); cp.appendChild(path); svg.appendChild(cp); $('main').appendChild(svg); }
-  const path=$('ovClipPath'); path.setAttribute('d',d); cityClip={path,ox,oy};
-  $('ovImgs').style.clipPath='url(#ovCityClip)'; $('ovImgs').style.webkitClipPath='url(#ovCityClip)';
+  if(qs.has('noclip')||!poly||!poly.rings||!poly.rings.length) return;
+  const area=r=>{ let a=0; for(let i=0,j=r.length-1;i<r.length;j=i++) a+=(r[j][0]+r[i][0])*(r[j][1]-r[i][1]); return Math.abs(a/2); };
+  const ring=poly.rings.slice().sort((a,b)=>area(b)-area(a))[0];   /* 가장 큰 고리 하나 (CSS polygon 은 고리 하나만) */
+  cityClip=simplifyRing(ring.map(p=>[p[0],p[1]]),CLIP_TOL);
   const vb=viewBox(); if(vb) updateCityClip(vb);
 }
-function clipTransform(vb){ const r=(vb.xmax-vb.xmin)/vb.w, k=1/r; return 'matrix('+k.toFixed(8)+' 0 0 '+(-k).toFixed(8)+' '+((cityClip.ox-vb.xmin)*k).toFixed(2)+' '+((vb.ymax-cityClip.oy)*k).toFixed(2)+')'; }
-function updateCityClip(vb){ if(!cityClip) return; cityClip.path.setAttribute('transform',clipTransform(vb)); }
+function clipPolygon(vb){ const r=(vb.xmax-vb.xmin)/vb.w; let out='polygon('; for(let i=0;i<cityClip.length;i++){ const p=cityClip[i]; out+=(i? ',':'')+((p[0]-vb.xmin)/r).toFixed(1)+'px '+((vb.ymax-p[1])/r).toFixed(1)+'px'; } return out+')'; }
+function updateCityClip(vb){ if(!cityClip||!cityClip.length) return; const v=clipPolygon(vb); const el=$('ovImgs'); el.style.clipPath=v; el.style.webkitClipPath=v; }
 function scheduleRefresh(){ clearTimeout(refreshTimer); refreshTimer=setTimeout(refreshOverlays,120); }
 function refreshOverlays(){ Object.keys(ovLayers).forEach(k=>{ if(ovLayers[k].on) refreshOverlay(k); }); }
 function refreshOverlay(key){
@@ -654,7 +658,7 @@ function toastHtml(html,ms){ const t=$('mapToast'); t.innerHTML=html; t.style.po
 function initOverlays(){
   const host=$('ovChips'); host.innerHTML='';
   const rv=document.createElement('button'); rv.type='button'; rv.className='ov-chip rv'; rv.id='ovRv';
-  rv.innerHTML='<span class="kico" aria-hidden="true"><svg viewBox="0 0 24 32"><path d="M12 1C6 1 1.5 5.5 1.5 11.5 1.5 19 12 31 12 31S22.5 19 22.5 11.5C22.5 5.5 18 1 12 1z" fill="#2F6FE4"/><circle cx="12" cy="11.5" r="4.2" fill="#fff"/></svg></span>카카오 로드뷰';
+  rv.innerHTML='<span class="kico" aria-hidden="true"><svg viewBox="0 0 24 32"><path d="M12 1C6 1 1.5 5.5 1.5 11.5 1.5 19 12 31 12 31S22.5 19 22.5 11.5C22.5 5.5 18 1 12 1z" fill="#2F6FE4"/><circle cx="12" cy="11.5" r="4.2" fill="#fff"/></svg></span>로드뷰';
   rv.title='지도를 클릭하면 그곳의 로드뷰를 열어요'; rv.onclick=()=>{ rvMode? rvOff() : rvOn(); }; host.appendChild(rv);
   OVERLAYS.forEach(o=>{
     const b=document.createElement('button'); b.type='button'; b.className='ov-chip'; b.dataset.key=o.key; b.style.setProperty('--c',o.c);
