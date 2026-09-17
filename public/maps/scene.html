@@ -967,5 +967,6 @@ async function shareUrl(){
 $('optShadow').addEventListener('change',e=>{ const L=view&&view.environment&&view.environment.lighting; if(L&&L.type==='sun') L.directShadowsEnabled=e.target.checked; });
 $('optEvening').addEventListener('change',()=>{ if(window.applyLightTime) applyLightTime(); });
 </script>
+<script src="/review/review.js" defer></script>   <!-- 오픈 전 검토용 "수정 요청" 위젯 — 오픈할 때 이 한 줄만 지운다 -->
 </body>
 </html>

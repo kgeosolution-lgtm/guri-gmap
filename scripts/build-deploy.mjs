@@ -23,7 +23,7 @@ function walk(dir) {
 for (const file of walk('out')) {
   if (!/\.(html|css|js|json|txt|svg)$/.test(file)) continue;
   let text = readFileSync(file, 'utf8');
-  text = text.replace(/(["'(=])\/(images|fonts|maps|styles)\//g, `$1${base}/$2/`);
+  text = text.replace(/(["'(=])\/(images|fonts|maps|styles|review)\//g, `$1${base}/$2/`);
   text = text.replace(/(["'(=])\/icon\.svg/g, `$1${base}/icon.svg`);
   if (file.endsWith('.html'))
     text = text.replace(
@@ -40,6 +40,7 @@ for (const file of [
   'maps/scene.html',
   'maps/aerial.html',
   'images/guri-emblem.png',
+  'review/review.js',
 ]) {
   if (!existsSync(path.join('out', file))) throw new Error(`Missing output: ${file}`);
 }
