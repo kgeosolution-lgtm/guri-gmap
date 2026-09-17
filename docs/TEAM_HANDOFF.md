@@ -384,3 +384,13 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 시 밖 회색 처리는 담당자 요청대로 웹씬의 'Korea_Boundary SE' 벡터 타일(`https://www.guri.go.kr/gmapsvr/rest/services/Hosted/Korea_Boundary/VectorTileServer`)을 씁니다(`SCENE.maskMode:'tile'`, `addBoundaryTile`): 스냅샷에 있으면 켜고(앞선 변경에서 숨겼던 것을 되돌림), 없으면 그 주소로 맨 아래에 추가. 행정동 경계로 만든 회색 폴리곤 덮개는 `maskMode:'polygon'`으로 남겨 두어, 벡터 타일이 3D 에서 회색으로 안 보이면 값 하나로 바꿀 수 있습니다. 시 경계(행정동 합집합)는 시 밖 건물 필터에만 쓰고, 경계 로드에 실패하면 타일만 켜고 건물은 생략.
 - 브랜치: `work/kangmina-3d-outside-tile` (base `design/service-home-refresh` 98ea20d).
 - 검증: 인라인 스크립트 `node --check`, 단위 검사(타일 켬/추가, 건물 주소·필터·팝업/범례 끔, 경계 실패 시 생략, polygon 대안), `npm run build:deploy`, `git diff --check` 통과. 벡터 타일이 3D 뷰에서 실제로 회색으로 그려지는지는 배포 후 확인 필요.
+
+## 2026-09-17 3D 지도 시 밖 회색·시 밖 건물이 안 보이던 문제 (담당: 강민아)
+
+- 증상: 배포 후에도 구리시 밖 회색 처리와 시 밖 건물이 보이지 않음.
+- 원인 추정과 조치:
+  - 시 경계 조회가 `outFields:['OBJECTID']`로 고정돼 있어 호스트 서비스의 OID 필드명이 다르면(`objectid`) 조회가 실패하고, 그러면 덮개·건물이 모두 생략됐습니다. 레이어를 `load()`한 뒤 실제 `objectIdField`로 조회하도록 고침.
+  - 'Korea_Boundary SE' 벡터 타일은 3D 뷰에서 그려지지 않는 것으로 보여(웹씬 뷰어 목록에서도 흐리게 표시됨 — 국내 좌표계 타일은 SceneView 가 지원하지 않음) 기본을 `maskMode:'polygon'`(행정동 경계 기반 회색 덮개)으로 바꿨습니다. 타일 방식은 `'tile'`로 남겨 둠.
+  - 시 밖 건물 SceneLayer 는 `load()`를 먼저 기다려 주소·권한 오류를 잡고, 경계·덮개·건물 실패 시 화면 토스트로 원인(오류 메시지 앞 90자)을 보여 줍니다. Esri 3D 건물 서비스가 API 키를 요구하면 토스트에 403 계열 메시지가 뜰 것이며, 그때는 `esriConfig.apiKey` 설정이 필요합니다.
+- 브랜치: `work/kangmina-3d-outside-fix` (base `design/service-home-refresh` 55bc9da).
+- 검증: 인라인 스크립트 `node --check`, 단위 검사(OID 필드명 사용, 기본 polygon 모드 덮개·건물, 건물 로드 실패 토스트, 경계 실패 토스트·생략, tile 대안), `npm run build:deploy`, `git diff --check` 통과.
