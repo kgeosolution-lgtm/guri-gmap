@@ -554,3 +554,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 칩: 로드뷰 + 5개 = 6개를 3열 격자(`.ov-chips{display:grid;grid-template-columns:repeat(3,1fr)}`)로 위 3개·아래 3개. 칩은 칸을 꽉 채우고 가운데 정렬, 모바일은 안쪽 여백을 줄임.
 - 브랜치: `work/kangmina-aerial-overlays-10` (base `design/service-home-refresh` 5aeca6f).
 - 검증: 하네스 — 건수 질의(조건식·화면 범위), 시 경계 필터(경계가 늦게 와도 적용), 숫자 PNU 는 조건식 없음, 접속 실패·질의 오류 → 브이월드 그림 + 토스트(실패 레이어는 지도에 없음), 칩 6개·3열 격자 검사 통과. `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
+
+## 2026-09-17 시계열 항공사진: 지적도 대체 안내 토스트 제거, 케이지오 층 번호 자동 찾기 (담당: 강민아)
+
+- 담당자 화면에 "케이지오 연속지적도를 못 불러와 브이월드 지적도로 보여요 (Layer not found)" 토스트가 떠서 요청대로 뺌 — 대체는 조용히, 원인은 콘솔에만.
+- 그 문구의 원인 "Layer not found": `CITY.cadastreUrl` 의 층 번호 `/0` 이 서비스에 없음. `resolveCadastreUrl` 이 `…/FeatureServer?f=json` 목록을 읽어(같은 사이트) 요청한 번호가 없으면 폴리곤 층(없으면 첫 층)의 번호로 바꿔 씀. 콘솔에 `층 번호를 0 → n 로 바꿔 씀` 이 찍힘. 맞는 번호를 알면 `CITY.cadastreUrl` 에 직접 넣어도 됨.
+- 브랜치: `work/kangmina-aerial-overlays-11` (base `design/service-home-refresh` cf3d094).
+- 검증: 하네스 — 실패 시 토스트 없음, 목록에 0 이 없고 폴리곤 층 5 가 있으면 `/5` 로 성공 검사 통과. `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.

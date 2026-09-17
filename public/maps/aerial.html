@@ -771,11 +771,11 @@ function geojsonToWgs84(j){ (j.features||[]).forEach(f=>{ if(f.geometry&&f.geome
 /* 연속지적도: kgeodata 서비스를 그대로 그린다 — 구리시 필지만(PNU 앞 5자리), 채움 없이 선만, 지번을 11pt 로. 필드명은 서비스에서 자동으로 찾는다 */
 let cadLayer=null;
 function pickField(names,cands){ const low=names.map(n=>String(n).toLowerCase()); for(const c of cands){ const i=low.indexOf(c.toLowerCase()); if(i>-1) return names[i]; } for(const c of cands){ const i=low.findIndex(n=>n.indexOf(c.toLowerCase())>-1); if(i>-1) return names[i]; } return null; }
-function cadastreDef(fields){
+function cadastreDef(fields,url){
   const names=(fields||[]).map(f=>f.name);
   const jibun=pickField(names,['jibun','지번','bchk_jibun'])||names[0], pnu=pickField(names,['pnu','필지고유번호']);
   const pnuF=(fields||[]).find(f=>f.name===pnu); const pnuText=!!pnuF&&/string|text/i.test(String(pnuF.type||''));   /* 문자 항목일 때만 LIKE (숫자면 시 경계 필터만) */
-  return {url:CITY.cadastreUrl,title:'연속지적도',outFields:[jibun].concat(pnu? [pnu]:[]),minScale:ovDef('cad').minScale||8000,
+  return {url:url||CITY.cadastreUrl,title:'연속지적도',outFields:[jibun].concat(pnu? [pnu]:[]),minScale:ovDef('cad').minScale||8000,
     definitionExpression:pnuText? pnu+" LIKE '"+CITY.sggCode+"%'" : undefined,
     renderer:{type:'simple',symbol:{type:'simple-fill',color:[0,0,0,0],outline:{color:'#7A5FD0',width:1.1}}},   /* 채움 없이 선만 */
     labelsVisible:true,labelingInfo:[{labelExpressionInfo:{expression:'$feature.'+jibun},labelPlacement:'always-horizontal',deconflictionStrategy:'static',
@@ -787,8 +787,7 @@ function withTimeout(p,ms,what){ return Promise.race([p,new Promise((_,rej)=>set
 function cadastreFallback(key,L,why){
   console.warn('[연속지적도] 케이지오 서비스 실패 → 브이월드 그림으로',why);
   if(cadLayer){ try{ map.remove(cadLayer); }catch(e){} } cadLayer=null; cadLV=null; L.vec=null; L.kgFailed=true; L.url='';
-  if(!L.fellBack){ L.fellBack=true; toast('케이지오 연속지적도를 못 불러와 브이월드 지적도로 보여요 ('+String(why).slice(0,50)+')',4200); }
-  if(L.on) refreshOverlay(key);
+  if(L.on) refreshOverlay(key);   /* 화면에는 안내 없이 조용히 바꾼다(원인은 콘솔에만) */
 }
 async function refreshCadastre(key){
   const L=ovLayers[key]; if(!L||!L.on||!map||!FLCls) return;
@@ -796,8 +795,9 @@ async function refreshCadastre(key){
   if(L.loading) return; L.loading=true;
   let lyr=null;
   try{
-    const probe=new FLCls({url:CITY.cadastreUrl}); await withTimeout(probe.load(),15000,'접속');
-    lyr=new FLCls(Object.assign({popupEnabled:false,legendEnabled:false,listMode:'hide'},cadastreDef(probe.fields)));
+    const url=await withTimeout(resolveCadastreUrl(CITY.cadastreUrl),15000,'목록');
+    const probe=new FLCls({url}); await withTimeout(probe.load(),15000,'접속');
+    lyr=new FLCls(Object.assign({popupEnabled:false,legendEnabled:false,listMode:'hide'},cadastreDef(probe.fields,url)));
     /* 실제로 질의가 되는지 먼저 확인(조건식·좌표계·권한 문제를 여기서 걸러 낸다) */
     const q={where:lyr.definitionExpression||'1=1',returnGeometry:false}; if(view&&view.extent){ q.geometry=view.extent; q.spatialRelationship='intersects'; }
     await withTimeout(lyr.queryFeatureCount(q),15000,'질의');
@@ -806,6 +806,16 @@ async function refreshCadastre(key){
     if(view&&view.whenLayerView) view.whenLayerView(lyr).then(lv=>{ cadLV=lv; applyCadastreClip(); }).catch(()=>{});
   }catch(e){ if(lyr&&cadLayer!==lyr){ try{ map.remove(lyr); }catch(x){} } cadastreFallback(key,L,String((e&&e.message)||e)); }
   finally{ L.loading=false; }
+}
+/* 서비스의 층 번호가 다르면("Layer not found") FeatureServer 목록을 읽어 폴리곤 층을 고른다(같은 사이트라 바로 읽힌다) */
+async function resolveCadastreUrl(url){
+  const m=url.match(/^(.*\/FeatureServer)\/(\d+)\/?$/i); if(!m) return url;
+  try{
+    const r=await fetch(m[1]+'?f=json'); const info=await r.json(); const layers=(info&&info.layers)||[]; if(!layers.length) return url;
+    const want=+m[2]; const hit=layers.find(l=>l.id===want)||layers.find(l=>/polygon/i.test(String(l.geometryType||'')))||layers[0];
+    if(hit&&hit.id!==want){ console.info('[연속지적도] 층 번호를 '+want+' → '+hit.id+' ('+(hit.name||'')+') 로 바꿔 씀'); return m[1]+'/'+hit.id; }
+  }catch(e){ console.warn('[연속지적도] 서비스 목록을 못 읽음',e); }
+  return url;
 }
 /* 구리시 안만: 시 경계 폴리곤으로 화면 필터(경계가 늦게 오면 그때 적용) */
 function applyCadastreClip(){ if(cadLV&&cityPoly){ try{ cadLV.filter={geometry:cityPoly,spatialRelationship:'intersects'}; }catch(e){} } }
