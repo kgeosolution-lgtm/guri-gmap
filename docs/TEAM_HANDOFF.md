@@ -493,3 +493,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 로드뷰 조치(담당자 요청): "로드뷰 보기"를 켜면 SDK 만 미리 받고 패널은 열지 않음. 지도를 클릭하면 반경 150m(`RV_RADIUS`) 안의 가장 가까운 파노라마를 찾고, **찾았을 때만** 오른쪽 패널을 열어 그때 `kakao.maps.Roadview` 를 만들고 `relayout()` 후 파노라마를 놓음(숨겨진 상태에서 만들어 크기가 0이 되던 문제 방지). 없으면 "150m 안에는 로드뷰가 없어요" 안내만. SDK 로드 실패 시 새 창 폴백.
 - 브랜치: `work/kangmina-aerial-overlays-fix2` (base `design/service-home-refresh` e8d4984).
 - 검증: 하네스에 요청 형식 폴백(1.1.1 실패→1.3.0 성공·형식 고정, origin/생략 표기), 전부 실패 시 '원인 보기' 링크 토스트, 가짜 카카오 SDK 로 켜기만으로는 패널 안 열림·로드뷰 없는 곳은 안내·찾으면 패널 열림+relayout+setPanoId 검사 추가 통과. `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
+
+## 2026-09-17 시계열 항공사진 격자 줄 제거 (담당: 강민아)
+
+- 증상: 항공사진 위에 네모난 격자(옅은 줄)가 보여 레이어를 얹은 것처럼 보임.
+- 원인: 항공사진 타일은 국토정보플랫폼의 EPSG:5179 타일을 회전·축척 변환으로 웹 메르카토르 캔버스에 이어 붙이는데, 소스 타일을 딱 맞춰 그리면 변환된 가장자리의 안티앨리어싱으로 경계 픽셀이 반투명해져 아래 바탕지도가 격자처럼 비침. 헤드리스 크롬 실험으로 확인(여유 없이 그리면 타일당 반투명 픽셀 493개, 0.5px 이상 넓히면 0개).
+- 조치: `AirPhotoLayer.fetchTile` 에서 소스 타일을 사방 `BLEED=0.75px` 씩 넓혀 그림(`drawImage(img,0,0,T,T,-B,-B,T+2B,T+2B)`). 겹침은 0.75px 이라 사진 왜곡은 없음.
+- 브랜치: `work/kangmina-aerial-seams` (base `design/service-home-refresh` d3ac9e1).
+- 검증: 인접 타일 4장 변환 합성 실험(여유 0 → 493, 0.5/0.75/1 → 0), `node --check`, 겹쳐 보기 하네스, `npm run build:deploy`, `git diff --check` 통과.

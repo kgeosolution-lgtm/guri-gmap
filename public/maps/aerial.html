@@ -302,7 +302,7 @@ require([
    * 웹 메르카토르 타일 한 장마다 필요한 5179 타일을 받아 어파인 변환으로 캔버스에 다시 그린다.
    * 두 좌표계 모두 등각이라 타일 한 장 범위 안에서는 회전+축척으로 근사돼 오차는 1px 수준. */
   const G=NGII.grid, TILE=G.tileSize, SR5179=new SpatialReference({wkid:G.wkid});
-  const MAX_SOURCE_TILES=42;
+  const MAX_SOURCE_TILES=42, BLEED=0.75;   /* 소스 타일 이어 붙일 때 겹치는 여유(px) */
 
   function sourceUrl(y,z,col,row){
     const q=[`layer=${encodeURIComponent(NGII.layerPrefix+y)}`,'style=',`tilematrixset=${NGII.tileMatrixSet}`,
@@ -353,7 +353,8 @@ require([
       for(const t of tiles){
         if(!t||!t.img) continue;
         const o=toPixel(t.x0,t.y0), ex=toPixel(t.x0+srcRes,t.y0), ey=toPixel(t.x0,t.y0-srcRes);
-        ctx.save(); ctx.setTransform(ex.u-o.u,ex.v-o.v,ey.u-o.u,ey.v-o.v,o.u,o.v); ctx.drawImage(t.img,0,0); ctx.restore();
+        /* 소스 타일을 사방 0.75px 씩 넓혀 그린다 — 딱 맞춰 그리면 회전·축척 변환의 가장자리 안티앨리어싱 때문에 타일 경계가 격자처럼 비친다 */
+        ctx.save(); ctx.setTransform(ex.u-o.u,ex.v-o.v,ey.u-o.u,ey.v-o.v,o.u,o.v); ctx.drawImage(t.img,0,0,TILE,TILE,-BLEED,-BLEED,TILE+2*BLEED,TILE+2*BLEED); ctx.restore();
       }
       return canvas;
     },
