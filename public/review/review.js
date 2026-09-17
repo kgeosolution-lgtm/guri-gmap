@@ -2,7 +2,7 @@
    구리 생활지도 · 수정 요청 위젯 (review.js)
    - 헤더 "테마 찾기" 옆에 "수정 요청" 메뉴를 붙이고, 클릭하면 창이 열려요.
    - 화면 캡처는 드래그로 원하는 부분만 잘라 담아요(전체는 전체 드래그).
-   - 여러 명이 올린 요청이 서버에 모이고, 상태(수정전/수정완료)를 함께 봐요.
+   - 여러 명이 올린 요청이 구글 시트 한 장에 모이고, 상태(수정전/수정완료)를 함께 봐요. (서버 없음 — docs/review/README.md)
    - 오픈할 때는 이 스크립트 <script> 한 줄만 빼면 깨끗이 사라져요.
 
    설정: 아래 API / ADMIN 두 줄만 확인하세요.
@@ -10,9 +10,12 @@
    ========================================================================== */
 (function () {
   'use strict';
-  var API = '/api/guri-review';                 // 백엔드 라우트 (같은 kgeodata 서버)
+  /* 저장소: 구글 시트 + Apps Script 웹 앱 (docs/review/Code.gs 를 배포한 URL 을 아래에 넣으세요)
+     서버 없이 시트 한 장에 쌓이고, 캡처는 드라이브 폴더에 저장됩니다. */
+  var API = 'PASTE_APPS_SCRIPT_WEB_APP_URL';      // 예: https://script.google.com/macros/s/AKfy.../exec
   var ADMIN_PARAM = 'review';                    // 관리자 모드 URL 파라미터 이름
-  var ADMIN_VALUE = 'guri';                      // 이 값과 같아야 관리자 (서버 GURI_REVIEW_KEY 와 동일)
+  var ADMIN_VALUE = 'guri';                      // 이 값과 같아야 관리자 (Code.gs 의 ADMIN_KEY 와 동일)
+  var API_READY = /^https?:\/\//.test(API);
 
   var KEY = new URLSearchParams(location.search).get(ADMIN_PARAM) || '';
   var IS_ADMIN = KEY === ADMIN_VALUE;
@@ -228,12 +231,21 @@
   }
 
   /* ── 서버 ── */
-  function apiGet() { return fetch(API, { cache: 'no-store' }).then(function (r) { if (!r.ok) throw 0; return r.json(); }); }
-  function apiPost(path, body) { return fetch(API + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw (j.error || '오류'); return j; }); }); }
+  /* Apps Script 웹 앱: GET ?action=list / ?action=shot&id=… , POST 는 본문을 JSON 문자열로(헤더를 붙이면 브라우저가 사전 요청을 보내 막힙니다) */
+  function apiGet(params) { if (!API_READY) return Promise.reject('API 주소가 아직 설정되지 않았어요'); return fetch(API + '?' + params + '&_=' + Date.now(), { cache: 'no-store', redirect: 'follow' }).then(function (r) { if (!r.ok) throw '서버 응답 오류'; return r.json(); }).then(function (j) { if (j && j.error) throw j.error; return j; }); }
+  function apiPost(action, body) { if (!API_READY) return Promise.reject('API 주소가 아직 설정되지 않았어요'); var b = {}; for (var k in body) b[k] = body[k]; b.action = action; return fetch(API, { method: 'POST', body: JSON.stringify(b), redirect: 'follow' }).then(function (r) { return r.json().catch(function () { throw '서버 응답 오류'; }); }).then(function (j) { if (!j || j.error) throw ((j && j.error) || '오류'); return j; }); }
+  var shotCache = {};
+  function loadShots() {
+    [].forEach.call($('grItems').querySelectorAll('img[data-shot]'), function (img) {
+      var id = img.getAttribute('data-shot');
+      if (shotCache[id]) { img.src = shotCache[id]; return; }
+      apiGet('action=shot&id=' + encodeURIComponent(id)).then(function (j) { if (j && j.data) { shotCache[id] = j.data; img.src = j.data; } }).catch(function () { img.style.display = 'none'; });
+    });
+  }
 
   function loadList() {
     $('grItems').innerHTML = '<div class="gr-empty">불러오는 중…</div>';
-    apiGet().then(function (data) { items = data; render(); }).catch(function () { $('grItems').innerHTML = '<div class="gr-empty">목록을 불러오지 못했어요.<br>서버 연결(API)을 확인해 주세요.</div>'; });
+    apiGet('action=list').then(function (data) { items = data; render(); loadShots(); }).catch(function (err) { $('grItems').innerHTML = '<div class="gr-empty">목록을 불러오지 못했어요.<br>' + esc(String(err)) + '</div>'; });
   }
   function render() {
     var doneN = items.filter(function (i) { return i.status === 'done'; }).length;
@@ -256,7 +268,7 @@
         + (it.loc ? '<span class="gr-b loc">📍 ' + esc(it.loc) + '</span>' : '')
         + '</div><div class="gr-tx">' + esc(it.content) + '</div>'
         + '<div class="gr-dt">' + fmt(it.created_at) + (it.who ? ' · ' + esc(it.who) : '') + (mine ? '<span class="mine">내 요청</span>' : '') + '</div></div>'
-        + '<div class="gr-r">' + (it.shot ? '<img class="gr-th" src="' + it.shot + '" data-full="' + it.id + '" alt="캡처">' : '') + (canDel ? '<button class="gr-del" data-del="' + it.id + '">삭제</button>' : '') + '</div>'
+        + '<div class="gr-r">' + (it.shot_id ? '<img class="gr-th" data-shot="' + esc(it.shot_id) + '" data-full="' + it.id + '" alt="캡처">' : '') + (canDel ? '<button class="gr-del" data-del="' + it.id + '">삭제</button>' : '') + '</div>'
         + '</div>';
     }).join('');
   }
@@ -300,7 +312,7 @@
       var content = $('grText').value.trim();
       if (!content) { toast('고칠 내용을 적어주세요'); $('grText').focus(); return; }
       $('grAdd').disabled = true;
-      apiPost('', { screen: sel.screen, type: sel.type, sev: sel.sev, loc: $('grLoc').value.trim(), content: content, who: '', shot: pending, owner: MYTOKEN })
+      apiPost('add', { screen: sel.screen, type: sel.type, sev: sel.sev, loc: $('grLoc').value.trim(), content: content, who: '', shot: pending, owner: MYTOKEN, page_url: location.href })
         .then(function () {
           $('grText').value = ''; $('grLoc').value = ''; setPending(''); sel.type = ''; sel.sev = '';
           ['grTypes', 'grSev'].forEach(function (g) { [].forEach.call($(g).children, function (x) { x.classList.remove('on'); }); });
@@ -318,11 +330,11 @@
     });
     $('grItems').addEventListener('click', function (e) {
       var tg = e.target.closest('[data-toggle]');
-      if (tg) { apiPost('/' + tg.getAttribute('data-toggle') + '/status', { status: tg.getAttribute('data-to'), key: SENDKEY }).then(loadList).catch(function (err) { toast(String(err)); }); return; }
+      if (tg) { apiPost('status', { id: tg.getAttribute('data-toggle'), status: tg.getAttribute('data-to'), key: SENDKEY }).then(loadList).catch(function (err) { toast(String(err)); }); return; }
       var del = e.target.closest('[data-del]');
-      if (del) { if (!confirm('이 요청을 지울까요?')) return; apiPost('/' + del.getAttribute('data-del') + '/delete', { owner: MYTOKEN, key: SENDKEY }).then(loadList).catch(function (err) { toast(String(err)); }); return; }
+      if (del) { if (!confirm('이 요청을 지울까요?')) return; apiPost('delete', { id: del.getAttribute('data-del'), owner: MYTOKEN, key: SENDKEY }).then(loadList).catch(function (err) { toast(String(err)); }); return; }
       var img = e.target.closest('[data-full]');
-      if (img) { var it = items.find(function (x) { return String(x.id) === img.getAttribute('data-full'); }); if (it && it.shot) { $('grLbImg').src = it.shot; $('grLb').classList.add('on'); } }
+      if (img) { var it = items.find(function (x) { return String(x.id) === img.getAttribute('data-full'); }); var src = it && it.shot_id && shotCache[it.shot_id]; if (src) { $('grLbImg').src = src; $('grLb').classList.add('on'); } }
     });
     $('grLb').addEventListener('click', function () { $('grLb').classList.remove('on'); });
   }
