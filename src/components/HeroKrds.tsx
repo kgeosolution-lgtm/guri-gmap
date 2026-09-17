@@ -58,9 +58,9 @@ export function HeroKrds({ season }: { season: SeasonTheme }) {
       </Container>
       <div className="absolute inset-x-0 bottom-0">
         <Container>
-          <nav className="krds-group-strip" aria-label="테마지도 분류 바로가기">
+          <nav className="krds-group-strip" aria-label="우리동네 찾기 분류 바로가기">
             {themeGroups.map(({ group, icon: Icon, color }) => (
-              <a key={group} href={themeUrl(group)} title={`${group} 테마지도`}>
+              <a key={group} href={themeUrl(group)} title={`${group} 우리동네 찾기`}>
                 <span
                   className="ico"
                   style={{ background: `${color}18`, color }}

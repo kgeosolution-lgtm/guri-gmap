@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>테마지도 · 구리생활지도</title>
-<meta property="og:title" content="구리생활지도 테마지도">
+<title>우리동네 찾기 · 구리생활지도</title>
+<meta property="og:title" content="구리생활지도 우리동네 찾기">
 <meta property="og:description" content="무더위쉼터부터 공영주차장까지, 우리 동네 생활 시설을 지도에서 찾아보세요.">
 <meta property="og:type" content="website">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
@@ -298,7 +298,7 @@ a{color:inherit}
 </head>
 <body>
 
-<header class="service-header map topbar"><div class="service-header-inner"><a class="service-brand" href="/" aria-label="G-MAP 구리시 시민생활지도 홈"><img src="/images/guri-emblem.png" alt="" width="50" height="41"><span><b>G-MAP</b><small>구리시 시민생활지도</small></span></a><span class="service-page-name">테마지도</span><nav class="service-nav" aria-label="주 메뉴"><a href="/maps/theme.html?group=%EC%97%AC%EB%A6%84" aria-current="page">테마지도</a><a href="/maps/animal.html" >유기동물 찾기</a><a href="/maps/scene.html" >3D 지도</a><a href="/maps/aerial.html" >시계열 항공사진</a><a href="/#about">G-MAP 소개</a></nav><a class="service-search" href="/#search">테마 찾기 <span aria-hidden="true">↗</span></a><details class="service-mobile"><summary aria-label="메뉴 열기·닫기"><span></span><span></span></summary><nav aria-label="모바일 주 메뉴"><a href="/maps/theme.html?group=%EC%97%AC%EB%A6%84" aria-current="page">테마지도</a><a href="/maps/animal.html" >유기동물 찾기</a><a href="/maps/scene.html" >3D 지도</a><a href="/maps/aerial.html" >시계열 항공사진</a><a href="/#about">G-MAP 소개</a><a href="/#search">테마 찾기</a></nav></details></div></header>
+<header class="service-header map topbar"><div class="service-header-inner"><a class="service-brand" href="/" aria-label="G-MAP 구리시 시민생활지도 홈"><img src="/images/guri-emblem.png" alt="" width="50" height="41"><span><b>G-MAP</b><small>구리시 시민생활지도</small></span></a><span class="service-page-name">우리동네 찾기</span><nav class="service-nav" aria-label="주 메뉴"><a href="/maps/theme.html?group=%EC%97%AC%EB%A6%84" aria-current="page">우리동네 찾기</a><a href="/maps/animal.html" >유기동물 찾기</a><a href="/maps/scene.html" >3D입체지도</a><a href="/maps/aerial.html" >항공사진 비교</a><a href="/#about">G-MAP 소개</a></nav><a class="service-search" href="/#search">테마 찾기 <span aria-hidden="true">↗</span></a><details class="service-mobile"><summary aria-label="메뉴 열기·닫기"><span></span><span></span></summary><nav aria-label="모바일 주 메뉴"><a href="/maps/theme.html?group=%EC%97%AC%EB%A6%84" aria-current="page">우리동네 찾기</a><a href="/maps/animal.html" >유기동물 찾기</a><a href="/maps/scene.html" >3D입체지도</a><a href="/maps/aerial.html" >항공사진 비교</a><a href="/#about">G-MAP 소개</a><a href="/#search">테마 찾기</a></nav></details></div></header>
 
 <div class="chipbar"><div class="chipbar-in">
   <div class="group-sel" id="groupSel" tabindex="0" role="button" aria-haspopup="listbox" aria-label="분류 선택"><img id="groupIc" alt=""><span class="gs-txt"><span class="gs-lbl">테마</span><span id="groupTx"></span></span><i class="ar"></i></div><div class="group-menu" id="groupMenu" role="listbox"></div>
@@ -1443,7 +1443,7 @@ function legacyCopy(text){
   document.body.removeChild(ta); return ok;
 }
 async function shareUrl(){
-  const label=(curCat!=='전체'?curCat+' — ':'')+'구리생활지도 테마지도';
+  const label=(curCat!=='전체'?curCat+' — ':'')+'구리생활지도 우리동네 찾기';
   const httpish=/^https?:/i.test(location.href);   /* content://·file:// 등은 URL 공유 불가 */
   if(navigator.share){
     try{

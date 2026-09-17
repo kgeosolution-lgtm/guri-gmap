@@ -28,10 +28,10 @@
   /* 현재 화면 자동 추정 */
   function guessScreen() {
     var p = location.pathname.toLowerCase();
-    if (p.indexOf('theme') >= 0) return '테마지도';
+    if (p.indexOf('theme') >= 0) return '우리동네 찾기';
     if (p.indexOf('animal') >= 0) return '유기동물 찾기';
-    if (p.indexOf('aerial') >= 0) return '시계열 항공사진';
-    if (p.indexOf('3d') >= 0 || p.indexOf('scene') >= 0) return '3D 지도';
+    if (p.indexOf('aerial') >= 0) return '항공사진 비교';
+    if (p.indexOf('3d') >= 0 || p.indexOf('scene') >= 0) return '3D입체지도';
     return '메인';
   }
 
@@ -141,7 +141,7 @@
       + '<div class="gr-head"><h3>수정 요청</h3>' + (IS_ADMIN ? '<span class="gr-adm">관리자</span>' : '') + '<button class="gr-x" id="grClose">×</button></div>'
       + '<div class="gr-tabs"><button class="gr-tab on" id="grTabWrite">적기</button><button class="gr-tab" id="grTabList">목록 <span id="grCount"></span></button></div>'
       + '<div class="gr-body" id="grWrite">'
-      + '<div class="gr-g"><span class="gr-l">어느 화면</span>' + chipRow('grScreens', '', ['메인', '테마지도', '유기동물 찾기', '시계열 항공사진', '3D 지도', '기타']) + '</div>'
+      + '<div class="gr-g"><span class="gr-l">어느 화면</span>' + chipRow('grScreens', '', ['메인', '우리동네 찾기', '유기동물 찾기', '항공사진 비교', '3D입체지도', '기타']) + '</div>'
       + '<div class="gr-g"><span class="gr-l">종류 <span>선택</span></span>' + chipRow('grTypes', '', ['오타·문구', '정보 오류', '위치 이상', '디자인·화면', '기능 오류', '추가 요청']) + '</div>'
       + '<div class="gr-g"><span class="gr-l">위치·시설 이름 <span>선택</span></span><input type="text" class="gr-in" id="grLoc" placeholder="예: 인창공영주차장"></div>'
       + '<div class="gr-g"><span class="gr-l">무엇을 어떻게 고칠까요</span><textarea class="gr-ta" id="grText" placeholder="예: 전화번호가 예전 번호예요. 031-550-0000 으로 바꿔주세요"></textarea></div>'

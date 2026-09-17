@@ -17,10 +17,10 @@ export function MapsNow() {
         <div className="mt-8 grid gap-6 lg:grid-cols-2">
           {/* ① 테마지도 */}
           <article className="krds-map-card">
-            <a href={theme} className="card-img" title="테마지도 열기">
+            <a href={theme} className="card-img" title="우리동네 찾기 열기">
               <img
                 src="/images/preview-theme.webp"
-                alt="테마지도 화면. 왼쪽 목록과 오른쪽 구리시 지도에 여름 시설이 표시돼 있어요."
+                alt="우리동네 찾기 화면. 왼쪽 목록과 오른쪽 구리시 지도에 여름 시설이 표시돼 있어요."
                 width={1280}
                 height={800}
                 loading="lazy"
@@ -31,12 +31,12 @@ export function MapsNow() {
                 <span className="ico" aria-hidden="true">
                   <Layers size={22} />
                 </span>
-                테마지도
+                우리동네 찾기
               </h3>
               <p className="card-desc">
                 무더위쉼터부터 공영주차장까지, 우리 동네 생활 시설을 지도에서 찾아보세요
               </p>
-              <div className="krds-tag-wrap medium" aria-label="테마지도 분류">
+              <div className="krds-tag-wrap medium" aria-label="우리동네 찾기 분류">
                 {themeGroups.map(({ group }) => (
                   <a
                     key={group}
@@ -50,7 +50,7 @@ export function MapsNow() {
               </div>
               <div className="card-actions">
                 <a href={theme} className="krds-btn primary">
-                  테마지도 열기 <ArrowRight className="svg-icon" aria-hidden="true" />
+                  우리동네 찾기 열기 <ArrowRight className="svg-icon" aria-hidden="true" />
                 </a>
               </div>
             </div>
