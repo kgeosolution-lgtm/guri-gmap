@@ -445,7 +445,7 @@ require([
   loadDongs();
   reactiveUtils.when(()=>view.stationary,()=>{ if(view.stationary) syncDongToCenter(); });
   reactiveUtils.watch(()=>view.scale,()=>updateNote());
-  GraphicCls=Graphic; WMU=webMercatorUtils; ExtentCls=Extent; FLCls=FeatureLayer; GeoJSONCls=GeoJSONLayer;
+  GraphicCls=Graphic; WMU=webMercatorUtils; ExtentCls=Extent; FLCls=FeatureLayer; GeoJSONCls=GeoJSONLayer; RU=reactiveUtils;
   if(!NGII.apiKey) $('keyWarn').style.display='block';
 
   rvLayer=new GraphicsLayer({listMode:'hide'}); map.add(rvLayer);
@@ -603,7 +603,7 @@ function syncUrl(){
 /* ═══ 지도 위에 함께 보기 ═══
  * 브이월드 WMS 그림을 ArcGIS 레이어(WebGL, CORS 필요) 대신 지도 위 <img> 로 얹는다 — 남원 지도처럼 서버 CORS 설정과 무관하게 보인다.
  * 화면이 움직이는 동안은 마지막 그림을 CSS transform 으로 맞춰 두고, 멈추면 현재 범위(1.4배 여유)로 다시 받는다. */
-let rvLayer=null, rvMode=false, rvObj=null, rvPanoId=null, rvClient=null, rvSdk=null, refreshTimer=null, FLCls=null, GeoJSONCls=null;
+let rvLayer=null, rvMode=false, rvObj=null, rvPanoId=null, rvClient=null, rvSdk=null, refreshTimer=null, FLCls=null, GeoJSONCls=null, RU=null;
 const ovLayers={};   /* key → {on, img, ext, w, h, warned} */
 /* 브이월드가 받아 주는 요청 형식(버전·DOMAIN 표기)이 문서와 다를 수 있어, 첫 그림이 실패하면 아래 순서로 바꿔 가며 시도하고 성공한 형식을 기억한다 */
 const VW_VARIANTS=[
@@ -638,6 +638,12 @@ function requestBox(vb){
   const hw=(vb.xmax-vb.xmin)/2*pad, hh=(vb.ymax-vb.ymin)/2*pad;
   return {xmin:cx-hw,ymin:cy-hh,xmax:cx+hw,ymax:cy+hh,w:W,h:H};
 }
+/* 받아 둔 범위가 지금 화면을 다 덮으면(그림은 해상도까지 같으면) 다시 받지 않는다 — 조금 움직일 때마다 새로 그려 깜빡이던 것을 막는다 */
+function boxCovers(ext,vb){ return !!ext&&vb.xmin>=ext.xmin&&vb.xmax<=ext.xmax&&vb.ymin>=ext.ymin&&vb.ymax<=ext.ymax; }
+function sameRes(ext,w,vb){ if(!ext||!w) return false; const r1=(ext.xmax-ext.xmin)/w, r2=(vb.xmax-vb.xmin)/vb.w; return Math.abs(r1-r2)/r2<0.02; }
+/* 벡터 자료는 화면의 2배 범위를 받아 두어 그 안에서 움직이는 동안은 다시 받지 않는다 */
+const VEC_PAD=2.0;
+function vecBox(vb){ const cx=(vb.xmin+vb.xmax)/2, cy=(vb.ymin+vb.ymax)/2, hw=(vb.xmax-vb.xmin)/2*VEC_PAD, hh=(vb.ymax-vb.ymin)/2*VEC_PAD; return {xmin:cx-hw,ymin:cy-hh,xmax:cx+hw,ymax:cy+hh,w:Math.round(vb.w*VEC_PAD),h:Math.round(vb.h*VEC_PAD)}; }
 /* 그림(ext,w,h)을 현재 화면(vb)에 맞추는 transform: 해상도 비로 확대·축소, 왼쪽 위 모서리로 이동 */
 function overlayTransform(img,vb){
   const r=(vb.xmax-vb.xmin)/vb.w, r0=(img.ext.xmax-img.ext.xmin)/img.w; const s=r0/r;
@@ -663,7 +669,7 @@ function setCityClip(poly){
   const area=r=>{ let a=0; for(let i=0,j=r.length-1;i<r.length;j=i++) a+=(r[j][0]+r[i][0])*(r[j][1]-r[i][1]); return Math.abs(a/2); };
   const ring=poly.rings.slice().sort((a,b)=>area(b)-area(a))[0];   /* 가장 큰 고리 하나 (CSS polygon 은 고리 하나만) */
   cityClip=simplifyRing(ring.map(p=>[p[0],p[1]]),CLIP_TOL); cityPoly=poly;
-  applyCadastreClip(); Object.keys(ovLayers).forEach(k=>{ const L=ovLayers[k]; if(L.on&&L.own) L.url=''; }); scheduleRefresh();   /* 경계가 늦게 오면 벡터 자료도 다시 잘라 낸다 */
+  applyCadastreClip(); Object.keys(ovLayers).forEach(k=>{ const L=ovLayers[k]; if(L.on&&L.own){ L.url=''; L.vext=null; } }); scheduleRefresh();   /* 경계가 늦게 오면 벡터 자료도 다시 잘라 낸다 */
   const vb=viewBox(); if(vb) updateCityClip(vb);
 }
 function clipPolygon(vb){ const r=(vb.xmax-vb.xmin)/vb.w; let out='polygon('; for(let i=0;i<cityClip.length;i++){ const p=cityClip[i]; out+=(i? ',':'')+((p[0]-vb.xmin)/r).toFixed(1)+'px '+((vb.ymax-p[1])/r).toFixed(1)+'px'; } return out+')'; }
@@ -676,13 +682,17 @@ function refreshOverlay(key){
   if(o.kind==='cad'&&!L.kgFailed) return refreshCadastre(key);   /* 케이지오가 안 되면(kgFailed) 아래 브이월드 그림 경로로 */
   if(o.kind==='vec'&&!L.wfsFailed) return refreshVector(key);
   if(o.minScale&&view.scale>o.minScale){ L.img.classList.remove('show'); return; }   /* 축소된 상태면 숨김 */
+  if(L.img.classList.contains('show')&&boxCovers(L.ext,vb)&&sameRes(L.ext,L.w,vb)) return;   /* 받아 둔 그림이 아직 화면을 덮으면 그대로 */
   const rb=requestBox(vb); const url=vwUrl(L.ids||o.ids,rb,rb.w,rb.h); if(L.url===url) return; L.url=url;
   const strip=o.kind==='cad'&&!L.corsFailed;   /* 지적도: 채움을 걷어내려면 픽셀을 읽어야 하므로 CORS 로 시도 */
   const im=new Image(); if(strip) im.crossOrigin='anonymous';
-  im.onload=()=>{ if(L.url!==url||!L.on) return; vwLocked=true; L.ext=rb; L.w=rb.w; L.h=rb.h;
-    let src=url; if(strip){ try{ src=stripFill(im); L.img.style.mixBlendMode=''; }catch(e){ src=url; L.img.style.mixBlendMode='multiply'; } }
-    else if(o.kind==='cad') L.img.style.mixBlendMode='multiply';
-    L.img.src=src; L.img.style.transform=overlayTransform(L,viewBox()||vb); L.img.classList.add('show'); };
+  im.onload=()=>{ if(L.url!==url||!L.on) return; vwLocked=true;
+    let src=url, blend=''; if(strip){ try{ src=stripFill(im); }catch(e){ src=url; blend='multiply'; } } else if(o.kind==='cad') blend='multiply';
+    /* 새 그림은 다 준비된 뒤 옛 그림과 한 번에 바꿔 끼운다(같은 <img> 의 src 를 갈면 잠깐 비어 깜빡인다) */
+    const nu=document.createElement('img'); nu.alt=''; nu.decoding='async'; nu.dataset.key=key; nu.style.opacity=VW.alpha; nu.style.mixBlendMode=blend; nu.src=src;
+    const swap=()=>{ if(L.url!==url||!L.on) return; const old=L.img; L.img=nu; L.ext=rb; L.w=rb.w; L.h=rb.h;
+      nu.style.transform=overlayTransform(L,viewBox()||vb); nu.classList.add('show'); $('ovImgs').appendChild(nu); if(old&&old.parentNode) old.parentNode.removeChild(old); };
+    if(nu.decode) nu.decode().catch(()=>{}).then(swap); else swap(); };
   im.onerror=()=>{ if(L.url!==url) return; L.img.classList.remove('show');
     if(strip){ L.corsFailed=true; L.url=''; refreshOverlay(key); return; }                                  /* CORS 가 막히면 픽셀 처리 없이 다시 */
     if(!vwLocked&&vwVariant<VW_VARIANTS.length-1){ vwVariant++; L.url=''; refreshOverlay(key); return; }   /* 다른 요청 형식으로 다시 */
@@ -770,6 +780,7 @@ function toLngLatDeep(c){ if(typeof c[0]==='number') return xyToLL(c[0],c[1]); r
 function geojsonToWgs84(j){ (j.features||[]).forEach(f=>{ if(f.geometry&&f.geometry.coordinates) f.geometry.coordinates=toLngLatDeep(f.geometry.coordinates); }); delete j.crs; return j; }
 /* 연속지적도: kgeodata 서비스를 그대로 그린다 — 구리시 필지만(PNU 앞 5자리), 채움 없이 선만, 지번을 11pt 로. 필드명은 서비스에서 자동으로 찾는다 */
 let cadLayer=null;
+const CAD_LABEL_MIN=3000;   /* 지번 레이블이 보이기 시작하는 축척(선보다 한 단계 더 확대) */
 function pickField(names,cands){ const low=names.map(n=>String(n).toLowerCase()); for(const c of cands){ const i=low.indexOf(c.toLowerCase()); if(i>-1) return names[i]; } for(const c of cands){ const i=low.findIndex(n=>n.indexOf(c.toLowerCase())>-1); if(i>-1) return names[i]; } return null; }
 function cadastreDef(fields,url){
   const names=(fields||[]).map(f=>f.name);
@@ -781,7 +792,8 @@ function cadastreDef(fields,url){
   return {url:url||CITY.cadastreUrl,title:'연속지적도',outFields:[jibun].concat(pnu? [pnu]:[]),minScale:ovDef('cad').minScale||8000,
     definitionExpression:pnuText? pnu+" LIKE '"+CITY.sggCode+"%'" : undefined,
     renderer:{type:'simple',symbol:{type:'simple-fill',color:[0,0,0,0],outline:{color:'#7A5FD0',width:1.1}}},   /* 채움 없이 선만 */
-    labelsVisible:true,labelingInfo:[{labelExpressionInfo:{expression:'$feature.'+jibun},labelPlacement:'always-horizontal',deconflictionStrategy:'static',
+    /* 선은 1:8,000 이하(레벨 17, 1:4,514)부터, 지번 레이블은 한 단계 더 확대한 레벨 18(1:2,257)부터 */
+    labelsVisible:true,labelingInfo:[{labelExpressionInfo:{expression:'$feature.'+jibun},labelPlacement:'always-horizontal',deconflictionStrategy:'static',minScale:CAD_LABEL_MIN,
       symbol:{type:'text',color:'#4A3A8A',haloColor:[255,255,255,.95],haloSize:1.4,font:{size:10,family:LBL_FONT.family,weight:'bold'}}}]};   /* 11 → 10pt */
 }
 let cadLV=null;
@@ -913,21 +925,28 @@ async function fetchVector(o,L,rb){
 }
 async function refreshVector(key){
   const L=ovLayers[key], o=ovDef(key), vb=viewBox(); if(!L||!o||!vb||!L.on) return;
-  const rb=requestBox(vb); const url=wfsUrl(o.wfs,rb); if(L.url===url) return; L.url=url;
+  if(L.vec&&L.own&&boxCovers(L.vext,vb)){ L.vec.visible=true; return; }   /* 받아 둔 범위 안에서 움직이는 동안은 그대로(깜빡임 없음) */
+  const rb=vecBox(vb); const url=wfsUrl(o.wfs,rb); if(L.url===url) return; L.url=url;
   try{
     const got=await fetchVector(o,L,rb);
     if(L.url!==url||!L.on) return;
     const total=got.j.features.length; got.j=clipToCity(got.j);
-    const lyr=vectorLayer(o,got.j); const old=L.vec; L.vec=lyr; L.via=got.via;
+    const lyr=vectorLayer(o,got.j); const old=L.vec; L.vec=lyr; L.via=got.via; L.vext=rb;
     map.add(lyr,(airLayer?1:0)+(cmpLayer?1:0));
-    if(old){ try{ map.remove(old); }catch(e){} }
+    if(old) removeWhenDrawn(lyr,old);   /* 새 레이어가 다 그려진 뒤에 옛 레이어를 걷어낸다 */
     L.own=true; renderLegends(overlayKeys());
     console.info('['+o.label+'] '+got.j.features.length+'건/'+total+'건 구리시 안 ('+got.via+'), 분류·레이블 항목:',lyr.__fields,'항목 전체:',Object.keys((got.j.features[0]&&got.j.features[0].properties)||{}).join(','));
   }catch(e){
     console.warn('['+o.label+'] 벡터 자료 실패 → WMS 그림으로',String((e&&e.message)||e));
-    L.wfsFailed=true; L.own=false; L.url=''; if(L.vec){ try{ map.remove(L.vec); }catch(x){} L.vec=null; }
+    L.wfsFailed=true; L.own=false; L.url=''; L.vext=null; if(L.vec){ try{ map.remove(L.vec); }catch(x){} L.vec=null; }
     refreshOverlay(key); renderLegends(overlayKeys());
   }
+}
+/* 새 레이어의 레이어뷰가 그리기를 마치면(updating=false) 옛 레이어를 지운다. 못 기다리는 상황이면 0.4초 뒤, 어떤 경우든 4초 안에 */
+function removeWhenDrawn(lyr,old){
+  let done=false; const finish=()=>{ if(done) return; done=true; try{ map.remove(old); }catch(e){} };
+  if(view&&view.whenLayerView){ view.whenLayerView(lyr).then(lv=>(RU&&RU.whenOnce)? RU.whenOnce(()=>!lv.updating) : new Promise(r=>setTimeout(r,400))).then(finish,finish); setTimeout(finish,4000); }
+  else finish();
 }
 /* ── 범례: 우리가 칠한 색 표(CLASS_TABLES)를 그대로 보여 준다 ── */
 function renderLegends(onKeys){

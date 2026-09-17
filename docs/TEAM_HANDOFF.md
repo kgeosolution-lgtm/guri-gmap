@@ -576,3 +576,15 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 코드 주석 속 "테마지도식 카드" 같은 표현은 그대로(사용자에게 안 보임).
 - 브랜치: `work/kangmina-menu-titles` (base `design/service-home-refresh` af89e1f).
 - 검증: 지도 4쪽 인라인 스크립트 `node --check`, 겹쳐 보기 하네스, `tsc --noEmit`, prettier(src), `npm run build:deploy` 후 `out/index.html` 에 새 이름 각 2회(PC·모바일)·옛 이름 0회 확인, `git diff --check` 통과.
+
+## 2026-09-17 시계열 항공사진: 겹쳐 보기 깜빡임 제거, 지적도 지번은 한 단계 더 확대해서 (담당: 강민아)
+
+- 증상: 용도지역·도시지역·문화재보호가 화면을 옮길 때마다 깜빡이며 다시 그려짐.
+- 원인: 멈출 때마다 새로 요청하고, 그림은 같은 `<img>` 의 `src` 를 갈아 끼워 잠깐 비었고, 벡터는 새 GeoJSONLayer 를 올리자마자 옛 레이어를 지워 새 레이어가 그려지기 전 빈 순간이 있었음.
+- 조치:
+  - 다시 받지 않기: 그림은 받아 둔 범위(`L.ext`, 화면의 1.4배)가 화면을 덮고 해상도가 같으면 그대로(`boxCovers`·`sameRes`). 벡터는 화면의 **2배** 범위(`vecBox`, `L.vext`)를 받아 두고 그 안에서는 다시 안 받음(확대해도 자료는 같으므로 그대로).
+  - 그림 바꿔 끼우기: 새 `<img>` 를 만들어 `decode()` 가 끝난 뒤 옛 것과 한 번에 교체(`swap`). `L.img` 는 항상 현재 요소.
+  - 벡터 바꿔 끼우기: 새 레이어의 레이어뷰가 `updating=false` 가 된 뒤 옛 레이어 제거(`removeWhenDrawn`, `reactiveUtils.whenOnce`; 못 기다리면 0.4초, 최대 4초).
+- 연속지적도 레이블: 선은 1:8,000 이하(레벨 17, 1:4,514)부터, 지번은 레이블 클래스 `minScale=3000`(`CAD_LABEL_MIN`) 으로 한 단계 더 확대한 레벨 18(1:2,257)부터.
+- 브랜치: `work/kangmina-aerial-smooth` (base `design/service-home-refresh` 3b38b32).
+- 검증: 하네스 — 범위 안 이동은 그림·벡터 모두 다시 안 받음, 확대(해상도 변경)하면 새 `<img>` 로 교체되고 옛 것은 제거, 벡터는 추가 뒤 제거 순서, 2배 범위 계산, 지번 레이블 `minScale 3000` 검사 통과. `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
