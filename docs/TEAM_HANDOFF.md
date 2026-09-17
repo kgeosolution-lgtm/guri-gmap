@@ -568,3 +568,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 항목 찾기(`cadastreDef`): 항목 이름 또는 별칭(alias)에서 `지번지목부호`·`jibun_jimok`·`jimok` 순으로 찾고, 없으면 지번(`jibun`·별칭 `지번`), 그래도 없으면 첫 항목. 실제로 어떤 항목이 잡혔는지는 레이어 `outFields` 첫 값으로 확인.
 - 브랜치: `work/kangmina-aerial-overlays-12` (base `design/service-home-refresh` b855c94).
 - 검증: 하네스 — 이름 `jibun_jimok` 로 찾기, 별칭 `지번지목부호`(이름 `field_9`)로 찾기, 없으면 `jibun`, 10pt 검사 통과. `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
+
+## 2026-09-17 메뉴 제목 변경: 우리동네 찾기 · 유기동물 찾기 · 3D입체지도 · 항공사진 비교 · G-MAP 소개 (담당: 강민아)
+
+- 바뀐 이름: 테마지도 → **우리동네 찾기**, 3D 지도 → **3D입체지도**, 시계열 항공사진 → **항공사진 비교** (유기동물 찾기·G-MAP 소개는 그대로). 주소(`/maps/theme.html` 등)와 파일명은 그대로.
+- 고친 곳: 홈 헤더 `SiteHeader.tsx`(PC·모바일 메뉴 모두 같은 배열), 푸터 `KrdsFooter.tsx` 바로가기, 홈 본문 버튼(`page.tsx` "3D입체지도 보기"·"항공사진 비교 보기"), 홈 카드 `MapsNow.tsx`, 히어로 띠 `HeroKrds.tsx`(보조 문구), 정적 지도 4쪽(`theme/animal/scene/aerial.html`)의 헤더 메뉴·모바일 메뉴·`service-page-name`·`<title>`·og:title, 지도 안 문구(3D 불러오는 중/오류, 항공사진 연도 막대 제목, 공유·인쇄 라벨), 수정요청 위젯 `review.js` 의 화면 이름 목록.
+- 코드 주석 속 "테마지도식 카드" 같은 표현은 그대로(사용자에게 안 보임).
+- 브랜치: `work/kangmina-menu-titles` (base `design/service-home-refresh` af89e1f).
+- 검증: 지도 4쪽 인라인 스크립트 `node --check`, 겹쳐 보기 하네스, `tsc --noEmit`, prettier(src), `npm run build:deploy` 후 `out/index.html` 에 새 이름 각 2회(PC·모바일)·옛 이름 0회 확인, `git diff --check` 통과.

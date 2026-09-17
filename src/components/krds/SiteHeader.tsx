@@ -11,10 +11,10 @@ export function SiteHeader({
   active?: string;
 }) {
   const links = [
-    { label: '테마지도', href: themeUrl('시즌·가을') },
+    { label: '우리동네 찾기', href: themeUrl('시즌·가을') },
     { label: '유기동물 찾기', href: animalUrl() },
-    { label: '3D 지도', href: sceneUrl() },
-    { label: '시계열 항공사진', href: aerialUrl() },
+    { label: '3D입체지도', href: sceneUrl() },
+    { label: '항공사진 비교', href: aerialUrl() },
     { label: 'G-MAP 소개', href: homeUrl('#about') },
   ];
   const navigation = links.map((link) => (

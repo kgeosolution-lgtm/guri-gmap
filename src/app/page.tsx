@@ -173,7 +173,7 @@ export default function Home() {
                 구리의 모습을 입체적으로 살펴볼 수 있어요.
               </p>
               <a className="home-button" href={sceneUrl()}>
-                3D 지도 보기 <ArrowUpRight size={19} />
+                3D입체지도 보기 <ArrowUpRight size={19} />
               </a>
             </div>
             <span className="scene-section-index">03 / SKYLINE</span>
@@ -198,7 +198,7 @@ export default function Home() {
                 우리 동네가 어떻게 달라졌는지 볼 수 있어요.
               </p>
               <a className="home-button" href={aerialUrl()}>
-                시계열 항공사진 보기 <ArrowUpRight size={19} />
+                항공사진 비교 보기 <ArrowUpRight size={19} />
               </a>
             </div>
             <span className="aerial-section-index">04 / TIMELINE</span>
