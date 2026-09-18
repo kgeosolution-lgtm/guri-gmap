@@ -16,13 +16,13 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $ProgressPreference = 'SilentlyContinue'
-          $temporary = Join-Path $env:RUNNER_TEMP 'kgeomcp-400814f574e369a6'
+          $temporary = Join-Path $env:RUNNER_TEMP 'kgeomcp-abf7bb51044f3e18'
           New-Item -ItemType Directory -Path $temporary -Force | Out-Null
           & icacls.exe $temporary /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-20:(OI)(CI)F' | Out-Null
           if($LASTEXITCODE -ne 0){throw 'Private transfer ACL failed'}
           $archive = Join-Path $temporary 'transfer.zip'
           try { Invoke-WebRequest -UseBasicParsing -Uri $env:KGEO_TRANSFER_URL -OutFile $archive } catch { throw 'Private transfer failed. Refresh the short-lived download capability.' }
           $env:KGEO_TRANSFER_URL = $null
-          if((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne '51cf4ea144973ad6235d4700e234c5983fc9fe7c881b5825088079436bd6dc26'){throw 'Transfer hash mismatch'}
+          if((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'cc373050294439101a61f5fda453eae2efa600d07f463bd5cd6c3fcf3dc1e74d'){throw 'Transfer hash mismatch'}
           Expand-Archive -LiteralPath $archive -DestinationPath $temporary
           & (Join-Path $temporary 'stage-release.ps1') -Package (Join-Path $temporary 'kgeoMCP.zip') -Manifest (Join-Path $temporary 'manifest.json') -Configuration (Join-Path $temporary 'config.json')
