@@ -1,4 +1,4 @@
-name: kgeoMCP read-only post-maintenance verification
+name: kgeoMCP read-only TLS diagnosis
 on:
   push:
     branches: [codex/kgeomcp-server-bootstrap]
@@ -7,19 +7,16 @@ permissions:
 jobs:
   verify:
     runs-on: [self-hosted, Windows, X64, guri-preview]
-    timeout-minutes: 5
+    timeout-minutes: 3
     steps:
-      - name: Inspect server health without changes
+      - name: Inspect certificate names and validated routes
         shell: powershell
         run: |
-          $ErrorActionPreference = 'Stop'
-          & 'D:\services\kgeo-mcp-remote\inspect-esri-host.ps1'
-          Get-CimInstance Win32_Service -Filter "Name='ArcGIS Server'" | Select-Object Name,State,ProcessId | ConvertTo-Json -Compress
-          Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalPort -in @(6080,6443) } | Select-Object LocalAddress,LocalPort,OwningProcess | ConvertTo-Json -Compress
           @'
-          const https=require('node:https');
-          for(const path of ['/arcgis/rest/info?f=json','/arcgis/platform/']){
-            const req=https.get({hostname:'127.0.0.1',port:6443,path,rejectUnauthorized:false,timeout:15000},res=>{let body='';res.on('data',d=>{if(body.length<2000)body+=d.toString()});res.on('end',()=>console.log(JSON.stringify({scope:'loopback_read_only',path,status:res.statusCode,body:body.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').slice(0,800)})));});
-            req.on('timeout',()=>req.destroy(new Error('timeout')));req.on('error',e=>console.log(JSON.stringify({path,error:e.code||e.message})));
+          const https=require('node:https'),tls=require('node:tls');
+          const socket=tls.connect({host:'KGO-GIS',port:7443,rejectUnauthorized:false},()=>{const c=socket.getPeerCertificate();console.log(JSON.stringify({operation:'certificate_metadata_only',host:'KGO-GIS',subject:c.subject,subjectAltName:c.subjectaltname,issuer:c.issuer,validTo:c.valid_to,hostnameMatches:!tls.checkServerIdentity('KGO-GIS',c)}));socket.end()});
+          socket.setTimeout(10000,()=>socket.destroy());socket.on('error',e=>console.log(JSON.stringify({operation:'certificate_metadata_only',error:e.code})));
+          for(const url of ['https://kgeodata.com:7443/arcgis/sharing/rest/portals/self?f=json','https://kgeodata.com/portal/sharing/rest/portals/self?f=json']){
+            const req=https.get(url,{timeout:12000,rejectUnauthorized:true},res=>{let body='';res.on('data',d=>{if(body.length<100000)body+=d});res.on('end',()=>{let value;try{value=JSON.parse(body)}catch{value={nonJson:true}};console.log(JSON.stringify({operation:'strict_tls_read_only',url,status:res.statusCode,portalId:value.id,isPortal:value.isPortal,errorCode:value.error?.code,nonJson:value.nonJson}));});});req.on('timeout',()=>req.destroy(new Error('timeout')));req.on('error',e=>console.log(JSON.stringify({operation:'strict_tls_read_only',url,error:e.code||e.message})));
           }
           '@ | node
