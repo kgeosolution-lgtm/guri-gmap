@@ -1,22 +1,28 @@
-name: Verify remote repair script and directory access
+name: kgeoMCP server stage
 on:
   push:
     branches: [codex/kgeomcp-server-bootstrap]
 permissions:
   contents: read
 jobs:
-  inspect:
+  stage:
     runs-on: [self-hosted, Windows, X64, guri-preview]
-    timeout-minutes: 5
+    timeout-minutes: 12
     steps:
-      - name: Verify remote repair script and directory access
+      - name: Receive private release and stage
         shell: powershell
+        env:
+          KGEO_TRANSFER_URL: ${{ secrets.KGEOMCP_STAGE_URL }}
         run: |
-          $ErrorActionPreference='Stop'
-          $root='D:\services\kgeo-mcp-remote'
-          $paths=@((Join-Path $root 'repair-proxy.ps1'),(Join-Path $root 'releases\95baa19ea84e9e60\deploy\remote\repair-proxy.ps1'))
-          $files=@()
-          foreach($p in $paths){$exists=Test-Path -LiteralPath $p -PathType Leaf;$entry=[ordered]@{Path=$p;Exists=$exists};if($exists){$entry.Bytes=(Get-Item -LiteralPath $p).Length;$entry.Sha256=(Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLowerInvariant()};$files+=$entry}
-          $acl=(Get-Acl -LiteralPath $root).Access | ForEach-Object {[ordered]@{Identity=$_.IdentityReference.Value;Rights=$_.FileSystemRights.ToString();Type=$_.AccessControlType.ToString()}}
-          [ordered]@{Computer=$env:COMPUTERNAME;Files=$files;DirectoryAcl=$acl;Task=(Get-ScheduledTask -TaskName 'KGEO-MCP-Remote' | Select-Object TaskName,State)} | ConvertTo-Json -Depth 6
-          
+          $ErrorActionPreference = 'Stop'
+          $ProgressPreference = 'SilentlyContinue'
+          $temporary = Join-Path $env:RUNNER_TEMP 'kgeomcp-52d7cdeaee18e28d'
+          New-Item -ItemType Directory -Path $temporary -Force | Out-Null
+          & icacls.exe $temporary /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-20:(OI)(CI)F' | Out-Null
+          if($LASTEXITCODE -ne 0){throw 'Private transfer ACL failed'}
+          $archive = Join-Path $temporary 'transfer.zip'
+          try { Invoke-WebRequest -UseBasicParsing -Uri $env:KGEO_TRANSFER_URL -OutFile $archive } catch { throw 'Private transfer failed. Refresh the short-lived download capability.' }
+          $env:KGEO_TRANSFER_URL = $null
+          if((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne '55a06503f2f7a668650654c8a0cb8d9811dbb4870e94ace4e213094d5c5cdc02'){throw 'Transfer hash mismatch'}
+          Expand-Archive -LiteralPath $archive -DestinationPath $temporary
+          & (Join-Path $temporary 'stage-release.ps1') -Package (Join-Path $temporary 'kgeoMCP.zip') -Manifest (Join-Path $temporary 'manifest.json') -Configuration (Join-Path $temporary 'config.json')
