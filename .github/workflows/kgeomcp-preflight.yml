@@ -1,22 +1,28 @@
-name: kgeoMCP read-only TLS diagnosis
+name: kgeoMCP server stage
 on:
   push:
     branches: [codex/kgeomcp-server-bootstrap]
 permissions:
   contents: read
 jobs:
-  verify:
+  stage:
     runs-on: [self-hosted, Windows, X64, guri-preview]
-    timeout-minutes: 3
+    timeout-minutes: 12
     steps:
-      - name: Inspect certificate names and validated routes
+      - name: Receive private release and stage
         shell: powershell
+        env:
+          KGEO_TRANSFER_URL: ${{ secrets.KGEOMCP_STAGE_URL }}
         run: |
-          @'
-          const https=require('node:https'),tls=require('node:tls');
-          const socket=tls.connect({host:'KGO-GIS',port:7443,rejectUnauthorized:false},()=>{const c=socket.getPeerCertificate();console.log(JSON.stringify({operation:'certificate_metadata_only',host:'KGO-GIS',subject:c.subject,subjectAltName:c.subjectaltname,issuer:c.issuer,validTo:c.valid_to,hostnameMatches:!tls.checkServerIdentity('KGO-GIS',c)}));socket.end()});
-          socket.setTimeout(10000,()=>socket.destroy());socket.on('error',e=>console.log(JSON.stringify({operation:'certificate_metadata_only',error:e.code})));
-          for(const url of ['https://kgeodata.com:7443/arcgis/sharing/rest/portals/self?f=json','https://kgeodata.com/portal/sharing/rest/portals/self?f=json']){
-            const req=https.get(url,{timeout:12000,rejectUnauthorized:true},res=>{let body='';res.on('data',d=>{if(body.length<100000)body+=d});res.on('end',()=>{let value;try{value=JSON.parse(body)}catch{value={nonJson:true}};console.log(JSON.stringify({operation:'strict_tls_read_only',url,status:res.statusCode,portalId:value.id,isPortal:value.isPortal,errorCode:value.error?.code,nonJson:value.nonJson}));});});req.on('timeout',()=>req.destroy(new Error('timeout')));req.on('error',e=>console.log(JSON.stringify({operation:'strict_tls_read_only',url,error:e.code||e.message})));
-          }
-          '@ | node
+          $ErrorActionPreference = 'Stop'
+          $ProgressPreference = 'SilentlyContinue'
+          $temporary = Join-Path $env:RUNNER_TEMP 'kgeomcp-3390a454946c8147'
+          New-Item -ItemType Directory -Path $temporary -Force | Out-Null
+          & icacls.exe $temporary /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-20:(OI)(CI)F' | Out-Null
+          if($LASTEXITCODE -ne 0){throw 'Private transfer ACL failed'}
+          $archive = Join-Path $temporary 'transfer.zip'
+          try { Invoke-WebRequest -UseBasicParsing -Uri $env:KGEO_TRANSFER_URL -OutFile $archive } catch { throw 'Private transfer failed. Refresh the short-lived download capability.' }
+          $env:KGEO_TRANSFER_URL = $null
+          if((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne '7536b379324873fb74ea4229083d22308cac320c16d5d1927d40745cdd5ffab2'){throw 'Transfer hash mismatch'}
+          Expand-Archive -LiteralPath $archive -DestinationPath $temporary
+          & (Join-Path $temporary 'stage-release.ps1') -Package (Join-Path $temporary 'kgeoMCP.zip') -Manifest (Join-Path $temporary 'manifest.json') -Configuration (Join-Path $temporary 'config.json')
