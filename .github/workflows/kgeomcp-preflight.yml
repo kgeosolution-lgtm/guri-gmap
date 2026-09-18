@@ -1,28 +1,22 @@
-name: kgeoMCP server stage
+name: kgeoMCP approved Esri maintenance
 on:
   push:
     branches: [codex/kgeomcp-server-bootstrap]
 permissions:
   contents: read
 jobs:
-  stage:
+  maintenance:
     runs-on: [self-hosted, Windows, X64, guri-preview]
-    timeout-minutes: 12
+    timeout-minutes: 10
     steps:
-      - name: Receive private release and stage
+      - name: Verify elevation and apply prepared installation
         shell: powershell
-        env:
-          KGEO_TRANSFER_URL: ${{ secrets.KGEOMCP_STAGE_URL }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $ProgressPreference = 'SilentlyContinue'
-          $temporary = Join-Path $env:RUNNER_TEMP 'kgeomcp-315838bf2a13a59b'
-          New-Item -ItemType Directory -Path $temporary -Force | Out-Null
-          & icacls.exe $temporary /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-20:(OI)(CI)F' | Out-Null
-          if($LASTEXITCODE -ne 0){throw 'Private transfer ACL failed'}
-          $archive = Join-Path $temporary 'transfer.zip'
-          try { Invoke-WebRequest -UseBasicParsing -Uri $env:KGEO_TRANSFER_URL -OutFile $archive } catch { throw 'Private transfer failed. Refresh the short-lived download capability.' }
-          $env:KGEO_TRANSFER_URL = $null
-          if((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne '05faccebae2087117bc2637d7336a661c5eeff6937a1bc7b34112037066c456f'){throw 'Transfer hash mismatch'}
-          Expand-Archive -LiteralPath $archive -DestinationPath $temporary
-          & (Join-Path $temporary 'stage-release.ps1') -Package (Join-Path $temporary 'kgeoMCP.zip') -Manifest (Join-Path $temporary 'manifest.json') -Configuration (Join-Path $temporary 'config.json')
+          $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+          $elevated = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+          [ordered]@{machine=$env:COMPUTERNAME;administrator=$elevated;operation='approved_esri_maintenance'} | ConvertTo-Json -Compress
+          & 'D:\services\kgeo-mcp-remote\inspect-esri-host.ps1'
+          if(!$elevated){throw 'ELEVATED_ADMINISTRATOR_CONSOLE_REQUIRED: installation and restart not attempted.'}
+          & 'D:\services\kgeo-mcp-remote\enable-esri-mcp.ps1' -Apply
+          Invoke-RestMethod 'https://kgeodata.com/server/rest/info?f=json' | Select-Object currentVersion | ConvertTo-Json -Compress
