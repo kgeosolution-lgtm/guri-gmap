@@ -1,22 +1,25 @@
-name: kgeoMCP approved Esri maintenance
+name: kgeoMCP read-only post-maintenance verification
 on:
   push:
     branches: [codex/kgeomcp-server-bootstrap]
 permissions:
   contents: read
 jobs:
-  maintenance:
+  verify:
     runs-on: [self-hosted, Windows, X64, guri-preview]
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
-      - name: Verify elevation and apply prepared installation
+      - name: Inspect server health without changes
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
-          $elevated = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-          [ordered]@{machine=$env:COMPUTERNAME;administrator=$elevated;operation='approved_esri_maintenance'} | ConvertTo-Json -Compress
           & 'D:\services\kgeo-mcp-remote\inspect-esri-host.ps1'
-          if(!$elevated){throw 'ELEVATED_ADMINISTRATOR_CONSOLE_REQUIRED: installation and restart not attempted.'}
-          & 'D:\services\kgeo-mcp-remote\enable-esri-mcp.ps1' -Apply
-          Invoke-RestMethod 'https://kgeodata.com/server/rest/info?f=json' | Select-Object currentVersion | ConvertTo-Json -Compress
+          Get-CimInstance Win32_Service -Filter "Name='ArcGIS Server'" | Select-Object Name,State,ProcessId | ConvertTo-Json -Compress
+          Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalPort -in @(6080,6443) } | Select-Object LocalAddress,LocalPort,OwningProcess | ConvertTo-Json -Compress
+          @'
+          const https=require('node:https');
+          for(const path of ['/arcgis/rest/info?f=json','/arcgis/platform/']){
+            const req=https.get({hostname:'127.0.0.1',port:6443,path,rejectUnauthorized:false,timeout:15000},res=>{let body='';res.on('data',d=>{if(body.length<2000)body+=d.toString()});res.on('end',()=>console.log(JSON.stringify({scope:'loopback_read_only',path,status:res.statusCode,body:body.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').slice(0,800)})));});
+            req.on('timeout',()=>req.destroy(new Error('timeout')));req.on('error',e=>console.log(JSON.stringify({path,error:e.code||e.message})));
+          }
+          '@ | node
