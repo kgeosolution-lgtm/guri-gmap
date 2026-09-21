@@ -1,28 +1,22 @@
-name: kgeoMCP server stage
+name: kgeoMCP account check
 on:
   push:
     branches: [codex/kgeomcp-server-bootstrap]
 permissions:
   contents: read
 jobs:
-  stage:
+  check:
     runs-on: [self-hosted, Windows, X64, guri-preview]
-    timeout-minutes: 12
+    timeout-minutes: 3
     steps:
-      - name: Receive private release and stage
+      - name: Verify portaladmin access on the running server without changing configuration
         shell: powershell
-        env:
-          KGEO_TRANSFER_URL: ${{ secrets.KGEOMCP_STAGE_URL }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $ProgressPreference = 'SilentlyContinue'
-          $temporary = Join-Path $env:RUNNER_TEMP 'kgeomcp-66e32c0fddebba6c'
-          New-Item -ItemType Directory -Path $temporary -Force | Out-Null
-          & icacls.exe $temporary /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-20:(OI)(CI)F' | Out-Null
-          if($LASTEXITCODE -ne 0){throw 'Private transfer ACL failed'}
-          $archive = Join-Path $temporary 'transfer.zip'
-          try { Invoke-WebRequest -UseBasicParsing -Uri $env:KGEO_TRANSFER_URL -OutFile $archive } catch { throw 'Private transfer failed. Refresh the short-lived download capability.' }
-          $env:KGEO_TRANSFER_URL = $null
-          if((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne '4b4d1245e7114cc3660a7eb3bfbec1c93b8ac43ad6833cdba40c3affc6238fed'){throw 'Transfer hash mismatch'}
-          Expand-Archive -LiteralPath $archive -DestinationPath $temporary
-          & (Join-Path $temporary 'stage-release.ps1') -Package (Join-Path $temporary 'kgeoMCP.zip') -Manifest (Join-Path $temporary 'manifest.json') -Configuration (Join-Path $temporary 'config.json')
+          $operatorConfig = Get-Content -LiteralPath 'D:\services\kgeo-mcp-remote\config.json' -Raw | ConvertFrom-Json
+          $activeConfig = Get-Content -LiteralPath 'D:\services\kgeo-mcp-remote\active-config.json' -Raw | ConvertFrom-Json
+          if ($operatorConfig.app.portal -ne 'https://kgeodata.com/portal' -or $activeConfig.app.portal -ne 'https://kgeodata.com/portal') { throw 'Unexpected Portal connection' }
+          if (-not (@($operatorConfig.allowedUsers) -ccontains 'portaladmin') -or -not (@($activeConfig.allowedUsers) -ccontains 'portaladmin')) { throw 'Requested account is not in both configured and active allowlists' }
+          $health = Invoke-RestMethod 'http://127.0.0.1:4187/app/kgeomcp/health.json'
+          if ($health.health -ne 'ready' -or $health.version -ne '0.23.1' -or $health.releaseId -ne '66e32c0fddebba6c') { throw 'Expected release is not ready' }
+          Write-Output 'portaladmin is allowed in the configured and active account lists; v0.23.1 is ready. No configuration or data was changed. OAuth user login remains to be tested.'
