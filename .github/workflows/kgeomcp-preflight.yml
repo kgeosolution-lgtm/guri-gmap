@@ -1,22 +1,91 @@
-name: kgeoMCP account check
+name: kgeoMCP access update
 on:
   push:
     branches: [codex/kgeomcp-server-bootstrap]
 permissions:
   contents: read
 jobs:
-  check:
+  access:
     runs-on: [self-hosted, Windows, X64, guri-preview]
-    timeout-minutes: 3
+    timeout-minutes: 5
     steps:
-      - name: Verify portaladmin access on the running server without changing configuration
+      - name: Apply requested accounts and verify active configuration
         shell: powershell
+        env:
+          KGEO_ACCOUNT_ALLOWLIST: ${{ secrets.KGEOMCP_ACCOUNT_ALLOWLIST }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $operatorConfig = Get-Content -LiteralPath 'D:\services\kgeo-mcp-remote\config.json' -Raw | ConvertFrom-Json
-          $activeConfig = Get-Content -LiteralPath 'D:\services\kgeo-mcp-remote\active-config.json' -Raw | ConvertFrom-Json
-          if ($operatorConfig.app.portal -ne 'https://kgeodata.com/portal' -or $activeConfig.app.portal -ne 'https://kgeodata.com/portal') { throw 'Unexpected Portal connection' }
-          if (-not (@($operatorConfig.allowedUsers) -ccontains 'portaladmin') -or -not (@($activeConfig.allowedUsers) -ccontains 'portaladmin')) { throw 'Requested account is not in both configured and active allowlists' }
-          $health = Invoke-RestMethod 'http://127.0.0.1:4187/app/kgeomcp/health.json'
-          if ($health.health -ne 'ready' -or $health.version -ne '0.23.1' -or $health.releaseId -ne '66e32c0fddebba6c') { throw 'Expected release is not ready' }
-          Write-Output 'portaladmin is allowed in the configured and active account lists; v0.23.1 is ready. No configuration or data was changed. OAuth user login remains to be tested.'
+          $accessScript = @'
+          param([Parameter(Mandatory=$true)][string]$AllowedUsersJson,[switch]$Apply)
+          $ErrorActionPreference='Stop'
+          $remoteRoot='D:\services\kgeo-mcp-remote'
+          $configPath=Join-Path $remoteRoot 'config.json'
+          $activePath=Join-Path $remoteRoot 'active-config.json'
+          $taskName='KGEO-MCP-Remote'
+          $requested=@($AllowedUsersJson | ConvertFrom-Json)
+          if($requested.Count -lt 1 -or $requested.Count -gt 32){throw 'An explicit account allowlist is required'}
+          foreach($name in $requested){if($name -isnot [string] -or $name -cnotmatch '^[A-Za-z0-9_.@-]{1,128}$'){throw 'Invalid account identifier'}}
+          if(@($requested | Sort-Object -Unique).Count -ne $requested.Count){throw 'Duplicate account identifiers'}
+          $before=Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+          if($before.baseUrl -ne 'https://kgeodata.com/app/kgeomcp' -or $before.app.portal -ne 'https://kgeodata.com/portal' -or $before.port -ne 4187){throw 'Unexpected target service'}
+          if(!(Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue)){throw 'Remote connector task is missing'}
+          $health=Invoke-RestMethod 'http://127.0.0.1:4187/app/kgeomcp/health.json'
+          if($health.health -ne 'ready'){throw 'Connector must be healthy before changing access'}
+          $releaseId=$health.releaseId
+          Write-Output 'Impact: replace only the kgeoMCP account allowlist and restart KGEO-MCP-Remote. ArcGIS accounts and Portal permissions are not changed.'
+          if(!$Apply){Write-Output ('Preflight passed. Requested accounts: '+$requested.Count);exit 0}
+          $backup=Join-Path $remoteRoot ('config.before-access-'+[guid]::NewGuid().ToString('N')+'.json')
+          Copy-Item -LiteralPath $configPath -Destination $backup
+          $stopped=$false
+          $changed=$false
+          function Wait-PortClosed {
+           for($i=0;$i -lt 30;$i++){
+            if(!(Get-NetTCPConnection -LocalPort 4187 -State Listen -ErrorAction SilentlyContinue)){return}
+            Start-Sleep -Seconds 1
+           }
+           throw 'Connector port is still occupied; no unrelated process will be stopped'
+          }
+          try {
+           Stop-ScheduledTask -TaskName $taskName
+           $stopped=$true
+           Wait-PortClosed
+           $before.allowedUsers=@($requested)
+           $next=Join-Path $remoteRoot ('config.next-access-'+[guid]::NewGuid().ToString('N')+'.json')
+           [IO.File]::WriteAllText($next,($before | ConvertTo-Json -Depth 30),(New-Object Text.UTF8Encoding($false)))
+           Move-Item -LiteralPath $next -Destination $configPath -Force
+           $changed=$true
+           Start-ScheduledTask -TaskName $taskName
+           $verified=$false
+           for($i=0;$i -lt 45;$i++){
+            Start-Sleep -Seconds 1
+            try {
+             $live=Invoke-RestMethod 'http://127.0.0.1:4187/app/kgeomcp/health.json'
+             $active=Get-Content -LiteralPath $activePath -Raw | ConvertFrom-Json
+             $stored=Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+             $activeDiff=@(Compare-Object -CaseSensitive -ReferenceObject @($requested) -DifferenceObject @($active.allowedUsers))
+             $storedDiff=@(Compare-Object -CaseSensitive -ReferenceObject @($requested) -DifferenceObject @($stored.allowedUsers))
+             if($live.health -eq 'ready' -and $live.releaseId -eq $releaseId -and $activeDiff.Count -eq 0 -and $storedDiff.Count -eq 0){$verified=$true;break}
+            } catch { }
+           }
+           if(!$verified){throw 'Active account allowlist was not verified'}
+           $old=Get-Content -LiteralPath $backup -Raw | ConvertFrom-Json
+           $old.allowedUsers=@()
+           $stored.allowedUsers=@()
+           if(($old | ConvertTo-Json -Depth 30 -Compress) -cne ($stored | ConvertTo-Json -Depth 30 -Compress)){throw 'Unexpected unrelated configuration change'}
+           @{verified=$true;accountCount=$requested.Count;configuredAndActiveMatch=$true;version=$live.version;releaseId=$live.releaseId;backup=$backup;otherSettingsPreserved=$true} | ConvertTo-Json
+          } catch {
+           if($stopped){
+            try {
+             Stop-ScheduledTask -TaskName $taskName
+             Wait-PortClosed
+             if($changed){Copy-Item -LiteralPath $backup -Destination $configPath -Force}
+             Start-ScheduledTask -TaskName $taskName
+             Write-Output 'Previous configuration restored and connector restart requested. Verify health before retrying.'
+            } catch { Write-Output ('Automatic recovery needs operator inspection. Configuration backup: '+$backup) }
+           }
+           throw 'Account access update was not verified; inspect recovery state. Do not report success.'
+          }
+          '@
+          $accessFile = Join-Path $env:RUNNER_TEMP 'kgeomcp-update-access.ps1'
+          [IO.File]::WriteAllText($accessFile,$accessScript,(New-Object Text.UTF8Encoding($false)))
+          try { & $accessFile -AllowedUsersJson $env:KGEO_ACCOUNT_ALLOWLIST -Apply } finally { $env:KGEO_ACCOUNT_ALLOWLIST = $null }
