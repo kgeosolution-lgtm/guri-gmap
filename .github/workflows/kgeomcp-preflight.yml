@@ -22,7 +22,10 @@ jobs:
           $configPath=Join-Path $remoteRoot 'config.json'
           $activePath=Join-Path $remoteRoot 'active-config.json'
           $taskName='KGEO-MCP-Remote'
-          $requested=@($AllowedUsersJson | ConvertFrom-Json)
+          if(!$AllowedUsersJson.Trim().StartsWith('[') -or !$AllowedUsersJson.Trim().EndsWith(']')){throw 'Explicit JSON account array required'}
+          # Windows PowerShell 5.1 can wrap the pipeline's JSON array as one nested item.
+          $decoded=ConvertFrom-Json -InputObject $AllowedUsersJson
+          $requested=@($decoded)
           if($requested.Count -lt 1 -or $requested.Count -gt 32){throw 'An explicit account allowlist is required'}
           foreach($name in $requested){if($name -isnot [string] -or $name -cnotmatch '^[A-Za-z0-9_.@-]{1,128}$'){throw 'Invalid account identifier'}}
           if(@($requested | Sort-Object -Unique).Count -ne $requested.Count){throw 'Duplicate account identifiers'}
