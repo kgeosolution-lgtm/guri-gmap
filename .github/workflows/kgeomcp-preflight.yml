@@ -1,68 +1,46 @@
-name: kgeoMCP private runner bootstrap
+name: kgeoMCP prepare Git startup
 on:
   push:
     branches: [codex/kgeomcp-server-bootstrap]
 permissions:
   contents: read
 jobs:
-  bootstrap:
+  prepare:
     runs-on: [self-hosted, Windows, X64, guri-preview]
-    timeout-minutes: 12
+    timeout-minutes: 3
     steps:
-      - name: Register isolated private repository runner
+      - name: Prepare administrator startup command
         shell: powershell
-        env:
-          KGEO_RUNNER_REGISTRATION: ${{ secrets.KGEOMCP_RUNNER_REGISTRATION }}
         run: |
           $ErrorActionPreference='Stop'
-          $temporary=Join-Path $env:RUNNER_TEMP 'kgeomcp-private-runner-bootstrap'
-          New-Item -ItemType Directory -Path $temporary -Force | Out-Null
           $script = @'
+          param([switch]$Apply)
           $ErrorActionPreference='Stop'
-          $ProgressPreference='SilentlyContinue'
           $runnerRoot='D:\actions-runner-kgeomcp'
-          $gateRoot='D:\services\kgeo-mcp-deploy-gate'
-          if(Test-Path -LiteralPath $runnerRoot){throw 'Private runner directory already exists; inspect before repeating installation'}
-          if(!$env:KGEO_RUNNER_REGISTRATION){throw 'Short-lived runner registration token is required'}
-          Write-Output 'Impact: add one private-repository deployment runner service. Existing ArcGIS and connector tasks are not restarted.'
-          foreach($directory in @($runnerRoot,$gateRoot)){
-           New-Item -ItemType Directory -Path $directory -Force | Out-Null
-           & icacls.exe $directory /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-20:(OI)(CI)F' | Out-Null
-           if($LASTEXITCODE -ne 0){throw 'Private runner ACL setup failed'}
-          }
-          $archive=Join-Path $runnerRoot 'runner.zip'
-          Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/actions/runner/releases/download/v2.337.0/actions-runner-win-x64-2.337.0.zip' -OutFile $archive
-          if((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne '1150692afa94e71f872017e254ea55b6eece1eece3fe7e3a6d4c93d0a1b85cfc'){throw 'Official runner archive checksum mismatch'}
-          Expand-Archive -LiteralPath $archive -DestinationPath $runnerRoot
-          $gatePath=Join-Path $gateRoot 'runner-job-gate.ps1'
-          Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'runner-job-gate.ps1') -Destination $gatePath
-          # The job account may read the gate but may not rewrite it.
-          & icacls.exe $gateRoot /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-20:(OI)(CI)RX' | Out-Null
-          if($LASTEXITCODE -ne 0){throw 'Runner gate ACL setup failed'}
-          [IO.File]::WriteAllText((Join-Path $runnerRoot '.env'),('ACTIONS_RUNNER_HOOK_JOB_STARTED='+$gatePath+[Environment]::NewLine),(New-Object Text.UTF8Encoding($false)))
-          Push-Location $runnerRoot
-          try {
-           & .\config.cmd --unattended --url 'https://github.com/kgeosolution-lgtm/kgeoMCP' --token $env:KGEO_RUNNER_REGISTRATION --name 'kgeodata-kgeomcp' --labels 'kgeomcp-production' --work '_work' --runasservice --windowslogonaccount 'NT AUTHORITY\NETWORK SERVICE'
-           if($LASTEXITCODE -ne 0){throw 'Private runner registration failed'}
-          } finally {$env:KGEO_RUNNER_REGISTRATION=$null;Pop-Location}
-          $service=@(Get-Service -Name 'actions.runner.kgeosolution-lgtm-kgeoMCP.kgeodata-kgeomcp' -ErrorAction Stop)
-          if($service.Count -ne 1){throw 'Expected one private runner service'}
-          if($service[0].Status -ne 'Running'){Start-Service -Name $service[0].Name}
-          Write-Output ('Private deployment runner installed. Recovery: Stop-Service -Name '+$service[0].Name)
+          $gate='D:\services\kgeo-mcp-deploy-gate\runner-job-gate.ps1'
+          $taskName='KGEO-MCP-GitRunner'
+          $runner=Get-Content -LiteralPath (Join-Path $runnerRoot '.runner') -Raw | ConvertFrom-Json
+          if($runner.gitHubUrl -ne 'https://github.com/kgeosolution-lgtm/kgeoMCP' -or $runner.agentName -ne 'kgeodata-kgeomcp'){throw 'Unexpected registered runner'}
+          if(!(Test-Path -LiteralPath $gate)){throw 'Production workflow gate is missing'}
+          $listener=Join-Path $runnerRoot 'bin\Runner.Listener.exe'
+          if(!(Test-Path -LiteralPath $listener)){throw 'Runner application is missing'}
+          if((Get-Content -LiteralPath (Join-Path $runnerRoot '.env') -Raw).Trim() -ne ('ACTIONS_RUNNER_HOOK_JOB_STARTED='+$gate)){throw 'Runner gate configuration mismatch'}
+          if(Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue){throw 'Task already exists; inspect before repeating setup'}
+          Write-Output 'Impact: create only KGEO-MCP-GitRunner at startup as NETWORK SERVICE. Existing connector, ArcGIS, IIS and static sites are preserved.'
+          Write-Output 'Recovery: Stop-ScheduledTask -TaskName KGEO-MCP-GitRunner; Disable-ScheduledTask -TaskName KGEO-MCP-GitRunner'
+          if(!$Apply){Write-Output 'Preflight passed. Run with -Apply from Administrator PowerShell.';exit 0}
+          $identity=[Security.Principal.WindowsIdentity]::GetCurrent()
+          if(!(New-Object Security.Principal.WindowsPrincipal($identity)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)){throw 'Administrator PowerShell is required to register the startup task'}
+          $action=New-ScheduledTaskAction -Execute $listener -Argument 'run' -WorkingDirectory $runnerRoot
+          $trigger=New-ScheduledTaskTrigger -AtStartup
+          $principal=New-ScheduledTaskPrincipal -UserId 'NT AUTHORITY\NETWORK SERVICE' -LogonType ServiceAccount -RunLevel Limited
+          $settings=New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew -StartWhenAvailable
+          Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings | Out-Null
+          Start-ScheduledTask -TaskName $taskName
+          Start-Sleep -Seconds 5
+          Get-ScheduledTask -TaskName $taskName | Select-Object TaskName,State
+          Write-Output 'Task created. Next verify the private GitHub runner is online and run the production workflow; Running alone is not deployment acceptance.'
           '@
-          [IO.File]::WriteAllText((Join-Path $temporary 'install-private-runner.ps1'),$script,(New-Object Text.UTF8Encoding($false)))
-          $script = @'
-          $ErrorActionPreference='Stop'
-          # Installed outside the runner checkout. Reject jobs before any workflow steps run.
-          if($env:GITHUB_REPOSITORY -cne 'kgeosolution-lgtm/kgeoMCP' -or
-             $env:GITHUB_EVENT_NAME -cne 'push' -or
-             $env:GITHUB_REF -cne 'refs/heads/codex/production' -or
-             $env:GITHUB_WORKFLOW -cne 'kgeoMCP production' -or
-             $env:GITHUB_WORKFLOW_REF -cne 'kgeosolution-lgtm/kgeoMCP/.github/workflows/deploy-remote.yml@refs/heads/codex/production'){
-           Write-Error 'This runner accepts only the private kgeoMCP production push workflow.'
-           exit 1
-          }
-          Write-Output 'Private production workflow gate passed.'
-          '@
-          [IO.File]::WriteAllText((Join-Path $temporary 'runner-job-gate.ps1'),$script,(New-Object Text.UTF8Encoding($false)))
-          & (Join-Path $temporary 'install-private-runner.ps1')
+          $file='D:\services\kgeo-mcp-remote\enable-git-deploy.ps1'
+          [IO.File]::WriteAllText($file,$script,(New-Object Text.UTF8Encoding($false)))
+          & $file
