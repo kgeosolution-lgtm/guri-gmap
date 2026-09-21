@@ -1,94 +1,68 @@
-name: kgeoMCP access update
+name: kgeoMCP private runner bootstrap
 on:
   push:
     branches: [codex/kgeomcp-server-bootstrap]
 permissions:
   contents: read
 jobs:
-  access:
+  bootstrap:
     runs-on: [self-hosted, Windows, X64, guri-preview]
-    timeout-minutes: 5
+    timeout-minutes: 12
     steps:
-      - name: Apply requested accounts and verify active configuration
+      - name: Register isolated private repository runner
         shell: powershell
         env:
-          KGEO_ACCOUNT_ALLOWLIST: ${{ secrets.KGEOMCP_ACCOUNT_ALLOWLIST }}
+          KGEO_RUNNER_REGISTRATION: ${{ secrets.KGEOMCP_RUNNER_REGISTRATION }}
         run: |
-          $ErrorActionPreference = 'Stop'
-          $accessScript = @'
-          param([Parameter(Mandatory=$true)][string]$AllowedUsersJson,[switch]$Apply)
           $ErrorActionPreference='Stop'
-          $remoteRoot='D:\services\kgeo-mcp-remote'
-          $configPath=Join-Path $remoteRoot 'config.json'
-          $activePath=Join-Path $remoteRoot 'active-config.json'
-          $taskName='KGEO-MCP-Remote'
-          if(!$AllowedUsersJson.Trim().StartsWith('[') -or !$AllowedUsersJson.Trim().EndsWith(']')){throw 'Explicit JSON account array required'}
-          # Windows PowerShell 5.1 can wrap the pipeline's JSON array as one nested item.
-          $decoded=ConvertFrom-Json -InputObject $AllowedUsersJson
-          $requested=@($decoded)
-          if($requested.Count -lt 1 -or $requested.Count -gt 32){throw 'An explicit account allowlist is required'}
-          foreach($name in $requested){if($name -isnot [string] -or $name -cnotmatch '^[A-Za-z0-9_.@-]{1,128}$'){throw 'Invalid account identifier'}}
-          if(@($requested | Sort-Object -Unique).Count -ne $requested.Count){throw 'Duplicate account identifiers'}
-          $before=Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
-          if($before.baseUrl -ne 'https://kgeodata.com/app/kgeomcp' -or $before.app.portal -ne 'https://kgeodata.com/portal' -or $before.port -ne 4187){throw 'Unexpected target service'}
-          if(!(Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue)){throw 'Remote connector task is missing'}
-          $health=Invoke-RestMethod 'http://127.0.0.1:4187/app/kgeomcp/health.json'
-          if($health.health -ne 'ready'){throw 'Connector must be healthy before changing access'}
-          $releaseId=$health.releaseId
-          Write-Output 'Impact: replace only the kgeoMCP account allowlist and restart KGEO-MCP-Remote. ArcGIS accounts and Portal permissions are not changed.'
-          if(!$Apply){Write-Output ('Preflight passed. Requested accounts: '+$requested.Count);exit 0}
-          $backup=Join-Path $remoteRoot ('config.before-access-'+[guid]::NewGuid().ToString('N')+'.json')
-          Copy-Item -LiteralPath $configPath -Destination $backup
-          $stopped=$false
-          $changed=$false
-          function Wait-PortClosed {
-           for($i=0;$i -lt 30;$i++){
-            if(!(Get-NetTCPConnection -LocalPort 4187 -State Listen -ErrorAction SilentlyContinue)){return}
-            Start-Sleep -Seconds 1
-           }
-           throw 'Connector port is still occupied; no unrelated process will be stopped'
+          $temporary=Join-Path $env:RUNNER_TEMP 'kgeomcp-private-runner-bootstrap'
+          New-Item -ItemType Directory -Path $temporary -Force | Out-Null
+          $script = @'
+          $ErrorActionPreference='Stop'
+          $ProgressPreference='SilentlyContinue'
+          $runnerRoot='D:\actions-runner-kgeomcp'
+          $gateRoot='D:\services\kgeo-mcp-deploy-gate'
+          if(Test-Path -LiteralPath $runnerRoot){throw 'Private runner directory already exists; inspect before repeating installation'}
+          if(!$env:KGEO_RUNNER_REGISTRATION){throw 'Short-lived runner registration token is required'}
+          Write-Output 'Impact: add one private-repository deployment runner service. Existing ArcGIS and connector tasks are not restarted.'
+          foreach($directory in @($runnerRoot,$gateRoot)){
+           New-Item -ItemType Directory -Path $directory -Force | Out-Null
+           & icacls.exe $directory /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-20:(OI)(CI)F' | Out-Null
+           if($LASTEXITCODE -ne 0){throw 'Private runner ACL setup failed'}
           }
+          $archive=Join-Path $runnerRoot 'runner.zip'
+          Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/actions/runner/releases/download/v2.337.0/actions-runner-win-x64-2.337.0.zip' -OutFile $archive
+          if((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne '1150692afa94e71f872017e254ea55b6eece1eece3fe7e3a6d4c93d0a1b85cfc'){throw 'Official runner archive checksum mismatch'}
+          Expand-Archive -LiteralPath $archive -DestinationPath $runnerRoot
+          $gatePath=Join-Path $gateRoot 'runner-job-gate.ps1'
+          Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'runner-job-gate.ps1') -Destination $gatePath
+          # The job account may read the gate but may not rewrite it.
+          & icacls.exe $gateRoot /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-20:(OI)(CI)RX' | Out-Null
+          if($LASTEXITCODE -ne 0){throw 'Runner gate ACL setup failed'}
+          [IO.File]::WriteAllText((Join-Path $runnerRoot '.env'),('ACTIONS_RUNNER_HOOK_JOB_STARTED='+$gatePath+[Environment]::NewLine),(New-Object Text.UTF8Encoding($false)))
+          Push-Location $runnerRoot
           try {
-           Stop-ScheduledTask -TaskName $taskName
-           $stopped=$true
-           Wait-PortClosed
-           $before.allowedUsers=@($requested)
-           $next=Join-Path $remoteRoot ('config.next-access-'+[guid]::NewGuid().ToString('N')+'.json')
-           [IO.File]::WriteAllText($next,($before | ConvertTo-Json -Depth 30),(New-Object Text.UTF8Encoding($false)))
-           Move-Item -LiteralPath $next -Destination $configPath -Force
-           $changed=$true
-           Start-ScheduledTask -TaskName $taskName
-           $verified=$false
-           for($i=0;$i -lt 45;$i++){
-            Start-Sleep -Seconds 1
-            try {
-             $live=Invoke-RestMethod 'http://127.0.0.1:4187/app/kgeomcp/health.json'
-             $active=Get-Content -LiteralPath $activePath -Raw | ConvertFrom-Json
-             $stored=Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
-             $activeDiff=@(Compare-Object -CaseSensitive -ReferenceObject @($requested) -DifferenceObject @($active.allowedUsers))
-             $storedDiff=@(Compare-Object -CaseSensitive -ReferenceObject @($requested) -DifferenceObject @($stored.allowedUsers))
-             if($live.health -eq 'ready' -and $live.releaseId -eq $releaseId -and $activeDiff.Count -eq 0 -and $storedDiff.Count -eq 0){$verified=$true;break}
-            } catch { }
-           }
-           if(!$verified){throw 'Active account allowlist was not verified'}
-           $old=Get-Content -LiteralPath $backup -Raw | ConvertFrom-Json
-           $old.allowedUsers=@()
-           $stored.allowedUsers=@()
-           if(($old | ConvertTo-Json -Depth 30 -Compress) -cne ($stored | ConvertTo-Json -Depth 30 -Compress)){throw 'Unexpected unrelated configuration change'}
-           @{verified=$true;accountCount=$requested.Count;configuredAndActiveMatch=$true;version=$live.version;releaseId=$live.releaseId;backup=$backup;otherSettingsPreserved=$true} | ConvertTo-Json
-          } catch {
-           if($stopped){
-            try {
-             Stop-ScheduledTask -TaskName $taskName
-             Wait-PortClosed
-             if($changed){Copy-Item -LiteralPath $backup -Destination $configPath -Force}
-             Start-ScheduledTask -TaskName $taskName
-             Write-Output 'Previous configuration restored and connector restart requested. Verify health before retrying.'
-            } catch { Write-Output ('Automatic recovery needs operator inspection. Configuration backup: '+$backup) }
-           }
-           throw 'Account access update was not verified; inspect recovery state. Do not report success.'
-          }
+           & .\config.cmd --unattended --url 'https://github.com/kgeosolution-lgtm/kgeoMCP' --token $env:KGEO_RUNNER_REGISTRATION --name 'kgeodata-kgeomcp' --labels 'kgeomcp-production' --work '_work' --runasservice --windowslogonaccount 'NT AUTHORITY\NETWORK SERVICE'
+           if($LASTEXITCODE -ne 0){throw 'Private runner registration failed'}
+          } finally {$env:KGEO_RUNNER_REGISTRATION=$null;Pop-Location}
+          $service=@(Get-Service -Name 'actions.runner.kgeosolution-lgtm-kgeoMCP.kgeodata-kgeomcp' -ErrorAction Stop)
+          if($service.Count -ne 1){throw 'Expected one private runner service'}
+          if($service[0].Status -ne 'Running'){Start-Service -Name $service[0].Name}
+          Write-Output ('Private deployment runner installed. Recovery: Stop-Service -Name '+$service[0].Name)
           '@
-          $accessFile = Join-Path $env:RUNNER_TEMP 'kgeomcp-update-access.ps1'
-          [IO.File]::WriteAllText($accessFile,$accessScript,(New-Object Text.UTF8Encoding($false)))
-          try { & $accessFile -AllowedUsersJson $env:KGEO_ACCOUNT_ALLOWLIST -Apply } finally { $env:KGEO_ACCOUNT_ALLOWLIST = $null }
+          [IO.File]::WriteAllText((Join-Path $temporary 'install-private-runner.ps1'),$script,(New-Object Text.UTF8Encoding($false)))
+          $script = @'
+          $ErrorActionPreference='Stop'
+          # Installed outside the runner checkout. Reject jobs before any workflow steps run.
+          if($env:GITHUB_REPOSITORY -cne 'kgeosolution-lgtm/kgeoMCP' -or
+             $env:GITHUB_EVENT_NAME -cne 'push' -or
+             $env:GITHUB_REF -cne 'refs/heads/codex/production' -or
+             $env:GITHUB_WORKFLOW -cne 'kgeoMCP production' -or
+             $env:GITHUB_WORKFLOW_REF -cne 'kgeosolution-lgtm/kgeoMCP/.github/workflows/deploy-remote.yml@refs/heads/codex/production'){
+           Write-Error 'This runner accepts only the private kgeoMCP production push workflow.'
+           exit 1
+          }
+          Write-Output 'Private production workflow gate passed.'
+          '@
+          [IO.File]::WriteAllText((Join-Path $temporary 'runner-job-gate.ps1'),$script,(New-Object Text.UTF8Encoding($false)))
+          & (Join-Path $temporary 'install-private-runner.ps1')
