@@ -129,7 +129,7 @@ const recommendedMapsAll: LinkedCard[] = [
     description: '구리가 인증한 맛있는 가게 찾기',
     icon: Utensils,
     color: '#E25563',
-    href: themeUrl('경제·상권'),
+    href: themeUrl('우수맛집'),
   },
   {
     id: 'life',
