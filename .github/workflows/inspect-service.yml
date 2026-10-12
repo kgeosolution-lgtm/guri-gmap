@@ -1,6 +1,8 @@
 name: Inspect ArcGIS service
 # 구리시 포털(guri.go.kr)은 개발 환경에서 직접 접속이 안 되므로, 서비스의 항목·대표값을 GitHub Actions 로그로 읽어 보기 위한 수동 워크플로 (담당: 강민아)
 on:
+  push:
+    branches: [work/kangmina-safety]   # 기본 브랜치에 없는 워크플로는 수동 실행(dispatch)이 안 되어 임시로 push 로 실행
   workflow_dispatch:
     inputs:
       url:
@@ -23,8 +25,8 @@ jobs:
           node-version: '24'
       - name: Inspect
         env:
-          SVC_URL: ${{ inputs.url }}
-          SVC_FIELD: ${{ inputs.field }}
+          SVC_URL: ${{ inputs.url || 'https://www.guri.go.kr/gmapsvr/rest/services/Hosted/safety_all/FeatureServer' }}
+          SVC_FIELD: ${{ inputs.field || '' }}
         run: |
           node - <<'JS'
           const base=process.env.SVC_URL.replace(/\/+$/,''); const want=process.env.SVC_FIELD;
