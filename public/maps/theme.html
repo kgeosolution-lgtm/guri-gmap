@@ -689,7 +689,7 @@ const GROUPS={
      info:'등산로의 쉼터·이정표·안전시설입니다.'}
  }},
  '치안안심':{ icon:'치안안심', accent:'#D3422C', themes:{},   /* 2026-10 구리시 요청: '안전·재난' → '치안안심'. safety_all 한 레이어의 '시설 종류' 값마다 칩을 만든다(buildDynThemes). 옛 주소(group=안전·재난)는 GROUP_ALIAS 로 이어짐 */
-   dyn:{url:U('safety_all'),field:['시설종류','시설물종류','시설물종별','시설종별','시설구분','시설물구분','시설유형','시설물유형','종류','구분','유형','분류','type','kind','category']} },
+   dyn:{url:U('safety_all'),field:['시설물','시설종류','시설물종류','시설물종별','시설종별','시설구분','시설물구분','시설유형','시설물유형','종류','유형','분류','구분','type','kind','category']} },   /* safety_all 의 종류 항목은 '시설물'(값 예: 'CCTV 및 비상벨'), '구분'은 전부 '구리시시설물'이라 뒤로 */
  '건강·의료':{ icon:'건강의료', accent:'#058847', themes:{
    '약국':{c:'#2E9E5B',sym:'health_pharmacy',type:'list',weekHours:true,src:{url:U('health_pharmacy')},
      fields:{name:['약국명','시설명','상호명'],addr:['도로명주소','지번주소','주소'],tel:['전화번호']},
@@ -1863,15 +1863,17 @@ function safetyThemeFor(value,url,field,idx){
   if(field) t.hide=(t.hide||[]).concat([field]);   /* 종류 항목은 칩 이름이 대신하므로 팝업에서 숨김 */
   return t;
 }
-async function buildDynThemes(g){
+async function buildDynThemes(g,loader){
   const G=GROUPS[g]; if(!G||!G.dyn||G.dynBuilt) return;
   const url=G.dyn.url; const pseudo={src:{url}};
-  try{ await loadOne(pseudo); }catch(e){ dataCache[url]=[]; console.warn('[치안안심] 불러오기 실패',String((e&&e.message)||e)); }
-  const rows=dataCache[url]||[]; G.dynBuilt=true; if(!rows.length) return;
+  try{ await loader(pseudo); }catch(e){ dataCache[url]=[]; console.warn('[치안안심] 불러오기 실패',String((e&&e.message)||e)); }
+  const rows=dataCache[url]||[]; G.dynBuilt=true;
+  if(!rows.length){ console.warn('[치안안심] 자료 0건 — 레이어 공개(모든 사용자) 설정과 주소를 확인:',url); try{ toast('치안안심 자료를 불러오지 못했어요. 레이어 공개 설정을 확인해 주세요'); }catch(e){} return; }
   const keys=Object.keys(rows[0]).filter(k=>!/^__/.test(k)); const norm=k=>String(k).toLowerCase().replace(/[_\s]/g,''); const low=keys.map(norm);
-  let field=null;
-  for(const c of G.dyn.field){ const i=low.indexOf(norm(c)); if(i>-1){ field=keys[i]; break; } }
-  if(!field){ for(const c of G.dyn.field){ const i=low.findIndex(k=>k.indexOf(norm(c))>-1); if(i>-1){ field=keys[i]; break; } } }
+  let field=null; const nDistinct=k=>new Set(rows.map(r=>r[k]).filter(v=>v!=null&&String(v).trim())).size;
+  const usable=k=>k&&nDistinct(k)>=2;   /* 값이 한 가지뿐인 항목(예: 구분=구리시시설물)은 건너뛴다 */
+  for(const c of G.dyn.field){ const i=low.indexOf(norm(c)); if(i>-1&&usable(keys[i])){ field=keys[i]; break; } }
+  if(!field){ for(const c of G.dyn.field){ const i=low.findIndex(k=>k.indexOf(norm(c))>-1); if(i>-1&&usable(keys[i])){ field=keys[i]; break; } } }
   if(!field){ let best=null; keys.forEach(k=>{ const vals=new Set(rows.map(r=>r[k]).filter(v=>typeof v==='string'&&v.trim())); if(vals.size>=2&&vals.size<=30&&vals.size<=Math.max(2,rows.length/2)&&(!best||vals.size<best.n)) best={k,n:vals.size}; }); field=best? best.k : null; }   /* 2~30가지(행 수의 절반 이하) 값을 가진 글자 항목 중 가짓수가 가장 적은 것 — 이름 항목은 거의 다 달라서 걸러진다 */
   if(!field){ console.warn('[치안안심] 시설 종류 항목을 못 찾음:',keys.join(',')); const t=safetyThemeFor('치안안심 시설',url,null,0); t.src={url}; G.themes['치안안심 시설']=t; return; }
   const counts={}; rows.forEach(r=>{ const v=r[field]; if(v!=null&&String(v).trim()) counts[v]=(counts[v]||0)+1; });
@@ -1882,7 +1884,6 @@ async function buildDynThemes(g){
   console.info('[치안안심] 시설 종류 항목 "'+field+'" → '+vals.length+'가지: '+vals.join(', '));
 }
 async function loadGroupData(){
-  if(GROUPS[curGroup]&&GROUPS[curGroup].dyn) await buildDynThemes(curGroup);   /* 한 레이어를 종류별 칩으로 */
   const themes=Object.values(groupThemes(curGroup)).filter(t=>t.src);
   const jobs=[];   /* url별 1회 로드 */
   const seen=new Set();
@@ -1977,6 +1978,9 @@ async function loadGroupData(){
     renderChips();                                   /* 다 기다리지 않고 먼저 보여준다 */
     refresh();
   }
+
+  /* 치안안심: 한 레이어를 받아 종류별 칩으로 (loadOne 은 이 함수 안의 지역 함수라 여기서 넘긴다 — 밖에서 부르면 ReferenceError 로 조용히 0건이 됨) */
+  if(GROUPS[curGroup]&&GROUPS[curGroup].dyn) await buildDynThemes(curGroup,loadOne);
 
   /* 여러 레이어를 동시에 (한 번에 최대 6개) */
   const queue=jobs.slice();
