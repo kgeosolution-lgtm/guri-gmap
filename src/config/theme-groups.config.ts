@@ -33,7 +33,7 @@ const themeGroupsAll: ThemeGroupItem[] = [
     hidden: true,
   },
   { group: '시즌·가을', icon: Leaf, color: '#C1652B', summary: '구리 명소·둘레길·등산로' },
-  { group: '안전·재난', icon: ShieldCheck, color: '#E5533C', summary: '대피소·AED·CCTV' },
+  { group: '치안안심', icon: ShieldCheck, color: '#E5533C', summary: 'CCTV·AED·안심귀갓길' },
   { group: '건강·의료', icon: Stethoscope, color: '#2E9E5B', summary: '약국·병의원·예방접종' },
   {
     group: '육아·교육',

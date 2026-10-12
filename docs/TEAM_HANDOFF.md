@@ -607,3 +607,15 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 옛 주소 호환: `?group=경제·상권` → 우수맛집, `?cat=와구리 추천맛집`(또는 추천맛집) → 와구리맛집 (`GROUP_ALIAS`/`CAT_ALIAS`).
 - 브랜치: `work/kangmina-restaurants` (base `design/service-home-refresh` aefea3f).
 - 검증: theme.html 인라인 스크립트 `node --check`, 설정 검사(우수맛집 그룹의 테마가 와구리맛집·노포식당 둘뿐, 두 서비스 URL·심볼·아이콘·별칭 존재), `tsc --noEmit`, prettier, `npm run build:deploy` 후 홈에 우수맛집 카드·옛 이름 0회, `git diff --check` 통과.
+
+## 2026-10-12 우리동네 찾기: 안전·재난 → 치안안심(safety_all 한 레이어를 시설 종류별 칩으로) (담당: 강민아)
+
+- 그룹 이름 `'안전·재난'` → **`'치안안심'`** (`theme.html` GROUPS, 홈 `links.ts`·`theme-groups.config.ts`(요약 "CCTV·AED·안심귀갓길")·`categories.config.ts` 3곳). 그룹 아이콘은 방패(`TOPIC_IC['치안안심']`). 옛 주소 `?group=안전·재난` 은 `GROUP_ALIAS` 로 이어짐.
+- 자료는 새 레이어 **`Hosted/safety_all/FeatureServer` 하나**. 시설 종류가 12가지라 종류마다 칩(테마)이 나와야 하는데 **구리시 포털은 외부에서 토큰 없이 읽을 수 없어(499 Token Required, GitHub Actions 에서 확인) 항목 이름·값을 미리 알 수 없음** → 화면에서 자료를 받은 뒤 자동으로 만든다(`buildDynThemes`, `loadGroupData` 첫 줄에서 호출):
+  1. 종류 항목 찾기: `GROUPS.치안안심.dyn.field` 후보(시설종류·시설물종류·시설구분·구분·종류·유형·분류·type…)를 이름/부분일치로, 없으면 "값이 2~30가지(행 수 절반 이하)인 글자 항목 중 가짓수가 가장 적은 것".
+  2. 값마다 테마 생성(`safetyThemeFor`): `src:{url,catField,catValue}` 로 같은 자료를 종류별로 걸러 씀(`rowsFor` 의 catField 기능). 종류 이름에 든 글자로 **옛 안전·재난 테마 설정(`SAFETY_PRESETS`: 팝업·심볼·안내·AED 상태·보호구역 폴리곤)을 재사용**(AED·귀갓길·CCTV·대피·쉼터·지킴이·보호구역·소방/소화). 새 종류는 `SAFETY_RULES` 의 새 심볼+팝업: 비상벨(`safety_bell`)·택배함(`safety_parcel`)·경찰/지구대/파출소(`safety_police`)·보안등/가로등(`safety_lamp`)·순찰/안심구역(`safety_patrol`)·반사경(`safety_mirror`), 그 밖은 `safety_default`(방패)에 색 6가지 순환. 새 심볼은 `scripts/safety-icons.py` 로 생성해 `SYM` 에 넣음.
+  3. 칩 순서는 `SAFETY_ORDER`(쉼터·대피·AED·귀갓길·CCTV·보호구역·지킴이·소방·비상벨·택배·경찰·보안등) 뒤에 나머지는 건수순. 종류 항목은 팝업에서 숨김(칩 이름이 대신).
+  4. 콘솔에 `[치안안심] 시설 종류 항목 "…" → n가지: …` 가 찍힘 — **배포 후 담당자에게 이 줄을 받아 12가지가 맞는지, 심볼·팝업이 종류에 맞게 붙었는지 확인**. 맞지 않는 종류는 `SAFETY_RULES` 의 정규식만 고치면 됨.
+- 서비스 항목 확인용 수동 워크플로 `.github/workflows/inspect-service.yml` 추가(현재는 포털이 토큰을 요구해 쓸모가 없지만, 공개 서비스에는 됨. 기본 브랜치에 없으면 dispatch 가 404 라 쓸 때 push 트리거를 잠시 붙임).
+- 브랜치: `work/kangmina-safety` (base `design/service-home-refresh` db5046d).
+- 검증: 하네스 `safety-test.js` — 10행 가짜 자료로 종류 9가지 생성, 우선순위 정렬, 종류→옛 설정/새 심볼 매칭(AED 팝업 재사용 등), 종류별 행 걸러내기, 후보 밖 항목 자동 탐지, 항목 없으면 한 덩어리 통과. theme.html `node --check`, `tsc --noEmit`, prettier, `npm run build:deploy`(홈에 치안안심 카드·옛 이름 0), `git diff --check` 통과.

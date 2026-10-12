@@ -42,7 +42,7 @@ export type LinkedCard = CardItem & { icon: LucideIcon; color: string };
 /** 히어로 하단 6개 카테고리. 관광·부동산은 대응 그룹이 없어 준비중. */
 export const quickCategories: QuickCategory[] = [
   { id: 'life', label: '생활', icon: Heart, color: '#F06B72', href: themeUrl('생활편의') },
-  { id: 'safety', label: '안전', icon: ShieldCheck, color: '#E66E36', href: themeUrl('안전·재난') },
+  { id: 'safety', label: '안전', icon: ShieldCheck, color: '#E66E36', href: themeUrl('치안안심') },
   { id: 'health', label: '건강', icon: Stethoscope, color: '#15A58C', href: themeUrl('건강·의료') },
   { id: 'leisure', label: '여가', icon: Trees, color: '#4B8D63', href: themeUrl('문화·여가') },
   { id: 'tour', label: '관광', icon: MapPinned, color: '#4983CF', href: null },
@@ -63,7 +63,7 @@ export const quickFinder: LinkedCard[] = [
     description: '가까운 안전쉼터',
     icon: Accessibility,
     color: '#5A7AE6',
-    href: themeUrl('안전·재난'),
+    href: themeUrl('치안안심'),
   },
   {
     id: 'parking',
@@ -121,7 +121,7 @@ const recommendedMapsAll: LinkedCard[] = [
     description: '안전시설과 재난대피 정보를 가까이',
     icon: ShieldCheck,
     color: '#F26E47',
-    href: themeUrl('안전·재난'),
+    href: themeUrl('치안안심'),
   },
   {
     id: 'food',
