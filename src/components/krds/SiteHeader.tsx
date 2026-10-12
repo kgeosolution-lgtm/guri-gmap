@@ -1,5 +1,6 @@
 'use client';
 import { homeUrl } from '@/config/paths';
+import { siteConfig } from '@/config/site.config';
 import { aerialUrl, animalUrl, sceneUrl, themeUrl } from '@/config/links';
 export function SiteHeader({
   variant = 'home',
@@ -12,7 +13,8 @@ export function SiteHeader({
 }) {
   const links = [
     { label: '우리동네 찾기', href: themeUrl('시즌·가을') },
-    { label: '유기동물 찾기', href: animalUrl() },
+    /* 유기동물 찾기: 내년도 서비스 예정 — siteConfig.features.animalMap 으로 보이기 */
+    ...(siteConfig.features.animalMap ? [{ label: '유기동물 찾기', href: animalUrl() }] : []),
     { label: '3D입체지도', href: sceneUrl() },
     { label: '항공사진 비교', href: aerialUrl() },
     { label: 'G-MAP 소개', href: homeUrl('#about') },

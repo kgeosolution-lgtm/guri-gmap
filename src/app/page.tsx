@@ -129,31 +129,33 @@ export default function Home() {
             </div>
           )}
         </section>
-        <section className="pet-section">
-          <div className="home-wrap pet-layout">
-            <div className="pet-illustration" aria-hidden="true">
-              <PawPrint strokeWidth={0.85} />
-              <span>A NEW BEGINNING</span>
+        {siteConfig.features.animalMap && (
+          <section className="pet-section">
+            <div className="home-wrap pet-layout">
+              <div className="pet-illustration" aria-hidden="true">
+                <PawPrint strokeWidth={0.85} />
+                <span>A NEW BEGINNING</span>
+              </div>
+              <div>
+                <p className="eyebrow">함께 살아가는 구리</p>
+                <h2>
+                  새로운 가족을 기다리는
+                  <br />
+                  아이들을 만나보세요.
+                </h2>
+                <p>
+                  보호 중인 동물의 사진과 발견 장소,
+                  <br />
+                  보호소 정보를 한곳에서 확인할 수 있어요.
+                </p>
+                <a className="home-button pet-button" href={animalUrl()}>
+                  유기동물 찾기 <ArrowUpRight size={19} />
+                </a>
+              </div>
+              <span className="pet-section-index">02 / COMPANION</span>
             </div>
-            <div>
-              <p className="eyebrow">함께 살아가는 구리</p>
-              <h2>
-                새로운 가족을 기다리는
-                <br />
-                아이들을 만나보세요.
-              </h2>
-              <p>
-                보호 중인 동물의 사진과 발견 장소,
-                <br />
-                보호소 정보를 한곳에서 확인할 수 있어요.
-              </p>
-              <a className="home-button pet-button" href={animalUrl()}>
-                유기동물 찾기 <ArrowUpRight size={19} />
-              </a>
-            </div>
-            <span className="pet-section-index">02 / COMPANION</span>
-          </div>
-        </section>
+          </section>
+        )}
         <section className="scene-section">
           <div className="home-wrap scene-layout">
             <div className="scene-illustration" aria-hidden="true">
@@ -176,7 +178,9 @@ export default function Home() {
                 3D입체지도 보기 <ArrowUpRight size={19} />
               </a>
             </div>
-            <span className="scene-section-index">03 / SKYLINE</span>
+            <span className="scene-section-index">
+              {siteConfig.features.animalMap ? '03' : '02'} / SKYLINE
+            </span>
           </div>
         </section>
         <section className="aerial-section">
@@ -201,7 +205,9 @@ export default function Home() {
                 항공사진 비교 보기 <ArrowUpRight size={19} />
               </a>
             </div>
-            <span className="aerial-section-index">04 / TIMELINE</span>
+            <span className="aerial-section-index">
+              {siteConfig.features.animalMap ? '04' : '03'} / TIMELINE
+            </span>
           </div>
         </section>
         <section id="about" className="home-wrap about-section">
@@ -213,7 +219,7 @@ export default function Home() {
               가장 가까운 방법.
             </h2>
             <p>
-              G-MAP은 구리의 생활 시설과 보호 동물 정보를
+              G-MAP은 구리의 생활 시설{siteConfig.features.animalMap ? '과 보호 동물' : ''} 정보를
               <br />
               지도에서 찾아보는 시민생활지도예요.
             </p>

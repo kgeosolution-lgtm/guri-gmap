@@ -298,7 +298,7 @@ a{color:inherit}
 </head>
 <body>
 
-<header class="service-header map topbar"><div class="service-header-inner"><a class="service-brand" href="/" aria-label="G-MAP 구리시 시민생활지도 홈"><img src="/images/guri-emblem.png" alt="" width="50" height="41"><span><b>G-MAP</b><small>구리시 시민생활지도</small></span></a><span class="service-page-name">우리동네 찾기</span><nav class="service-nav" aria-label="주 메뉴"><a href="/maps/theme.html?group=%EC%97%AC%EB%A6%84" aria-current="page">우리동네 찾기</a><a href="/maps/animal.html" >유기동물 찾기</a><a href="/maps/scene.html" >3D입체지도</a><a href="/maps/aerial.html" >항공사진 비교</a><a href="/#about">G-MAP 소개</a></nav><a class="service-search" href="/#search">테마 찾기 <span aria-hidden="true">↗</span></a><details class="service-mobile"><summary aria-label="메뉴 열기·닫기"><span></span><span></span></summary><nav aria-label="모바일 주 메뉴"><a href="/maps/theme.html?group=%EC%97%AC%EB%A6%84" aria-current="page">우리동네 찾기</a><a href="/maps/animal.html" >유기동물 찾기</a><a href="/maps/scene.html" >3D입체지도</a><a href="/maps/aerial.html" >항공사진 비교</a><a href="/#about">G-MAP 소개</a><a href="/#search">테마 찾기</a></nav></details></div></header>
+<header class="service-header map topbar"><div class="service-header-inner"><a class="service-brand" href="/" aria-label="G-MAP 구리시 시민생활지도 홈"><img src="/images/guri-emblem.png" alt="" width="50" height="41"><span><b>G-MAP</b><small>구리시 시민생활지도</small></span></a><span class="service-page-name">우리동네 찾기</span><nav class="service-nav" aria-label="주 메뉴"><a href="/maps/theme.html?group=%EC%97%AC%EB%A6%84" aria-current="page">우리동네 찾기</a><!-- 유기동물 찾기(내년도 서비스 예정, 구리시 2026-10): <a href="/maps/animal.html" >유기동물 찾기</a> --><a href="/maps/scene.html" >3D입체지도</a><a href="/maps/aerial.html" >항공사진 비교</a><a href="/#about">G-MAP 소개</a></nav><a class="service-search" href="/#search">테마 찾기 <span aria-hidden="true">↗</span></a><details class="service-mobile"><summary aria-label="메뉴 열기·닫기"><span></span><span></span></summary><nav aria-label="모바일 주 메뉴"><a href="/maps/theme.html?group=%EC%97%AC%EB%A6%84" aria-current="page">우리동네 찾기</a><!-- 유기동물 찾기(내년도 서비스 예정, 구리시 2026-10): <a href="/maps/animal.html" >유기동물 찾기</a> --><a href="/maps/scene.html" >3D입체지도</a><a href="/maps/aerial.html" >항공사진 비교</a><a href="/#about">G-MAP 소개</a><a href="/#search">테마 찾기</a></nav></details></div></header>
 
 <div class="chipbar"><div class="chipbar-in">
   <div class="group-sel" id="groupSel" tabindex="0" role="button" aria-haspopup="listbox" aria-label="분류 선택"><img id="groupIc" alt=""><span class="gs-txt"><span class="gs-lbl">테마</span><span id="groupTx"></span></span><i class="ar"></i></div><div class="group-menu" id="groupMenu" role="listbox"></div>
@@ -749,7 +749,7 @@ const GROUPS={
      pop:[['🏛️','구분',['구분','기관구분','유형']],['⏰','운영시간',['운영시간','이용시간']],['ℹ️','안내',['비고','안내']]],
      info:'도움이 필요한 순간, 함께할 수 있는 기관입니다. 24시간 상담은 109로 전화하세요.'}
  }},
- '육아·교육':{ icon:'육아교육', accent:'#7367D7', themes:{
+ '육아·교육':{ hidden:true, icon:'육아교육', accent:'#7367D7',   /* 이벤트성 지도로 분류되어 이번 구축 대상에서 제외(구리시, 2026-10): 메뉴·검색에서 숨김, URL 직접 접근은 가능 */ themes:{
    '어린이집·유치원':{short:'어린이집',c:'#F0A02C',sym:'edu_daycare',type:'list',src:{url:U('edu_daycare')},
      mono:{field:['설립구분','설립유형','구분','시설구분','유형'],map:{'국공립':'국공립','공립':'국공립','민간':'민간','가정':'가정','직장':'직장','법인':'법인','협동':'협동','사회복지':'복지','유치원':'유치원'},fallback:2},
      cat:[['구분','시설구분','유형'],['설립구분','설립유형']],
@@ -1212,7 +1212,7 @@ const GROUPS={
           ['🏠','보호소',['carenm','보호소명']]],
      telTitle:'📞 보호소 전화',
      telLabel:'보호소에 문의 전화',
-     links:[{t:'🐾 유기동물 찾기 앱에서 더 보기',url:'https://kgeodata.com/app/guri/maps/animal.html',solid:true}],
+     /* links:[{t:'🐾 유기동물 찾기 앱에서 더 보기',url:'https://kgeodata.com/app/guri/maps/animal.html',solid:true}],   유기동물 찾기는 내년도 서비스 예정이라 링크 숨김 */
      foot:'입양·반환 문의는 보호소로 직접 연락해 주세요',
      info:'따뜻한 가족을 기다리는 아이들입니다. 공고기간이 끝나기 전에 만나주세요.'},
  }},
