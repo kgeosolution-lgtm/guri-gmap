@@ -598,3 +598,12 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 육아·교육: 이벤트성 지도로 분류되어 이번 구축 대상에서 제외 → `theme.html` GROUPS `'육아·교육'` 에 `hidden:true`(시즌·여름과 같은 방식: 그룹 메뉴·검색에서 숨김, URL 직접 접근은 가능), 홈 테마 카탈로그 `theme-groups.config.ts` 도 `hidden: true`. 되돌리려면 두 곳의 `hidden` 만 지움.
 - 브랜치: `work/kangmina-hide-animal-childcare` (base `design/service-home-refresh` 308caf9).
 - 검증: `tsc --noEmit`, prettier(src), 지도 4쪽 인라인 스크립트·review.js `node --check`, 겹쳐 보기 하네스, `npm run build:deploy` 후 `out/index.html` 에 유기동물 찾기 링크·육아·교육 카드 0, v1 카드 0, 정적 4쪽 헤더의 `animal.html` 링크가 주석 밖에 0개(주석 안 2개), `git diff --check` 통과.
+
+## 2026-10-12 우리동네 찾기: 경제·상권 → 우수맛집(와구리맛집·노포식당 새 레이어) (담당: 강민아)
+
+- 그룹 이름 `'경제·상권'` → **`'우수맛집'`** (`theme.html` GROUPS 키, 홈 `links.ts` ThemeGroup·`theme-groups.config.ts`(아이콘 Utensils, 요약 "와구리맛집·노포식당")·`categories.config.ts` 우수맛집 지도 카드 링크). 그룹 아이콘은 `TOPIC_IC['우수맛집']`(포크·나이프)을 새로 넣음.
+- 레이어는 새로 발행된 둘만: **와구리맛집** `Hosted/restaurant_waguri/FeatureServer`(심볼은 기존 추천맛집 `econ_waguri` 그대로), **노포식당** `Hosted/restaurant_long/FeatureServer`(새 심볼 `econ_nopo`: 테라코타 원 + 김 나는 뚝배기, `scripts/nopo-icon.py` 로 생성해 `SYM` 에 base64 로 넣음). 옛 모범음식점·시장 및 마트 테마 설정은 이 커밋 이전 이력(#65 이전 `theme.html`)에 있음.
+- 팝업: 둘 다 기존 와구리 추천맛집 구성(이름 → 대표메뉴 칩 → 안내 → 지정년도 → 출처 안내). 노포식당은 "개업"(개업년도·창업년도·업력 등) 한 줄 추가. **새 서비스의 실제 항목 이름은 이 환경에서 확인하지 못해** 이름(영업소명·업소명·상호·상호명·업체명·사업장명·식당명·가게명·명칭·name)·대표메뉴(대표메뉴·주메뉴·메뉴·주요메뉴)·지정년도(지정년도·지정연도·선정년도·선정연도) 후보로 자동 매칭함 — 화면에서 이름이나 메뉴가 비면 서비스 항목 이름을 받아 후보에 추가할 것.
+- 옛 주소 호환: `?group=경제·상권` → 우수맛집, `?cat=와구리 추천맛집`(또는 추천맛집) → 와구리맛집 (`GROUP_ALIAS`/`CAT_ALIAS`).
+- 브랜치: `work/kangmina-restaurants` (base `design/service-home-refresh` aefea3f).
+- 검증: theme.html 인라인 스크립트 `node --check`, 설정 검사(우수맛집 그룹의 테마가 와구리맛집·노포식당 둘뿐, 두 서비스 URL·심볼·아이콘·별칭 존재), `tsc --noEmit`, prettier, `npm run build:deploy` 후 홈에 우수맛집 카드·옛 이름 0회, `git diff --check` 통과.
