@@ -1,0 +1,44 @@
+name: Inspect ArcGIS service
+# 구리시 포털(guri.go.kr)은 개발 환경에서 직접 접속이 안 되므로, 서비스의 항목·대표값을 GitHub Actions 로그로 읽어 보기 위한 수동 워크플로 (담당: 강민아)
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'FeatureServer 또는 레이어 URL'
+        required: true
+        type: string
+      field:
+        description: '구분값을 셀 항목 이름(선택)'
+        required: false
+        type: string
+        default: ''
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Inspect
+        env:
+          SVC_URL: ${{ inputs.url }}
+          SVC_FIELD: ${{ inputs.field }}
+        run: |
+          node - <<'JS'
+          const base=process.env.SVC_URL.replace(/\/+$/,''); const want=process.env.SVC_FIELD;
+          const j=async u=>{ const r=await fetch(u); const t=await r.text(); try{ return JSON.parse(t); }catch(e){ return {raw:t.slice(0,400)}; } };
+          (async()=>{
+            let lyr=base; const root=await j(base+'?f=json');
+            if(root.layers){ console.log('LAYERS', JSON.stringify(root.layers.map(l=>({id:l.id,name:l.name,geometryType:l.geometryType})))); lyr=base+'/'+root.layers[0].id; }
+            const info=await j(lyr+'?f=json');
+            console.log('LAYER', JSON.stringify({name:info.name,geometryType:info.geometryType,sr:info.extent&&info.extent.spatialReference}));
+            console.log('FIELDS', JSON.stringify((info.fields||[]).map(f=>[f.name,f.type,f.alias])));
+            const cnt=await j(lyr+'/query?where=1%3D1&returnCountOnly=true&f=json'); console.log('COUNT', JSON.stringify(cnt));
+            const sample=await j(lyr+'/query?where=1%3D1&outFields=*&resultRecordCount=3&returnGeometry=false&f=json'); console.log('SAMPLE', JSON.stringify((sample.features||[]).map(f=>f.attributes)));
+            const cands=want? [want] : (info.fields||[]).filter(f=>f.type==='esriFieldTypeString').map(f=>f.name);
+            for(const f of cands){ const d=await j(lyr+'/query?where=1%3D1&outFields='+encodeURIComponent(f)+'&returnDistinctValues=true&returnGeometry=false&orderByFields='+encodeURIComponent(f)+'&f=json');
+              const vals=(d.features||[]).map(x=>x.attributes[f]); if(vals.length&&vals.length<=40) console.log('DISTINCT '+f+' ('+vals.length+')', JSON.stringify(vals)); else console.log('DISTINCT '+f+' count='+vals.length); }
+          })().catch(e=>{ console.error('ERR',e); process.exit(1); });
+          JS
