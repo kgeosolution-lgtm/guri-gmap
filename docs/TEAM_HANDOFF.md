@@ -628,3 +628,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 담당자 캡처로 확인한 safety_all 항목: `구분`(전부 '구리시시설물'), **`시설물`(종류, 예: 'CCTV 및 비상벨')**, `상세정보`(관리번호), `설명`, `장소`(이름), `주소`, `기타`, `x`, `y`. 961건. → 종류 후보에 `시설물` 을 맨 앞에 두고, **값이 한 가지뿐인 후보('구분')는 건너뛰게** 함. 자료가 0건이면 토스트로 "레이어 공개 설정을 확인" 안내.
 - 브랜치: `work/kangmina-safety-fix` (base `design/service-home-refresh` 564ab20).
 - 검증: 하네스 — 실제 자료 모양(구분 동일·시설물 종류)으로 '시설물' 선택과 종류별 칩, 정적 호출 위치 검사 통과. theme.html `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
+
+## 2026-10-12 치안안심: CCTV 보관 기간 문구 제거, 팝업 제목은 장소 이름 (담당: 강민아)
+
+- 담당자 문의 "구리시 CCTV 도 30일 보관이 맞느냐" — 확인된 사실이 아니라(기관·설치 목적마다 다름) 옛 CCTV 안내문 "영상은 30일 보관… 30일 안에 요청"을 **"방범과 생활안전을 위해 설치된 CCTV예요 / 영상 열람이 필요하면 관리기관에 문의하세요"** 로 바꿈(`SAFETY_PRESETS.CCTV.guide`).
+- 팝업 제목이 "구리시시설물 CCTV" 로 나오던 것: 옛 CCTV 설정의 `nameFn`·`cat` 이 `구분` 항목을 쓰는데 safety_all 의 `구분` 은 전부 '구리시시설물'. 치안안심 테마(`safetyThemeFor`)는 이제 제목을 **`장소`(없으면 시설명·명칭…, 그래도 없으면 종류 이름)** 로, 옛 설정의 분류 뱃지(`cat`·`catFn`·`titleFn`)는 쓰지 않음. 값이 한 가지뿐인 항목(`구분`)과 종류 항목(`시설물`)은 팝업에서 숨김(`constFields`).
+- 브랜치: `work/kangmina-safety-text` (base `design/service-home-refresh` d63d04f).
+- 검증: 하네스 — 제목이 장소(없으면 종류 이름), 구분·시설물 숨김, 분류 뱃지 없음, '30일' 문구 없음 검사 통과. theme.html `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
