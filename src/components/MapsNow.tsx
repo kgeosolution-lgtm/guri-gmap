@@ -1,6 +1,7 @@
 import { ArrowRight, Layers, PawPrint } from 'lucide-react';
 import { themeGroups } from '@/config/theme-groups.config';
 import { animalUrl, themeUrl } from '@/config/links';
+import { siteConfig } from '@/config/site.config';
 
 /** 지금 열어볼 수 있는 지도 — 완성된 두 페이지(테마지도, 유기동물 찾기)를 큰 카드로 */
 export function MapsNow() {
@@ -56,32 +57,34 @@ export function MapsNow() {
             </div>
           </article>
 
-          {/* ② 유기동물 찾기 */}
-          <article className="krds-map-card">
-            <a href={animal} className="card-img" title="유기동물 찾기 열기">
-              <img
-                src="/images/preview-animal.webp"
-                alt="유기동물 찾기 화면. 보호 중인 동물 목록과 위치가 지도에 표시돼 있어요."
-                width={1280}
-                height={800}
-                loading="lazy"
-              />
-            </a>
-            <div className="card-body">
-              <h3 className="card-title">
-                <span className="ico" aria-hidden="true">
-                  <PawPrint size={22} />
-                </span>
-                유기동물 찾기
-              </h3>
-              <p className="card-desc">보호 중인 아이들을 지도에서 찾아보세요</p>
-              <div className="card-actions">
-                <a href={animal} className="krds-btn primary">
-                  유기동물 찾기 열기 <ArrowRight className="svg-icon" aria-hidden="true" />
-                </a>
+          {/* ② 유기동물 찾기 — 내년도 서비스 예정(siteConfig.features.animalMap) */}
+          {siteConfig.features.animalMap && (
+            <article className="krds-map-card">
+              <a href={animal} className="card-img" title="유기동물 찾기 열기">
+                <img
+                  src="/images/preview-animal.webp"
+                  alt="유기동물 찾기 화면. 보호 중인 동물 목록과 위치가 지도에 표시돼 있어요."
+                  width={1280}
+                  height={800}
+                  loading="lazy"
+                />
+              </a>
+              <div className="card-body">
+                <h3 className="card-title">
+                  <span className="ico" aria-hidden="true">
+                    <PawPrint size={22} />
+                  </span>
+                  유기동물 찾기
+                </h3>
+                <p className="card-desc">보호 중인 아이들을 지도에서 찾아보세요</p>
+                <div className="card-actions">
+                  <a href={animal} className="krds-btn primary">
+                    유기동물 찾기 열기 <ArrowRight className="svg-icon" aria-hidden="true" />
+                  </a>
+                </div>
               </div>
-            </div>
-          </article>
+            </article>
+          )}
         </div>
       </div>
     </section>

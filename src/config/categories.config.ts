@@ -28,6 +28,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import type { CardItem } from '@/types/content';
 import { animalUrl, themeUrl } from './links';
+import { siteConfig } from './site.config';
 
 export interface QuickCategory {
   id: string;
@@ -97,7 +98,7 @@ export const quickFinder: LinkedCard[] = [
     href: null,
   },
 ];
-export const recommendedMaps: LinkedCard[] = [
+const recommendedMapsAll: LinkedCard[] = [
   {
     id: 'facility',
     title: '우리동네 편의시설',
@@ -147,6 +148,10 @@ export const recommendedMaps: LinkedCard[] = [
     href: animalUrl(),
   },
 ];
+/** 유기동물 찾기 카드는 siteConfig.features.animalMap 이 꺼져 있으면 뺀다 */
+export const recommendedMaps: LinkedCard[] = recommendedMapsAll.filter(
+  (m) => m.id !== 'animal' || siteConfig.features.animalMap,
+);
 export const urbanStats = [
   { id: 'population', title: '동네 인구구조', description: '연령·세대별 인구', icon: Users },
   { id: 'business', title: '상권 통계', description: '업종과 유동인구', icon: Store },

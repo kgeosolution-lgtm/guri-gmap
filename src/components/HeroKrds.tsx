@@ -4,6 +4,7 @@ import type { SeasonTheme } from '@/config/season.config';
 import { themeGroups } from '@/config/theme-groups.config';
 import { themeUrl } from '@/config/links';
 import { Container } from './ui';
+import { siteConfig } from '@/config/site.config';
 
 /**
  * 계절 히어로 (KRDS 홈용). v1 의 SeasonalHero 에서 이미지·문구·계절 전환은 그대로 두고
@@ -51,7 +52,9 @@ export function HeroKrds({ season }: { season: SeasonTheme }) {
             <span style={{ color: season.accentColor }}>지도에서</span> 만나보세요
           </h1>
           <p className="mt-5 text-base font-medium text-gray-70 md:text-lg">
-            약국부터 산책로, 유기동물 보호소까지
+            {siteConfig.features.animalMap
+              ? '약국부터 산책로, 유기동물 보호소까지'
+              : '약국부터 산책로, 둘레길까지'}
             <br className="hidden sm:block" /> 필요한 생활정보를 지도에서 바로 찾아보세요.
           </p>
         </motion.div>

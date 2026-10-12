@@ -588,3 +588,13 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 연속지적도 레이블: 선은 1:8,000 이하(레벨 17, 1:4,514)부터, 지번은 레이블 클래스 `minScale=3000`(`CAD_LABEL_MIN`) 으로 한 단계 더 확대한 레벨 18(1:2,257)부터.
 - 브랜치: `work/kangmina-aerial-smooth` (base `design/service-home-refresh` 3b38b32).
 - 검증: 하네스 — 범위 안 이동은 그림·벡터 모두 다시 안 받음, 확대(해상도 변경)하면 새 `<img>` 로 교체되고 옛 것은 제거, 벡터는 추가 뒤 제거 순서, 2배 범위 계산, 지번 레이블 `minScale 3000` 검사 통과. `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
+
+## 2026-10-12 구리시 수정사항: 유기동물 찾기 숨김(내년도 제작 예정), 우리동네 찾기의 육아·교육 그룹 제외 (담당: 강민아)
+
+- 유기동물 찾기: 내년도 제작 예정 지도로 지정되어 **모든 메뉴·메인에서 숨김**. 지도 파일(`maps/animal.html`)과 코드는 그대로 두고 보이기만 끔 — 내년에 서비스하면 `src/config/site.config.ts` 의 `features.animalMap` 을 `true` 로 바꾸고, 정적 지도 4쪽 헤더의 `<!-- 유기동물 찾기(내년도 서비스 예정…): <a …> -->` 주석과 `theme.html` 유기동물 보호현황 팝업의 앱 링크 주석, `review.js` 화면 목록을 되돌리면 됨.
+  - 플래그로 가린 곳: 홈 헤더 `SiteHeader.tsx`(PC·모바일), 푸터 `KrdsFooter.tsx`, 홈 본문 "새로운 가족을 기다리는…" 구역(`page.tsx`, 이어지는 3D·항공 구역 번호를 02·03 으로), 소개 문구("…생활 시설 정보를"), 홈 카드 `MapsNow.tsx`, `HeroKrds.tsx` 문구, v1 추천 지도 카드(`categories.config.ts` `recommendedMaps` 필터).
+  - 주석으로 가린 곳: `theme/animal/scene/aerial.html` 헤더의 PC·모바일 메뉴 링크(각 2곳), `theme.html` 유기동물 보호현황 팝업의 "유기동물 찾기 앱에서 더 보기" 링크. `review.js` "어느 화면" 목록에서 제거.
+  - 우리동네 찾기의 **반려동물 > 유기동물 보호현황** 테마는 앱이 아니라 테마라 그대로 둠(홈 반려동물 요약 "동물병원·유기동물"도 그대로).
+- 육아·교육: 이벤트성 지도로 분류되어 이번 구축 대상에서 제외 → `theme.html` GROUPS `'육아·교육'` 에 `hidden:true`(시즌·여름과 같은 방식: 그룹 메뉴·검색에서 숨김, URL 직접 접근은 가능), 홈 테마 카탈로그 `theme-groups.config.ts` 도 `hidden: true`. 되돌리려면 두 곳의 `hidden` 만 지움.
+- 브랜치: `work/kangmina-hide-animal-childcare` (base `design/service-home-refresh` 308caf9).
+- 검증: `tsc --noEmit`, prettier(src), 지도 4쪽 인라인 스크립트·review.js `node --check`, 겹쳐 보기 하네스, `npm run build:deploy` 후 `out/index.html` 에 유기동물 찾기 링크·육아·교육 카드 0, v1 카드 0, 정적 4쪽 헤더의 `animal.html` 링크가 주석 밖에 0개(주석 안 2개), `git diff --check` 통과.
