@@ -619,3 +619,12 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 서비스 항목 확인용 수동 워크플로 `.github/workflows/inspect-service.yml` 추가(현재는 포털이 토큰을 요구해 쓸모가 없지만, 공개 서비스에는 됨. 기본 브랜치에 없으면 dispatch 가 404 라 쓸 때 push 트리거를 잠시 붙임).
 - 브랜치: `work/kangmina-safety` (base `design/service-home-refresh` db5046d).
 - 검증: 하네스 `safety-test.js` — 10행 가짜 자료로 종류 9가지 생성, 우선순위 정렬, 종류→옛 설정/새 심볼 매칭(AED 팝업 재사용 등), 종류별 행 걸러내기, 후보 밖 항목 자동 탐지, 항목 없으면 한 덩어리 통과. theme.html `node --check`, `tsc --noEmit`, prettier, `npm run build:deploy`(홈에 치안안심 카드·옛 이름 0), `git diff --check` 통과.
+
+## 2026-10-12 치안안심 0건 수정: loadOne 범위 오류, 종류 항목은 '시설물' (담당: 강민아)
+
+- 증상: 치안안심을 열면 칩 없이 "0곳 · 데이터를 준비하고 있어요".
+- 원인: `buildDynThemes` 가 `loadOne` 을 불렀는데 `loadOne` 은 `loadGroupData` **안의 지역 함수**라 밖에서는 ReferenceError → try/catch 에 먹혀 조용히 0건. (하네스가 `loadOne` 을 전역으로 흉내 내서 못 잡았음.)
+- 조치: `loadGroupData` 안에서 `loadOne` 이 정의된 뒤에 `buildDynThemes(curGroup, loadOne)` 으로 넘겨 호출. 하네스에 "정의 뒤에서 loadOne 을 넘겨 호출" 정적 검사 추가.
+- 담당자 캡처로 확인한 safety_all 항목: `구분`(전부 '구리시시설물'), **`시설물`(종류, 예: 'CCTV 및 비상벨')**, `상세정보`(관리번호), `설명`, `장소`(이름), `주소`, `기타`, `x`, `y`. 961건. → 종류 후보에 `시설물` 을 맨 앞에 두고, **값이 한 가지뿐인 후보('구분')는 건너뛰게** 함. 자료가 0건이면 토스트로 "레이어 공개 설정을 확인" 안내.
+- 브랜치: `work/kangmina-safety-fix` (base `design/service-home-refresh` 564ab20).
+- 검증: 하네스 — 실제 자료 모양(구분 동일·시설물 종류)으로 '시설물' 선택과 종류별 칩, 정적 호출 위치 검사 통과. theme.html `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
