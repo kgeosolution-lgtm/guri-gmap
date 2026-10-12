@@ -483,7 +483,7 @@ const SAFETY_PRESETS={
      chips:[{from:['카메라대수','카메라수'],pre:'카메라 ',post:'대'},
             {from:['화소수','카메라화소수'],post:' 화소'},
             {from:['촬영방향','회전여부']}],
-     guide:'사고·분실 시 이 CCTV 영상은 30일 보관돼요<br>열람이 필요하면 30일 안에 관리기관에 요청하세요',
+     guide:'방범과 생활안전을 위해 설치된 CCTV예요<br>영상 열람이 필요하면 관리기관에 문의하세요',   /* 보관 기간은 기관마다 달라 적지 않는다 */
      telLabel:'관리기관에 영상 열람 문의',
      pop:[['🏛️','관리기관',['관리기관','관리기관명','설치기관']]],
      hidePat:/설치년월|설치일|설치연도|관리기관전화|기관전화/,
@@ -1850,17 +1850,18 @@ const SAFETY_RULES=[
 ];
 const SAFETY_ORDER=['쉼터','대피','AED','심장','귀갓길','CCTV','보호구역','지킴이','소방','소화','비상벨','벨','택배','경찰','지구대','파출소','보안등','가로등'];
 const SAFETY_COLORS=['#D3422C','#2F6FE4','#01A774','#7A5FD0','#E8940F','#6C8296'];
-function safetyThemeFor(value,url,field,idx){
+function safetyThemeFor(value,url,field,idx,constFields){
   const v=String(value); let base=null;
   for(const [re,cfg] of SAFETY_RULES){ if(re.test(v)){ base=typeof cfg==='string'? SAFETY_PRESETS[cfg] : cfg; break; } }
   const generic={sym:'safety_default',c:SAFETY_COLORS[idx%SAFETY_COLORS.length],guide:'우리 동네 치안·안전 시설이에요',
     pop:[['📌','설치장소',['설치장소','설치위치','위치','장소','상세위치']],['🏛️','관리기관',['관리기관','관리기관명','관리부서','운영기관']],['⏰','운영시간',['운영시간','이용시간']],['ℹ️','상세',['상세정보','비고','설명','내용']]],
     info:'구리시 치안·안전 시설 위치입니다.'};
   const t=Object.assign({},generic,base||{},{type:'list',short:(base&&base.short)||v,src:{url,catField:field,catValue:value}});
-  delete t.auto; delete t.alt;
-  if(!t.fields) t.fields={};
-  if(!t.fields.name) t.fields.name=['시설명','명칭','시설물명','장소명','설치장소','장소','업소명','상호','상호명','건물명','name'];
-  if(field) t.hide=(t.hide||[]).concat([field]);   /* 종류 항목은 칩 이름이 대신하므로 팝업에서 숨김 */
+  delete t.auto; delete t.alt; delete t.cat; delete t.catFn; delete t.titleFn;   /* 옛 설정의 분류 뱃지(설치목적·구분)는 쓰지 않는다 — safety_all 은 '구분'이 전부 같은 값 */
+  const NAMES=['장소','시설명','명칭','시설물명','장소명','설치장소','업소명','상호','상호명','건물명','name'];
+  t.fields=Object.assign({},t.fields||{},{name:NAMES});
+  t.nameFn=(r,pv)=>{ const n=pv(r,NAMES); return valOK(n)? String(n) : v; };   /* 제목은 장소 이름, 없으면 종류 이름 */
+  t.hide=(t.hide||[]).concat(field? [field] : [], constFields||[]);   /* 종류 항목(칩 이름이 대신)과 값이 한 가지뿐인 항목은 팝업에서 숨김 */
   return t;
 }
 async function buildDynThemes(g,loader){
@@ -1879,7 +1880,8 @@ async function buildDynThemes(g,loader){
   const counts={}; rows.forEach(r=>{ const v=r[field]; if(v!=null&&String(v).trim()) counts[v]=(counts[v]||0)+1; });
   const rank=v=>{ const i=SAFETY_ORDER.findIndex(s=>String(v).toUpperCase().indexOf(s.toUpperCase())>-1); return i<0? 99 : i; };
   const vals=Object.keys(counts).sort((a,b)=>rank(a)-rank(b)||counts[b]-counts[a]);
-  vals.forEach((v,i)=>{ G.themes[v]=safetyThemeFor(v,url,field,i); });
+  const constFields=keys.filter(k=>k!==field&&nDistinct(k)<=1);   /* 예: 구분='구리시시설물' */
+  vals.forEach((v,i)=>{ G.themes[v]=safetyThemeFor(v,url,field,i,constFields); });
   G.dynField=field;
   console.info('[치안안심] 시설 종류 항목 "'+field+'" → '+vals.length+'가지: '+vals.join(', '));
 }
