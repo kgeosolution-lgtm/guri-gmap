@@ -657,3 +657,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 조치: 공사·통제를 `svcSym:false` 로 바꿔 우리 심볼(노란 삼각형 `transit_roadwork`)을 점 마커로 그림. `setCat` 의 범위 이동은 `asExtent()` 로 Extent 도형을 넘겨 실제로 움직이게(모든 테마에 적용: 칩을 고르면 그 자료 범위로 이동).
 - 브랜치: `work/kangmina-roadwork-symbols` (base `design/service-home-refresh` c57f15e).
 - 검증: theme.html `node --check`, 치안안심 하네스, `npm run build:deploy`, prettier, `git diff --check` 통과. 실제 심볼 표시는 배포 후 확인.
+
+## 2026-10-13 교통 공사·통제: 사건유형별 원본 심볼, 목록 제목은 사건유형 (담당: 강민아)
+
+- UTIC 레이어(`ESRIKR/UTIC_Traffic_Incident`)의 렌더러를 GitHub Actions 검사 워크플로로 읽어(이 환경은 esrikr.com 접속 불가) 사건유형 7종(사고·공사·행사·기상·통제·재난·기타)의 원본 그림 심볼(imageData)을 `SYM` 에 `utic_accident/work/event/weather/control/disaster/etc` 로 넣음. `symKey` 가 `교통 공사·통제` 행의 `incidentetype` 으로 고르므로 지도 핀·목록 아이콘이 유형별 원본 심볼로, 칩 아이콘은 테마 심볼(`transit_roadwork`) 그대로.
+- 목록 제목(`nameFn`): 세부유형을 먼저 쓰던 것을 **사건유형 먼저**로("공사"), 세부유형은 유형과 다르고 다른 유형 이름이 아닐 때만 뒤에("사고 · 고장차량"). 자료에 공사인데 세부유형이 '교통사고'인 경우가 있어 그렇게 함.
+- 확인한 UTIC 항목: incidentetype(사건유형)·incidentesubtype·incidenttitle·startdate·enddate·lane·roadname·source·controltypename·importantname·addressjibun·locationdatax/y. 좌표계 5179.
+- 브랜치: `work/kangmina-utic-symbols` (base `design/service-home-refresh` eb5f2ce).
+- 검증: 하네스 `utic-test.js`(유형→심볼 7종·기본값·칩 아이콘, 제목 규칙), 치안안심 하네스, theme.html `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.

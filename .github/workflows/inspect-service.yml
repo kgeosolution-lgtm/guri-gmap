@@ -23,8 +23,8 @@ jobs:
           node-version: '24'
       - name: Inspect
         env:
-          SVC_URL: ${{ inputs.url || 'https://www.guri.go.kr/gmapsvr/rest/services/Hosted/safety_all/FeatureServer https://www.guri.go.kr/gmapsvr/rest/services/Hosted/safety_aed/FeatureServer https://www.guri.go.kr/gmapsvr/rest/services/Hosted/restaurant_waguri/FeatureServer https://www.guri.go.kr/gmapsvr/rest/services/Hosted/restaurant_long/FeatureServer' }}
-          SVC_FIELD: ${{ inputs.field || '' }}
+          SVC_URL: ${{ inputs.url || 'https://portal.esrikr.com/arcgis/rest/services/Hosted/UTIC_Traffic_Incident/FeatureServer' }}
+          SVC_FIELD: ${{ inputs.field || 'incidentetype' }}
         run: |
           node - <<'JS'
           const want=process.env.SVC_FIELD;
@@ -35,6 +35,7 @@ jobs:
             const info=await j(lyr+'?f=json');
             console.log('LAYER', JSON.stringify({name:info.name,geometryType:info.geometryType,sr:info.extent&&info.extent.spatialReference}));
             console.log('FIELDS', JSON.stringify((info.fields||[]).map(f=>[f.name,f.type,f.alias])));
+            if(info.drawingInfo){ const r=info.drawingInfo.renderer||{}; console.log('RENDERER_TYPE', r.type, r.field1||r.field||'', 'uniq', (r.uniqueValueInfos||[]).length); (r.uniqueValueInfos||[]).forEach(u=>console.log('UV', JSON.stringify({value:u.value,label:u.label,sym:{type:u.symbol&&u.symbol.type,contentType:u.symbol&&u.symbol.contentType,width:u.symbol&&u.symbol.width,height:u.symbol&&u.symbol.height,url:u.symbol&&u.symbol.url,imageData:u.symbol&&u.symbol.imageData}}))); if(r.defaultSymbol) console.log('UVDEFAULT', JSON.stringify(r.defaultSymbol).slice(0,20000)); }
             const cnt=await j(lyr+'/query?where=1%3D1&returnCountOnly=true&f=json'); console.log('COUNT', JSON.stringify(cnt));
             const sample=await j(lyr+'/query?where=1%3D1&outFields=*&resultRecordCount=3&returnGeometry=false&f=json'); console.log('SAMPLE', JSON.stringify((sample.features||[]).map(f=>f.attributes)));
             const cands=want? [want] : (info.fields||[]).filter(f=>f.type==='esriFieldTypeString').map(f=>f.name);
