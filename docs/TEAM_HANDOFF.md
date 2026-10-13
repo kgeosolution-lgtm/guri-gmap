@@ -665,3 +665,9 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 확인한 UTIC 항목: incidentetype(사건유형)·incidentesubtype·incidenttitle·startdate·enddate·lane·roadname·source·controltypename·importantname·addressjibun·locationdatax/y. 좌표계 5179.
 - 브랜치: `work/kangmina-utic-symbols` (base `design/service-home-refresh` eb5f2ce).
 - 검증: 하네스 `utic-test.js`(유형→심볼 7종·기본값·칩 아이콘, 제목 규칙), 치안안심 하네스, theme.html `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
+
+## 2026-10-13 교통 공사·통제 심볼 크기: 다른 심볼과 같은 72px 캔버스로 (담당: 강민아)
+
+- UTIC 원본 심볼은 32~39px 캔버스에 투명 여백 3px 이라 같은 26px 핀으로 그리면 우리 심볼(72px 원이 꽉 참)보다 작아 보임 → `scripts/utic-icons.py` 로 여백을 잘라 72×72 에 꽉 차게(비율 유지, 알파 가중 양선형 보간) 키워 `SYM` 의 `utic_*` 를 교체. 그림 자체는 원본 그대로.
+- 브랜치: `work/kangmina-utic-size` (base `design/service-home-refresh` 2c11ffd).
+- 검증: 몽타주로 transit_roadwork 와 크기 비교, UTIC 하네스, theme.html `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
