@@ -643,3 +643,9 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 팝업에 '구분: 구리시시설물'이 계속 보이던 것: 값이 한 가지뿐인 항목만 자동으로 숨기는데 실제 자료에서는 그렇지 않았을 수 있어 `GROUPS.치안안심.dyn.hide=['구분']` 으로 늘 숨김.
 - 브랜치: `work/kangmina-safety-text2` (base `design/service-home-refresh` 46fbfae).
 - 검증: 하네스 — 두 문구, '구분' 값이 둘이어도 숨김 검사 통과. theme.html `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
+
+## 2026-10-13 우리동네 찾기 목록 배지: 공사·통제는 '진행중', AED 는 '사용 가능' (담당: 강민아)
+
+- 교통 공사·통제 목록의 상태 배지가 '영업중'으로 나오던 것(목록 배지는 statusFn 테마면 일괄 '영업중'/'영업 전'/'종료'로 바꿔 보여 줌) → 테마가 `badge:{on,pre,off}` 로 배지 글자를 정할 수 있게 `rowStatus` 확장. 공사·통제 `{on:'진행중',pre:'예정',off:'종료'}`(팝업의 "진행중"과 맞춤), AED `{on:'사용 가능',off:'사용 불가'}`(치안안심 AED 칩에도 같이 적용). `badge` 가 없는 테마는 전과 같음.
+- 브랜치: `work/kangmina-roadwork-status` (base `design/service-home-refresh` 65eddc5).
+- 검증: 하네스 `badge-test.js`(rowStatus 를 떼어 내 배지 글자·기본값 검사), 치안안심 하네스, theme.html `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
