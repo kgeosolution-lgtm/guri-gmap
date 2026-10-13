@@ -1235,7 +1235,7 @@ const GROUPS={
      foot:'실시간 도착은 정류장 안내기나 버스 앱에서 확인하세요',
      info:'버스 정류장 위치와 경유 노선입니다.'},
    '교통 공사·통제':{routeBy:'addr',short:'공사·통제',c:'#5A6472',sym:'transit_roadwork',type:'list',
-     svcSym:true, listWrap:true, listTel:false, auto:false,
+     svcSym:false, listWrap:true, listTel:false, auto:false,   /* 원본 심볼(FeatureLayer)이 화면에 안 나와 우리 심볼(노란 삼각형)로 그린다 */
      bbox:[126.35,36.90,127.90,38.10],
      src:{url:ESRIKR+"UTIC_Traffic_Incident/FeatureServer"},
      nameFn:(r,pv)=>{ const s=pv(r,['incidentesubtype','incidsubtypenm','세부유형']);
@@ -1673,7 +1673,8 @@ function setCat(name){
   }
   curCat=name; selectedRow=null; hideInfo();
   renderChips(); refresh(); updateUrl();
-  if(view&&catExtent()) view.goTo(catExtent(),{duration:500}).catch(()=>{});
+  /* 칩을 고르면 그 자료 범위로(수도권 자료인 공사·통제는 시 밖까지). 일반 객체는 goTo 가 무시하므로 Extent 도형으로 */
+  if(view&&catExtent()){ let ext=catExtent(); try{ ext=asExtent(ext); }catch(e){} view.goTo(ext,{duration:500}).catch(()=>{}); }
 }
 
 /* 서비스 루트에서 실제 레이어 번호를 찾는다.

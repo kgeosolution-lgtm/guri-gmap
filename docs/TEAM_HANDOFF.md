@@ -649,3 +649,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 교통 공사·통제 목록의 상태 배지가 '영업중'으로 나오던 것(목록 배지는 statusFn 테마면 일괄 '영업중'/'영업 전'/'종료'로 바꿔 보여 줌) → 테마가 `badge:{on,pre,off}` 로 배지 글자를 정할 수 있게 `rowStatus` 확장. 공사·통제 `{on:'진행중',pre:'예정',off:'종료'}`(팝업의 "진행중"과 맞춤), AED `{on:'사용 가능',off:'사용 불가'}`(치안안심 AED 칩에도 같이 적용). `badge` 가 없는 테마는 전과 같음.
 - 브랜치: `work/kangmina-roadwork-status` (base `design/service-home-refresh` 65eddc5).
 - 검증: 하네스 `badge-test.js`(rowStatus 를 떼어 내 배지 글자·기본값 검사), 치안안심 하네스, theme.html `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
+
+## 2026-10-13 교통 공사·통제: 지도에 심볼 보이게 (담당: 강민아)
+
+- 증상: 공사·통제 칩을 눌러도 지도에 심볼이 하나도 안 보임(목록엔 46건).
+- 원인 둘: ① `svcSym:true` 라 ESRI UTIC 서비스의 원본 심볼(FeatureLayer)로 그리는데 화면에 나오지 않음 ② 칩을 고를 때 자료 범위로 옮기는 `view.goTo(catExtent())` 가 일반 객체를 넘겨 ArcGIS 가 무시(지도가 구리시에 머묾 — 공사·통제는 수도권 자료라 대부분 시 밖).
+- 조치: 공사·통제를 `svcSym:false` 로 바꿔 우리 심볼(노란 삼각형 `transit_roadwork`)을 점 마커로 그림. `setCat` 의 범위 이동은 `asExtent()` 로 Extent 도형을 넘겨 실제로 움직이게(모든 테마에 적용: 칩을 고르면 그 자료 범위로 이동).
+- 브랜치: `work/kangmina-roadwork-symbols` (base `design/service-home-refresh` c57f15e).
+- 검증: theme.html `node --check`, 치안안심 하네스, `npm run build:deploy`, prettier, `git diff --check` 통과. 실제 심볼 표시는 배포 후 확인.
