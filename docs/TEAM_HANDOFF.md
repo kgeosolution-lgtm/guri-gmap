@@ -635,3 +635,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 팝업 제목이 "구리시시설물 CCTV" 로 나오던 것: 옛 CCTV 설정의 `nameFn`·`cat` 이 `구분` 항목을 쓰는데 safety_all 의 `구분` 은 전부 '구리시시설물'. 치안안심 테마(`safetyThemeFor`)는 이제 제목을 **`장소`(없으면 시설명·명칭…, 그래도 없으면 종류 이름)** 로, 옛 설정의 분류 뱃지(`cat`·`catFn`·`titleFn`)는 쓰지 않음. 값이 한 가지뿐인 항목(`구분`)과 종류 항목(`시설물`)은 팝업에서 숨김(`constFields`).
 - 브랜치: `work/kangmina-safety-text` (base `design/service-home-refresh` d63d04f).
 - 검증: 하네스 — 제목이 장소(없으면 종류 이름), 구분·시설물 숨김, 분류 뱃지 없음, '30일' 문구 없음 검사 통과. theme.html `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
+
+## 2026-10-13 치안안심 문구 손질: 구급함·재난용 CCTV 안내문, '구분' 항목 숨김 (담당: 강민아)
+
+- 산악구급함: "쓴 뒤에는 관리기관에 알려 주세요"는 연락처가 없어 뺌 → "크게 다쳤을 땐 먼저 119에 신고하세요".
+- 재난용 CCTV: "비가 많이 올 땐 이 주변을 피해 주세요"는 근거 없는 행동 지시라 뺌 → "재난 상황을 살피기 위해 설치된 감시 카메라예요 / 호우·태풍 때는 재난 문자와 안내 방송을 확인하세요".
+- 팝업에 '구분: 구리시시설물'이 계속 보이던 것: 값이 한 가지뿐인 항목만 자동으로 숨기는데 실제 자료에서는 그렇지 않았을 수 있어 `GROUPS.치안안심.dyn.hide=['구분']` 으로 늘 숨김.
+- 브랜치: `work/kangmina-safety-text2` (base `design/service-home-refresh` 46fbfae).
+- 검증: 하네스 — 두 문구, '구분' 값이 둘이어도 숨김 검사 통과. theme.html `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
