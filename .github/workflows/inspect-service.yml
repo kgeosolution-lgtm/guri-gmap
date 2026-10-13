@@ -1,9 +1,7 @@
 name: Inspect ArcGIS service
 # 구리시 포털(guri.go.kr)은 개발 환경에서 직접 접속이 안 되므로, 서비스의 항목·대표값을 GitHub Actions 로그로 읽어 보기 위한 수동 워크플로 (담당: 강민아)
 on:
-  push:
-    branches: [work/kangmina-utic-symbols]   # 임시: 이 브랜치 push 로 실행(기본 브랜치에 없는 워크플로는 수동 실행이 안 됨)
-  workflow_dispatch:
+  workflow_dispatch:   # 기본 브랜치에 없는 동안은 수동 실행이 안 되므로, 쓸 때 잠시 push 트리거(branches: [작업 브랜치])를 붙여 실행한다
     inputs:
       url:
         description: 'FeatureServer 또는 레이어 URL'
