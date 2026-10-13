@@ -689,7 +689,7 @@ const GROUPS={
      info:'등산로의 쉼터·이정표·안전시설입니다.'}
  }},
  '치안안심':{ icon:'치안안심', accent:'#D3422C', themes:{},   /* 2026-10 구리시 요청: '안전·재난' → '치안안심'. safety_all 한 레이어의 '시설 종류' 값마다 칩을 만든다(buildDynThemes). 옛 주소(group=안전·재난)는 GROUP_ALIAS 로 이어짐 */
-   dyn:{url:U('safety_all'),field:['시설물','시설종류','시설물종류','시설물종별','시설종별','시설구분','시설물구분','시설유형','시설물유형','종류','유형','분류','구분','type','kind','category']} },   /* safety_all 의 종류 항목은 '시설물'(값 예: 'CCTV 및 비상벨'), '구분'은 전부 '구리시시설물'이라 뒤로 */
+   dyn:{url:U('safety_all'),field:['시설물','시설종류','시설물종류','시설물종별','시설종별','시설구분','시설물구분','시설유형','시설물유형','종류','유형','분류','구분','type','kind','category'],hide:['구분']} },   /* hide: 자료 구분용 항목은 팝업에서 늘 숨김 */   /* safety_all 의 종류 항목은 '시설물'(값 예: 'CCTV 및 비상벨'), '구분'은 전부 '구리시시설물'이라 뒤로 */
  '건강·의료':{ icon:'건강의료', accent:'#058847', themes:{
    '약국':{c:'#2E9E5B',sym:'health_pharmacy',type:'list',weekHours:true,src:{url:U('health_pharmacy')},
      fields:{name:['약국명','시설명','상호명'],addr:['도로명주소','지번주소','주소'],tel:['전화번호']},
@@ -1831,7 +1831,7 @@ const SAFETY_RULES=[   /* 순서대로 첫 일치. 문자열이면 옛 설정 �
   /* CCTV 종류별 색·안내문 */
   [/CCTV.*(비상벨|안심벨|긴급벨)|(비상벨|안심벨|긴급벨).*CCTV/i,{preset:'CCTV',sym:'safety_cctv_bell',c:'#E8464A',guide:'위급할 때 비상벨을 누르면 관제센터와 바로 연결돼요<br>망설이지 말고 누르세요',info:'비상벨이 함께 설치된 CCTV 위치입니다. 위급할 때 벨을 누르세요.'}],
   [/주정차|단속/,{preset:'CCTV',sym:'safety_cctv_parking',c:'#F0A02C',guide:'불법 주정차를 단속하는 구간이에요<br>잠깐이라도 세우지 말아 주세요',info:'불법 주정차 단속 CCTV 위치입니다.'}],
-  [/재난|수위|하천|재해/,{preset:'CCTV',sym:'safety_cctv_disaster',c:'#0F8A8A',guide:'하천·도로 상황을 살피는 재난 감시 카메라예요<br>비가 많이 올 땐 이 주변을 피해 주세요',info:'재난 상황을 살피는 CCTV 위치입니다.'}],
+  [/재난|수위|하천|재해/,{preset:'CCTV',sym:'safety_cctv_disaster',c:'#0F8A8A',guide:'재난 상황을 살피기 위해 설치된 감시 카메라예요<br>호우·태풍 때는 재난 문자와 안내 방송을 확인하세요',info:'재난 상황을 살피는 CCTV 위치입니다.'}],
   [/방범/,{preset:'CCTV',sym:'safety_cctv',c:'#2F6FE4',guide:'골목과 밤길 안전을 지키는 방범 카메라예요<br>영상 열람이 필요하면 관리기관에 문의하세요',info:'방범용 CCTV 위치입니다.'}],
   [/CCTV|씨씨티비|카메라/i,{preset:'CCTV',sym:'safety_cctv_plain',c:'#6C8296'}],
   [/대피/,'민방위 대피소'],
@@ -1860,7 +1860,7 @@ const SAFETY_RULES=[   /* 순서대로 첫 일치. 문자열이면 옛 설정 �
   [/안내판|표지판|안심판/,{sym:'safety_sign',c:'#2F6FE4',guide:'안심 안내판에 적힌 위치 번호로 신고하면 더 빨리 찾아올 수 있어요',
      pop:[['📌','설치장소',['설치장소','설치위치','위치','장소','상세위치']],['🔢','관리번호',['상세정보','관리번호','번호']],['🏛️','관리기관',['관리기관','관리기관명','관리부서','운영기관']],['ℹ️','상세',['비고','설명','내용']]],
      info:'안심 안내판 위치입니다. 신고할 때 안내판의 번호를 말하면 위치를 바로 알 수 있어요.'}],
-  [/구급함|구급|응급함/,{sym:'safety_firstaid',c:'#E5533C',guide:'등산 중 다쳤을 때 쓸 수 있는 구급함이에요<br>쓴 뒤에는 관리기관에 알려 주세요',
+  [/구급함|구급|응급함/,{sym:'safety_firstaid',c:'#E5533C',guide:'등산 중 다쳤을 때 쓸 수 있는 구급함이에요<br>크게 다쳤을 땐 먼저 119에 신고하세요',
      pop:[['📌','설치장소',['설치장소','설치위치','위치','장소','상세위치']],['🏛️','관리기관',['관리기관','관리기관명','관리부서','운영기관']],['ℹ️','상세',['상세정보','비고','설명','내용']]],
      info:'산악 구급함 위치입니다.'}],
   [/반사경|거울|미러/,{sym:'safety_mirror',c:'#5B6C7E',guide:'굽은 길과 골목 모퉁이에서는 반사경을 보고 지나가세요',
@@ -1901,7 +1901,7 @@ async function buildDynThemes(g,loader){
   const rank=v=>{ const i=SAFETY_ORDER.findIndex(s=>String(v).toUpperCase().indexOf(s.toUpperCase())>-1); return i<0? 99 : i; };
   const vals=Object.keys(counts).sort((a,b)=>rank(a)-rank(b)||counts[b]-counts[a]);
   const constFields=keys.filter(k=>k!==field&&nDistinct(k)<=1);   /* 예: 구분='구리시시설물' */
-  vals.forEach((v,i)=>{ G.themes[v]=safetyThemeFor(v,url,field,i,constFields); });
+  vals.forEach((v,i)=>{ G.themes[v]=safetyThemeFor(v,url,field,i,constFields.concat(G.dyn.hide||[])); });
   G.dynField=field;
   console.info('[치안안심] 시설 종류 항목 "'+field+'" → '+vals.length+'가지: '+vals.join(', '));
 }
