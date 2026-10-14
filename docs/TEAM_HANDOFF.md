@@ -671,3 +671,14 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - UTIC 원본 심볼은 32~39px 캔버스에 투명 여백 3px 이라 같은 26px 핀으로 그리면 우리 심볼(72px 원이 꽉 참)보다 작아 보임 → `scripts/utic-icons.py` 로 여백을 잘라 72×72 에 꽉 차게(비율 유지, 알파 가중 양선형 보간) 키워 `SYM` 의 `utic_*` 를 교체. 그림 자체는 원본 그대로.
 - 브랜치: `work/kangmina-utic-size` (base `design/service-home-refresh` 2c11ffd).
 - 검증: 몽타주로 transit_roadwork 와 크기 비교, UTIC 하네스, theme.html `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
+
+## 2026-10-14 전기차 충전소: '며칠 전 기준' 대신 '확인한 시각', 충전중은 몇 시간째 (담당: 강민아)
+
+- 문제: "N시간 전 기준"·"1일 전 종료"가 자료를 받은 시각이 아니라 환경부 `상태갱신일시`(상태가 마지막으로 바뀐 시각)·`마지막충전종료` 라서, 15분마다 갱신해도 한가한 충전소는 "1일 전"으로 보임.
+- 조치:
+  - `evSyncTime(t)`: 스케줄 작업이 넣어 주는 수집 시각 항목(`EV_SYNC_FIELDS`: 수집일시·수집시각·데이터갱신일시·갱신일시·sync_dt·collected_at)이 있으면 그 최댓값, 없으면 **전체 충전기의 상태갱신일시 최댓값**(어디선가 15분 안에 바뀌므로 수집 시각과 거의 같음). 자료 묶음마다 한 번만 계산(WeakMap).
+  - 목록: "지금 2대 충전 가능 (전체 5대) · 5분 전 확인". 팝업 아래: "🕐 5분 전 확인 · 15분마다 갱신돼요", 확인 시각이 45분(`EV_STALE_MIN`)을 넘으면 "⚠️ 최근 갱신이 지연되고 있어요" 빨간 줄.
+  - 충전기 표: 충전가능은 시각 꼬리 없음, 충전중은 `sinceTxt` 로 "25분째 / 1시간째". 안내문은 "도착 시점엔 충전 상태가 달라질 수 있어요".
+- 더 정확히 하려면: 15분 스케줄 작업이 레이어에 `수집일시` 항목(작업 실행 시각)을 함께 쓰면 화면이 자동으로 그 값을 씀(코드 수정 불필요).
+- 브랜치: `work/kangmina-ev-freshness` (base `design/service-home-refresh` e075563).
+- 검증: 하네스 `ev-test.js`(상태갱신일시 최댓값, 수집일시 우선, 45분 지연 경고, 캐시, 몇 시간째 표기, 설정 문구), 치안안심 하네스, theme.html `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
