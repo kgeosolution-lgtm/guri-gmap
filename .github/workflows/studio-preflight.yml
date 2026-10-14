@@ -1,0 +1,41 @@
+name: KGEO Studio server preflight
+on:
+  push:
+    branches: [codex/kgeo-studio-server-preflight]
+    paths: [.github/workflows/studio-preflight.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 3
+    steps:
+      - name: Read server capabilities for a separate review site
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = 'D:\codesolution\kgeodata'
+          $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+          $report = [ordered]@{
+            machine = $env:COMPUTERNAME
+            windows = [Environment]::OSVersion.VersionString
+            administrator = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+            webRootExists = Test-Path -LiteralPath $root
+            studioExists = Test-Path -LiteralPath (Join-Path $root 'kgeo-studio')
+            legacyExists = Test-Path -LiteralPath (Join-Path $root 'kgeolab3')
+            authScriptExists = Test-Path -LiteralPath (Join-Path $root 'protect.js')
+            node = (& node --version)
+            git = (& git --version)
+          }
+          $report | ConvertTo-Json
+          $moduleFile = Join-Path $env:windir 'System32\inetsrv\config\applicationHost.config'
+          try {
+            [xml]$config = Get-Content -LiteralPath $moduleFile -Raw
+            'IIS_MODULES=' + (($config.configuration.'system.webServer'.globalModules.add | ForEach-Object { $_.name }) -join ',')
+          } catch { 'IIS_CONFIG_READ=unavailable' }
+          foreach ($file in @((Join-Path $root 'web.config'),(Join-Path $root 'kgeolab3\web.config'))) {
+            if (Test-Path -LiteralPath $file) {
+              [xml]$config = Get-Content -LiteralPath $file -Raw
+              [ordered]@{ hasSystemWeb = $null -ne $config.configuration.'system.web'; hasAuthentication = $null -ne $config.configuration.'system.webServer'.security.authentication; hasAuthorization = $null -ne $config.configuration.'system.webServer'.security.authorization; hasRewrite = $null -ne $config.configuration.'system.webServer'.rewrite } | ConvertTo-Json
+            }
+          }
