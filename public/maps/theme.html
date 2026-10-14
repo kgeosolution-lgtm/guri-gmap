@@ -853,10 +853,10 @@ const GROUPS={
      listFn:(r,pv)=>{ const T=GROUPS['생활편의'].themes['전기차 충전소'];
        const e=evStat(r,pv,T);
        if(!e.total) return null;
-       const ago=agoTxt(e.newest);
+       const ago=agoTxt(evSyncTime(T));   /* 자료를 확인한 시각(상태가 바뀐 시각이 아니라) */
        const head = e.avail>0? `지금 ${e.avail}대 충전 가능 (전체 ${e.total}대)`
                              : `빈 충전기 없음 (전체 ${e.total}대)`;
-       return head + (ago? ` · ${ago} 기준` : ''); },
+       return head + (ago? ` · ${ago} 확인` : ''); },
      statusFn:(r,pv,t)=>{ const e=evStat(r,pv,t);
        if(e.avail>0) return {k:'on',t:'지금 '+e.avail+'대 충전 가능 (전체 '+e.total+'대)'};
        if(e.total>0) return {k:'off',t:'지금은 빈 충전기가 없어요 (전체 '+e.total+'대)'};
@@ -880,13 +880,13 @@ const GROUPS={
      cardFn:(r,pv,t)=>{ const e=evStat(r,pv,t); if(!e.list.length) return '';
        let out='';
        e.list.forEach(c=>{
-         let tail='';
-         if(c.st==='충전중'&&c.nowT) tail=` <span style="color:#B26A00">${esc(agoTxt(c.nowT))} 시작</span>`;
-         else if(c.st==='충전대기'&&c.endT) tail=` <span style="color:#8A968F">${esc(agoTxt(c.endT))} 종료</span>`;
+         let tail='';   /* 충전중이면 지금까지 충전한 시간(언제쯤 빌지 가늠). 충전가능은 '며칠 전 종료' 같은 꼬리를 붙이지 않는다 */
+         if(c.st==='충전중'&&c.nowT){ const d=sinceTxt(c.nowT); if(d) tail=` <span style="color:#B26A00">${esc(d)}</span>`; }
          out+=`<div class="kv"><span class="k">${esc(String(c.id||'-'))}번</span>`
             +`<span class="v">${c.fast?'⚡ 급속':'🔌 완속'} ${c.kw||0}kW &nbsp; ${evChipSt(c.st)}${tail}</span></div>`; });
-       const ago=agoTxt(e.newest);
-       if(ago) out+=`<div style="margin-top:8px;font-size:11.5px;color:var(--faint)">🕐 ${esc(ago)} 기준</div>`;
+       const sync=evSyncTime(t), ago=agoTxt(sync);
+       if(ago) out+=`<div style="margin-top:8px;font-size:11.5px;color:var(--faint)">🕐 ${esc(ago)} 확인 · 15분마다 갱신돼요</div>`;
+       if(evStale(sync)) out+=`<div style="margin-top:4px;font-size:11.5px;color:#B3261E">⚠️ 최근 갱신이 지연되고 있어요 — 실제 상태와 다를 수 있어요</div>`;
        return out; },
      guideFn:(r,pv)=>{ const lim=String(pv(r,['이용제한'])||''), det=pv(r,['이용제한내용']);
        if(lim==='예'&&valOK(det)) return '이용에 제한이 있어요<br>'+esc(String(det));
@@ -903,7 +903,7 @@ const GROUPS={
            '지상지하','층수','주차료무료','이용제한','이용제한내용','개방여부','장소명'],
      telTitle:'📞 운영기관 전화',
      telLabel:'운영기관에 전화하기',
-     foot:'충전 상태는 15분마다 갱신돼요 — 도착 시점엔 달라질 수 있어요',
+     foot:'도착 시점엔 충전 상태가 달라질 수 있어요',
      info:'전기차 충전소 위치와 충전기 상태입니다. 상태는 환경부 자료 기준이에요.'},
    'LPG 충전소':{short:'LPG',c:'#B7791F',sym:'life_lpg',type:'list',src:{url:U('life_lpg')},
      guide:'LPG 차량 충전소예요<br>운영 시간은 충전소마다 다르니 확인하세요',
@@ -2962,6 +2962,30 @@ function evStat(r,pv,t){
   });
   list.sort((a,b)=>String(a.id).localeCompare(String(b.id),'ko',{numeric:true}));
   return {total,avail,fastN,fastA,slowN,slowA,list,newest};
+}
+/* 전기차 자료를 '확인한' 시각: 스케줄 작업이 넣어 주는 수집일시 항목이 있으면 그 최댓값, 없으면 전체 충전기의 상태갱신일시 최댓값
+   (322곳 중 어디선가 15분 안에 상태가 바뀌므로 수집 시각과 거의 같다). 자료 묶음마다 한 번만 계산해 둔다 */
+const EV_SYNC_FIELDS=['수집일시','수집시각','데이터수집일시','데이터갱신일시','갱신일시','sync_dt','collected_at'];
+const _evSync=new WeakMap();
+function evSyncTime(t){
+  const rows=(t&&t.src&&dataCache[t.src.url])||null; if(!rows||!rows.length) return null;
+  if(_evSync.has(rows)) return _evSync.get(rows);
+  let best=null, viaSync=false;
+  rows.forEach(r=>{ const v=pickVal(r,EV_SYNC_FIELDS,true); const d=toDate(v); if(d){ viaSync=true; if(!best||d>best) best=d; } });
+  if(!viaSync) rows.forEach(r=>{ const d=toDate(pickVal(r,['상태갱신일시'],true)); if(d&&(!best||d>best)) best=d; });
+  _evSync.set(rows,best); return best;
+}
+const EV_STALE_MIN=45;   /* 15분 스케줄이 세 번 넘게 밀리면 지연 경고 */
+function evStale(d){ return !!d && (Date.now()-d.getTime())/60000 > EV_STALE_MIN; }
+/* 언제부터 계속되는지 사람 말로 (충전중 · 1시간째) */
+function sinceTxt(d){
+  if(!d) return null;
+  const m=Math.round((Date.now()-d.getTime())/60000);
+  if(m<1) return '방금 시작';
+  if(m<60) return m+'분째';
+  const hh=Math.floor(m/60);
+  if(hh<24) return hh+'시간째';
+  return Math.floor(hh/24)+'일째';
 }
 /* 몇 분 전인지 사람 말로 */
 function agoTxt(d){
