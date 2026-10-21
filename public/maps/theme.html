@@ -2036,6 +2036,8 @@ async function loadGroupData(){
 
   /* 치안안심: 한 레이어를 받아 종류별 칩으로 (loadOne 은 이 함수 안의 지역 함수라 여기서 넘긴다 — 밖에서 부르면 ReferenceError 로 조용히 0건이 됨) */
   if(GROUPS[curGroup]&&GROUPS[curGroup].dyn) await buildDynThemes(curGroup,loadOne);
+  /* 위에서 만든 jobs 는 함수 첫머리 기준이라, buildDynThemes 가 뒤에 붙인 테마(안심귀갓길 등)의 자료는 여기서 불러올 목록에 더한다 */
+  Object.values(groupThemes(curGroup)).forEach(t=>{ if(t.src&&!dataCache[t.src.url]&&!jobs.some(j=>j.src.url===t.src.url)) jobs.push(t); });
 
   /* 여러 레이어를 동시에 (한 번에 최대 6개) */
   const queue=jobs.slice();
