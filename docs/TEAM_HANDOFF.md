@@ -896,3 +896,9 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 지도 컨트롤 버튼은 세 쪽 모두 34px·오른쪽 10px. 위치(위/아래)는 페이지 구조에 따라 다름: 우리동네 찾기는 오른쪽 위, 3D·항공은 하단 막대 위(검색창이 위를 차지).
 - 상단바는 #95 에서 이미 56px 공통. 유기동물 찾기는 숨김 상태라 손대지 않음.
 - 검증: Playwright 모바일(390px) — 세 쪽 모두 손잡이 표시, 모서리 16px·그림자 동일, 손잡이 클릭 시 글자 전환 확인(`pw/sheet-test.js`); 지도 3쪽 `node --check`, prettier, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-mobile-sheet`.
+
+## 2026-10-21 우리동네 찾기 목록 줄을 카드처럼 (추가 다듬기 1번) (담당: 강민아)
+
+- `.row`: 둥근 모서리(`--ui-radius` 10px)·좌우 8px 띄움, 행 사이는 옅은 선(`::before`), 선택은 왼쪽 막대 대신 연한 배경 전체 + 1px 테두리, 아이콘 32px, 이름 15px, 부제 12.5px(줄 간격 1.35), 상태 배지는 알약(20px, radius 999), 행동 버튼 34px. 모바일은 좌우 6px.
+- 전후: 스크래치 `list-compare.png`(왼쪽 전·오른쪽 후, 가짜 자료 5건·두 번째 줄 선택).
+- 검증: theme `node --check`, Playwright 캡처, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-list-rows`.
