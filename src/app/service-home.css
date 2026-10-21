@@ -79,7 +79,7 @@
   color: white;
   font-size: 14px;
   font-weight: 700;
-  border-radius: 6px;
+  border-radius: var(--ui-radius-sm, 6px);
   padding: 16px 21px;
   transition:
     background 0.18s,
@@ -135,7 +135,7 @@
   background: #f7f9f7;
   border: 1px solid #dce5de;
   padding: 0 20px;
-  border-radius: 8px;
+  border-radius: var(--ui-radius, 10px);
   height: 62px;
   margin-bottom: 26px;
   color: #018058;
@@ -188,7 +188,7 @@
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  border-radius: 12px;
+  border-radius: var(--ui-radius, 10px);
   background: color-mix(in srgb, var(--group-color) 9%, white);
   color: var(--group-color);
 }
@@ -493,7 +493,7 @@
   border-radius: 50%;
   background: #fff;
   border: 1px solid #d7e0da;
-  box-shadow: 0 2px 8px rgba(23, 62, 48, 0.08);
+  box-shadow: var(--ui-shadow, 0 2px 8px rgba(23, 62, 48, 0.08));
   transition:
     transform 0.15s,
     background 0.15s,
@@ -680,7 +680,7 @@
   .catalog-icon {
     width: 42px;
     height: 42px;
-    border-radius: 10px;
+    border-radius: var(--ui-radius-sm, 6px);
   }
   .group-catalog small {
     font-size: 12px;
