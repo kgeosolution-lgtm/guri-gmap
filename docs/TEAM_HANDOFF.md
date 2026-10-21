@@ -848,3 +848,15 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 푸터는 `.service-home` 바깥이라 `var(--forest)`가 안 먹음 → 색 값을 직접 씀(처음 캡처에서 띠가 흰색으로 나온 원인).
 - 전후 비교: 스크래치 `footer-compare-desktop.png`·`footer-compare-mobile.png`(빌드 결과를 로컬 http 로 띄워 Playwright 캡처, `pw/footer-shot.js`).
 - 검증: `npx tsc --noEmit`, prettier, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-footer`. `KrdsFooter.tsx` 는 미사용(v1)이라 손대지 않음.
+
+## 2026-10-21 상단바 통일(공통 요소 1번) + 푸터 연락처 (담당: 강민아)
+
+- 푸터 문의: `siteConfig.contact` → 부서 '경기도 구리시청 토지정보과', 전화 '031-550-8731'(담당자 지시).
+- **메뉴 한 곳**: `src/config/shell-nav.json`(링크 종류 theme/animal/scene/aerial/external/home, 숨긴 기능은 `feature`). 홈 `SiteHeader.tsx` 는 `shell-nav.ts` 의 `shellLinks()`/`shellSearch` 로, 푸터 바로가기도 같은 함수로 읽음.
+- **지도 4쪽의 정적 헤더 자동 생성**: `scripts/sync-shell.mjs` 가 같은 json 으로 `<!-- shell:header -->…<!-- /shell:header -->` 블록을 다시 써 넣음(`npm run sync:shell`, `build:deploy` 시작 때 자동). 손으로 고치지 말 것. 이번에 지도 4쪽의 '우리동네 찾기' 링크가 `?group=여름`(옛 값)이던 것이 `시즌·겨울` 로 맞춰짐. 숨긴 유기동물 메뉴는 주석으로 남음.
+- **높이 한 값**: `site-shell.css` `:root{--shell-h:64px}`(≤768px 56px). 홈 76px·지도 56px 이던 것을 모두 64px 로, 모바일은 모두 56px. 경계선은 `box-shadow: inset` 이라 총 높이 = `--shell-h`. 지도 페이지의 오프셋은 변수로: theme `.chipbar{top:var(--shell-h)}`, scene·aerial `.main{height:calc(100dvh - var(--shell-h))}`, animal `.filters{top:var(--shell-h)}`.
+- 지도 변형(`.map`)은 가로 여백 24px·전체 폭, 홈은 1248px 가운데·32px(본문과 정렬) — 글꼴·메뉴 간격·테마 찾기 버튼·모바일 메뉴는 동일.
+- `gmap-shared.css` 의 안 쓰던 옛 `.site-header` 블록(150~365줄) 삭제.
+- 마스트헤드(정부 누리집 띠)는 홈에만 둠(지도 쪽은 공간 우선). 필요하면 sync-shell 에 한 줄 추가하면 됨.
+- 전후: 스크래치 `header-compare-1280.png`·`header-compare-390.png`(위 2개 전: 홈·테마 / 아래 3개 후: 홈·테마·항공).
+- 검증: `npx tsc --noEmit`, prettier, 지도 4쪽 `node --check`, `npm run build:deploy`(sync 포함), `git diff --check` 통과. 브랜치 `work/kangmina-header-unify`.

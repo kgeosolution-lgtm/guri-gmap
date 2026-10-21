@@ -1,15 +1,19 @@
+:root {
+  /* 사이트 헤더 높이 — 홈·지도 4쪽이 같은 값. 지도 페이지는 이 변수로 지도 영역 높이를 뺀다 */
+  --shell-h: 64px;
+}
 .service-header {
   position: sticky;
   top: 0;
   z-index: 100;
   background: rgba(255, 255, 255, 0.96);
-  border-bottom: 1px solid #e2e8e5;
+  box-shadow: inset 0 -1px 0 #e2e8e5;
   font-family: var(--krds-font-family-base), sans-serif;
   backdrop-filter: blur(16px);
 }
 .service-header-inner {
   max-width: 1248px;
-  height: 76px;
+  height: var(--shell-h);
   margin: auto;
   padding: 0 32px;
   display: flex;
@@ -18,9 +22,8 @@
   box-sizing: border-box;
 }
 .service-header.map .service-header-inner {
-  height: 56px;
   max-width: none;
-  padding: 0 20px;
+  padding: 0 24px;
 }
 .service-brand {
   display: flex;
@@ -116,9 +119,11 @@
   outline-offset: 4px;
 }
 @media (max-width: 768px) {
+  :root {
+    --shell-h: 56px;
+  }
   .service-header-inner {
-    height: 64px;
-    padding: 0 20px;
+    padding: 0 16px;
     gap: 12px;
   }
   .service-header.map .service-header-inner {

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { themeGroups } from '@/config/theme-groups.config';
 import { themeUrl, animalUrl, sceneUrl, aerialUrl } from '@/config/links';
+import { shellLinks } from '@/config/shell-nav';
 import { TimeLapseArt } from '@/components/TimeLapseArt';
 import { SkylineArt } from '@/components/SkylineArt';
 import { NewsArt } from '@/components/NewsArt';
@@ -21,15 +22,8 @@ import { siteConfig } from '@/config/site.config';
 import { getAutoSeason, seasonConfig } from '@/config/season.config';
 import type { SeasonKey } from '@/types/content';
 import './service-home.css';
-/** 푸터 '지도 바로가기' — 헤더 메뉴와 같은 구성 */
-const footerLinks: { label: string; href: string; external?: boolean }[] = [
-  { label: '우리동네 찾기', href: themeUrl('시즌·겨울') },
-  ...(siteConfig.features.animalMap ? [{ label: '유기동물 찾기', href: animalUrl() }] : []),
-  { label: '3D입체지도', href: sceneUrl() },
-  { label: '항공사진 비교', href: aerialUrl() },
-  { label: '구리 동네소식', href: 'https://guri.kgeohub.com/', external: true },
-  { label: 'G-MAP 소개', href: '#about' },
-];
+/** 푸터 '지도 바로가기' — 헤더와 같은 메뉴(src/config/shell-nav.json) */
+const footerLinks = shellLinks();
 export default function Home() {
   const [query, setQuery] = useState('');
   const [selection, setSelection] = useState<'auto' | SeasonKey>('auto');

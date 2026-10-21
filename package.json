@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "build:deploy": "node scripts/build-deploy.mjs",
+    "sync:shell": "node scripts/sync-shell.mjs",
     "fetch:scene": "node scripts/fetch-scene.mjs"
   },
   "dependencies": {
