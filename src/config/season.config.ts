@@ -9,6 +9,8 @@ export interface SeasonTheme {
   key: SeasonKey;
   label: string;
   heroImage: string;
+  /** 사진 장소 — 히어로 오른쪽 아래 작은 글씨 */
+  place: string;
   backgroundColor: string;
   accentColor: string;
   accentSoft: string;
@@ -21,6 +23,7 @@ export const seasonConfig: Record<SeasonKey, SeasonTheme> = {
     key: 'spring',
     label: '봄',
     heroImage: '/images/hero-spring.webp',
+    place: '장자호수공원',
     backgroundColor: '#F7ECEE',
     accentColor: '#E65F80',
     accentSoft: '#FFF0F4',
@@ -38,6 +41,7 @@ export const seasonConfig: Record<SeasonKey, SeasonTheme> = {
     key: 'summer',
     label: '여름',
     heroImage: '/images/hero-summer.webp',
+    place: '이문안호수공원',
     backgroundColor: '#E6F4F3',
     accentColor: '#078C78',
     accentSoft: '#E8F8F4',
@@ -55,6 +59,7 @@ export const seasonConfig: Record<SeasonKey, SeasonTheme> = {
     key: 'autumn',
     label: '가을',
     heroImage: '/images/hero-autumn.webp',
+    place: '한강시민공원',
     backgroundColor: '#F7EBDD',
     accentColor: '#C75A24',
     accentSoft: '#FFF1E8',
@@ -72,6 +77,7 @@ export const seasonConfig: Record<SeasonKey, SeasonTheme> = {
     key: 'winter',
     label: '겨울',
     heroImage: '/images/hero-winter.webp',
+    place: '동구릉',
     backgroundColor: '#E8F0FA',
     accentColor: '#3B6FA9',
     accentSoft: '#EDF5FF',

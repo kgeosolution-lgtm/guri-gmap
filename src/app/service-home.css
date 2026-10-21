@@ -833,6 +833,21 @@
     rgba(255, 255, 255, 0) 80%
   );
 }
+/* 히어로 사진 장소명 — 오른쪽 아래 작은 글씨 */
+.season-place {
+  position: absolute;
+  right: 18px;
+  bottom: 14px;
+  z-index: 1;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(0, 0, 0, 0.28);
+  padding: 4px 9px;
+  border-radius: 999px;
+  backdrop-filter: blur(2px);
+  pointer-events: none;
+}
 .hero-layout {
   position: relative;
   display: flex;

@@ -39,6 +39,7 @@ export default function Home() {
             fetchPriority="high"
           />
           <div className="season-shade" aria-hidden="true" />
+          <span className="season-place">{season.place}</span>
           <div className="home-wrap hero-layout">
             <div className="hero-copy">
               <p className="eyebrow">
