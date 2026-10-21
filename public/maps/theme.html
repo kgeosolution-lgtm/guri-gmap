@@ -738,8 +738,9 @@ const GROUPS={
      pop:[['🛣️','구간',['구간명','구간명칭','구간','도로명','노선명']],
           ['🚩','시점 주소',(r,pv)=>pv(r,['시점지번주','시점지번주소','시점주소','시작지점','시점명'],true)],
           ['🏁','종점 주소',(r,pv)=>pv(r,['종점지번주','종점지번주소','종점주소','종료지점','종점명'],true)],
+          ['📏','구간 길이',(r,pv)=>hikeLen(pv(r,['총길이','연장','구간길이','길이'],true))],
           ['ℹ️','비고',['비고','설명','기타']]],
-     hidePat:/시종점구분|지점구분|^구분$|경도|위도|정북|기준|좌표/,   /* 구분(=결빙취약구간)·좌표·정북기준·기점기준심은 팝업에서 뺀다 */
+     hidePat:/시종점구분|지점구분|^구분$|경도|위도|정북|기준|좌표|지번주|총길이|연장/,   /* 시점·종점 주소와 길이는 위 줄에 있으니 원본 항목은 다시 안 보임 */   /* 구분(=결빙취약구간)·좌표·정북기준·기점기준심은 팝업에서 뺀다 */
      info:'결빙취약구간의 시작·끝 지점입니다.'},
    ...trailThemes('겨울')
  }},
@@ -3519,7 +3520,7 @@ function showInfo(row){
     kv+=`<div class="kv"><span class="k">${esc(k)}</span><span class="v">${esc(sv)}</span></div>`;
   });
   (t.auto===false?[]:autoRows(row,used,[themeName,t.short,catTx],t.hidePat)).forEach(([k,v])=>{
-    let lbl=k, val=v;
+    let lbl=String(k).replace(/_동$/,'').replace(/_/g,' ').trim(), val=v;   /* 밑줄 라벨 정리: 관리부서_동 → 관리부서, 관리자_전화번호 → 관리자 전화번호 */
     if(t.relabel){ const n=k.toLowerCase().replace(/[_\s]/g,'');
       for(const rk in t.relabel){ if(rk.toLowerCase().replace(/[_\s]/g,'')===n){ lbl=t.relabel[rk]; break; } } }
     if(/요금|가격|이용료/.test(lbl)&&/^\d+$/.test(String(val).trim()))
