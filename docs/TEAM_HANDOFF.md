@@ -690,3 +690,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 테마 `'안심귀갓길'`: 칩 아이콘은 안심귀갓길 심볼(`safety_nightcctv`), 선 색은 코스별(`colorBy:'course'` → 둘레길과 같은 `courseColor`; 코스 번호 후보에 '둘레길' 항목 이름 추가). 목록: 제목 = 명칭, 부제 = 지역(구간), "📏 300m 📅 2019.06 지정". 팝업: 코스 뱃지, 길이·지정일 칩, 안내("밤길이 걱정될 땐 이 길로… 경찰이 정기적으로 순찰"), 구간·경로·낮 순찰·밤 순찰(순찰방법(야간): 실제 항목 이름이 `순찰방법_야간_` 등이어도 정규화로 잡힘)·지정(지정사). Shape_Leng·코스 항목은 숨김. 코스를 누르면 경로가 지도에 표시.
 - 브랜치: `work/kangmina-safe-route` (base `design/service-home-refresh` a6e43c1).
 - 검증: 치안안심 하네스(스크래치가 초기화되어 다시 작성: 12종 심볼·extra 합치기(맨 뒤·0건이어도)·설정·loadOne 호출 위치) 통과, theme.html `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과. 실제 항목 이름·선 표시는 배포 후 확인.
+
+## 2026-10-21 안심귀갓길 0건 수정: 뒤에 붙인 테마의 자료도 불러오게 (담당: 강민아)
+
+- 증상: 안심귀갓길 칩이 생겼지만 0곳.
+- 원인: `loadGroupData` 가 불러올 목록(`jobs`)을 함수 첫머리에서 만드는데, `buildDynThemes` 가 그 뒤에 `dyn.extra` 테마를 붙이므로 안심귀갓길 자료는 목록에 없어 한 번도 요청되지 않음.
+- 조치: `buildDynThemes` 호출 직후, 그룹 테마 중 아직 안 받은 자료를 `jobs` 에 더함. 하네스에 호출 위치 정적 검사 추가.
+- 브랜치: `work/kangmina-safe-route-load` (base `design/service-home-refresh` 1ef580e).
+- 검증: 치안안심 하네스, theme.html `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
