@@ -68,7 +68,7 @@ export default function Home() {
                 구리의 생활정보를 한 장의 지도에서 살펴보세요.
               </p>
               <a className="home-button" href={themeUrl('생활편의')}>
-                우리 동네 지도 열기 <ArrowUpRight size={19} />
+                우리 동네 지도 열기 <ArrowUpRight size={18} />
               </a>
               <a className="hero-text-link" href="#search">
                 어떤 지도가 있나요? <ArrowRight size={16} />
@@ -126,7 +126,7 @@ export default function Home() {
                 style={{ '--group-color': color, '--order': i } as React.CSSProperties}
               >
                 <span className="catalog-icon">
-                  <Icon size={25} strokeWidth={1.7} />
+                  <Icon size={24} />
                 </span>
                 <span>
                   <strong>{group}</strong>
@@ -163,7 +163,7 @@ export default function Home() {
                   보호소 정보를 한곳에서 확인할 수 있어요.
                 </p>
                 <a className="home-button pet-button" href={animalUrl()}>
-                  유기동물 찾기 <ArrowUpRight size={19} />
+                  유기동물 찾기 <ArrowUpRight size={18} />
                 </a>
               </div>
             </div>
@@ -188,7 +188,7 @@ export default function Home() {
                 구리의 모습을 입체적으로 살펴볼 수 있어요.
               </p>
               <a className="home-button" href={sceneUrl()}>
-                3D입체지도 보기 <ArrowUpRight size={19} />
+                3D입체지도 보기 <ArrowUpRight size={18} />
               </a>
             </div>
           </div>
@@ -212,7 +212,7 @@ export default function Home() {
                 우리 동네가 어떻게 달라졌는지 볼 수 있어요.
               </p>
               <a className="home-button" href={aerialUrl()}>
-                항공사진 비교 보기 <ArrowUpRight size={19} />
+                항공사진 비교 보기 <ArrowUpRight size={18} />
               </a>
             </div>
           </div>
@@ -241,7 +241,7 @@ export default function Home() {
                 target="_blank"
                 rel="noopener"
               >
-                구리 동네소식 보기 <ArrowUpRight size={19} />
+                구리 동네소식 보기 <ArrowUpRight size={18} />
               </a>
             </div>
           </div>
@@ -309,7 +309,7 @@ export default function Home() {
                     {...(l.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
                   >
                     {l.label}
-                    {l.external && <ArrowUpRight size={13} aria-hidden="true" />}
+                    {l.external && <ArrowUpRight size={14} aria-hidden="true" />}
                   </a>
                 </li>
               ))}

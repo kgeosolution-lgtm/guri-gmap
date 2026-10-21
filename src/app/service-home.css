@@ -13,6 +13,11 @@
 .service-home a {
   text-decoration: none;
 }
+/* 선 아이콘 공통 규격 — 지도 4쪽의 인라인 SVG(stroke-width 1.75)와 같은 선 굵기. 크기는 14(작은 글 옆)·18(링크 화살표·버튼)·22(목록)·24(카드 타일) */
+.service-home svg.lucide,
+.service-footer svg.lucide {
+  stroke-width: 1.75;
+}
 .service-home :is(a, button, input):focus-visible {
   outline: 3px solid #018058;
   outline-offset: 5px;
