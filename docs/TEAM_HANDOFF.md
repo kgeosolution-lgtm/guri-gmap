@@ -828,3 +828,13 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 조치: `SAFETY_KNOWN`(담당자 캡처 기준 12종: AED, CCTV 및 비상벨, 주정차단속 CCTV, CCTV, 재난용 CCTV, 방범용 CCTV, 지킴이집, 소방시설, 안심가림판 공중화장실, 로고젝터, 안심안내판, 산악구급함)으로 **0건 자리표시 칩**(`placeholder:true`, `SAFETY_ORDER` 순)을 깔고 안심귀갓길은 맨 뒤. 자료가 오면(3초 뒤 자동 재시도 ≤2회, 또는 '다시 시도') 자리표시를 지우고 실제 값으로 다시 만든다. 0건일 때 캐시는 지우지 않고 실패 표시(`__failed`)로 두어 같은 주소를 두 번 요청하지 않음. 토스트 두 개(불러오는 중/못 불러옴)는 뺌.
 - 목록 위 주황 안내 띠(`#loadNote`, #88)와 빈 목록의 실패 이유 문구(#86·#87) 제거 → 원래 빈 목록 문구로 복원. 못 받은 레이어가 있으면 '다시 시도' 단추만 붙음.
 - 검증: 하네스 `safety-test.js`(0건 → 12종 자리표시 + 안심귀갓길 맨 뒤, 재시도 성공 시 실제 값으로 교체) 통과, Playwright 오프라인(휴대폰 폭, 모든 요청 실패) 칩 14개(전체 + 12종 + 안심귀갓길)·띠 없음·원래 빈 목록 문구 확인, theme `node --check`, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-safety-chips`.
+
+## 2026-10-21 우리동네 찾기 디자인 1차: 그룹 색 팔레트 정리, 테마 칩 막대 얇게 (담당: 강민아)
+
+- 구리시 요청 "모든 페이지 디자인을 통일되고 이쁘게" 의 1차 조치. 담당자 제안대로 테마 색과 칩 두께부터.
+- 그룹 강조색(`GROUPS[g].accent`)을 채도 낮추고 밝기를 맞춘 한 팔레트로(흰 글자 대비 4.5:1 이상): 겨울 `#35679A`, 치안안심 `#B9473B`, 건강·의료 `#1E8A78`, 생활편의 `#4C5FAE`, 우수맛집 `#B26331`, 문화·여가 `#4E7F3C`, 반려동물 `#B2507A`, 교통 `#58687B`(숨긴 여름 `#2A7FA8`·가을 `#A65A2E`·육아 `#6F5FBF`). 홈 그룹 카드(`theme-groups.config.ts`)도 같은 값 — 바꾸면 둘 다 바꾼다.
+- 칩 막대: 데스크톱 96→76px, 모바일 62→56px(`.mapwrap` top/height 도 56px). 아이콘 30→26px(모바일 18), 글자 13.5→13px, 그라데이션·칸 구분선은 더 옅게.
+- 칩은 `flex:1 0 auto` 로 글자보다 좁아지지 않게 — 긴 이름("CCTV 및 비상벨")이 옆 칸을 덮던 문제 해결. 안심가림판 공중화장실은 칩에서 `short:'안심가림판'`.
+- 전후 비교: 스크래치 `compare-desktop.png`·`compare-mobile.png`(Playwright 오프라인, `pw/shot.js`).
+- 검증: theme `node --check`, 치안안심 하네스, `npx tsc --noEmit`, prettier, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-chip-style`.
+- 다음 후보(담당자 확인 뒤): 상단바·푸터를 지도 4쪽과 홈에서 같은 높이·글꼴·버튼으로, 팝업·목록 카드 모서리/그림자 규격 통일, 목록 아이콘 크기 통일, 3D·항공 페이지의 안내 카드 톤을 테마지도와 맞추기, 홈 카드 색을 accent 팔레트로(이번에 반영).
