@@ -12,7 +12,7 @@ export function SiteHeader({
   active?: string;
 }) {
   const links = [
-    { label: '우리동네 찾기', href: themeUrl('시즌·가을') },
+    { label: '우리동네 찾기', href: themeUrl('시즌·겨울') },
     /* 유기동물 찾기: 내년도 서비스 예정 — siteConfig.features.animalMap 으로 보이기 */
     ...(siteConfig.features.animalMap ? [{ label: '유기동물 찾기', href: animalUrl() }] : []),
     { label: '3D입체지도', href: sceneUrl() },

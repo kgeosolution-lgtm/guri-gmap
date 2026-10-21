@@ -787,3 +787,22 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 조치(코드): 목록 위에 주황 띠로 "자료를 못 받았어요 · safety_all/FeatureServer/0 + 이유 + 다시 시도" 표시(`loadFailNote()`/`showLoadNote()`, `#loadNote`). 스크롤하지 않아도 원인이 보임. 이유는 토큰 요구/연결 실패/JSON 아님(보안 차단 페이지) 세 가지를 쉬운 말로 바꿈.
 - 브랜치: `work/kangmina-load-note` (base `design/service-home-refresh` f368f3a).
 - 검증: theme `node --check`, 스크래치 `note-test.js`(이유 생성 4 경우) 통과, `npm run build:deploy`, prettier, `git diff --check` 통과.
+
+## 2026-10-21 시즌·겨울 추가, 시즌·가을 숨김, 명소는 문화·여가로, 메인은 겨울 사진 (담당: 강민아)
+
+- 배경: 11월 홈페이지 이전·오픈에 맞춰 겨울 시즌으로 전환(구리시 요청).
+- `public/maps/theme.html`
+  - 새 그룹 `시즌·겨울`(아이콘 `TOPIC_IC['겨울']` 눈송이, accent `#2F5F9E`), 테마 8개:
+    - 한파쉼터 `winter_shelter` — 시설구분·이용안내·운영기간·운영시간·야간/주말 팝업, 수용인원 칩
+    - 제설함 `winter_saltbox_new` — 이름이 없으면 설치장소→주소→'제설함 번호' 순으로 표시, 종류·규격/비치 자재/관리기관 팝업, 눈 올 때 안내 문구
+    - 결빙취약구간 `winter_icyroad_l`(선) + 결빙취약구간 시종점 `winter_icyroad_p`(점, `chipHide:true`, `pair`) — 칩은 '결빙취약구간' 하나, 목록에는 구간과 시점·종점이 각각 나옴(둘레길·둘레길 시설물과 같은 방식). 구간 길이(`hikeLen`)·시점·종점·취약 사유 팝업
+    - 둘레길·둘레길 시설물·등산로·등산로 시설물 — 시즌·가을 정의를 `trailThemes(계절)` 함수로 빼서 가을·겨울이 같이 씀(문구만 계절에 맞춤)
+  - 심볼 4개 `winter_shelter/saltbox/icyroad/icyroad_p` 를 `scripts/winter-icons.py`(safety-icons.py 도형 도구 재사용)로 그려 SYM 에 base64 로 넣음
+  - `시즌·가을` 은 `hidden:true`(URL 직접 접근은 가능), `구리 명소` 는 `문화·여가` 의 축제 바로 뒤로 옮김(문구 '구리의 대표 명소…')
+- 홈(Next.js)
+  - `links.ts` ThemeGroup 에 `시즌·겨울`, `theme-groups.config.ts` 가을 `hidden:true` + 겨울 카드(Snowflake, '한파쉼터·제설함·결빙취약구간'), 문화·여가 요약 '축제·명소·둘레길·공원'
+  - 헤더·푸터·지도 카드의 '우리동네 찾기' 링크 → `시즌·겨울`
+  - `season.config.ts`: `SEASON_OVERRIDE='winter'` 로 메인 사진·추천을 겨울로 고정(`'auto'` 로 바꾸면 날짜 기준). 겨울 추천 항목은 시즌·겨울/문화·여가 지도로 연결, 가을 '아차산 단풍 산책'은 문화·여가로
+- 필드 이름은 레이어를 아직 못 읽어(개발 환경에서 guri.go.kr 접속 불가) 후보를 넓게 잡았음. 실제 자료가 뜨면 목록 이름·부제·팝업이 맞는지 확인하고 `fields`/`pop` 후보를 다듬을 것.
+- 검증: theme `node --check`, Playwright(오프라인, 가짜 자료) — 기본 그룹=시즌·겨울, 칩 6개(시종점 숨김), 결빙취약구간 선택 시 구간+시종점 3건 목록, 이름/부제/길이 포맷 확인(`scratchpad/pw/winter-test.js`); `npx tsc --noEmit`, prettier, `npm run build:deploy`, `git diff --check` 통과.
+- 브랜치: `work/kangmina-winter` (base `design/service-home-refresh` c70f603).
