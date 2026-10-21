@@ -96,8 +96,12 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .key-warn b{color:#9a6a00}
 
 /* 함께 보기 (검색창 아래) — 연도 버튼과 같은 결의 알약 토글, 켜지면 자료별 색 */
-.ov-bar{position:absolute;left:12px;top:64px;z-index:6;background:#fff;border:1px solid var(--gray20);border-radius:12px;box-shadow:var(--shadow);padding:9px 10px 10px;width:min(430px,calc(100% - 24px))}
+.ov-bar{display:none;position:absolute;right:54px;top:62px;z-index:8;background:#fff;border:1px solid var(--gray20);border-radius:12px;box-shadow:var(--shadow);padding:9px 10px 10px;width:min(430px,calc(100% - 24px))}
+.ov-bar.show{display:block}
 .ov-head{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.ov-close{margin-left:auto;width:26px;height:26px;border-radius:6px;display:grid;place-items:center;color:var(--gray70);font-size:18px;line-height:1}
+.ov-close:hover{background:#f1f4f2}
+.map-ctl button.is-on{color:#fff;background:var(--brand);border-color:var(--brand)}
 .ov-title{font-weight:700;font-size:13px;white-space:nowrap}
 .ov-src{font-size:11px;color:var(--faint);margin-left:auto;white-space:nowrap}
 .ov-chips{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}   /* 로드뷰 + 5개 = 6개 → 위 3개, 아래 3개 */
@@ -156,7 +160,8 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .rv-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#cfd8d3;font-size:13.5px;text-align:center;padding:20px;line-height:1.6}
 
 @media (max-width:640px){
-  .ov-bar{top:112px;left:8px;right:8px;width:auto;padding:7px 8px 8px}
+  .region{display:none}   /* 모바일에선 도·시군구·읍면동 선택을 숨겨 지도를 넓게 */
+  .ov-bar{top:62px;left:8px;right:8px;width:auto;padding:7px 8px 8px;max-height:calc(100dvh - 240px);overflow:auto}
   .ov-chip{height:30px;font-size:12px;padding:0 6px 0 6px;gap:5px}
   .ov-src{display:none}
   .rv-panel{top:auto;left:0;right:0;bottom:0;width:auto;height:50%;border-left:none;border-top:1px solid rgba(255,255,255,.15)}
@@ -172,10 +177,8 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
   .cmp-lbl{bottom:auto;top:60px}
   .map-ctl{top:auto;bottom:150px}
   .search-host{width:calc(100% - 24px)}
-  .region{top:62px;right:12px;left:12px;justify-content:space-between;padding:5px 6px}
-  .region select{font-size:12.5px;padding:0 18px 0 6px;min-width:0;flex:1}
-  .cmp-lbl{top:112px}
-  .ov-bar~.cmp-lbl{top:168px}
+  .cmp-lbl{top:62px}
+  .ov-bar.show~.cmp-lbl{display:none}
 }
 </style>
 </head>
@@ -193,7 +196,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
     <select id="dongSel" aria-label="행정동"><option value="">동 선택</option></select>
   </div>
   <div class="ov-bar" id="ovBar" role="group" aria-label="지도 위에 함께 보기">
-    <div class="ov-head"><span class="ov-title">지도 위에 함께 보기</span><span class="ov-src">자료: 국토교통부 브이월드 · 카카오</span></div>
+    <div class="ov-head"><span class="ov-title">지도 위에 함께 보기</span><span class="ov-src">자료: 국토교통부 브이월드 · 카카오</span><button type="button" class="ov-close" aria-label="닫기" onclick="toggleOvBar(false)">×</button></div>
     <div class="ov-chips" id="ovChips"></div>
     <div class="ov-foot" id="ovFoot"><span>진하기</span><input type="range" id="ovAlpha" min="30" max="100" step="5" value="75" aria-label="겹쳐 보기 진하기"><button type="button" onclick="clearOverlays()">모두 끄기</button></div>
     <p class="ov-note" id="ovNote" role="status" aria-live="polite"></p>
@@ -206,6 +209,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
   <div class="cmp-lbl l" id="cmpL"></div>
   <div class="cmp-lbl r" id="cmpR"></div>
   <div class="map-ctl">
+    <button type="button" id="ovBtn" title="지도 위에 함께 보기" aria-label="지도 위에 함께 보기" aria-expanded="false" onclick="toggleOvBar()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4l8 4.5-8 4.5-8-4.5z"/><path d="M4 13l8 4.5 8-4.5"/><path d="M4 17.5L12 22l8-4.5"/></svg></button>
     <button type="button" title="확대" aria-label="확대" onclick="view&&view.goTo({zoom:view.zoom+1},{duration:250})"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg></button>
     <button type="button" title="축소" aria-label="축소" onclick="view&&view.goTo({zoom:view.zoom-1},{duration:250})"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
     <button type="button" title="내 위치" aria-label="내 위치" onclick="locate()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M20 12h2"/><path d="M2 12h2"/></svg></button>
@@ -958,8 +962,15 @@ function renderLegends(onKeys){
         : (L&&L.vec&&L.vec.__fields&&L.vec.__fields.label? '<div class="no show">확대하면 '+(o.classes==='HER'? '이름'+(L.vec.__fields.who? '과 지정한 곳':'') : '용도지역 이름')+'이 보여요</div>' : ''))+'</div>'; }).join('');
   host.classList.toggle('show',items.length>0);
 }
+/* 함께 보기 패널 열고 닫기(아이콘 버튼) */
+function toggleOvBar(force){
+  const bar=$('ovBar'), btn=$('ovBtn'); if(!bar) return;
+  const on= force===undefined? !bar.classList.contains('show') : !!force;
+  bar.classList.toggle('show',on); if(btn) btn.setAttribute('aria-expanded',on?'true':'false');
+}
 function renderOvState(){
   const onKeys=OVERLAYS.filter(o=>ovOn(o.key)).map(o=>o.key);
+  { const btn=$('ovBtn'); if(btn) btn.classList.toggle('is-on',onKeys.length>0||rvMode); }   /* 뭔가 켜져 있으면 아이콘에 표시 */
   document.querySelectorAll('.ov-chip[data-key]').forEach(b=>{ const on=onKeys.includes(b.dataset.key); b.classList.toggle('is-on',on); b.setAttribute('aria-pressed',on?'true':'false'); });
   $('ovFoot').classList.toggle('show',onKeys.length>0);
   renderLegends(onKeys);
@@ -972,7 +983,7 @@ function overlayKeys(){ return OVERLAYS.filter(o=>ovOn(o.key)).map(o=>o.key); }
 
 /* ── 로드뷰 (카카오) ── */
 function rvOn(){
-  rvMode=true; $('main').classList.add('rv-mode'); renderOvState();
+  rvMode=true; $('main').classList.add('rv-mode'); renderOvState(); toggleOvBar(false);   /* 지도를 찍어야 하니 패널은 닫는다 */
   if(KAKAO.jsKey) loadKakao().catch(()=>{});   /* SDK 는 미리 받아 두고, 패널은 클릭해서 로드뷰를 찾았을 때 연다 */
   toast(KAKAO.jsKey? '지도에서 길 위를 클릭하면 그곳의 로드뷰가 오른쪽에 열려요' : '지도를 클릭하면 카카오맵 로드뷰가 새 창으로 열려요',3200);
 }
