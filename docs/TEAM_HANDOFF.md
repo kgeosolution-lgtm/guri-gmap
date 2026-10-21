@@ -715,3 +715,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 3D·항공(및 숨겨진 유기동물) 구역 오른쪽 위 "02 / SKYLINE", "03 / TIMELINE" 라벨 제거(`*-section-index` 요소·CSS 삭제).
 - 브랜치: `work/kangmina-news-section` (base `design/service-home-refresh` 5438beb).
 - 검증: `tsc --noEmit`, prettier, `npm run build:deploy` 후 홈 출력에 라벨 0회·동네소식 구역 확인, `git diff --check` 통과.
+
+## 2026-10-21 동네소식: 메인에서 소개 위로, 메뉴에서 G-MAP 소개 앞으로, 문구에 공약지도 (담당: 강민아)
+
+- 메인 페이지: 동네소식 구역을 G-MAP 소개(ABOUT) 구역 **위**로 옮김(항공사진 비교 → 동네소식 → 소개 순).
+- 메뉴: 홈 헤더(PC·모바일)와 정적 지도 4쪽 헤더에서 "구리 동네소식"을 "G-MAP 소개" 앞에 둠.
+- 문구: "행사와 공지, 공약지도와 생활 정보까지 / 구리 동네소식에서 모아 볼 수 있어요."
+- 브랜치: `work/kangmina-news-order` (base `design/service-home-refresh` e792102).
+- 검증: `tsc --noEmit`, prettier, `npm run build:deploy` 후 홈 출력에서 구역 순서·메뉴 순서·문구, 지도 3쪽 메뉴 순서 확인, `git diff --check` 통과.

@@ -204,6 +204,35 @@ export default function Home() {
             </div>
           </div>
         </section>
+        <section className="news-section">
+          <div className="home-wrap news-layout">
+            <div className="news-illustration" aria-hidden="true">
+              <NewsArt />
+              <span>NEIGHBORHOOD NEWS</span>
+            </div>
+            <div>
+              <p className="eyebrow">함께 나누는 구리</p>
+              <h2>
+                우리 동네 소식을
+                <br />
+                한곳에서 만나보세요.
+              </h2>
+              <p>
+                행사와 공지, 공약지도와 생활 정보까지
+                <br />
+                구리 동네소식에서 모아 볼 수 있어요.
+              </p>
+              <a
+                className="home-button"
+                href="https://guri.kgeohub.com/"
+                target="_blank"
+                rel="noopener"
+              >
+                구리 동네소식 보기 <ArrowUpRight size={19} />
+              </a>
+            </div>
+          </div>
+        </section>
         <section id="about" className="home-wrap about-section">
           <div>
             <p className="eyebrow">ABOUT G-MAP</p>
@@ -245,35 +274,6 @@ export default function Home() {
                 </div>
               </div>
             ))}
-          </div>
-        </section>
-        <section className="news-section">
-          <div className="home-wrap news-layout">
-            <div className="news-illustration" aria-hidden="true">
-              <NewsArt />
-              <span>NEIGHBORHOOD NEWS</span>
-            </div>
-            <div>
-              <p className="eyebrow">함께 나누는 구리</p>
-              <h2>
-                우리 동네 소식을
-                <br />
-                한곳에서 만나보세요.
-              </h2>
-              <p>
-                행사와 공지, 생활 정보까지
-                <br />
-                구리 동네소식에서 모아 볼 수 있어요.
-              </p>
-              <a
-                className="home-button"
-                href="https://guri.kgeohub.com/"
-                target="_blank"
-                rel="noopener"
-              >
-                구리 동네소식 보기 <ArrowUpRight size={19} />
-              </a>
-            </div>
           </div>
         </section>
       </main>
