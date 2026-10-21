@@ -1571,6 +1571,7 @@ const layerUrl={};    /* 서비스 루트 → 실제 레이어 URL */
 const joinCache={};   /* 팝업 보조 레이어 rows */
 const _resolved={};   /* 서비스 루트 → 탐색 결과 캐시 */
 const dataCache={};   /* url → rows */
+const loadWhy={};     /* url → 불러오기 실패 이유(화면 안내용) */
 const geomKind={};    /* url → 'point'|'line'|'poly' */
 const geomWarned={};  /* 좌표 변환 안내 1회용 */
 const oidField={};    /* url → OBJECTID 필드명 */
@@ -1949,6 +1950,12 @@ async function buildDynThemes(g,loader){
   addExtra(); G.dynField=field;
   console.info('[치안안심] 시설 종류 항목 "'+field+'" → '+vals.length+'가지: '+vals.join(', '));
 }
+function retryGroup(){
+  const G=GROUPS[curGroup]; if(!G) return;
+  Object.values(G.themes).forEach(t=>{ if(t.src) delete dataCache[t.src.url]; });
+  if(G.dyn){ delete dataCache[G.dyn.url]; G.dynBuilt=false; G.dynRetry=0; }
+  toast('다시 불러오는 중이에요'); setGroup(curGroup,curCat,false);
+}
 async function loadGroupData(){
   Object.values(groupThemes(curGroup)).forEach(t=>{ if(t.src&&dataCache[t.src.url]&&dataCache[t.src.url].__failed) delete dataCache[t.src.url]; });   /* 실패했던 자료는 다시 받는다 */
   const themes=Object.values(groupThemes(curGroup)).filter(t=>t.src);
@@ -1998,7 +2005,7 @@ async function loadGroupData(){
     }
 
     if(!hit){
-      console.warn('[데이터 없음]',url);
+      console.warn('[데이터 없음]',url); loadWhy[url]=why.slice();
       why.forEach(w=>console.warn('   ↳',w));
       dataCache[url]=[]; dataCache[url].__failed=true; return;   /* 실패 표시: 다음 그룹 진입 때 다시 받는다 */
     }
@@ -2185,6 +2192,15 @@ function renderList_(){
   const t=curCat!=='전체'? groupThemes(curGroup)[curCat] : null;
   if(!L.length){
     const anyReady=Object.values(groupThemes(curGroup)).some(x=>x.src);
+    /* 자료를 못 받은 경우(망·서버 문제)는 이유와 '다시 시도'를 보여 준다 — 모바일에서 원인을 알 수 있게 */
+    const failed=Object.values(groupThemes(curGroup)).filter(x=>x.src&&dataCache[x.src.url]&&dataCache[x.src.url].__failed).map(x=>x.src.url);
+    const dynUrl=(GROUPS[curGroup]&&GROUPS[curGroup].dyn&&!GROUPS[curGroup].dynBuilt)? GROUPS[curGroup].dyn.url : null;
+    const whyUrl=failed[0]||((dynUrl&&loadWhy[dynUrl])? dynUrl : null);
+    if(whyUrl&&loadWhy[whyUrl]){
+      const reason=String(loadWhy[whyUrl][0]||'').replace(/^https?:\S+\s*→\s*/,'').slice(0,90);
+      $('list').innerHTML=`<div class="empty">자료를 불러오지 못했어요.<br><span style="font-size:12px;color:#9AA6A0">${esc(reason)}</span><br><button type="button" class="copy-btn" style="margin:12px 0 0;padding:6px 14px;font-size:12.5px" onclick="retryGroup()">다시 시도</button></div>`;
+      return;
+    }
     $('list').innerHTML=`<div class="empty">${anyReady?'조건에 맞는 시설이 없어요.<br>검색어나 동 선택을 바꿔보세요.':'이 분류의 지도는 데이터를 준비하고 있어요.<br>곧 만나보실 수 있습니다.'}</div>`;
     return;
   }

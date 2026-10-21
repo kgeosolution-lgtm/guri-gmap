@@ -759,3 +759,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 모바일(≤640px)에서 "왼쪽 ○년 ↔ 오른쪽 ○년…"·"○년 항공사진은 1:4,500 보다…" 안내가 두 줄씩 차지해 지도가 좁아 보임 → 안내문(`.ts-hint`, `.ts-note`)은 접어 두고 제목 옆 **ⓘ 버튼**(`#tsInfo`, `toggleTsInfo()`)을 누를 때만 펼침(`.ts-bar.info-open`). 확대 한계 경고(`.ts-note.zoomed`: 사진이 안 나오는 축척)만은 접힌 상태에서도 바로 보임. 데스크톱은 전과 같음(ⓘ 숨김).
 - 브랜치: `work/kangmina-tsbar-mobile` (base `design/service-home-refresh` 9b1bd0d).
 - 검증: aerial 인라인 스크립트 `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
+
+## 2026-10-21 자료 못 받았을 때 이유 표시 + 다시 시도 (담당: 강민아)
+
+- 담당자 휴대폰(카카오톡 안 브라우저, LTE)에서 치안안심이 여전히 0건·안심귀갓길 칩만 보임. 데스크톱(사무실 망)은 정상. 같은 guri.go.kr 서비스인데 행정동 경계(ArcGIS JS 레이어)는 휴대폰에서도 그려지므로 원인을 이 환경에서 단정할 수 없음(망·서버 응답·앱 내 브라우저 가능성).
+- 조치: `loadOne` 이 실패 이유(`why`: "Token Required", "Failed to fetch", "0건" 등)를 `loadWhy[url]` 에 남기고, 목록이 비었을 때 실패한 자료가 있으면 "자료를 불러오지 못했어요 + 이유 한 줄 + **다시 시도** 버튼"을 보여 줌. `retryGroup()` 은 그룹 자료 캐시를 지우고(치안안심은 `dynBuilt` 도 초기화) 그룹을 다시 연다.
+- 담당자에게: 휴대폰에서 치안안심을 열어 목록에 뜨는 이유 한 줄을 캡처해 보내 달라고 요청 → 원인 확정 후 수정.
+- 브랜치: `work/kangmina-load-diag` (base `design/service-home-refresh` 0da82c7).
+- 검증: theme `node --check`, 치안안심 하네스, `npm run build:deploy`, prettier, `git diff --check` 통과.
