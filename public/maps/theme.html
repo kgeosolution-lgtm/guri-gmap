@@ -149,9 +149,6 @@ a{color:inherit}
 .opcard.sel .nm{color:var(--accent)}
 .opcard .meta{font-size:12.5px;color:var(--krds-color-light-gray-60);margin-top:6px;line-height:1.6}
 .opcard .meta b{font-weight:700;color:var(--krds-color-light-gray-70)}
-.load-note{margin:0 0 8px;padding:8px 10px;border-radius:8px;background:#FFF4E5;border:1px solid #F6D9A8;color:#8A4B00;font-size:12px;line-height:1.5;word-break:break-all}
-.load-note b{font-weight:700;word-break:keep-all}
-.load-note button{margin-left:6px;padding:2px 9px;border:1px solid #D9A24A;border-radius:999px;background:#fff;color:#8A4B00;font-size:11.5px;cursor:pointer}
 .empty{text-align:center;color:var(--krds-color-light-gray-40);font-size:12.5px;padding:36px 14px;line-height:1.7;word-break:keep-all}
 .list::-webkit-scrollbar{width:6px}
 .list::-webkit-scrollbar-thumb{background:var(--krds-color-light-gray-20);border-radius:6px}
@@ -319,7 +316,6 @@ a{color:inherit}
     <div class="sheet-handle" id="sheetHandle"><span></span><small class="sh-txt" aria-hidden="true"></small></div>
     <div class="panel-head">
       <div class="theme-head" id="infoBlock"></div>
-      <div class="load-note" id="loadNote" hidden></div>
       <div class="searchbox"><span class="sch-ic"><svg class="" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M21 21l-6 -6"/></svg></span><input id="q" placeholder="이름이나 주소로 찾기" aria-label="이름이나 주소로 찾기"><button class="sch-clear" id="qClear" type="button" aria-label="지우기"><svg class="" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6l-12 12"/><path d="M6 6l12 12"/></svg></button></div>
     </div>
     <div class="sort-row tools">
@@ -1998,6 +1994,8 @@ const SAFETY_RULES=[   /* 순서대로 첫 일치. 문자열이면 옛 설정 �
      pop:[['📌','설치장소',['설치장소','설치위치','위치','장소','상세위치']],['🏛️','관리기관',['관리기관','관리기관명','관리부서','운영기관']],['ℹ️','상세',['상세정보','비고','설명','내용']]],
      info:'도로 반사경 위치입니다.'}]
 ];
+/* safety_all 의 '시설물' 값 12가지(담당자 캡처 기준). 자료를 못 받았을 때도 이 이름으로 0건 칩을 만들어 다른 주제처럼 칩이 보이게 한다 — 자료가 오면 실제 값으로 바꿔 끼운다 */
+const SAFETY_KNOWN=['AED','CCTV 및 비상벨','주정차단속 CCTV','CCTV','재난용 CCTV','방범용 CCTV','지킴이집','소방시설','안심가림판 공중화장실','로고젝터','안심안내판','산악구급함'];
 const SAFETY_ORDER=['AED','심장','비상벨','방범','주정차','재난','CCTV','귀갓길','지킴이','소방','소화','대피','쉼터','보호구역','택배','경찰','지구대','파출소','보안등','가로등','화장실','로고젝터','안내판','구급함'];   /* 칩 순서 */
 const SAFETY_COLORS=['#D3422C','#2F6FE4','#01A774','#7A5FD0','#E8940F','#6C8296'];
 function safetyThemeFor(value,url,field,idx,constFields){
@@ -2021,12 +2019,17 @@ async function buildDynThemes(g,loader){
   if(dataCache[url]&&dataCache[url].__failed) delete dataCache[url];
   try{ await loader(pseudo); }catch(e){ dataCache[url]=[]; dataCache[url].__failed=true; console.warn('[치안안심] 불러오기 실패',String((e&&e.message)||e)); }
   const rows=dataCache[url]||[]; G.dynBuilt=rows.length>0;   /* 0건이면 다음에 다시 만든다 */
-  const addExtra=()=>{ Object.assign(G.themes,G.dyn.extra||{}); };   /* 고정 테마(안심귀갓길 등)는 종류별 칩 뒤에 */
+  const rank=v=>{ const i=SAFETY_ORDER.findIndex(s=>String(v).toUpperCase().indexOf(s.toUpperCase())>-1); return i<0? 99 : i; };
+  /* 종류별 칩과 고정 테마(안심귀갓길 등)를 매번 새로 깔아 순서를 지킨다: 종류 칩 → 고정 테마 */
+  Object.keys(G.themes).forEach(k=>{ if(G.themes[k].placeholder||(G.dyn.extra&&G.dyn.extra[k])) delete G.themes[k]; });
+  const addExtra=()=>{ Object.assign(G.themes,G.dyn.extra||{}); };
   if(!rows.length){ console.warn('[치안안심] 자료 0건 — 레이어 공개(모든 사용자) 설정과 주소를 확인:',url);
-    delete dataCache[url]; addExtra();
+    dataCache[url]=[]; dataCache[url].__failed=true;   /* 실패 표시(다음 진입 때 다시 받음). 지우면 아래 jobs 가 같은 주소를 한 번 더 요청한다 */
+    /* 자료가 없어도 알려진 12종을 0건 칩으로 깔아 둔다 — 다른 주제처럼 전체 옆에 시설 칩이 보이게 */
+    SAFETY_KNOWN.slice().sort((a,b)=>rank(a)-rank(b)).forEach((v,i)=>{ const t=safetyThemeFor(v,url,'시설물',i,G.dyn.hide||[]); t.placeholder=true; G.themes[v]=t; });
+    addExtra();
     G.dynRetry=(G.dynRetry||0)+1;
-    if(G.dynRetry<=2){ try{ toast('치안안심 자료를 불러오는 중이에요. 잠시 뒤 다시 시도해요'); }catch(e){} setTimeout(()=>{ if(curGroup===g&&!G.dynBuilt) setGroup(g,curCat,false); },3000); }   /* 모바일 등에서 첫 요청이 실패하면 3초 뒤 다시(최대 2번) */
-    else { try{ toast('치안안심 자료를 불러오지 못했어요. 잠시 뒤 새로고침해 주세요'); }catch(e){} }
+    if(G.dynRetry<=2) setTimeout(()=>{ if(curGroup===g&&!G.dynBuilt) setGroup(g,curCat,false); },3000);   /* 첫 요청이 실패하면 3초 뒤 조용히 다시(최대 2번) */
     return; }
   const keys=Object.keys(rows[0]).filter(k=>!/^__/.test(k)); const norm=k=>String(k).toLowerCase().replace(/[_\s]/g,''); const low=keys.map(norm);
   let field=null; const nDistinct=k=>new Set(rows.map(r=>r[k]).filter(v=>v!=null&&String(v).trim())).size;
@@ -2036,35 +2039,11 @@ async function buildDynThemes(g,loader){
   if(!field){ let best=null; keys.forEach(k=>{ const vals=new Set(rows.map(r=>r[k]).filter(v=>typeof v==='string'&&v.trim())); if(vals.size>=2&&vals.size<=30&&vals.size<=Math.max(2,rows.length/2)&&(!best||vals.size<best.n)) best={k,n:vals.size}; }); field=best? best.k : null; }   /* 2~30가지(행 수의 절반 이하) 값을 가진 글자 항목 중 가짓수가 가장 적은 것 — 이름 항목은 거의 다 달라서 걸러진다 */
   if(!field){ console.warn('[치안안심] 시설 종류 항목을 못 찾음:',keys.join(',')); const t=safetyThemeFor('치안안심 시설',url,null,0); t.src={url}; G.themes['치안안심 시설']=t; addExtra(); return; }
   const counts={}; rows.forEach(r=>{ const v=r[field]; if(v!=null&&String(v).trim()) counts[v]=(counts[v]||0)+1; });
-  const rank=v=>{ const i=SAFETY_ORDER.findIndex(s=>String(v).toUpperCase().indexOf(s.toUpperCase())>-1); return i<0? 99 : i; };
   const vals=Object.keys(counts).sort((a,b)=>rank(a)-rank(b)||counts[b]-counts[a]);
   const constFields=keys.filter(k=>k!==field&&nDistinct(k)<=1);   /* 예: 구분='구리시시설물' */
   vals.forEach((v,i)=>{ G.themes[v]=safetyThemeFor(v,url,field,i,constFields.concat(G.dyn.hide||[])); });
   addExtra(); G.dynField=field;
   console.info('[치안안심] 시설 종류 항목 "'+field+'" → '+vals.length+'가지: '+vals.join(', '));
-}
-/* 못 받은 자료가 있으면 {name, reason} — 어떤 레이어가 왜 안 됐는지(휴대폰에서도 원인을 읽을 수 있게) */
-function loadFailNote(){
-  const G=GROUPS[curGroup]; if(!G) return null;
-  const failed=Object.values(G.themes).filter(x=>x.src&&dataCache[x.src.url]&&dataCache[x.src.url].__failed).map(x=>x.src.url);
-  const dynUrl=(G.dyn&&!G.dynBuilt)? G.dyn.url : null;
-  const urls=[].concat(dynUrl&&loadWhy[dynUrl]? [dynUrl] : [], failed).filter((u,i,a)=>a.indexOf(u)===i);
-  const whyUrl=urls.find(u=>loadWhy[u]); if(!whyUrl) return null;
-  const first=String(loadWhy[whyUrl][0]||'');
-  const tried=(first.match(/\/Hosted\/([^\s]+?)\s*→/)||[])[1]||'';   /* 예: safety_all/FeatureServer/0 */
-  const raw=first.replace(/^https?:\S+\s*→\s*/,'').slice(0,120);
-  /* 흔한 원인은 쉬운 말로: 토큰 요구 = 레이어가 공개(모든 사용자) 공유가 안 된 상태(사무실 망에선 되고 밖에선 안 됨) */
-  const reason=/token required|499/i.test(raw)? '이 자료는 아직 공개(모든 사용자) 공유가 안 되어 있어요 — 포털에서 공유 설정을 바꿔야 밖에서도 보여요 ('+raw+')'
-    : /failed to fetch|networkerror|load failed/i.test(raw)? '서버에 연결하지 못했어요 — 잠시 뒤 다시 시도해 주세요 ('+raw+')'
-    : /unexpected token|json/i.test(raw)? '서버가 자료 대신 다른 페이지(보안 차단 등)를 보냈어요 — 망 관리자에게 이 주소의 외부 접속 허용을 확인해 주세요 ('+raw+')' : raw;
-  return {tried,reason,n:urls.length};
-}
-function showLoadNote(){
-  const el=$('loadNote'); if(!el) return;
-  const f=loadFailNote();
-  if(!f){ el.hidden=true; el.innerHTML=''; return; }
-  el.hidden=false;
-  el.innerHTML=`<b>자료를 못 받았어요${f.n>1?' ('+f.n+'개 레이어)':''}</b>${f.tried?' · '+esc(f.tried):''}<br>${esc(f.reason)}<button type="button" onclick="retryGroup()">다시 시도</button>`;
 }
 function retryGroup(){
   const G=GROUPS[curGroup]; if(!G) return;
@@ -2305,17 +2284,13 @@ function renderList(){
 function renderList_(){
   const L=sortedRows();
   $('listN').textContent=`${L.length}곳`;
-  showLoadNote();
   const t=curCat!=='전체'? groupThemes(curGroup)[curCat] : null;
   if(!L.length){
     const anyReady=Object.values(groupThemes(curGroup)).some(x=>x.src);
-    /* 자료를 못 받은 경우(망·서버 문제)는 이유와 '다시 시도'를 보여 준다 — 모바일에서 원인을 알 수 있게 */
-    const fail=loadFailNote();
-    if(fail){
-      $('list').innerHTML=`<div class="empty">자료를 불러오지 못했어요.<br><span style="font-size:12px;color:#9AA6A0">${esc(fail.reason)}</span><br><button type="button" class="copy-btn" style="margin:12px 0 0;padding:6px 14px;font-size:12.5px" onclick="retryGroup()">다시 시도</button></div>`;
-      return;
-    }
-    $('list').innerHTML=`<div class="empty">${anyReady?'조건에 맞는 시설이 없어요.<br>검색어나 동 선택을 바꿔보세요.':'이 분류의 지도는 데이터를 준비하고 있어요.<br>곧 만나보실 수 있습니다.'}</div>`;
+    /* 자료를 못 받은 레이어가 있으면(망·서버 문제) '다시 시도' 단추만 조용히 붙인다 */
+    const failed=Object.values(groupThemes(curGroup)).some(x=>x.src&&dataCache[x.src.url]&&dataCache[x.src.url].__failed);
+    const retry=failed? `<br><button type="button" class="copy-btn" style="margin:12px 0 0;padding:6px 14px;font-size:12.5px" onclick="retryGroup()">다시 시도</button>` : '';
+    $('list').innerHTML=`<div class="empty">${anyReady?'조건에 맞는 시설이 없어요.<br>검색어나 동 선택을 바꿔보세요.':'이 분류의 지도는 데이터를 준비하고 있어요.<br>곧 만나보실 수 있습니다.'}${retry}</div>`;
     return;
   }
   if(t&&t.type==='cards'){
