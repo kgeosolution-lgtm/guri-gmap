@@ -916,3 +916,8 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 조치(`gmap-share.js`): 카카오톡 단추를 카카오 JS SDK(2.7.4, `Kakao.Share.sendDefault` 텍스트 메시지)로 바꾸고 `KAKAO_JS_KEY` 가 비어 있으면 **단추를 숨기고** 안내문을 "카카오톡으로 보내려면 '복사'한 주소를 대화창에 붙여 넣거나, 오른쪽 위 ⋮ 메뉴의 '공유하기'를 눌러 주세요" 로. SDK 는 단추를 처음 누를 때만 불러옴.
 - 키 발급 절차(구리시 또는 케이지오 카카오 계정): developers.kakao.com → 내 애플리케이션 → 앱 추가(이름 예: 구리시 G-MAP) → [앱 키] **JavaScript 키** 복사 → [플랫폼 > Web] 사이트 도메인에 `https://kgeodata.com` 과 최종 서비스 도메인 등록. 카카오 로그인·동의항목은 필요 없음. 키를 `public/maps/gmap-share.js` 맨 위 `KAKAO_JS_KEY` 에 넣고 배포하면 단추가 살아남.
 - 검증: Playwright(로컬 http) 키 없음 → 카카오 단추 숨김·안내문 확인(`pw/share-test.js`); `node --check`, prettier, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-share-kakao`.
+
+## 2026-10-21 공유창 안내문: ⋮ 메뉴 위치를 못 박지 않음 (담당: 강민아)
+
+- 담당자 지적: 안내문의 "오른쪽 위 ⋮ 메뉴"가 휴대폰(안드로이드 카카오톡 브라우저)에서는 오른쪽 아래에 있음. 위치를 단정하지 않도록 "브라우저의 ⋮ 메뉴"로 고침(`gmap-share.js` 안내문 2곳).
+- 검증: `node --check`, prettier, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-share-tip`.

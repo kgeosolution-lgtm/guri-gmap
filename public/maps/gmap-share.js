@@ -84,8 +84,8 @@
     const hasKakao = !!KAKAO_JS_KEY;
     b.querySelector('.gm-share-kakao').style.display = hasKakao ? '' : 'none';
     b.querySelector('.gm-share-tip').textContent = hasKakao
-      ? '카카오톡 안에서 열었다면 오른쪽 위 ⋮ 메뉴의 ‘공유하기’로도 보낼 수 있어요'
-      : '카카오톡으로 보내려면 ‘복사’한 주소를 대화창에 붙여 넣거나, 오른쪽 위 ⋮ 메뉴의 ‘공유하기’를 눌러 주세요';
+      ? '카카오톡 안에서 열었다면 브라우저의 ⋮ 메뉴 ‘공유하기’로도 보낼 수 있어요'
+      : '카카오톡으로 보내려면 ‘복사’한 주소를 대화창에 붙여 넣거나, 브라우저의 ⋮ 메뉴에서 ‘공유하기’를 눌러 주세요';
     b.querySelector('.gm-share-sms').href = 'sms:?&body=' + enc(title + ' ' + url);
     b.querySelector('.gm-share-mail').href = 'mailto:?subject=' + enc(title) + '&body=' + enc(url);
     b.classList.add('open');
