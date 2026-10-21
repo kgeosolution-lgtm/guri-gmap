@@ -37,7 +37,11 @@ var API = 'PASTE_APPS_SCRIPT_WEB_APP_URL';
 
 Apps Script 는 **배포 → 배포 관리 → 편집(연필) → 버전: 새 버전 → 배포** 를 해야 웹 앱 URL 에 반영됩니다(URL 은 그대로).
 
-## 5. 오픈할 때
+## 5. 메뉴에서 안 보여요
+
+2026-10 부터 시민용 메뉴에서는 "수정 요청"이 빠졌습니다. 검토할 때는 어느 페이지든 주소 뒤에 `?review=1` 을 붙여 열면 메뉴가 생깁니다(관리자 기능까지 쓰려면 `?review=guri`).
+
+## 6. 오픈할 때
 
 각 페이지의 `<script src="/review/review.js" defer>` 한 줄(홈은 `src/app/layout.tsx` 의 `<Script …>`)만 지우면 화면에서 사라집니다. 시트와 스크립트는 남겨 둬도 됩니다.
 

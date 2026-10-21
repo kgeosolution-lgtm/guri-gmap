@@ -18,9 +18,16 @@ export function SiteHeader({
     { label: '3D입체지도', href: sceneUrl() },
     { label: '항공사진 비교', href: aerialUrl() },
     { label: 'G-MAP 소개', href: homeUrl('#about') },
+    { label: '구리 동네소식', href: 'https://guri.kgeohub.com/', external: true },
   ];
   const navigation = links.map((link) => (
-    <a key={link.label} href={link.href} aria-current={active === link.label ? 'page' : undefined}>
+    <a
+      key={link.label}
+      href={link.href}
+      aria-current={active === link.label ? 'page' : undefined}
+      target={link.external ? '_blank' : undefined}
+      rel={link.external ? 'noopener' : undefined}
+    >
       {link.label}
     </a>
   ));

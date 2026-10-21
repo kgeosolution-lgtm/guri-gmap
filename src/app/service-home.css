@@ -486,6 +486,37 @@
     translate: 0 0;
   }
 }
+/* 동네소식 — G-MAP 소개 아래 띠 (구리 동네소식 사이트로 연결) */
+.news-section {
+  background: #fff6ec;
+  border-top: 1px solid #f3e3cf;
+}
+.news-layout {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 40px;
+  padding-top: 50px;
+  padding-bottom: 50px;
+}
+.news-layout h2 {
+  color: #5a3a12;
+}
+.news-layout > div > p:not(.eyebrow) {
+  font-size: 14px;
+  line-height: 1.9;
+  color: #8a6a44;
+  margin-top: 16px;
+}
+.news-button {
+  background: #c75a24;
+  border-color: #c75a24;
+  white-space: nowrap;
+}
+.news-button:hover {
+  background: #a9471a;
+  border-color: #a9471a;
+}
 @media (max-width: 900px) {
   .hero-layout {
     gap: 22px;
@@ -677,6 +708,12 @@
     padding-top: 50px;
     padding-bottom: 50px;
     gap: 35px;
+  }
+  .news-layout {
+    grid-template-columns: 1fr;
+    gap: 24px;
+    padding-top: 40px;
+    padding-bottom: 40px;
   }
   .usage-guide > div {
     gap: 14px;
