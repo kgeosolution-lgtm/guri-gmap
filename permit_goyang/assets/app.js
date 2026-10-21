@@ -190,6 +190,8 @@ require([
 
   buildLayerPanel();
   window.__gy={view:view,map:map,layers:layers};
+  // scene3d.js(3D 규모 검토)에 넘겨줄 것
+  window.GYAPP={map:map,view:view,S:function(){return S;},selectAtPoint:selectAtPoint,toast:toast,loading:loading};
   view.when(function(){ setTimeout(openFromUrl,300); });
 });
 var homeExtent=null;
@@ -347,7 +349,8 @@ function loadParcel(feat,lon,lat,zoomTo){
   var area=a.SHAPE__Area? Math.round(parseFloat(a.SHAPE__Area)*Math.pow(Math.cos(lat*Math.PI/180),2)*10)/10 : 0; // Web Mercator 면적 보정
   highlight(feat.geometry);
   // 검색했거나, 클릭했어도 필지가 잘 안 보일 만큼 축소된 상태면 필지로 확대
-  if(zoomTo||view.scale>4000) view.goTo({target:feat.geometry.extent.clone().expand(3.2)},{duration:700});
+  if(window.GY3D&&GY3D.is3d()){ /* 3D에서는 scene3d.js가 카메라를 옮김 */ }
+  else if(zoomTo||view.scale>4000) view.goTo({target:feat.geometry.extent.clone().expand(3.2)},{duration:700});
   else view.goTo({center:[lon,lat]},{duration:400});
 
   Promise.all([
@@ -371,6 +374,7 @@ function loadParcel(feat,lon,lat,zoomTo){
     if(!S.zone||!S.price) zoneFallback();
     if(S.flags.dup.length) resolveDup();
     updateHint(); setShareUrl(); analyzeTerrain(); analyzeRoads();
+    if(window.GY3D) GY3D.parcelChanged();
   }).catch(function(e){ loading(false); console.error(e); toast("필지 정보 조회에 실패했습니다"); });
 }
 
@@ -542,7 +546,7 @@ function renderParcel(){
   var p=S, zm=p.zm, h='';
   h+='<div class="pc-top"><div class="pc-tags"><span class="tag brand">'+esc(p.gu||"고양시")+'</span><span class="tag">'+esc(p.dong)+'</span><span class="tag">'+esc(jimokFull(p.jimok))+'</span>'+(p.road?'<span class="tag">'+esc(p.road)+'</span>':'')+'</div>';
   h+='<div class="pc-addr">'+esc(p.addr)+'</div>';
-  h+='<div class="pc-sub">PNU '+esc(p.pnu)+'<span class="pc-actions"><button data-act="copyPnu">PNU 복사</button><button data-act="share">🔗 링크 공유</button></span></div></div>';
+  h+='<div class="pc-sub">PNU '+esc(p.pnu)+'<span class="pc-actions"><button data-act="copyPnu">복사</button><button data-act="share">🔗 공유</button><button data-mode="3d" title="최대 건축 가능 규모를 3D로 봅니다">▲ 3D 규모</button></span></div></div>';
   var tt=terrainText(p.terrain);
   h+='<div class="pc-facts"><div class="pc-fact"><span>대지면적</span><b>'+(p.area?n0(p.area)+'㎡':'-')+'</b><small>'+(p.area?n0(p.area/3.3058)+'평':'')+'</small></div>';
   h+='<div class="pc-fact"><span>공시지가</span><b>'+(p.price?n0(p.price/10000)+'만원':'-')+'</b><small>'+(p.price?'㎡당'+(p.priceYear&&/^\d+$/.test(p.priceYear)?' · '+esc(p.priceYear):''):'')+'</small></div>';
@@ -656,6 +660,7 @@ function judge(silent){
   plan.sub=P.sub; S.lastP=P;
   var C=GY.judge(S,P,{jimokFull:jimokFull,n0:n0,n1:n1});
   renderVerdict(C,P,silent);
+  if(window.GY3D) GY3D.refresh();
 }
 
 var GROUPS=[["site","입지·규제"],["use","용도"],["scale","규모·밀도"],["proc","절차"],["duty","설치의무·부담"]];

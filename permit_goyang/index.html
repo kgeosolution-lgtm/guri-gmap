@@ -16,7 +16,7 @@
 <link rel="icon" href="/app/favicon.ico" type="image/x-icon">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="stylesheet" href="https://js.arcgis.com/4.31/esri/themes/light/main.css">
-<link rel="stylesheet" href="assets/app.css?v=e18fb28220">
+<link rel="stylesheet" href="assets/app.css?v=e84cbbbf29">
 <script src="/app/protect.js"></script>
 </head>
 <body>
@@ -95,6 +95,10 @@
   <section class="map-wrap">
     <div id="viewDiv"></div>
     <div class="map-top">
+      <div class="seg seg-mode" id="modeSeg">
+        <button data-mode="2d" id="mode2d" class="active">2D</button>
+        <button data-mode="3d" id="mode3d">3D</button>
+      </div>
       <div class="seg" id="bmSeg">
         <button data-bm="satellite" class="active">위성</button>
         <button data-bm="general">일반</button>
@@ -109,6 +113,7 @@
       <div class="layer-body" id="layerBody"></div>
     </div>
     <div class="legend-card" id="legendCard" hidden></div>
+    <div class="m3-panel" id="m3Panel" hidden></div>
     <div class="map-hint" id="mapHint">지도를 확대한 뒤 필지를 클릭하세요</div>
     <div class="map-loading" id="loading"><div class="spinner"></div><span>필지 정보를 불러오는 중</span></div>
   </section>
@@ -121,6 +126,7 @@
 <script src="assets/gy_data.js?v=ee3bc2c6a2"></script>
 <script src="assets/rules.js?v=d10ae708c1"></script>
 <script src="https://js.arcgis.com/4.31/"></script>
-<script src="assets/app.js?v=3e2c5921d1"></script>
+<script src="assets/app.js?v=4d1e495d88"></script>
+<script src="assets/scene3d.js?v=55b4b9235b"></script>
 </body>
 </html>
