@@ -149,6 +149,9 @@ a{color:inherit}
 .opcard.sel .nm{color:var(--accent)}
 .opcard .meta{font-size:12.5px;color:var(--krds-color-light-gray-60);margin-top:6px;line-height:1.6}
 .opcard .meta b{font-weight:700;color:var(--krds-color-light-gray-70)}
+.load-note{margin:0 0 8px;padding:8px 10px;border-radius:8px;background:#FFF4E5;border:1px solid #F6D9A8;color:#8A4B00;font-size:12px;line-height:1.5;word-break:break-all}
+.load-note b{font-weight:700;word-break:keep-all}
+.load-note button{margin-left:6px;padding:2px 9px;border:1px solid #D9A24A;border-radius:999px;background:#fff;color:#8A4B00;font-size:11.5px;cursor:pointer}
 .empty{text-align:center;color:var(--krds-color-light-gray-40);font-size:12.5px;padding:36px 14px;line-height:1.7;word-break:keep-all}
 .list::-webkit-scrollbar{width:6px}
 .list::-webkit-scrollbar-thumb{background:var(--krds-color-light-gray-20);border-radius:6px}
@@ -316,6 +319,7 @@ a{color:inherit}
     <div class="sheet-handle" id="sheetHandle"><span></span><small class="sh-txt" aria-hidden="true"></small></div>
     <div class="panel-head">
       <div class="theme-head" id="infoBlock"></div>
+      <div class="load-note" id="loadNote" hidden></div>
       <div class="searchbox"><span class="sch-ic"><svg class="" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M21 21l-6 -6"/></svg></span><input id="q" placeholder="이름이나 주소로 찾기" aria-label="이름이나 주소로 찾기"><button class="sch-clear" id="qClear" type="button" aria-label="지우기"><svg class="" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6l-12 12"/><path d="M6 6l12 12"/></svg></button></div>
     </div>
     <div class="sort-row tools">
@@ -1950,6 +1954,29 @@ async function buildDynThemes(g,loader){
   addExtra(); G.dynField=field;
   console.info('[치안안심] 시설 종류 항목 "'+field+'" → '+vals.length+'가지: '+vals.join(', '));
 }
+/* 못 받은 자료가 있으면 {name, reason} — 어떤 레이어가 왜 안 됐는지(휴대폰에서도 원인을 읽을 수 있게) */
+function loadFailNote(){
+  const G=GROUPS[curGroup]; if(!G) return null;
+  const failed=Object.values(G.themes).filter(x=>x.src&&dataCache[x.src.url]&&dataCache[x.src.url].__failed).map(x=>x.src.url);
+  const dynUrl=(G.dyn&&!G.dynBuilt)? G.dyn.url : null;
+  const urls=[].concat(dynUrl&&loadWhy[dynUrl]? [dynUrl] : [], failed).filter((u,i,a)=>a.indexOf(u)===i);
+  const whyUrl=urls.find(u=>loadWhy[u]); if(!whyUrl) return null;
+  const first=String(loadWhy[whyUrl][0]||'');
+  const tried=(first.match(/\/Hosted\/([^\s]+?)\s*→/)||[])[1]||'';   /* 예: safety_all/FeatureServer/0 */
+  const raw=first.replace(/^https?:\S+\s*→\s*/,'').slice(0,120);
+  /* 흔한 원인은 쉬운 말로: 토큰 요구 = 레이어가 공개(모든 사용자) 공유가 안 된 상태(사무실 망에선 되고 밖에선 안 됨) */
+  const reason=/token required|499/i.test(raw)? '이 자료는 아직 공개(모든 사용자) 공유가 안 되어 있어요 — 포털에서 공유 설정을 바꿔야 밖에서도 보여요 ('+raw+')'
+    : /failed to fetch|networkerror|load failed/i.test(raw)? '서버에 연결하지 못했어요 — 잠시 뒤 다시 시도해 주세요 ('+raw+')'
+    : /unexpected token|json/i.test(raw)? '서버가 자료 대신 다른 페이지(보안 차단 등)를 보냈어요 — 망 관리자에게 이 주소의 외부 접속 허용을 확인해 주세요 ('+raw+')' : raw;
+  return {tried,reason,n:urls.length};
+}
+function showLoadNote(){
+  const el=$('loadNote'); if(!el) return;
+  const f=loadFailNote();
+  if(!f){ el.hidden=true; el.innerHTML=''; return; }
+  el.hidden=false;
+  el.innerHTML=`<b>자료를 못 받았어요${f.n>1?' ('+f.n+'개 레이어)':''}</b>${f.tried?' · '+esc(f.tried):''}<br>${esc(f.reason)}<button type="button" onclick="retryGroup()">다시 시도</button>`;
+}
 function retryGroup(){
   const G=GROUPS[curGroup]; if(!G) return;
   Object.values(G.themes).forEach(t=>{ if(t.src) delete dataCache[t.src.url]; });
@@ -2189,19 +2216,14 @@ function renderList(){
 function renderList_(){
   const L=sortedRows();
   $('listN').textContent=`${L.length}곳`;
+  showLoadNote();
   const t=curCat!=='전체'? groupThemes(curGroup)[curCat] : null;
   if(!L.length){
     const anyReady=Object.values(groupThemes(curGroup)).some(x=>x.src);
     /* 자료를 못 받은 경우(망·서버 문제)는 이유와 '다시 시도'를 보여 준다 — 모바일에서 원인을 알 수 있게 */
-    const failed=Object.values(groupThemes(curGroup)).filter(x=>x.src&&dataCache[x.src.url]&&dataCache[x.src.url].__failed).map(x=>x.src.url);
-    const dynUrl=(GROUPS[curGroup]&&GROUPS[curGroup].dyn&&!GROUPS[curGroup].dynBuilt)? GROUPS[curGroup].dyn.url : null;
-    const whyUrl=failed[0]||((dynUrl&&loadWhy[dynUrl])? dynUrl : null);
-    if(whyUrl&&loadWhy[whyUrl]){
-      const raw=String(loadWhy[whyUrl][0]||'').replace(/^https?:\S+\s*→\s*/,'').slice(0,90);
-      /* 흔한 원인은 쉬운 말로: 토큰 요구 = 레이어가 공개(모든 사용자) 공유가 안 된 상태(사무실 망에선 되고 밖에선 안 됨) */
-      const reason=/token required|499/i.test(raw)? '이 자료는 아직 공개(모든 사용자) 공유가 안 되어 있어요 — 포털에서 공유 설정을 바꿔야 밖에서도 보여요 ('+raw+')'
-        : /failed to fetch|networkerror|load failed/i.test(raw)? '서버에 연결하지 못했어요 — 잠시 뒤 다시 시도해 주세요 ('+raw+')' : raw;
-      $('list').innerHTML=`<div class="empty">자료를 불러오지 못했어요.<br><span style="font-size:12px;color:#9AA6A0">${esc(reason)}</span><br><button type="button" class="copy-btn" style="margin:12px 0 0;padding:6px 14px;font-size:12.5px" onclick="retryGroup()">다시 시도</button></div>`;
+    const fail=loadFailNote();
+    if(fail){
+      $('list').innerHTML=`<div class="empty">자료를 불러오지 못했어요.<br><span style="font-size:12px;color:#9AA6A0">${esc(fail.reason)}</span><br><button type="button" class="copy-btn" style="margin:12px 0 0;padding:6px 14px;font-size:12.5px" onclick="retryGroup()">다시 시도</button></div>`;
       return;
     }
     $('list').innerHTML=`<div class="empty">${anyReady?'조건에 맞는 시설이 없어요.<br>검색어나 동 선택을 바꿔보세요.':'이 분류의 지도는 데이터를 준비하고 있어요.<br>곧 만나보실 수 있습니다.'}</div>`;

@@ -775,3 +775,15 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 조치(포털, 담당자): 구리시 포털에서 `safety_all` 과 `safety_secure_map` 항목을 **모든 사용자(공개)** 로 공유. 바꾼 뒤 휴대폰에서 "다시 시도".
 - 브랜치: `work/kangmina-load-reason-ko` (base `design/service-home-refresh` b587cf1).
 - 검증: theme `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
+
+## 2026-10-21 못 받은 레이어 이름과 이유를 목록 위 띠로 표시 (담당: 강민아)
+
+- 담당자 확인: 레이어를 모두 공개로 바꿨는데도 휴대폰에서 치안안심은 안심귀갓길 칩 하나(0건)만 나옴. 안심귀갓길도 0건이므로 **새 레이어 두 개(safety_all, safety_secure_map/1)만 휴대폰(외부 망)에서 못 받는 상태**. 같은 호스트의 다른 레이어(공영주차장 등)는 휴대폰에서 정상.
+- GitHub Actions(해외 IP)에서는 옛 레이어(life_parking)도 `499 Token Required` 라 외부 검증은 불가 — 해외 IP 차단으로 보임. 사무실 데스크톱은 내부 망이라 새 레이어도 보임.
+- 휴대폰에서 직접 확인하는 방법(브라우저 주소창에 입력):
+  - 되는 것: `https://www.guri.go.kr/gmapsvr/rest/services/Hosted/life_parking/FeatureServer/0/query?where=1%3D1&returnCountOnly=true&f=json`
+  - 확인 대상: `https://www.guri.go.kr/gmapsvr/rest/services/Hosted/safety_all/FeatureServer/0/query?where=1%3D1&returnCountOnly=true&f=json`
+  - 둘의 응답이 다르면(두 번째가 `Token Required`, 오류 페이지, 빈 화면 등) 서버/망 쪽 설정(항목 공유 외에 외부 접속 허용 경로·웹방화벽 URL 등록)을 확인해야 함.
+- 조치(코드): 목록 위에 주황 띠로 "자료를 못 받았어요 · safety_all/FeatureServer/0 + 이유 + 다시 시도" 표시(`loadFailNote()`/`showLoadNote()`, `#loadNote`). 스크롤하지 않아도 원인이 보임. 이유는 토큰 요구/연결 실패/JSON 아님(보안 차단 페이지) 세 가지를 쉬운 말로 바꿈.
+- 브랜치: `work/kangmina-load-note` (base `design/service-home-refresh` f368f3a).
+- 검증: theme `node --check`, 스크래치 `note-test.js`(이유 생성 4 경우) 통과, `npm run build:deploy`, prettier, `git diff --check` 통과.
