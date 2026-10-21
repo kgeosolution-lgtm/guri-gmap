@@ -738,3 +738,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 항공사진 비교 모바일(≤640px): 도·시군구·읍면동 선택(`.region`) 숨김, 카드는 화면 폭 전체·위 62px·세로 스크롤, 비교 라벨은 카드가 열리면 숨김.
 - 브랜치: `work/kangmina-mobile-layout` (base `design/service-home-refresh` 484f8ad).
 - 검증: theme/aerial 인라인 스크립트 `node --check`, 치안안심 하네스, `npm run build:deploy` 후 출력에 버튼·숨김 규칙·min 단계 확인, `git diff --check` 통과. 실제 모바일 화면은 배포 후 확인.
+
+## 2026-10-21 항공사진 비교: 함께 보기 아이콘 방식은 모바일에서만, 데스크톱은 전처럼 (담당: 강민아)
+
+- 데스크톱(>640px): "지도 위에 함께 보기" 카드가 전처럼 왼쪽 위(검색창 아래)에 항상 보이고, 레이어 아이콘 버튼(`#ovBtn`)과 × 닫기는 숨김(`display:none`).
+- 모바일(≤640px): 카드 기본 숨김, 아이콘 버튼으로 열고 닫음(기존 동작). `toggleOvBar` 는 `show` 클래스만 바꾸므로 데스크톱에선 영향 없음(로드뷰 켤 때도 카드 유지).
+- 브랜치: `work/kangmina-ovbar-desktop` (base `design/service-home-refresh` dd90daf).
+- 검증: aerial 인라인 스크립트 `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
