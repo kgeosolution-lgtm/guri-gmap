@@ -689,7 +689,30 @@ const GROUPS={
      info:'등산로의 쉼터·이정표·안전시설입니다.'}
  }},
  '치안안심':{ icon:'치안안심', accent:'#D3422C', themes:{},   /* 2026-10 구리시 요청: '안전·재난' → '치안안심'. safety_all 한 레이어의 '시설 종류' 값마다 칩을 만든다(buildDynThemes). 옛 주소(group=안전·재난)는 GROUP_ALIAS 로 이어짐 */
-   dyn:{url:U('safety_all'),field:['시설물','시설종류','시설물종류','시설물종별','시설종별','시설구분','시설물구분','시설유형','시설물유형','종류','유형','분류','구분','type','kind','category'],hide:['구분']} },   /* hide: 자료 구분용 항목은 팝업에서 늘 숨김 */   /* safety_all 의 종류 항목은 '시설물'(값 예: 'CCTV 및 비상벨'), '구분'은 전부 '구리시시설물'이라 뒤로 */
+   dyn:{url:U('safety_all'),field:['시설물','시설종류','시설물종류','시설물종별','시설종별','시설구분','시설물구분','시설유형','시설물유형','종류','유형','분류','구분','type','kind','category'],hide:['구분'],   /* hide: 자료 구분용 항목은 팝업에서 늘 숨김 */
+   /* extra: safety_all 과 별도로 넣는 고정 테마(종류별 칩 뒤에 붙음) — 여성안심귀갓길 4개 코스(선) */
+   extra:{
+   '안심귀갓길':{short:'안심귀갓길',c:'#7A5FD0',sym:'safety_nightcctv',type:'list',colorBy:'course',
+     src:{url:H+"safety_secure_map/FeatureServer/1"},
+     fields:{name:['명칭','노선명','코스명']},
+     nameFn:(r,pv)=>{ const n=pv(r,['명칭','노선명']); const c=pv(r,['둘레길','코스','코스명']);
+       return valOK(n)? String(n) : (valOK(c)? String(c)+' 안심귀갓길' : '안심귀갓길'); },
+     catFn:(r,pv)=>{ const c=pv(r,['둘레길','코스','코스명']); return valOK(c)? '🚶 '+c : '안심귀갓길'; },
+     colorFn:(r,pv)=>courseColor(r,pv,'#7A5FD0'),
+     listSub:(r,pv)=>{ const a=pv(r,['지역','구간']); return valOK(a)? String(a) : null; },
+     listFn:(r,pv)=>{ const l=pv(r,['길이']), d=pv(r,['지정일']);
+       return [valOK(l)?'📏 '+l:null, valOK(d)?'📅 '+d+' 지정':null].filter(Boolean).join('  ')||null; },
+     chips:[{from:['길이'],pre:'📏 '},{from:['지정일'],pre:'📅 ',post:' 지정'}],
+     guide:'밤길이 걱정될 땐 이 길로 다니세요<br>경찰이 정기적으로 순찰하는 구간이에요',
+     pop:[['🗺️','구간',['지역','구간']],
+          ['🛣️','경로',['경로']],
+          ['👮','낮 순찰',['순찰방법']],
+          ['🌙','밤 순찰',['순찰방법(야간)','순찰방법_야간_','순찰방법_야간','순찰방법야간','야간순찰']],
+          ['🏛️','지정',['지정사']]],
+     hide:['shape_leng','shape__length','st_length','objectid','둘레길','코스'],
+     foot:'순찰 시간은 상황에 따라 달라질 수 있어요',
+     info:'경찰이 순찰하는 여성안심귀갓길 4개 코스입니다. 코스를 누르면 경로가 지도에 표시돼요.'}
+   } } },   /* safety_all 의 종류 항목은 '시설물'(값 예: 'CCTV 및 비상벨'), '구분'은 전부 '구리시시설물'이라 뒤로 */
  '건강·의료':{ icon:'건강의료', accent:'#058847', themes:{
    '약국':{c:'#2E9E5B',sym:'health_pharmacy',type:'list',weekHours:true,src:{url:U('health_pharmacy')},
      fields:{name:['약국명','시설명','상호명'],addr:['도로명주소','지번주소','주소'],tel:['전화번호']},
@@ -1898,20 +1921,21 @@ async function buildDynThemes(g,loader){
   const url=G.dyn.url; const pseudo={src:{url}};
   try{ await loader(pseudo); }catch(e){ dataCache[url]=[]; console.warn('[치안안심] 불러오기 실패',String((e&&e.message)||e)); }
   const rows=dataCache[url]||[]; G.dynBuilt=true;
-  if(!rows.length){ console.warn('[치안안심] 자료 0건 — 레이어 공개(모든 사용자) 설정과 주소를 확인:',url); try{ toast('치안안심 자료를 불러오지 못했어요. 레이어 공개 설정을 확인해 주세요'); }catch(e){} return; }
+  const addExtra=()=>{ Object.assign(G.themes,G.dyn.extra||{}); };   /* 고정 테마(안심귀갓길 등)는 종류별 칩 뒤에 */
+  if(!rows.length){ console.warn('[치안안심] 자료 0건 — 레이어 공개(모든 사용자) 설정과 주소를 확인:',url); try{ toast('치안안심 자료를 불러오지 못했어요. 레이어 공개 설정을 확인해 주세요'); }catch(e){} addExtra(); return; }
   const keys=Object.keys(rows[0]).filter(k=>!/^__/.test(k)); const norm=k=>String(k).toLowerCase().replace(/[_\s]/g,''); const low=keys.map(norm);
   let field=null; const nDistinct=k=>new Set(rows.map(r=>r[k]).filter(v=>v!=null&&String(v).trim())).size;
   const usable=k=>k&&nDistinct(k)>=2;   /* 값이 한 가지뿐인 항목(예: 구분=구리시시설물)은 건너뛴다 */
   for(const c of G.dyn.field){ const i=low.indexOf(norm(c)); if(i>-1&&usable(keys[i])){ field=keys[i]; break; } }
   if(!field){ for(const c of G.dyn.field){ const i=low.findIndex(k=>k.indexOf(norm(c))>-1); if(i>-1&&usable(keys[i])){ field=keys[i]; break; } } }
   if(!field){ let best=null; keys.forEach(k=>{ const vals=new Set(rows.map(r=>r[k]).filter(v=>typeof v==='string'&&v.trim())); if(vals.size>=2&&vals.size<=30&&vals.size<=Math.max(2,rows.length/2)&&(!best||vals.size<best.n)) best={k,n:vals.size}; }); field=best? best.k : null; }   /* 2~30가지(행 수의 절반 이하) 값을 가진 글자 항목 중 가짓수가 가장 적은 것 — 이름 항목은 거의 다 달라서 걸러진다 */
-  if(!field){ console.warn('[치안안심] 시설 종류 항목을 못 찾음:',keys.join(',')); const t=safetyThemeFor('치안안심 시설',url,null,0); t.src={url}; G.themes['치안안심 시설']=t; return; }
+  if(!field){ console.warn('[치안안심] 시설 종류 항목을 못 찾음:',keys.join(',')); const t=safetyThemeFor('치안안심 시설',url,null,0); t.src={url}; G.themes['치안안심 시설']=t; addExtra(); return; }
   const counts={}; rows.forEach(r=>{ const v=r[field]; if(v!=null&&String(v).trim()) counts[v]=(counts[v]||0)+1; });
   const rank=v=>{ const i=SAFETY_ORDER.findIndex(s=>String(v).toUpperCase().indexOf(s.toUpperCase())>-1); return i<0? 99 : i; };
   const vals=Object.keys(counts).sort((a,b)=>rank(a)-rank(b)||counts[b]-counts[a]);
   const constFields=keys.filter(k=>k!==field&&nDistinct(k)<=1);   /* 예: 구분='구리시시설물' */
   vals.forEach((v,i)=>{ G.themes[v]=safetyThemeFor(v,url,field,i,constFields.concat(G.dyn.hide||[])); });
-  G.dynField=field;
+  addExtra(); G.dynField=field;
   console.info('[치안안심] 시설 종류 항목 "'+field+'" → '+vals.length+'가지: '+vals.join(', '));
 }
 async function loadGroupData(){
@@ -2531,7 +2555,7 @@ function syncLineLayers(){
         if(t.colorBy==='course'&&kind==='line'){    /* 코스마다 다른 색 */
           const fld=(oidField[t.src.url]&&null);    /* 실제 필드명은 아래에서 찾음 */
           const rows=rowsFor(t);
-          const cand=['코스','코스명','코스번호','노선번호','둘레길이름','길이름','노선명','명칭'];
+          const cand=['둘레길','코스','코스명','코스번호','노선번호','둘레길이름','길이름','노선명','명칭'];
           let useF=null;
           if(rows[0]){ const m=keysOf(rows[0]);
             for(const c of cand){ const n=c.toLowerCase().replace(/[_\s]/g,'');
@@ -3083,7 +3107,7 @@ const COURSE_INFO = {
 };
 const COURSE_COLORS = ['#6AA84F','#E07B27','#2F6FE4','#7A5FD0','#D9538A','#00A9C0','#8B5E34','#E5533C'];
 function courseNo(r,pv){
-  const v = pv(r,['코스','코스명','코스번호','노선번호','둘레길이름','길이름','노선명','명칭','구간']);
+  const v = pv(r,['코스','코스명','코스번호','노선번호','둘레길이름','길이름','노선명','명칭','구간','둘레길']);   /* '둘레길': 안심귀갓길 자료의 코스 항목 이름 */
   if(!valOK(v)) return null;
   const m = String(v).match(/(\d+)\s*코스|제?\s*(\d+)\s*구간|^\s*(\d+)/);
   const n = m? (m[1]||m[2]||m[3]) : null;
