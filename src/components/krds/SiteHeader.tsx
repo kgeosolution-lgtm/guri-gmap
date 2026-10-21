@@ -17,8 +17,8 @@ export function SiteHeader({
     ...(siteConfig.features.animalMap ? [{ label: '유기동물 찾기', href: animalUrl() }] : []),
     { label: '3D입체지도', href: sceneUrl() },
     { label: '항공사진 비교', href: aerialUrl() },
-    { label: 'G-MAP 소개', href: homeUrl('#about') },
     { label: '구리 동네소식', href: 'https://guri.kgeohub.com/', external: true },
+    { label: 'G-MAP 소개', href: homeUrl('#about') },
   ];
   const navigation = links.map((link) => (
     <a
