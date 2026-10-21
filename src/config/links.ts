@@ -4,6 +4,7 @@ import { siteConfig } from './site.config';
 export type ThemeGroup =
   | '시즌·여름'
   | '시즌·가을'
+  | '시즌·겨울'
   | '치안안심'
   | '건강·의료'
   | '육아·교육'

@@ -22,7 +22,7 @@ export function KrdsFooter() {
           </div>
           <div className="f-link">
             <div className="link-go">
-              <a href={themeUrl('시즌·가을')} className="krds-btn medium text">
+              <a href={themeUrl('시즌·겨울')} className="krds-btn medium text">
                 우리동네 찾기 <ChevronRight className="svg-icon" aria-hidden="true" />
               </a>
               {siteConfig.features.animalMap && (

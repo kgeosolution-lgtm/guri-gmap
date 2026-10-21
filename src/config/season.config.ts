@@ -66,7 +66,7 @@ export const seasonConfig: Record<SeasonKey, SeasonTheme> = {
     titleColor: '#472B20',
     eyebrow: '천천히 걷고 싶은 구리의 가을',
     featuredItems: [
-      { title: '아차산 단풍 산책', href: themeUrl('시즌·가을') },
+      { title: '아차산 단풍 산책', href: themeUrl('문화·여가') },
       { title: '구리 코스모스 축제', href: null },
       { title: '가을 문화행사', href: null },
       { title: '우리동네 전통시장', href: null },
@@ -84,15 +84,18 @@ export const seasonConfig: Record<SeasonKey, SeasonTheme> = {
     titleColor: '#173B61',
     eyebrow: '포근한 일상을 잇는 구리의 겨울',
     featuredItems: [
-      { title: '제설 현황 안내', href: null },
-      { title: '한파 쉼터 찾기', href: null },
-      { title: '겨울철 안전 정보', href: null },
-      { title: '따뜻한 실내 나들이', href: null },
-      { title: '연말 문화행사', href: null },
+      { title: '한파쉼터 찾기', href: themeUrl('시즌·겨울') },
+      { title: '우리 동네 제설함', href: themeUrl('시즌·겨울') },
+      { title: '결빙취약구간 확인', href: themeUrl('시즌·겨울') },
+      { title: '겨울 둘레길·등산로', href: themeUrl('시즌·겨울') },
+      { title: '연말 문화행사', href: themeUrl('문화·여가') },
     ],
   },
 };
+/** 메인에 보여 줄 계절. 'auto' 면 날짜로 정하고, 계절 이름을 적으면 그 계절로 고정한다(2026-11 오픈은 겨울 사진·추천으로). */
+export const SEASON_OVERRIDE: SeasonKey | 'auto' = 'winter';
 export function getAutoSeason(date = new Date()): SeasonKey {
+  if (SEASON_OVERRIDE !== 'auto') return SEASON_OVERRIDE;
   const m = date.getMonth() + 1;
   if (m >= 3 && m <= 5) return 'spring';
   if (m >= 6 && m <= 8) return 'summer';

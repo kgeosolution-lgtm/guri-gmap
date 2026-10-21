@@ -1,6 +1,7 @@
 import {
   Sun,
   Leaf,
+  Snowflake,
   ShieldCheck,
   Stethoscope,
   School,
@@ -32,7 +33,19 @@ const themeGroupsAll: ThemeGroupItem[] = [
     summary: '물놀이장·무더위쉼터·그늘막',
     hidden: true,
   },
-  { group: '시즌·가을', icon: Leaf, color: '#C1652B', summary: '구리 명소·둘레길·등산로' },
+  {
+    group: '시즌·가을',
+    icon: Leaf,
+    color: '#C1652B',
+    summary: '축제·둘레길·등산로',
+    hidden: true /* 2026-11 오픈은 겨울 시즌. 명소는 문화·여가로 옮김 */,
+  },
+  {
+    group: '시즌·겨울',
+    icon: Snowflake,
+    color: '#2F5F9E',
+    summary: '한파쉼터·제설함·결빙취약구간',
+  },
   { group: '치안안심', icon: ShieldCheck, color: '#E5533C', summary: 'CCTV·AED·안심귀갓길' },
   { group: '건강·의료', icon: Stethoscope, color: '#2E9E5B', summary: '약국·병의원·예방접종' },
   {
@@ -44,7 +57,7 @@ const themeGroupsAll: ThemeGroupItem[] = [
   },
   { group: '생활편의', icon: ShoppingBag, color: '#2F6FE4', summary: '주차장·화장실·충전소' },
   { group: '우수맛집', icon: Utensils, color: '#C75A24', summary: '와구리맛집·노포식당' },
-  { group: '문화·여가', icon: Trees, color: '#01A774', summary: '둘레길·공원·축제' },
+  { group: '문화·여가', icon: Trees, color: '#01A774', summary: '축제·명소·둘레길·공원' },
   { group: '반려동물', icon: PawPrint, color: '#F0608A', summary: '동물병원·유기동물' },
   { group: '교통', icon: Bus, color: '#5B6C7E', summary: '버스정류장·공사·통제' },
 ];

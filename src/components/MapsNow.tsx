@@ -5,7 +5,7 @@ import { siteConfig } from '@/config/site.config';
 
 /** 지금 열어볼 수 있는 지도 — 완성된 두 페이지(테마지도, 유기동물 찾기)를 큰 카드로 */
 export function MapsNow() {
-  const theme = themeUrl('시즌·가을');
+  const theme = themeUrl('시즌·겨울');
   const animal = animalUrl();
   return (
     <section id="maps-now" className="krds-section" aria-labelledby="maps-now-title">
