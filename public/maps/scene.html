@@ -9,6 +9,7 @@
 <meta property="og:type" content="website">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="gmap-shared.css">
+<script src="gmap-share.js" defer></script>
 <link rel="stylesheet" href="https://js.arcgis.com/4.29/esri/themes/light/main.css">
 <link rel="stylesheet" href="/styles/site-shell.css">
 <style>
@@ -981,6 +982,7 @@ function locate(){
 async function shareUrl(){
   const label='구리시 G-MAP 3D입체지도';
   const httpish=/^https?:/i.test(location.href);
+  if(window.gmapShare&&httpish){ await gmapShare({title:label,url:location.href}); return; }   /* 기기 공유창 → 없으면 페이지 안 공유창(gmap-share.js) */
   if(navigator.share){
     try{ await navigator.share(httpish? {title:label,url:location.href} : {title:label,text:label}); return; }
     catch(e){ if(e&&e.name==='AbortError') return; }
