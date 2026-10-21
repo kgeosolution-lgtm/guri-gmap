@@ -682,3 +682,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 더 정확히 하려면: 15분 스케줄 작업이 레이어에 `수집일시` 항목(작업 실행 시각)을 함께 쓰면 화면이 자동으로 그 값을 씀(코드 수정 불필요).
 - 브랜치: `work/kangmina-ev-freshness` (base `design/service-home-refresh` e075563).
 - 검증: 하네스 `ev-test.js`(상태갱신일시 최댓값, 수집일시 우선, 45분 지연 경고, 캐시, 몇 시간째 표기, 설정 문구), 치안안심 하네스, theme.html `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
+
+## 2026-10-21 치안안심: 여성안심귀갓길 4개 코스(선) 추가 (담당: 강민아)
+
+- 자료: `Hosted/safety_secure_map/FeatureServer/1`(safety_safe_route, 선 4건). 항목(담당자 캡처): Shape_Leng·둘레길(코스: 안심1코스…)·지역(구간)·지정사·길이·명칭(○○지구대 여성안심귀갓길)·지정일·경로·순찰방법·순찰방법(야간).
+- 치안안심은 safety_all 을 종류별 칩으로 만드는 동적 그룹이라, 고정 테마는 `GROUPS.치안안심.dyn.extra` 에 두고 `buildDynThemes` 가 종류별 칩 뒤에 합침(`addExtra`, safety_all 이 0건이어도 남음).
+- 테마 `'안심귀갓길'`: 칩 아이콘은 안심귀갓길 심볼(`safety_nightcctv`), 선 색은 코스별(`colorBy:'course'` → 둘레길과 같은 `courseColor`; 코스 번호 후보에 '둘레길' 항목 이름 추가). 목록: 제목 = 명칭, 부제 = 지역(구간), "📏 300m 📅 2019.06 지정". 팝업: 코스 뱃지, 길이·지정일 칩, 안내("밤길이 걱정될 땐 이 길로… 경찰이 정기적으로 순찰"), 구간·경로·낮 순찰·밤 순찰(순찰방법(야간): 실제 항목 이름이 `순찰방법_야간_` 등이어도 정규화로 잡힘)·지정(지정사). Shape_Leng·코스 항목은 숨김. 코스를 누르면 경로가 지도에 표시.
+- 브랜치: `work/kangmina-safe-route` (base `design/service-home-refresh` a6e43c1).
+- 검증: 치안안심 하네스(스크래치가 초기화되어 다시 작성: 12종 심볼·extra 합치기(맨 뒤·0건이어도)·설정·loadOne 호출 위치) 통과, theme.html `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과. 실제 항목 이름·선 표시는 배포 후 확인.
