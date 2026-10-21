@@ -146,3 +146,28 @@
 
   /* ── 상단바 공통 ── */
 }
+
+/* ── 모바일 바텀시트 손잡이(지도 4쪽 공용): 우리동네 찾기 목록(.panel), 3D 장소 막대(.bar), 항공 연도 막대(.ts-bar) ──
+   기본은 숨김. 각 페이지의 모바일 미디어 쿼리에서 display:block 으로 켠다. 글자(.sh-txt::before)는 페이지가 정한다 */
+.sheet-handle {
+  display: none;
+  padding: 9px 0 3px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.sheet-handle span {
+  display: block;
+  width: 44px;
+  height: 5px;
+  border-radius: 3px;
+  background: #d4e0da;
+  margin: 0 auto;
+}
+.sheet-handle .sh-txt {
+  display: block;
+  text-align: center;
+  font-size: 11px;
+  color: #7c8a82;
+  margin-top: 3px;
+}

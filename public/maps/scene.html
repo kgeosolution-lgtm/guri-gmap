@@ -112,12 +112,17 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 @media (max-width:640px){
   .hint{display:none}
   .infocard{left:8px;right:8px;width:auto;top:8px;max-height:calc(100% - 130px)}
-  .bar{left:8px;right:8px;transform:none;width:auto;max-width:none;min-width:0;bottom:8px;padding:8px 10px 10px}
+  /* 바텀시트(우리동네 찾기 목록과 같은 모양): 화면 아래 붙고, 손잡이를 누르면 접혀 지도를 크게 */
+  .bar{left:0;right:0;bottom:0;transform:none;width:auto;max-width:none;min-width:0;border:0;border-radius:var(--ui-radius-lg,16px) var(--ui-radius-lg,16px) 0 0;box-shadow:0 -10px 34px rgba(20,40,32,.22);padding:0 12px 12px;transition:transform .28s cubic-bezier(.3,.9,.35,1)}
+  .bar .sheet-handle{display:block}
+  .bar.min{transform:translateY(calc(100% - 46px))}
+  .bar.min .sh-txt::before{content:'장소 목록 보기 ▴'}
+  .bar:not(.min) .sh-txt::before{content:'지도 크게 보기 ▾'}
   .bar-hint{display:none}
   .bar-opts{margin-left:0;font-size:12px}
   .slide{height:32px;font-size:12px}
   .map-toast{bottom:120px}
-  .map-ctl{top:auto;bottom:130px}
+  .map-ctl{top:auto;bottom:130px;right:10px}
 }
 </style>
 </head>
@@ -140,6 +145,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
   </div>
 
   <div class="bar" id="bar" role="group" aria-label="장소 바로가기와 보기 설정">
+    <div class="sheet-handle" onclick="this.parentNode.classList.toggle('min')" aria-hidden="true"><span></span><small class="sh-txt"></small></div>
     <div class="bar-head">
       <span class="bar-title">3D 구리</span>
       <span class="bar-hint" id="barHint">장소를 누르면 그곳으로 날아가요</span>
