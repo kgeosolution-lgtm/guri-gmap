@@ -209,19 +209,21 @@ a{color:inherit}
 /* ── 반응형: 네이버지도식 바텀시트 ── */
 @media (max-width:900px){
   .topbar{position:static}
-  .chipbar{top:0;height:84px}
-  .group-sel{padding:0 12px;gap:8px}
-  .group-sel img{width:28px;height:28px}
+  /* 테마·레이어 막대를 얇게(62px) — 지도가 더 크게 보이도록 */
+  .chipbar{top:0;height:62px}
+  .group-sel{padding:0 10px;gap:6px}
+  .group-sel img{width:24px;height:24px}
   .group-sel .gs-lbl{display:none}
-  .group-sel #groupTx{font-size:15px}
-  .chip{min-width:84px}
-  .chip img{width:26px;height:26px}
-  .chip .seg-nm{font-size:12px}
-  .chip .cnt{font-size:10px}
-  .chip.all{width:72px;max-width:72px}
-  .chip.all .seg-nm{font-size:12.5px}
+  .group-sel #groupTx{font-size:14px}
+  .chip{min-width:66px;gap:1px;padding:3px 6px}
+  .chip img{width:20px;height:20px}
+  .chip .dot{width:11px;height:11px;margin:5px 0}
+  .chip .seg-nm{font-size:11px}
+  .chip .cnt{font-size:9.5px;line-height:1}
+  .chip.all{width:58px;max-width:58px}
+  .chip.all .seg-nm{font-size:11.5px}
   .main{display:block}
-  .mapwrap{position:sticky;top:84px;height:calc(100dvh - 84px);min-height:0;z-index:30}
+  .mapwrap{position:sticky;top:62px;height:calc(100dvh - 62px);min-height:0;z-index:30}
   .panel{position:fixed;left:0;right:0;bottom:0;top:auto;z-index:45;width:100%;
     height:82dvh;max-height:none;border-right:none;border-top:none;
     border-radius:10px 10px 0 0;box-shadow:0 -10px 34px rgba(20,40,32,.22);
@@ -229,7 +231,11 @@ a{color:inherit}
   .panel.dragging{transition:none}
   .panel.half{transform:translateY(38dvh)}
   .panel.full{transform:translateY(0)}
+  .panel.min{transform:translateY(calc(82dvh - 54px))}   /* 손잡이만 남기고 내려 지도를 크게 — 손잡이를 아래로 끌거나 '지도 크게 보기' */
   .sheet-handle{display:block}
+  .sheet-handle .sh-txt{display:block;text-align:center;font-size:11px;color:#7C8A82;margin-top:3px}
+  .panel.min .sheet-handle .sh-txt::before{content:'목록 보기 ▴'}
+  .panel:not(.min) .sheet-handle .sh-txt::before{content:'지도 크게 보기 ▾'}
   .panel-head{padding-top:2px}
   .list{max-height:none}
   .pin-legend{display:none;bottom:56px}
@@ -307,7 +313,7 @@ a{color:inherit}
 
 <div class="main">
   <aside class="panel" id="panel">
-    <div class="sheet-handle" id="sheetHandle"><span></span></div>
+    <div class="sheet-handle" id="sheetHandle"><span></span><small class="sh-txt" aria-hidden="true"></small></div>
     <div class="panel-head">
       <div class="theme-head" id="infoBlock"></div>
       <div class="searchbox"><span class="sch-ic"><svg class="" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M21 21l-6 -6"/></svg></span><input id="q" placeholder="이름이나 주소로 찾기" aria-label="이름이나 주소로 찾기"><button class="sch-clear" id="qClear" type="button" aria-label="지우기"><svg class="" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6l-12 12"/><path d="M6 6l12 12"/></svg></button></div>
@@ -3512,11 +3518,12 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')hideInfo();});
 
 /* ── 모바일 바텀시트: peek(목록 살짝) / half / full 3단 스냅 ── */
 const isMobile=()=>matchMedia('(max-width:900px)').matches;
-function setSheet(state){ /* 'peek'|'half'|'full' */
+function setSheet(state){ /* 'min'(손잡이만)|'peek'(목록 살짝)|'half'|'full' */
   const p=$('panel'); if(!isMobile()) return;
-  p.classList.remove('half','full','dragging'); p.style.transform='';
+  p.classList.remove('min','half','full','dragging'); p.style.transform='';
   if(state==='half') p.classList.add('half');
   else if(state==='full') p.classList.add('full');
+  else if(state==='min') p.classList.add('min');
 }
 (function sheetDrag(){
   const p=$('panel'), h=$('sheetHandle');
@@ -3539,13 +3546,14 @@ function setSheet(state){ /* 'peek'|'half'|'full' */
   h.addEventListener('touchend',()=>{
     if(!isMobile()) return;
     const H=p.getBoundingClientRect().height;
-    const snaps=[['full',0],['half',H*0.42],['peek',H-148]];
+    const snaps=[['full',0],['half',H*0.42],['peek',H-206],['min',H-54]];   /* 아래로 더 끌면 손잡이만 남는다 */
     let best='half',bd=1e9;
     snaps.forEach(([k,v])=>{const d=Math.abs(cur-v); if(d<bd){bd=d;best=k;}});
     setSheet(best);
   });
+  /* 손잡이 누르기: 최소 ↔ 목록 살짝. 더 보려면 끌어 올린다 */
   h.addEventListener('click',()=>{ if(!isMobile()) return;
-    setSheet(p.classList.contains('full')?'peek':'full'); });
+    setSheet(p.classList.contains('min')? 'peek' : 'min'); });
 })();
 </script>
 <script src="/review/review.js" defer></script>   <!-- 오픈 전 검토용 "수정 요청" 위젯 — 오픈할 때 이 한 줄만 지운다 -->

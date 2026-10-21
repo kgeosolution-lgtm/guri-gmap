@@ -730,3 +730,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 장소명: `season.config.ts` 에 `place` 추가, 히어로 오른쪽 아래에 `.season-place`(11px 흰 글씨, 반투명 검정 알약)로 표시. 사진이 바뀌면 글씨도 같이 바뀜.
 - 브랜치: `work/kangmina-season-photos` (base `design/service-home-refresh` fb90eb5).
 - 검증: `tsc --noEmit`, prettier, `npm run build:deploy` 후 출력에 장소명·사진 파일 확인, `git diff --check` 통과.
+
+## 2026-10-21 모바일: 우리동네 찾기 칩 막대 얇게·목록 최소화, 항공사진 비교는 지역 선택 숨김·함께 보기를 아이콘으로 (담당: 강민아)
+
+- 우리동네 찾기(≤900px): 테마·레이어 막대 84 → **62px**(그룹 아이콘 24px, 칩 아이콘 20px·이름 11px·건수 9.5px, 전체 칩 58px), 지도 영역 `calc(100dvh - 62px)`. 목록 바텀시트에 **최소(min)** 단계 추가(`.panel.min` = 손잡이 54px만): 손잡이를 아래로 끌거나 손잡이를 누르면 최소 ↔ 살짝(peek) 전환, 손잡이 아래에 "지도 크게 보기 ▾ / 목록 보기 ▴" 안내. 스냅 단계 full·half·peek·min.
+- 항공사진 비교: "지도 위에 함께 보기" 카드를 기본 숨김으로 바꾸고, 오른쪽 컨트롤 맨 위에 **레이어 아이콘 버튼**(`#ovBtn`, `toggleOvBar()`)을 두어 누르면 카드(로드뷰·행정구역·연속지적도·용도지역·도시지역·문화재보호 6개 + 진하기·범례)가 펼쳐짐. 켜진 것이 있으면 아이콘이 초록으로(`is-on`), 카드 머리에 × 닫기, 로드뷰 켜면 지도를 찍어야 하니 카드 자동 닫힘. 데스크톱 카드 위치는 지역 선택 아래 오른쪽(`right:54px; top:62px`).
+- 항공사진 비교 모바일(≤640px): 도·시군구·읍면동 선택(`.region`) 숨김, 카드는 화면 폭 전체·위 62px·세로 스크롤, 비교 라벨은 카드가 열리면 숨김.
+- 브랜치: `work/kangmina-mobile-layout` (base `design/service-home-refresh` 484f8ad).
+- 검증: theme/aerial 인라인 스크립트 `node --check`, 치안안심 하네스, `npm run build:deploy` 후 출력에 버튼·숨김 규칙·min 단계 확인, `git diff --check` 통과. 실제 모바일 화면은 배포 후 확인.
