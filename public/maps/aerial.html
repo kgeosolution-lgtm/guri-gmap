@@ -18,7 +18,7 @@
   --accent:var(--krds-color-light-primary-50,#018058);
   --ink:var(--krds-color-light-gray-90,#1e2124); --sub:var(--krds-color-light-gray-60,#58616a); --faint:var(--krds-color-light-gray-40,#8a949e); --line:var(--krds-color-light-gray-10,#e6e8ea);
   --gray20:var(--krds-color-light-gray-20,#cdd1d5); --gray70:var(--krds-color-light-gray-70,#464c53); --gray80:var(--krds-color-light-gray-80,#33363d);
-  --shadow:0 2px 10px rgba(30,50,41,.12);
+  --shadow:var(--ui-shadow,0 2px 10px rgba(30,50,41,.12));   /* 공통 규격(site-shell.css --ui-*) */
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
@@ -38,7 +38,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .map-toast.show{opacity:1}
 
 /* 연도 바 */
-.ts-bar{position:absolute;left:50%;transform:translateX(-50%);bottom:16px;z-index:7;background:#fff;border:1px solid var(--gray20);border-radius:8px;box-shadow:var(--shadow);padding:10px 14px 12px;max-width:calc(100% - 24px);width:max-content}
+.ts-bar{position:absolute;left:50%;transform:translateX(-50%);bottom:16px;z-index:7;background:#fff;border:1px solid var(--gray20);border-radius:var(--ui-radius,10px);box-shadow:var(--shadow);padding:10px 14px 12px;max-width:calc(100% - 24px);width:max-content}
 .ts-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
 .ts-title{font-weight:700;font-size:14px;white-space:nowrap}
 .ts-hint{font-size:12px;color:var(--sub);flex:1;min-width:0}
@@ -73,7 +73,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .search-host .esri-search__submit-button{width:44px;height:42px;min-height:42px;align-self:stretch;display:flex;align-items:center;justify-content:center;padding:0;line-height:1;color:#fff;background:var(--brand);border:none}
 .search-host .esri-search__submit-button:hover,.search-host .esri-search__submit-button:focus{background:var(--brand-hover);color:#fff}
 .search-host .esri-search__clear-button{height:42px;min-height:42px;align-self:stretch;display:flex;align-items:center;justify-content:center;border:none}
-.search-host .esri-search__suggestions-menu{border-radius:10px;margin-top:6px;box-shadow:var(--shadow);border:1px solid var(--gray20)}
+.search-host .esri-search__suggestions-menu{border-radius:var(--ui-radius,10px);margin-top:6px;box-shadow:var(--shadow);border:1px solid var(--gray20)}
 .search-host .esri-search__sources-button{display:none}
 
 /* 우상단 지역 선택 (도 · 시군구 · 동) */
@@ -94,11 +94,11 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .cmp-lbl.l{left:12px}.cmp-lbl.r{right:12px}
 .is-compare .cmp-lbl{display:block}
 
-.key-warn{position:absolute;left:50%;top:16px;transform:translateX(-50%);z-index:8;background:#fff;border:1px solid var(--krds-color-light-warning-50,#e6a700);border-radius:8px;padding:10px 14px;font-size:13px;max-width:calc(100% - 24px);box-shadow:var(--shadow);display:none}
+.key-warn{position:absolute;left:50%;top:16px;transform:translateX(-50%);z-index:8;background:#fff;border:1px solid var(--krds-color-light-warning-50,#e6a700);border-radius:var(--ui-radius,10px);padding:10px 14px;font-size:13px;max-width:calc(100% - 24px);box-shadow:var(--shadow);display:none}
 .key-warn b{color:#9a6a00}
 
 /* 함께 보기 (검색창 아래) — 연도 버튼과 같은 결의 알약 토글, 켜지면 자료별 색 */
-.ov-bar{display:block;position:absolute;left:12px;top:64px;z-index:6;   /* 데스크톱: 전처럼 항상 보임. 모바일(≤640px)에서만 아이콘 버튼으로 열고 닫음 */background:#fff;border:1px solid var(--gray20);border-radius:12px;box-shadow:var(--shadow);padding:9px 10px 10px;width:min(430px,calc(100% - 24px))}
+.ov-bar{display:block;position:absolute;left:12px;top:64px;z-index:6;   /* 데스크톱: 전처럼 항상 보임. 모바일(≤640px)에서만 아이콘 버튼으로 열고 닫음 */background:#fff;border:1px solid var(--gray20);border-radius:var(--ui-radius,10px);box-shadow:var(--shadow);padding:9px 10px 10px;width:min(430px,calc(100% - 24px))}
 .ov-bar.show{display:block}
 #ovBtn,.ov-close{display:none}   /* 데스크톱에선 숨김 */
 .ov-head{display:flex;align-items:center;gap:8px;margin-bottom:7px}

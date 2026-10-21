@@ -860,3 +860,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 마스트헤드(정부 누리집 띠)는 홈에만 둠(지도 쪽은 공간 우선). 필요하면 sync-shell 에 한 줄 추가하면 됨.
 - 전후: 스크래치 `header-compare-1280.png`·`header-compare-390.png`(위 2개 전: 홈·테마 / 아래 3개 후: 홈·테마·항공).
 - 검증: `npx tsc --noEmit`, prettier, 지도 4쪽 `node --check`, `npm run build:deploy`(sync 포함), `git diff --check` 통과. 브랜치 `work/kangmina-header-unify`.
+
+## 2026-10-21 카드·팝업 규격 통일(공통 요소 2번) (담당: 강민아)
+
+- `public/styles/site-shell.css` `:root` 에 공통 규격 토큰: `--ui-radius-sm` 6px(버튼·입력·칩), `--ui-radius` 10px(카드·팝업·떠 있는 패널), `--ui-radius-lg` 16px(큰 카드·모달·바텀시트), `--ui-line`, `--ui-shadow`(0 2px 10px, 8%), `--ui-shadow-lg`(0 12px 32px, 16%), `--ui-pad` 16px(카드·팝업 가로 여백), `--ui-title` 17px(제목). 홈은 globals.css 가, 지도 4쪽은 `<link>` 가 같은 파일을 읽는다.
+- 지도 4쪽의 `:root` `--radius/--shadow/--shadow-lg` 는 토큰의 별칭(폴백 포함)으로. 적용: theme 팝업(`.infocard` 10px·그림자·머리/본문 여백·제목)·`.opcard`·그룹 메뉴·바텀시트 16px; scene 팝업(같은 값)·`.hint`·`.bar`·`.cover .box`; aerial `.ts-bar`·`.ov-bar`(12→10)·`.key-warn`·검색 제안; animal `.card` 10px·`.modal` 16px; 홈 `.theme-search`·`.catalog-icon`(10, 모바일 6)·`.home-button`·푸터 맨 위로 버튼 그림자.
+- 바뀐 수치는 작다(8/12 → 10, 그림자 톤 통일). 핵심은 **앞으로 한 곳(`--ui-*`)만 바꾸면 모든 페이지가 같이 바뀐다**는 것. 새 카드·팝업을 만들 때는 이 토큰을 쓸 것.
+- 검증: 지도 4쪽 `node --check`, prettier, `npm run build:deploy`, `git diff --check` 통과. 전후 캡처(스크래치 `ui-compare.png`, 3D·항공 떠 있는 카드)는 차이가 미세함. 브랜치 `work/kangmina-ui-tokens`.
