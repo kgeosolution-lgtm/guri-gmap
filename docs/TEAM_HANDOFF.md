@@ -867,3 +867,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 지도 4쪽의 `:root` `--radius/--shadow/--shadow-lg` 는 토큰의 별칭(폴백 포함)으로. 적용: theme 팝업(`.infocard` 10px·그림자·머리/본문 여백·제목)·`.opcard`·그룹 메뉴·바텀시트 16px; scene 팝업(같은 값)·`.hint`·`.bar`·`.cover .box`; aerial `.ts-bar`·`.ov-bar`(12→10)·`.key-warn`·검색 제안; animal `.card` 10px·`.modal` 16px; 홈 `.theme-search`·`.catalog-icon`(10, 모바일 6)·`.home-button`·푸터 맨 위로 버튼 그림자.
 - 바뀐 수치는 작다(8/12 → 10, 그림자 톤 통일). 핵심은 **앞으로 한 곳(`--ui-*`)만 바꾸면 모든 페이지가 같이 바뀐다**는 것. 새 카드·팝업을 만들 때는 이 토큰을 쓸 것.
 - 검증: 지도 4쪽 `node --check`, prettier, `npm run build:deploy`, `git diff --check` 통과. 전후 캡처(스크래치 `ui-compare.png`, 3D·항공 떠 있는 카드)는 차이가 미세함. 브랜치 `work/kangmina-ui-tokens`.
+
+## 2026-10-21 아이콘 규격 통일(공통 요소 3번) (담당: 강민아)
+
+- 조사: 지도 4쪽의 UI 선 아이콘은 이미 `stroke-width="1.75"`·16px(버튼 안)·18px(지도 컨트롤)로 통일돼 있었음. theme.html 에 남은 1.4~2.6 굵기는 전부 **심볼·그룹 타일 픽토그램**(색 원 위 흰 그림, 28 viewBox)이라 의도된 값 — 그대로 둠.
+- 홈(lucide-react)은 기본 굵기 2 에 크기 13·16·18·19·22·25 가 섞여 있었음 → `service-home.css` 에 `.service-home svg.lucide, .service-footer svg.lucide{stroke-width:1.75}` 로 지도 쪽과 같은 굵기, 크기는 14(작은 글 옆)·18(링크 화살표·버튼)·22(목록 아이콘)·24(카드 타일) 네 단계로 정리(`page.tsx`).
+- 규격 요약(새 아이콘을 넣을 때): UI 선 아이콘 = lucide 계열, 선 1.75, 둥근 끝, 크기는 위 네 단계. 지도 심볼 = 72px PNG(색 원 + 흰 그림, `scripts/*-icons.py`), 그룹 타일 = `TOPIC_IC` SVG.
+- 검증: `npx tsc --noEmit`, prettier, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-icons`.
