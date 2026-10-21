@@ -874,3 +874,9 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 홈(lucide-react)은 기본 굵기 2 에 크기 13·16·18·19·22·25 가 섞여 있었음 → `service-home.css` 에 `.service-home svg.lucide, .service-footer svg.lucide{stroke-width:1.75}` 로 지도 쪽과 같은 굵기, 크기는 14(작은 글 옆)·18(링크 화살표·버튼)·22(목록 아이콘)·24(카드 타일) 네 단계로 정리(`page.tsx`).
 - 규격 요약(새 아이콘을 넣을 때): UI 선 아이콘 = lucide 계열, 선 1.75, 둥근 끝, 크기는 위 네 단계. 지도 심볼 = 72px PNG(색 원 + 흰 그림, `scripts/*-icons.py`), 그룹 타일 = `TOPIC_IC` SVG.
 - 검증: `npx tsc --noEmit`, prettier, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-icons`.
+
+## 2026-10-21 자료 요청 시간 제한(25초) — 서버가 응답을 안 주면 '불러오는 중…'에 머물지 않게 (담당: 강민아)
+
+- 담당자 캡처(데스크톱, 시즌·겨울): 칩 전부 0, 목록은 회색 자리표시(skeleton), 지도 오른쪽 위 '불러오는 중…'. 코드 경로는 가짜 응답으로 끝까지 확인됨(8개 레이어 → 칩 건수·목록·머리글 모두 표시, `pw/flow-test.js`). 캡처 상태는 **요청이 끝나지 않고 계속 대기 중**인 모양 — 서버(guri.go.kr, hosts 로 내부 IP)에 연결은 되는데 응답이 안 오는 경우(VPN·내부망 끊김 등). 이전에는 그러면 영원히 '불러오는 중…' 이었음.
+- 조치(`theme.html`): `fetchT(url,ms)`(AbortController, `FETCH_MS`=25초)를 레이어 질의·메타 조회·행정동 경계에 적용. 질의가 시간 초과면 메타 조회로 더 기다리지 않고, 같은 그룹의 나머지 레이어도 즉시 실패 처리(`srvDown`) → 총 대기 25초 뒤 빈 목록 + '다시 시도'. 실패 이유는 "응답 없음(25초)".
+- 검증: `pw/hang-test.js`(guri 요청에 응답을 안 주는 상황) 28초 시점에 목록 복귀 확인, `flow-test.js`(가짜 응답) 정상, 치안안심 하네스, theme `node --check`, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-fetch-timeout`.

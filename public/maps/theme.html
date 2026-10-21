@@ -1661,6 +1661,11 @@ const joinCache={};   /* 팝업 보조 레이어 rows */
 const _resolved={};   /* 서비스 루트 → 탐색 결과 캐시 */
 const dataCache={};   /* url → rows */
 const loadWhy={};     /* url → 불러오기 실패 이유(화면 안내용) */
+const FETCH_MS=25000;  /* 자료 요청 한 건의 최대 대기(ms). 서버가 응답을 안 주면(망·VPN 문제) 이 시간 뒤 실패로 처리해 목록이 '불러오는 중…'에 머물지 않게 */
+function fetchT(url,ms){
+  const ctl=new AbortController(); const tm=setTimeout(()=>ctl.abort(),ms||FETCH_MS);
+  return fetch(url,{signal:ctl.signal}).finally(()=>clearTimeout(tm));
+}
 const geomKind={};    /* url → 'point'|'line'|'poly' */
 const geomWarned={};  /* 좌표 변환 안내 1회용 */
 const oidField={};    /* url → OBJECTID 필드명 */
@@ -1675,7 +1680,7 @@ let DONGS=null;   /* [{name, rings, extent}] */
   for(const u of tries){
     try{
       /* 동 강조(깜빡임)와 동 필터에 쓰는 도형 — 지도에 그려지는 행정동 점선 경계와 같은 모양이 되도록 단순화를 거의 하지 않는다(≈1m) */
-      const res=await fetch(`${u}/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&maxAllowableOffset=0.00001&f=json`);
+      const res=await fetchT(`${u}/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&maxAllowableOffset=0.00001&f=json`);
       const j=await res.json();
       if(j.error){ why.push(u+' → '+j.error.message); continue; }
       const fs=j.features||[];
@@ -1821,7 +1826,7 @@ async function getCityRings(){
 async function layerIds(root){                     /* 서비스의 하위 레이어 번호 전부 */
   try{
     if(/\/\d+$/.test(root)) return [];
-    const j=await (await fetch(root+'?f=json')).json();
+    const j=await (await fetchT(root+'?f=json')).json();
     return [].concat(j.layers||[]).concat(j.tables||[]).map(l=>l.id);
   }catch(e){ return [0]; }
 }
@@ -1829,7 +1834,7 @@ async function resolveLayer(root, li){
   if(_resolved[root]!==undefined) return _resolved[root];
   if(/\/\d+$/.test(root)){ _resolved[root]=root; return root; }
   try{
-    const r=await fetch(root+'?f=json');
+    const r=await fetchT(root+'?f=json');
     const j=await r.json();
     if(j.error) throw new Error(j.error.message);
     const cand=[].concat(j.layers||[]).concat(j.tables||[]);
@@ -2068,25 +2073,27 @@ async function loadGroupData(){
       +`&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects` : '');
 
   /* 한 레이어 불러오기 — 먼저 바로 질의하고, 실패할 때만 메타를 뒤진다 */
+  let srvDown=false;   /* 한 번이라도 응답 없음이면 같은 서버의 나머지 요청은 기다리지 않는다(총 대기 = FETCH_MS 한 번) */
   async function loadOne(t){
     const url=t.src.url;
     if(dataCache[url]) return;
-    const why=[];
+    const why=[]; let timedOut=false;
+    if(srvDown){ loadWhy[url]=[url+' → 응답 없음(서버에 연결되지 않음)']; dataCache[url]=[]; dataCache[url].__failed=true; return; }   /* 응답 없음(시간 초과)이면 서버에 못 닿는 상태 — 메타 조회로 더 기다리지 않는다 */
     const tryQuery=async cand=>{
       try{
-        const res=await fetch(qsOf(t,cand));
+        const res=await fetchT(qsOf(t,cand));
         const jj=await res.json();
         if(jj.error){ why.push(cand+' → '+(jj.error.message||JSON.stringify(jj.error))); return null; }
         if(!(jj.features||[]).length){ why.push(cand+' → 0건'); return null; }
         return {lu:cand, j:jj};
-      }catch(e){ why.push(cand+' → '+String((e&&e.message)||e)); return null; }
+      }catch(e){ const to=e&&e.name==='AbortError'; if(to) timedOut=srvDown=true; why.push(cand+' → '+(to? '응답 없음('+Math.round(FETCH_MS/1000)+'초)' : String((e&&e.message)||e))); return null; }
     };
 
     let hit=null;
     const direct = /\/\d+$/.test(url)? url : (layerUrl[url]||url+'/0');
     hit=await tryQuery(direct);                       /* 1) 곧바로 질의 (가장 빠른 길) */
 
-    if(!hit){                                          /* 2) 안 되면 그때 메타를 확인 */
+    if(!hit&&!timedOut){                               /* 2) 안 되면 그때 메타를 확인(응답 없음이면 생략) */
       const tries=[];
       const first=await resolveLayer(url, t.src.li);
       if(first&&first!==direct) tries.push(first);
