@@ -988,7 +988,8 @@ function overlayKeys(){ return OVERLAYS.filter(o=>ovOn(o.key)).map(o=>o.key); }
 function rvOn(){
   rvMode=true; $('main').classList.add('rv-mode'); renderOvState(); toggleOvBar(false);   /* 지도를 찍어야 하니 패널은 닫는다 */
   if(KAKAO.jsKey) loadKakao().catch(()=>{});   /* SDK 는 미리 받아 두고, 패널은 클릭해서 로드뷰를 찾았을 때 연다 */
-  toast(KAKAO.jsKey? '지도에서 길 위를 클릭하면 그곳의 로드뷰가 오른쪽에 열려요' : '지도를 클릭하면 카카오맵 로드뷰가 새 창으로 열려요',3200);
+  const side=matchMedia('(max-width:640px)').matches? '아래쪽' : '오른쪽';   /* 모바일은 패널이 아래에 열린다 */
+  toast(KAKAO.jsKey? '지도에서 길 위를 클릭하면 그곳의 로드뷰가 '+side+'에 열려요' : '지도를 클릭하면 카카오맵 로드뷰가 새 창으로 열려요',3200);
 }
 function rvOff(){
   rvMode=false; $('main').classList.remove('rv-mode','rv-open'); if(rvLayer) rvLayer.removeAll(); renderOvState();
