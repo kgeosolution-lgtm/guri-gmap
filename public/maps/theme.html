@@ -31,36 +31,36 @@ a{color:inherit}
 .header-right-sep{margin-left:auto}
 
 /* ── 세그먼트 밴드 (그룹 색 배경 + 테마 세그먼트) ── */
-.chipbar{position:sticky;top:57px;z-index:55;height:96px;color:#fff;
+.chipbar{position:sticky;top:57px;z-index:55;height:76px;color:#fff;
   background-color:var(--accent);
-  background-image:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.2)); /* = color-mix(accent 80%, #000) 로 내려가는 그라데이션 */
+  background-image:linear-gradient(180deg,rgba(255,255,255,.04),rgba(0,0,0,.10)); /* 아주 옅은 명암만 */
   transition:background-color .25s}
 .chipbar-in{position:relative;display:flex;align-items:stretch;height:100%;max-width:none;margin:0;padding:0;overflow:hidden}
 .chipbar-in::after{content:'';position:absolute;right:0;top:0;bottom:0;width:36px;pointer-events:none;
-  background:linear-gradient(90deg,rgba(0,0,0,0),rgba(0,0,0,.22))} /* 가로 스크롤 힌트 */
+  background:linear-gradient(90deg,rgba(0,0,0,0),rgba(0,0,0,.16))} /* 가로 스크롤 힌트 */
 /* 그룹 선택 블록 */
-.group-sel{flex:none;display:flex;align-items:center;gap:10px;padding:0 16px 0 18px;border-right:1px solid rgba(255,255,255,.25);
+.group-sel{flex:none;display:flex;align-items:center;gap:9px;padding:0 16px 0 18px;border-right:1px solid rgba(255,255,255,.18);
   color:#fff;cursor:pointer;user-select:none;transition:background .15s}
 .group-sel:hover{background:rgba(255,255,255,.1)}
-.group-sel img{width:34px;height:34px;border-radius:6px;background:rgba(255,255,255,.18);display:block}
+.group-sel img{width:30px;height:30px;border-radius:6px;background:rgba(255,255,255,.18);display:block}
 .group-sel .gs-txt{display:flex;flex-direction:column;line-height:1.15}
 .group-sel .gs-lbl{font-size:11px;font-weight:700;letter-spacing:.06em;opacity:.75}
-.group-sel #groupTx{font-size:18px;font-weight:800;white-space:nowrap}
+.group-sel #groupTx{font-size:16.5px;font-weight:800;white-space:nowrap}
 .group-sel .ar{width:0;height:0;border-left:4.5px solid transparent;border-right:4.5px solid transparent;border-top:5.5px solid #fff;margin-left:4px}
 /* 테마 세그먼트 */
 .segs{display:flex;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none}
 .segs::-webkit-scrollbar{display:none}
-.chip{flex:1 1 0;min-width:104px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
-  padding:6px 8px;border:0;border-right:1px solid rgba(255,255,255,.14);border-radius:0;background:transparent;color:#fff;
-  font-size:13.5px;font-weight:700;line-height:1.15;white-space:nowrap;cursor:pointer;transition:background .15s,color .15s}
+.chip{flex:1 0 auto;min-width:96px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  padding:5px 12px;border:0;border-right:1px solid rgba(255,255,255,.10);border-radius:0;background:transparent;color:#fff;
+  font-size:13px;font-weight:700;line-height:1.15;white-space:nowrap;cursor:pointer;transition:background .15s,color .15s}
 .chip:last-child{border-right:0}
-.chip:hover{background:rgba(255,255,255,.12)}
-.chip img{width:30px;height:30px;border-radius:6px;display:block}
-.chip .dot{width:14px;height:14px;border-radius:50%;display:block;margin:8px 0}
-.chip .seg-nm{font-size:13.5px;font-weight:700}
-.chip .cnt{font-size:11px;font-weight:600;opacity:.75}
-.chip.all{flex:0 0 auto;width:96px;min-width:0;max-width:96px;background:rgba(0,0,0,.14)}
-.chip.all .seg-nm{font-size:14px}
+.chip:hover{background:rgba(255,255,255,.10)}
+.chip img{width:26px;height:26px;border-radius:6px;display:block}
+.chip .dot{width:12px;height:12px;border-radius:50%;display:block;margin:7px 0}
+.chip .seg-nm{font-size:13px;font-weight:700}
+.chip .cnt{font-size:10.5px;font-weight:600;opacity:.72}
+.chip.all{flex:0 0 auto;width:88px;min-width:0;max-width:88px;background:rgba(0,0,0,.12)}
+.chip.all .seg-nm{font-size:13.5px}
 .chip.on,.chip.on:hover{background:#fff;color:var(--accent)}
 .chip.on .cnt{color:var(--accent);opacity:.85}
 .chip.soon{opacity:.45;border-top:2px dashed rgba(255,255,255,.7)}
@@ -209,21 +209,21 @@ a{color:inherit}
 /* ── 반응형: 네이버지도식 바텀시트 ── */
 @media (max-width:900px){
   .topbar{position:static}
-  /* 테마·레이어 막대를 얇게(62px) — 지도가 더 크게 보이도록 */
-  .chipbar{top:0;height:62px}
+  /* 테마·레이어 막대를 얇게(56px) — 지도가 더 크게 보이도록 */
+  .chipbar{top:0;height:56px}
   .group-sel{padding:0 10px;gap:6px}
-  .group-sel img{width:24px;height:24px}
+  .group-sel img{width:22px;height:22px}
   .group-sel .gs-lbl{display:none}
   .group-sel #groupTx{font-size:14px}
-  .chip{min-width:66px;gap:1px;padding:3px 6px}
-  .chip img{width:20px;height:20px}
-  .chip .dot{width:11px;height:11px;margin:5px 0}
-  .chip .seg-nm{font-size:11px}
-  .chip .cnt{font-size:9.5px;line-height:1}
+  .chip{min-width:60px;gap:1px;padding:3px 9px}
+  .chip img{width:18px;height:18px}
+  .chip .dot{width:10px;height:10px;margin:4px 0}
+  .chip .seg-nm{font-size:10.5px}
+  .chip .cnt{font-size:9px;line-height:1}
   .chip.all{width:58px;max-width:58px}
   .chip.all .seg-nm{font-size:11.5px}
   .main{display:block}
-  .mapwrap{position:sticky;top:62px;height:calc(100dvh - 62px);min-height:0;z-index:30}
+  .mapwrap{position:sticky;top:56px;height:calc(100dvh - 56px);min-height:0;z-index:30}
   .panel{position:fixed;left:0;right:0;bottom:0;top:auto;z-index:45;width:100%;
     height:82dvh;max-height:none;border-right:none;border-top:none;
     border-radius:10px 10px 0 0;box-shadow:0 -10px 34px rgba(20,40,32,.22);
@@ -640,7 +640,7 @@ const SAFETY_PRESETS={
      info:'소화전·비상소화장치 등 소방안전시설 위치입니다.'}
 };
 const GROUPS={
- '시즌·여름':{ hidden:true, icon:'여름', accent:'#067DB3',   /* 비활성화: 메뉴·기본 그룹에서 숨김(URL 직접 접근은 가능) */ webmap:'', themes:{   /* 웹맵 미사용 */
+ '시즌·여름':{ hidden:true, icon:'여름', accent:'#2A7FA8',   /* 비활성화: 메뉴·기본 그룹에서 숨김(URL 직접 접근은 가능) */ webmap:'', themes:{   /* 웹맵 미사용 */
    '물놀이장':{listTime:true,c:'#00A9C0',sym:'summer_waterplay',type:'cards',op:true,label:true,src:{url:U('summer_waterplay')},
      fields:{line1:['운영기간','운영정보','기간'],line2:['운영시간','가동시간','시간','구분']},
      chips:[{t:'☔ 비 오는 날 휴장'}],
@@ -666,11 +666,11 @@ const GROUPS={
      pop:[['☂️','대여안내',['운영정보','이용안내','비고']],['⏰','운영시간',['운영시간','이용시간']]],
      info:'갑작스러운 비, 대여소에서 우산을 빌릴 수 있습니다.'},
  }},
- '시즌·가을':{ hidden:true, icon:'가을', accent:'#B5551F', themes:{   /* 2026-11 오픈은 겨울 시즌: 메뉴·기본 그룹에서 숨김(URL 직접 접근은 가능). '구리 명소'는 문화·여가(축제 옆)로 옮김 */
+ '시즌·가을':{ hidden:true, icon:'가을', accent:'#A65A2E', themes:{   /* 2026-11 오픈은 겨울 시즌: 메뉴·기본 그룹에서 숨김(URL 직접 접근은 가능). '구리 명소'는 문화·여가(축제 옆)로 옮김 */
    '축제':festTheme(),
    ...trailThemes('가을')
  }},
- '시즌·겨울':{ icon:'겨울', accent:'#2F5F9E', themes:{   /* 2026-11 오픈 시즌. 한파쉼터·제설함·결빙취약구간(선+시종점) + 둘레길·등산로 4종(가을과 같은 정의) */
+ '시즌·겨울':{ icon:'겨울', accent:'#35679A', themes:{   /* 2026-11 오픈 시즌. 한파쉼터·제설함·결빙취약구간(선+시종점) + 둘레길·등산로 4종(가을과 같은 정의) */
    '한파쉼터':{listTime:true,c:'#2F6FE4',sym:'winter_shelter',type:'list',src:{url:U('winter_shelter')},
      fields:{name:['쉼터명','쉼터명칭','시설명','시설명칭','명칭','장소','기관명','건물명','이름']},
      guide:'추울 땐 잠시 들어와 몸을 녹이세요<br>누구나 이용할 수 있어요',
@@ -740,7 +740,7 @@ const GROUPS={
      info:'결빙취약구간의 시작·끝 지점입니다.'},
    ...trailThemes('겨울')
  }},
- '치안안심':{ icon:'치안안심', accent:'#D3422C', themes:{},   /* 2026-10 구리시 요청: '안전·재난' → '치안안심'. safety_all 한 레이어의 '시설 종류' 값마다 칩을 만든다(buildDynThemes). 옛 주소(group=안전·재난)는 GROUP_ALIAS 로 이어짐 */
+ '치안안심':{ icon:'치안안심', accent:'#B9473B', themes:{},   /* 2026-10 구리시 요청: '안전·재난' → '치안안심'. safety_all 한 레이어의 '시설 종류' 값마다 칩을 만든다(buildDynThemes). 옛 주소(group=안전·재난)는 GROUP_ALIAS 로 이어짐 */
    dyn:{url:U('safety_all'),field:['시설물','시설종류','시설물종류','시설물종별','시설종별','시설구분','시설물구분','시설유형','시설물유형','종류','유형','분류','구분','type','kind','category'],hide:['구분'],   /* hide: 자료 구분용 항목은 팝업에서 늘 숨김 */
    /* extra: safety_all 과 별도로 넣는 고정 테마(종류별 칩 뒤에 붙음) — 여성안심귀갓길 4개 코스(선) */
    extra:{
@@ -764,7 +764,7 @@ const GROUPS={
      foot:'순찰 시간은 상황에 따라 달라질 수 있어요',
      info:'경찰이 순찰하는 여성안심귀갓길 4개 코스입니다. 코스를 누르면 경로가 지도에 표시돼요.'}
    } } },   /* safety_all 의 종류 항목은 '시설물'(값 예: 'CCTV 및 비상벨'), '구분'은 전부 '구리시시설물'이라 뒤로 */
- '건강·의료':{ icon:'건강의료', accent:'#058847', themes:{
+ '건강·의료':{ icon:'건강의료', accent:'#1E8A78', themes:{
    '약국':{c:'#2E9E5B',sym:'health_pharmacy',type:'list',weekHours:true,src:{url:U('health_pharmacy')},
      fields:{name:['약국명','시설명','상호명'],addr:['도로명주소','지번주소','주소'],tel:['전화번호']},
      listStatus:true, statusFn:(r,pv)=>weekStatus(r,pv),
@@ -825,7 +825,7 @@ const GROUPS={
      pop:[['🏛️','구분',['구분','기관구분','유형']],['⏰','운영시간',['운영시간','이용시간']],['ℹ️','안내',['비고','안내']]],
      info:'도움이 필요한 순간, 함께할 수 있는 기관입니다. 24시간 상담은 109로 전화하세요.'}
  }},
- '육아·교육':{ hidden:true, icon:'육아교육', accent:'#7367D7',   /* 이벤트성 지도로 분류되어 이번 구축 대상에서 제외(구리시, 2026-10): 메뉴·검색에서 숨김, URL 직접 접근은 가능 */ themes:{
+ '육아·교육':{ hidden:true, icon:'육아교육', accent:'#6F5FBF',   /* 이벤트성 지도로 분류되어 이번 구축 대상에서 제외(구리시, 2026-10): 메뉴·검색에서 숨김, URL 직접 접근은 가능 */ themes:{
    '어린이집·유치원':{short:'어린이집',c:'#F0A02C',sym:'edu_daycare',type:'list',src:{url:U('edu_daycare')},
      mono:{field:['설립구분','설립유형','구분','시설구분','유형'],map:{'국공립':'국공립','공립':'국공립','민간':'민간','가정':'가정','직장':'직장','법인':'법인','협동':'협동','사회복지':'복지','유치원':'유치원'},fallback:2},
      cat:[['구분','시설구분','유형'],['설립구분','설립유형']],
@@ -890,7 +890,7 @@ const GROUPS={
      foot:'교육청 등록 정보 기준이에요 — 교습비·과목은 직접 확인하세요',
      info:'학원·교습소 위치입니다. 교습과정은 등록 기준이라 실제와 다를 수 있어요.'},
  }},
- '생활편의':{ icon:'생활편의', accent:'#2F6FE4', themes:{
+ '생활편의':{ icon:'생활편의', accent:'#4C5FAE', themes:{
    '공영주차장':{listTime:true,short:'주차장',c:'#2F6FE4',sym:'life_parking',type:'list',src:{url:U('life_parking')},
      fields:{name:['주차장명','주차장이름','시설명','명칭'],tel:['전화번호','관리기관전화','연락처']},
      hide:['급지구분','주차장관리번호','주차장코드','관리기관명'],
@@ -1023,7 +1023,7 @@ const GROUPS={
      pop:[['ℹ️','안내',['비고','설치장소']]],
      info:'해충 없는 쾌적한 동네를 위한 포충기 위치입니다. 고장 시 신고번호로 연락 주세요.'}
  }},
- '우수맛집':{ icon:'우수맛집', accent:'#C2551E', themes:{   /* 2026-10 구리시 요청: '경제·상권' → '우수맛집', 레이어는 와구리맛집·노포식당 둘만(옛 모범음식점·시장 및 마트 설정은 #65 이전 이력 참고). 옛 주소(group=경제·상권, cat=와구리 추천맛집)는 아래 GROUP_ALIAS/CAT_ALIAS 로 이어진다 */
+ '우수맛집':{ icon:'우수맛집', accent:'#B26331', themes:{   /* 2026-10 구리시 요청: '경제·상권' → '우수맛집', 레이어는 와구리맛집·노포식당 둘만(옛 모범음식점·시장 및 마트 설정은 #65 이전 이력 참고). 옛 주소(group=경제·상권, cat=와구리 추천맛집)는 아래 GROUP_ALIAS/CAT_ALIAS 로 이어진다 */
    '와구리맛집':{short:'와구리맛집',c:'#D9538A',sym:'econ_waguri',type:'list',src:{url:U('restaurant_waguri')},
      fields:{name:['영업소명','업소명','상호','상호명','업체명','사업장명','식당명','가게명','명칭','name']},
      chips:[{from:['대표메뉴','주메뉴','메뉴','주요메뉴'],pre:'🍽️ '}],
@@ -1042,7 +1042,7 @@ const GROUPS={
      hidePat:/구분|분류|업종|연번|지정년도|지정연도|선정년도|선정연도|비고|추가정보/,
      info:'구리시가 선정한, 오래 사랑받아 온 맛집(노포식당)입니다.'}
  }},
- '문화·여가':{ icon:'문화여가', accent:'#0C865D', themes:{
+ '문화·여가':{ icon:'문화여가', accent:'#4E7F3C', themes:{
    '축제':festTheme(),
    '구리 명소':{routeBy:'addr',short:'명소',c:'#C1652B',sym:'culture_park',type:'list',auto:false,
      src:{url:U('autumn_foliage')},
@@ -1235,7 +1235,7 @@ const GROUPS={
           ['🏛️','운영기관',['운영기관','관리기관']]],
      info:'공공·민간 체육시설 위치와 이용 안내입니다.'},
  }},
- '반려동물':{ icon:'반려동물', accent:'#C8456A', themes:{
+ '반려동물':{ icon:'반려동물', accent:'#B2507A', themes:{
    '동물병원':{c:'#E5533C',sym:'pet_hospital',type:'list',op:true,src:{url:U('pet_hospital')},
      fields:{name:['상호명','시설명'],addr:['도로명주소','주소','지번주소'],line2:['운영시간','평일운영시간','영업시간']},
      photo:{base:IMG_BASE,f:['이미지명','사진파일명','image_nm']},
@@ -1311,7 +1311,7 @@ const GROUPS={
      foot:'입양·반환 문의는 보호소로 직접 연락해 주세요',
      info:'따뜻한 가족을 기다리는 아이들입니다. 공고기간이 끝나기 전에 만나주세요.'},
  }},
- '교통':{ icon:'교통', accent:'#5B6C7E', themes:{
+ '교통':{ icon:'교통', accent:'#58687B', themes:{
    '버스 정류장':{routeBy:'addr',short:'버스정류장',c:'#2F6FE4',sym:'transit_bus_p',type:'list',listTel:false,src:{url:U('transit_bus_p')},
      fields:{name:['정류소명','정류장명','장소','명칭']},
      cat:[['정류소번호','정류장번호','ars번호']],
@@ -1978,7 +1978,7 @@ const SAFETY_RULES=[   /* 순서대로 첫 일치. 문자열이면 옛 설정 �
   [/순찰|안전지대|안심구역|안심거리|안심존|안전구역|안심마을/,{sym:'safety_patrol',c:'#8B5E34',guide:'순찰과 안전 점검이 이루어지는 구역이에요',
      pop:[['📌','위치',['설치장소','설치위치','위치','장소','구간']],['🏛️','관리기관',['관리기관','관리기관명','관리부서','운영기관']],['ℹ️','상세',['상세정보','비고','설명','내용']]],
      info:'순찰·안전 점검 구역입니다.'}],
-  [/화장실|가림판/,{sym:'safety_toilet',c:'#7A5FD0',guide:'안심가림판이 설치된 공중화장실이에요<br>이상한 점이 보이면 바로 112에 알려 주세요',
+  [/화장실|가림판/,{short:'안심가림판',sym:'safety_toilet',c:'#7A5FD0',guide:'안심가림판이 설치된 공중화장실이에요<br>이상한 점이 보이면 바로 112에 알려 주세요',
      pop:[['📌','설치장소',['설치장소','설치위치','위치','장소','상세위치']],['⏰','이용시간',['이용시간','운영시간','개방시간']],['🏛️','관리기관',['관리기관','관리기관명','관리부서','운영기관']],['ℹ️','상세',['상세정보','비고','설명','내용']]],
      info:'안심가림판(불법촬영 방지)이 설치된 공중화장실 위치입니다.'}],
   [/로고젝터|로고/,{sym:'safety_projector',c:'#5B6C7E',guide:'바닥에 안전 문구를 비추는 로고젝터가 있는 곳이에요<br>밤길에 참고하세요',
