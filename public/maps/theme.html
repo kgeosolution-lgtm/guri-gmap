@@ -9,6 +9,7 @@
 <meta property="og:type" content="website">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="gmap-shared.css">
+<script src="gmap-share.js" defer></script>
 <link rel="stylesheet" href="https://js.arcgis.com/4.29/esri/themes/light/main.css">
 <style>
 :root{
@@ -1557,6 +1558,7 @@ function legacyCopy(text){
 async function shareUrl(){
   const label=(curCat!=='전체'?curCat+' — ':'')+'구리생활지도 우리동네 찾기';
   const httpish=/^https?:/i.test(location.href);   /* content://·file:// 등은 URL 공유 불가 */
+  if(window.gmapShare&&httpish){ await gmapShare({title:label,url:location.href}); return; }   /* 기기 공유창 → 없으면 페이지 안 공유창(gmap-share.js) */
   if(navigator.share){
     try{
       await navigator.share(httpish? {title:label,url:location.href} : {title:label,text:label});
@@ -2371,8 +2373,8 @@ function rowActions(r,t){
   const nv=r.__line? '' : `https://m.map.naver.com/route.nhn?menu=route&ename=${encodeURIComponent(routeLabel(r,t,name,addr))}&ex=${r.__x}&ey=${r.__y}&pathType=1`;
   const route=nv? `<a class="act fill" href="${nv}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${SVG_I.route}길찾기</a>` : '';
   const call=telClean? `<a class="act tel" href="tel:${telClean}" onclick="event.stopPropagation()">${SVG_I.phone}${esc(String(tel))}</a>` : '';
-  const detail=`<button class="act" type="button" onclick="event.stopPropagation();openDetail(this)">${SVG_I.info}상세</button>`;
-  return `<div class="acts">${route}${call}${detail}</div>`;
+  if(!route&&!call) return '';   /* '상세' 단추는 뺐다 — 줄을 누르면 팝업이 바로 열린다 */
+  return `<div class="acts">${route}${call}</div>`;
 }
 function openDetail(el){
   const row=el.closest('.row'); if(!row) return;

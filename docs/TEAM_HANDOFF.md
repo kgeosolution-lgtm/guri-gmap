@@ -902,3 +902,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - `.row`: 둥근 모서리(`--ui-radius` 10px)·좌우 8px 띄움, 행 사이는 옅은 선(`::before`), 선택은 왼쪽 막대 대신 연한 배경 전체 + 1px 테두리, 아이콘 32px, 이름 15px, 부제 12.5px(줄 간격 1.35), 상태 배지는 알약(20px, radius 999), 행동 버튼 34px. 모바일은 좌우 6px.
 - 전후: 스크래치 `list-compare.png`(왼쪽 전·오른쪽 후, 가짜 자료 5건·두 번째 줄 선택).
 - 검증: theme `node --check`, Playwright 캡처, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-list-rows`.
+
+## 2026-10-21 목록 '상세' 단추 제거, 링크 공유창 공용화 (담당: 강민아)
+
+- 우리동네 찾기 목록의 선택 줄 행동에서 '상세' 단추를 뺌(줄을 누르면 팝업이 바로 열림). 길찾기·전화가 둘 다 없으면 행동 줄 자체를 생략.
+- 공유: 담당자 확인 — 항공사진 비교를 휴대폰(카카오톡 안 브라우저)에서 공유 아이콘을 누르면 "주소를 복사했어요" 토스트만 뜸. 그 브라우저엔 기기 공유창(`navigator.share`)이 없어 복사로 떨어지던 것.
+  → `public/maps/gmap-share.js`(+ `gmap-shared.css` `.gm-share-*`): `gmapShare({title,url})` — 기기 공유창이 있으면 그것, 없으면 **페이지 안 공유창**(주소 복사·카카오톡(sharer.kakao.com)·문자(sms:)·이메일(mailto:) + 안내 한 줄). 데스크톱은 가운데 창, 모바일은 바텀시트. 우리동네 찾기·3D·항공 세 쪽의 `shareUrl()`이 같은 함수를 씀(옛 복사 폴백은 http 가 아닌 주소용으로 남김).
+- 검증: Playwright(로컬 http, `navigator.share` 없음) — 항공(모바일)·우리동네 찾기(데스크톱) 공유창 열림·주소·카카오 링크 확인(`pw/share-test.js`); 지도 3쪽 `node --check`, prettier, `npm run build:deploy`(`out/maps/gmap-share.js` 포함), `git diff --check` 통과. 브랜치 `work/kangmina-share-dialog`.
