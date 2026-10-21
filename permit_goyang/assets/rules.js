@@ -174,10 +174,21 @@ function judge(S,P,fx){
 
   // 접도
   var road6 = P.ta>=2000 && P.use!=="공장" || P.ta>=3000;
-  C.push({g:"site",n:"대지와 도로의 관계",st:"info",v:road6?"6m 도로에 4m 접도":"2m 이상 접도",
-    calc:road6?"연면적 "+n0(P.ta)+"㎡ ≥ 2,000㎡(공장 3,000㎡) → 너비 6m 이상 도로에 4m 이상 접해야 함":"건축물 대지는 너비 4m 이상 도로에 2m 이상 접해야 함",
-    d:"현장 도로 현황·지정도로 여부는 고양시 도로관리 부서 또는 지적도로 확인하세요."+(S.road?"\n인접 도로명: "+S.road:""),
-    src:[L("law","건축법 제44조",LAW.bld+"/제44조"),L("law","시행령 제28조",LAW.bldE+"/제28조")]});
+  var needW=road6?6:4, needC=road6?4:2, RI=S.roadInfo;
+  var rst="info", rv=road6?"6m 도로에 4m 접도":"2m 이상 접도", rcalc=road6?"연면적 "+n0(P.ta)+"㎡ ≥ 2,000㎡(공장 3,000㎡) → 너비 6m 이상 도로에 4m 이상 접해야 함":"건축물 대지는 너비 4m 이상 도로에 2m 이상 접해야 함";
+  if(RI){
+    var okW=RI.maxW>=needW, okC=RI.contact>=needC;
+    rcalc+="\n\n지적도·수치지형도 1:1,000 측정 결과\n· 도로에 접한 길이: 약 "+n1(RI.contact)+"m (필요 "+needC+"m 이상)"+
+      (RI.contactLegal?"\n  - 인접 도로 필지(지목 '도') 경계: "+n1(RI.contactLegal)+"m"+(RI.roadParcels&&RI.roadParcels.length?" ("+RI.roadParcels.join(", ")+")":""):"")+
+      (RI.contactPhys?"\n  - 현황 도로면 경계: "+n1(RI.contactPhys)+"m":"")+
+      (RI.roads.length?"\n· 인접 도로: "+RI.roads.map(function(r){return (r.name||"이름 없음")+" 폭 "+r.w+"m";}).join(", "):"\n· 인접 도로: 확인되지 않음");
+    if(!RI.contact&&!RI.roads.length){ rst="warn"; rv="도로 접함 확인 안 됨 (맹지 가능성)"; rcalc+="\n→ 농로·구거·사도 등 현황 통로가 있어도 건축법상 도로가 아니면 건축허가를 받을 수 없습니다. 진입도로 확보(사도개설·도로지정) 여부를 확인하세요."; }
+    else if(okW&&okC){ rst="ok"; rv="폭 "+RI.maxW+"m 도로 · 접도 "+n1(RI.contact)+"m"; }
+    else { rst="warn"; rv=(!okW?"도로 폭 "+RI.maxW+"m < "+needW+"m":"접도 "+n1(RI.contact)+"m < "+needC+"m"); }
+  }
+  C.push({g:"site",n:"대지와 도로의 관계",st:rst,v:rv,calc:rcalc,
+    d:(RI?"수치지형도의 도로는 현황 도로입니다. 건축법상 도로(지정·고시된 도로, 너비 4m 이상)인지는 지적도·도로대장으로 확인해야 합니다.\n":"도로 현황 분석 중이거나 확인하지 못했습니다.\n")+(S.road?"도로명주소상 도로: "+S.road:""),
+    src:[L("auto","도로: 수치지형도 1:1,000"),L("law","건축법 제44조",LAW.bld+"/제44조"),L("law","시행령 제28조",LAW.bldE+"/제28조")]});
 
   // ── 용도 ──
   var cell=z&&P.sub&&SUB&&SUB.matrix[z]&&SUB.matrix[z][P.sub], su=P.sub&&subByKey[P.sub];
@@ -287,6 +298,19 @@ function judge(S,P,fx){
     var st4=formChange?"warn":"ok";
     var txt=formChange?"지목 '"+fx.jimokFull(jm)+"' → 토지 형질변경 수반 → 개발행위허가 대상 (건축허가 시 의제)":"지목 '"+fx.jimokFull(jm)+"' → 형질변경 없는 건축은 개발행위허가 불요 (절·성토 50cm 초과 시 필요)";
     if(formChange&&limit&&sa>=limit){ st4="fail"; txt+="\n⚠ 대지면적 "+n0(sa)+"㎡ ≥ 허가 규모 "+n0(limit)+"㎡ → 개발행위 규모 초과(도시계획위원회 심의·지구단위계획 등 필요)"; }
+    // 지형 기준 — 고양시 도시계획 조례 제19조·별표29 (경사도 15° 미만, 산지 포함 시 법정동별 표고)
+    var T=S.terrain, forestish=/^(임|임야)$/.test(jm)||(F.forest&&F.forest.length);
+    if(T&&(formChange||forestish)){
+      var tl=[], tst="ok", lim=ALT[S.dong];
+      if(T.slope!=null){ tl.push("평균경사 약 "+T.slope.toFixed(1)+"° (기준 15° 미만)"); if(T.slope>=15){ tst="warn"; tl.push("→ 15° 이상: 고양시 도시계획위원회 심의를 거쳐야 허가 가능"); } }
+      else tl.push("필지 안을 지나는 5m 등고선 없음 → 높이차 5m 미만의 완만한 지형");
+      if(T.max!=null) tl.push("표고 약 "+(T.min===T.max?T.min:T.min+"~"+T.max)+"m");
+      if(forestish&&lim){ tl.push(S.dong+" 표고 기준 "+lim+"m 이하 (산지 포함 개발행위)"); if(T.max>lim){ tst="fail"; tl.push("→ 기준 초과 구간 있음: 원칙 불허 (초과면적 10% 이하 잔여임야 등은 도계위 심의)"); } }
+      C.push({g:"proc",n:"개발행위 지형 기준 (경사·표고)",st:tst,v:tst==="fail"?"표고 기준 초과":tst==="warn"?"경사 15° 이상":"기준 이내",
+        calc:tl.join("\n"),
+        d:"고양시 5m 등고선(서버 Goyang_Contour_5m)으로 추정한 값입니다. 평균경사 = 등고선 간격 × 필지 안 등고선 길이 ÷ 필지 면적. 허가 신청 시에는 측량 성과(경사도 조사서)로 확인합니다.",
+        src:[L("auto","지형: 고양시 5m 등고선"),ordSrc("urban",src.urban.name+" 제19조·별표29")]});
+    }
     C.push({g:"proc",n:"개발행위허가",st:st4,v:formChange?(st4==="fail"?"규모 초과":"대상"):"해당 없음",
       calc:txt+(limit?"\n\n"+(z||"")+"지역 개발행위허가 규모: "+n0(limit)+"㎡ 미만":""),
       d:(ord.devStd||"")+(formChange?"\n개발행위허가 기준: 경사도·입목축적·기반시설 등 고양시 도시계획 조례 기준 충족 필요":""),

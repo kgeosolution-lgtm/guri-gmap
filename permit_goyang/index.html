@@ -52,9 +52,10 @@
       <form class="search-box" id="searchForm" autocomplete="off">
         <svg viewBox="0 0 24 24" class="ico"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg>
         <input id="addrInput" placeholder="고양시 지번·도로명 주소 (예: 대화동 2600)" aria-label="주소 검색">
+        <button type="button" class="ex-btn" id="exBtn" aria-haspopup="true" aria-expanded="false" title="예시 필지">예시</button>
         <button type="submit" class="btn-primary sm">검색</button>
       </form>
-      <div class="samples" id="samples"></div>
+      <div class="ex-menu" id="exMenu" hidden></div>
     </section>
 
     <div class="panel-scroll" id="panelScroll">
@@ -63,18 +64,13 @@
         <div class="intro-hero">
           <div class="intro-kicker">GOYANG SPECIAL CITY · PERMIT PRE-REVIEW</div>
           <h2>필지 하나만 고르면<br><em>고양시 조례 기준</em>으로 바로 검토합니다</h2>
-          <p>용도지역·건폐율·용적률부터 주차·조경·협의부서까지, 건축허가 전에 확인해야 할 사항을 자동으로 정리합니다.</p>
+          <div class="flow-line"><span>① 필지 선택</span><i></i><span>② 건축계획 입력</span><i></i><span>③ 자동 사전검토</span></div>
         </div>
-        <ol class="steps">
-          <li><span class="step-n">1</span><div><b>필지 선택</b><small>주소 검색 또는 지도에서 필지 클릭</small></div></li>
-          <li><span class="step-n">2</span><div><b>건축계획 입력</b><small>행위·용도·면적·층수</small></div></li>
-          <li><span class="step-n">3</span><div><b>자동 사전검토</b><small>법령·고양시 조례 근거와 함께 판정</small></div></li>
-        </ol>
+        <div class="intro-sec">
+          <div class="intro-sec-t">예시 필지로 바로 보기</div>
+          <div class="sample-grid" id="samples"></div>
+        </div>
         <div class="intro-stats" id="introStats"></div>
-        <div class="intro-src">
-          <b>활용 데이터</b>
-          <span>토지이용규제정보(국토부)</span><span>연속지적도</span><span>건축물대장(건축HUB)</span><span>고양특례시 도시계획·건축·주차장 조례</span>
-        </div>
       </section>
 
       <!-- 필지 결과 -->
@@ -102,17 +98,18 @@
       <div class="seg" id="bmSeg">
         <button data-bm="satellite" class="active">위성</button>
         <button data-bm="general">일반</button>
+        <button data-bm="topo">지형도</button>
       </div>
     </div>
-    <div class="layer-card" id="layerCard">
-      <button class="layer-head" id="layerHead" aria-expanded="true">
+    <div class="layer-card collapsed" id="layerCard">
+      <button class="layer-head" id="layerHead" aria-expanded="false">
         <svg viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5z"/><path d="m3 13 9 5 9-5"/></svg>
         <span>지도 레이어</span><i class="chev"></i>
       </button>
       <div class="layer-body" id="layerBody"></div>
     </div>
     <div class="legend-card" id="legendCard" hidden></div>
-    <div class="map-foot"><span id="coordTxt">고양특례시</span></div>
+    <div class="map-hint" id="mapHint">지도를 확대한 뒤 필지를 클릭하세요</div>
     <div class="map-loading" id="loading"><div class="spinner"></div><span>필지 정보를 불러오는 중</span></div>
   </section>
 </main>
