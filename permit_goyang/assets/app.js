@@ -1,0 +1,706 @@
+/* 고양특례시 건축 인허가 사전검토 — app.js
+ * 지도/조회/렌더링. 조례 수치·판정 기준은 rules.js(GY)에 있음.
+ */
+(function(){
+"use strict";
+
+// ═══ 설정 ═══
+var API = "/app/regulation/api.py";
+var ZONE_PROXY = "/app/regulation/zone_proxy.py";
+var PORTAL = "https://kgeodata.com/portal";
+var HOST = "https://kgeodata.com/server/rest/services/Hosted/";
+var BM = { satellite:"d6e738240ab2402095b4bb11c28ef320", general:"a177f5017b52486b930463f900da4d71" };
+var URL_ = {
+  boundary: HOST+encodeURIComponent("고양시경계")+"/FeatureServer/0",
+  gu: HOST+encodeURIComponent("센서스용행정구역경계_시군구_2024년")+"/FeatureServer/4",
+  cadastral: HOST+encodeURIComponent("연속지적도형정보_20260208")+"/FeatureServer/14",
+  zone: HOST+encodeURIComponent("용도지역_VW")+"/FeatureServer/",
+  gb: HOST+encodeURIComponent("개발제한구역_ALL")+"/FeatureServer/8",
+  culture: HOST+encodeURIComponent("LSMD_CONT_UO301_문화재_문화재보호")+"/FeatureServer/4",
+  farm: HOST+encodeURIComponent("용도지역지구_FS")+"/FeatureServer/1",
+  livestock: HOST+encodeURIComponent("용도지역지구_FS")+"/FeatureServer/5",
+  dup: HOST+encodeURIComponent("지구단위계획")+"/FeatureServer/4",
+  permits: HOST+"kgeodata_permit/FeatureServer/4"
+};
+var GOYANG_SGG = "41280";
+var GU = { "41281":"덕양구", "41285":"일산동구", "41287":"일산서구" };
+var GU_CENSUS = { "31101":"덕양구", "31103":"일산동구", "31104":"일산서구" };
+var BLD_KEY = "VoPvixR66zdLB0V1%2BSjPkIaS8WW96VBQsi4Kxz5VdLyPoAvYroUouW1f5AJWOiC7pKkqPtluTmVphNA%2FLoKInw%3D%3D";
+var BLD_API = {
+  title:"https://apis.data.go.kr/1613000/BldRgstHubService/getBrTitleInfo",
+  recap:"https://apis.data.go.kr/1613000/BldRgstHubService/getBrRecapTitleInfo",
+  floor:"https://apis.data.go.kr/1613000/BldRgstHubService/getBrFlrOulnInfo"
+};
+var JIMOK = {"대":"대지","전":"전","답":"답","과":"과수원","목":"목장용지","임":"임야","광":"광천지","염":"염전","장":"공장용지","학":"학교용지","주":"주차장","도":"도로","하":"하천","구":"구거","유":"유지","체":"체육용지","수":"수도용지","공":"공원","철":"철도용지","제":"제방","묘":"묘지","사":"사적지","종":"종교용지","잡":"잡종지","양":"양어장","원":"유원지","창":"창고용지","천":"하천"};
+var ZONE_COLOR = {
+  "제1종전용주거":"#FFFFBE","제2종전용주거":"#FFFF00","제1종일반주거":"#FFE14D","제2종일반주거":"#FFB547","제3종일반주거":"#FF8C1A",
+  "준주거":"#FF9E9E","중심상업":"#E01E5A","일반상업":"#FF5C8A","근린상업":"#FF8FB1","유통상업":"#FFB3C7",
+  "전용공업":"#6C63FF","일반공업":"#9C95FF","준공업":"#C7B8FF",
+  "보전녹지":"#1E7B34","생산녹지":"#46A85B","자연녹지":"#8FD18F",
+  "보전관리":"#C9A27E","생산관리":"#DEC08F","계획관리":"#F3D9B5","농림":"#9BC59D","자연환경보전":"#3CB371"
+};
+var ZONE_CODE = {
+  UQA111:"제1종전용주거",UQA112:"제2종전용주거",UQA121:"제1종일반주거",UQA122:"제2종일반주거",UQA123:"제3종일반주거",UQA130:"준주거",
+  UQA210:"중심상업",UQA220:"일반상업",UQA230:"근린상업",UQA240:"유통상업",UQA310:"전용공업",UQA320:"일반공업",UQA330:"준공업",
+  UQA410:"보전녹지",UQA420:"생산녹지",UQA430:"자연녹지",UQB100:"계획관리",UQB200:"생산관리",UQB300:"보전관리",UQC001:"농림",UQD001:"자연환경보전"
+};
+var USES = [
+  {g:"주거",items:["단독주택","공동주택"]},
+  {g:"근린생활",items:["제1종근린생활시설","제2종근린생활시설"]},
+  {g:"상업·업무",items:["판매시설","업무시설","숙박시설","문화및집회시설"]},
+  {g:"산업",items:["공장","창고시설"]},
+  {g:"공공·기타",items:["교육연구시설","의료시설","운동시설","기타"]}
+];
+var ACTS = ["신축","증축","개축","재축","대수선","용도변경"];
+
+// ═══ 상태 ═══
+var S = null;               // 현재 필지
+var view, map, cadastral, gfxSel, gfxNear, goyangGeom = null, goyangExtent = null, guLayer;
+var layers = {};
+var E = {};                 // esri 모듈
+
+// ═══ 유틸 ═══
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];}); }
+function n0(v){ return Math.round(v).toLocaleString("ko-KR"); }
+function n1(v){ return (Math.round(v*10)/10).toLocaleString("ko-KR"); }
+function toast(m){ var t=$("toast"); t.textContent=m; t.classList.add("on"); clearTimeout(toast._t); toast._t=setTimeout(function(){t.classList.remove("on");},2800); }
+function loading(on,msg){ $("loading").classList.toggle("on",!!on); if(msg) $("loading").querySelector("span").textContent=msg; }
+function jimokFull(j){ return JIMOK[j]||j||"-"; }
+function guOf(pnu){ return GU[(pnu||"").substring(0,5)]||""; }
+function fmtDate(s){ s=String(s||""); return s.length>=8? s.substring(0,4)+"."+s.substring(4,6)+"."+s.substring(6,8) : (s||"-"); }
+// api.py는 CP949 바이트를 utf-8로 선언해서 내려줌 → 바이트를 직접 판별해 디코딩
+function decodeJson(buf){
+  var txt;
+  try{ txt=new TextDecoder("utf-8",{fatal:true}).decode(buf); }
+  catch(e){ txt=new TextDecoder("euc-kr").decode(buf); }
+  return JSON.parse(txt);
+}
+function getJson(url){ return fetch(url).then(function(r){ return r.arrayBuffer(); }).then(decodeJson); }
+function api(p){ return getJson(API+"?"+Object.keys(p).map(function(k){return k+"="+encodeURIComponent(p[k]);}).join("&")); }
+function lawLink(name,art){ return "https://www.law.go.kr/법령/"+encodeURIComponent(name)+(art?"/"+encodeURIComponent(art):""); }
+function ordLink(name){ return "https://www.law.go.kr/자치법규/"+encodeURIComponent(name); }
+function openModal(html){ $("modalBody").innerHTML=html; $("modal").hidden=false; }
+function closeModal(){ $("modal").hidden=true; }
+
+// ═══ 지도 ═══
+require([
+  "esri/config","esri/Map","esri/WebMap","esri/views/MapView","esri/layers/FeatureLayer","esri/layers/GraphicsLayer",
+  "esri/Graphic","esri/geometry/Polygon","esri/geometry/Point","esri/geometry/geometryEngine","esri/widgets/Home","esri/widgets/ScaleBar"
+], function(esriConfig,Map,WebMap,MapView,FeatureLayer,GraphicsLayer,Graphic,Polygon,Point,geometryEngine,Home,ScaleBar){
+  E={Graphic:Graphic,Polygon:Polygon,Point:Point,ge:geometryEngine,FeatureLayer:FeatureLayer};
+  esriConfig.portalUrl=PORTAL;
+
+  map=new Map({basemap:"satellite"});
+  setBasemap("satellite");
+
+  // ── 용도지역 (용도지역_VW: 도시/관리/농림/자연환경보전) ──
+  var zuv=[]; Object.keys(ZONE_CODE).forEach(function(c){ zuv.push({value:c,symbol:{type:"simple-fill",color:ZONE_COLOR[ZONE_CODE[c]],outline:{color:[60,60,60,0.35],width:0.4}}}); });
+  layers.zone=[37,38,3,13].map(function(id){
+    return new FeatureLayer({url:URL_.zone+id,outFields:["code","description"],definitionExpression:"col_adm_se='"+GOYANG_SGG+"'",
+      renderer:{type:"unique-value",field:"code",uniqueValueInfos:zuv,defaultSymbol:{type:"simple-fill",color:[200,200,200,0.4],outline:{color:[90,90,90,0.4],width:0.4}}},
+      labelingInfo:[{labelExpressionInfo:{expression:"$feature.description"},symbol:{type:"text",color:"#222",haloColor:"#fff",haloSize:1.2,font:{size:9,weight:"bold"}},minScale:20000}],
+      opacity:0.5,visible:false,title:"용도지역"});
+  });
+  function regLayer(url,fill,line,style,title,defExp){
+    return new FeatureLayer({url:url,definitionExpression:defExp||null,visible:false,opacity:0.7,title:title,
+      renderer:{type:"simple",symbol:{type:"simple-fill",color:fill,outline:{color:line,width:2,style:style||"solid"}}}});
+  }
+  layers.gb=regLayer(URL_.gb,[229,56,59,0.22],[196,38,42],"solid","개발제한구역","col_adm_se='"+GOYANG_SGG+"'");
+  layers.dup=regLayer(URL_.dup,[47,111,222,0.12],[47,111,222],"dash","지구단위계획구역","signgu_se='"+GOYANG_SGG+"'");
+  layers.culture=regLayer(URL_.culture,[224,123,0,0.25],[201,106,0],"dash","문화유산 보호구역");
+  layers.farm=regLayer(URL_.farm,[46,160,90,0.25],[30,120,60],"solid","농업진흥지역","col_adm_se='"+GOYANG_SGG+"'");
+  layers.livestock=regLayer(URL_.livestock,[245,180,0,0.2],[210,140,0],"dash","가축사육제한구역","col_adm_se='"+GOYANG_SGG+"'");
+
+  // ── 연속지적도 (고양시만) ──
+  cadastral=new FeatureLayer({
+    url:URL_.cadastral,definitionExpression:"a7='"+GOYANG_SGG+"'",
+    outFields:["a1","a3","a4","a5","SHAPE__Area"],minScale:12000,title:"연속지적도",
+    renderer:{type:"simple",symbol:{type:"simple-fill",color:[0,0,0,0],outline:{color:[255,255,255,0.75],width:0.7}}},
+    labelingInfo:[{labelExpressionInfo:{expression:"var s=$feature.a5;if(IsEmpty(s))return '';return s"},
+      symbol:{type:"text",color:[255,255,255],haloColor:[20,30,40,0.85],haloSize:1.1,font:{size:9,family:"sans-serif"}},minScale:3000,labelPlacement:"always-horizontal",deconflictionStrategy:"static"}]
+  });
+
+  // ── 행정구 경계 ──
+  guLayer=new FeatureLayer({url:URL_.gu,definitionExpression:"sigungu_cd IN ('31101','31103','31104')",outFields:["sigungu_cd","sigungu_nm"],title:"행정구",
+    renderer:{type:"simple",symbol:{type:"simple-fill",color:[0,0,0,0],outline:{color:[255,255,255,0.9],width:1.6,style:"dash"}}},
+    labelingInfo:[{labelExpressionInfo:{expression:"Replace($feature.sigungu_nm,'고양시 ','')"},symbol:{type:"text",color:"#fff",haloColor:[0,60,70,0.9],haloSize:2,font:{size:15,weight:"bold"}},maxScale:30000}]
+  });
+
+  var gfxMask=new GraphicsLayer({title:"고양시 외곽"}), gfxBnd=new GraphicsLayer({title:"고양시 경계"});
+  gfxSel=new GraphicsLayer({title:"선택 필지"}); gfxNear=new GraphicsLayer({title:"주변사례"});
+  map.addMany(layers.zone.concat([layers.farm,layers.livestock,layers.gb,layers.culture,layers.dup,cadastral,gfxMask,guLayer,gfxBnd,gfxNear,gfxSel]));
+
+  view=new MapView({container:"viewDiv",map:map,center:[126.835,37.66],zoom:12,
+    constraints:{minZoom:10,maxZoom:20,rotationEnabled:false},
+    popup:{autoOpenEnabled:false},ui:{components:["zoom"]}});
+  view.ui.move("zoom","top-right");
+  var homeWidget=new Home({view:view});
+  view.ui.add(homeWidget,"top-right");
+  view.ui.add(new ScaleBar({view:view,unit:"metric"}),"bottom-right");
+
+  // ── 고양시 경계: 외곽 마스크 + 경계선 + 이동 제한 ──
+  new FeatureLayer({url:URL_.boundary}).queryFeatures({where:"1=1",returnGeometry:true,outSpatialReference:{wkid:102100}}).then(function(fs){
+    if(!fs.features.length) return;
+    goyangGeom=fs.features[0].geometry;
+    goyangExtent=goyangGeom.extent;
+    var world=new Polygon({spatialReference:{wkid:102100},rings:[[[-20037508,-20037508],[-20037508,20037508],[20037508,20037508],[20037508,-20037508],[-20037508,-20037508]]]});
+    var outside=geometryEngine.difference(world,goyangGeom);
+    gfxMask.add(new Graphic({geometry:outside,symbol:{type:"simple-fill",color:[12,22,32,0.58],outline:null}}));
+    gfxBnd.add(new Graphic({geometry:goyangGeom,symbol:{type:"simple-fill",color:[0,0,0,0],outline:{color:hexA(cssVar("--brand-accent"),0.45),width:9}}}));
+    gfxBnd.add(new Graphic({geometry:goyangGeom,symbol:{type:"simple-fill",color:[0,0,0,0],outline:{color:hexA(cssVar("--brand"),1),width:2.6}}}));
+    view.constraints.geometry=goyangExtent.clone().expand(1.5);
+    homeExtent=goyangExtent.clone().expand(1.08);
+    view.when(function(){
+      view.goTo(homeExtent,{duration:0}).then(function(){ homeWidget.viewpoint=view.viewpoint.clone(); });
+    });
+  }).catch(function(e){ console.warn("고양시 경계 로드 실패",e); });
+
+  view.on("click",function(e){ selectAtPoint(e.mapPoint,true); });
+  view.on("pointer-move",function(e){
+    var p=view.toMap({x:e.x,y:e.y}); if(!p) return;
+    $("coordTxt").textContent="고양특례시  ·  "+p.latitude.toFixed(5)+"°N  "+p.longitude.toFixed(5)+"°E";
+  });
+
+  buildLayerPanel();
+  window.__gy={view:view,map:map,layers:layers};
+});
+var homeExtent=null;
+
+function cssVar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function hexA(hex,a){ hex=(hex||"#00A0B0").replace("#",""); if(hex.length===3)hex=hex.split("").map(function(c){return c+c;}).join(""); return [parseInt(hex.substr(0,2),16),parseInt(hex.substr(2,2),16),parseInt(hex.substr(4,2),16),a]; }
+
+function setBasemap(t){
+  require(["esri/WebMap"],function(WebMap){
+    var wm=new WebMap({portalItem:{id:BM[t]}});
+    wm.load().then(function(){ map.basemap=wm.basemap; }).catch(function(){ map.basemap=t==="satellite"?"satellite":"gray-vector"; });
+  });
+  document.querySelectorAll("#bmSeg button").forEach(function(b){ b.classList.toggle("active",b.dataset.bm===t); });
+}
+
+// ═══ 레이어 패널 ═══
+var LAYER_UI=[
+  {g:"기본"},
+  {id:"cadastral",n:"연속지적도",c:"#ffffff",on:true,line:true},
+  {id:"gu",n:"행정구 경계",c:"#ffffff",on:true,line:true},
+  {g:"용도지역·지구"},
+  {id:"zone",n:"용도지역",c:"linear-gradient(135deg,#FFB547,#FF5C8A 50%,#8FD18F)"},
+  {id:"dup",n:"지구단위계획구역",c:"#2F6FDE"},
+  {g:"규제"},
+  {id:"gb",n:"개발제한구역",c:"#E5383B"},
+  {id:"culture",n:"문화유산 보호구역",c:"#E07B00"},
+  {id:"farm",n:"농업진흥지역",c:"#2EA05A"},
+  {id:"livestock",n:"가축사육제한구역",c:"#F5B400"}
+];
+function layerObj(id){ return id==="cadastral"?cadastral:id==="gu"?guLayer:layers[id]; }
+function buildLayerPanel(){
+  var h="";
+  LAYER_UI.forEach(function(l){
+    if(l.g){ h+='<div class="lyr-g">'+l.g+'</div>'; return; }
+    h+='<label class="lyr"><i class="sw" style="background:'+l.c+(l.line?';border:2px solid #6b7785':'')+'"></i><span>'+l.n+'</span>'+
+       '<span class="tgl"><input type="checkbox" data-lyr="'+l.id+'"'+(l.on?" checked":"")+'><b></b></span></label>';
+  });
+  h+='<div class="opa">투명도<input type="range" min="15" max="90" value="55" id="opaRange"></div>';
+  $("layerBody").innerHTML=h;
+  $("layerBody").addEventListener("change",function(e){
+    var id=e.target.dataset.lyr; if(!id) return;
+    var on=e.target.checked, L=layerObj(id);
+    (Array.isArray(L)?L:[L]).forEach(function(x){ if(x) x.visible=on; });
+    if(id==="zone") renderLegend(on);
+  });
+  $("opaRange").addEventListener("input",function(e){
+    var o=e.target.value/100;
+    layers.zone.forEach(function(z){z.opacity=o;});
+    ["gb","culture","farm","livestock","dup"].forEach(function(k){ layers[k].opacity=Math.min(1,o+0.15); });
+  });
+  $("layerHead").onclick=function(){ $("layerCard").classList.toggle("collapsed"); };
+  if(window.innerWidth<820) $("layerCard").classList.add("collapsed");
+}
+function renderLegend(on){
+  var el=$("legendCard"); if(!on){ el.hidden=true; return; }
+  var h='<h4>용도지역</h4>';
+  Object.keys(ZONE_COLOR).forEach(function(k){ h+='<div class="lg"><i style="background:'+ZONE_COLOR[k]+'"></i>'+k+'</div>'; });
+  el.innerHTML=h; el.hidden=false;
+}
+
+// ═══ 필지 선택 ═══
+function selectAtPoint(mapPoint,fromClick){
+  if(goyangGeom && E.ge){
+    var p=mapPoint;
+    if(p.spatialReference && p.spatialReference.isWGS84){
+      require(["esri/geometry/support/webMercatorUtils"],function(wmu){ var q=wmu.geographicToWebMercator(p); if(!E.ge.intersects(goyangGeom,q)){ toast("고양특례시 관할 구역의 필지만 검토할 수 있습니다"); return; } go(); });
+      return;
+    }
+    if(!E.ge.intersects(goyangGeom,p)){ toast("고양특례시 관할 구역의 필지만 검토할 수 있습니다"); return; }
+  }
+  go();
+  function go(){
+    loading(true,"필지 정보를 불러오는 중");
+    cadastral.queryFeatures({geometry:mapPoint,spatialRelationship:"intersects",outFields:["a1","a3","a4","a5","SHAPE__Area"],returnGeometry:true,outSpatialReference:view.spatialReference})
+    .then(function(fs){
+      if(!fs.features.length){ loading(false); toast("해당 위치에서 필지를 찾지 못했습니다"); return; }
+      var f=fs.features[0];
+      // 공시지가 등(VWorld)은 좌표로 조회되므로, 경계 근처 오조회를 막기 위해 필지 내부 점 사용
+      var c=f.geometry&&f.geometry.centroid, inner=(c&&E.ge.contains(f.geometry,c))?c:mapPoint;
+      var lon=inner.longitude, lat=inner.latitude;
+      loadParcel(f,lon,lat,!fromClick);
+    }).catch(function(e){ loading(false); console.error(e); toast("지적도 조회 중 오류가 발생했습니다"); });
+  }
+}
+
+function loadParcel(feat,lon,lat,zoomTo){
+  var a=feat.attributes, pnu=a.a1||"";
+  var raw=a.a5||"", jm=raw.replace(/[0-9\-산\s]/g,"").trim();
+  var area=a.SHAPE__Area? Math.round(parseFloat(a.SHAPE__Area)*Math.pow(Math.cos(lat*Math.PI/180),2)*10)/10 : 0; // Web Mercator 면적 보정
+  highlight(feat.geometry);
+  if(zoomTo) view.goTo({target:feat.geometry.extent.clone().expand(2.2)},{duration:700});
+  else view.goTo({center:[lon,lat]},{duration:400});
+
+  Promise.all([
+    api({action:"get_regulation",pnu:pnu}).catch(function(){return {};}),
+    api({action:"get_all",lon:lon,lat:lat}).catch(function(){return {};})
+  ]).then(function(res){
+    loading(false);
+    var reg=res[0]||{}, all=res[1]||{}, prc=(all.parcel&&all.parcel.pnu===pnu)?all.parcel:{};
+    S={
+      pnu:pnu, gu:guOf(pnu), lon:lon, lat:lat, geom:feat.geometry,
+      addr:"고양시 "+(a.a3||"").replace(/^(경기도\s*)?고양시\s*/,"")+" "+(a.a4||""),
+      dong:(a.a3||"").split(" ").pop(), jibun:a.a4||"", jimok:jm,
+      area:parseFloat(prc.area)||area, price:prc.price||null, priceYear:prc.price_year||"",
+      road:prc.road_name||"", reg:reg, station:all.station||null, bld:null
+    };
+    analyzeZones();
+    renderParcel(); renderReviewForm(); renderReg(); renderProc();
+    $("tab-bld").innerHTML=bldSkeleton(); fetchBuilding(pnu);
+    $("tab-near").innerHTML=""; gfxNear.removeAll();
+    $("intro").hidden=true; $("result").hidden=false; switchTab("review"); $("panelScroll").scrollTop=0;
+    if(!S.zone||!S.price) zoneFallback();
+  }).catch(function(e){ loading(false); console.error(e); toast("필지 정보 조회에 실패했습니다"); });
+}
+
+function highlight(geom){
+  gfxSel.removeAll(); if(!geom) return;
+  gfxSel.add(new E.Graphic({geometry:geom,symbol:{type:"simple-fill",color:hexA(cssVar("--brand-accent"),0.3),outline:{color:[255,255,255,1],width:6}}}));
+  gfxSel.add(new E.Graphic({geometry:geom,symbol:{type:"simple-fill",color:[0,0,0,0],outline:{color:hexA(cssVar("--brand-accent"),1),width:3}}}));
+}
+
+// ── 용도지역 판별: '포함' 우선 (접함은 인접 용도지역) ──
+function normZone(nm){
+  if(!nm) return "";
+  var n=nm.replace(/\s/g,"").replace(/지역$/,"");
+  if(GY.zones[n]) return n;
+  for(var k in GY.zones){ if(n.indexOf(k)>=0) return k; }
+  return "";
+}
+function analyzeZones(){
+  var r=S.reg||{}, list=(r.zones||[]).slice();
+  (r.all||[]).forEach(function(x){ if((x.code||"").match(/^UQ[A-D]/) && !list.some(function(z){return z.code===x.code;})) list.push(x); });
+  var inc=list.filter(function(z){return z.conflict==="포함"||z.conflict_code==="1";}).map(function(z){return normZone(z.name);}).filter(Boolean);
+  var part=list.filter(function(z){return z.conflict==="저촉"||z.conflict_code==="2";}).map(function(z){return normZone(z.name);}).filter(Boolean);
+  var adj=list.filter(function(z){return z.conflict==="접함"||z.conflict_code==="3";}).map(function(z){return normZone(z.name);}).filter(Boolean);
+  var all=inc.concat(part);
+  S.zone=all[0]||"";
+  S.zoneMulti=uniq(all);
+  S.zoneAdj=uniq(adj).filter(function(z){return S.zoneMulti.indexOf(z)<0;});
+  // 규제 플래그
+  var names=(r.all||[]).map(function(x){return x.name||"";});
+  S.regNames=names;
+  S.zm=S.zone?GY.effective(S.zone,names):null;
+  S.flags={
+    gb: names.some(function(n){return n.indexOf("개발제한구역")>=0;}),
+    military: names.filter(function(n){return /군사|보호구역|비행안전|비행장|대공방어/.test(n)&&!/문화|유산|상수원|수산|어린이|노인|장애인|생태|습지|야생/.test(n);}),
+    culture: names.filter(function(n){return /문화재|문화유산|국가유산|역사문화/.test(n);}),
+    water: names.filter(function(n){return /상수원|수질보전|수변구역/.test(n);}),
+    dup: names.filter(function(n){return /지구단위계획/.test(n);}),
+    landDeal: names.some(function(n){return /토지거래/.test(n);}),
+    farmZone: names.filter(function(n){return /농업진흥/.test(n);}),
+    forest: names.filter(function(n){return /보전산지|공익용산지|임업용산지/.test(n);}),
+    river: names.filter(function(n){return /하천구역|소하천|홍수관리/.test(n);}),
+    facility:(r.all||[]).filter(function(x){return /^UQS|^UQT/.test(x.code||"") && (x.conflict==="저촉"||x.conflict_code==="2"||x.conflict==="포함"||x.conflict_code==="1");}).map(function(x){return {n:x.name,c:(x.conflict==="포함"||x.conflict_code==="1")?"포함":"저촉"};}),
+    overcrowd: names.some(function(n){return /과밀억제/.test(n);}),
+    growth: names.filter(function(n){return /성장관리/.test(n);}),
+    landscape: names.filter(function(n){return /경관지구/.test(n);}),
+    height: names.filter(function(n){return /고도지구/.test(n);})
+  };
+}
+function uniq(a){ return a.filter(function(v,i){return a.indexOf(v)===i;}); }
+function zoneFallback(){
+  getJson(ZONE_PROXY+"?pnu="+S.pnu).then(function(d){
+    if(!S||d.pnu!==S.pnu) return;
+    var changed=false;
+    if(!S.price&&parseFloat(d.price)){ S.price=parseFloat(d.price); S.priceYear="토지특성"; changed=true; }
+    var z=!S.zone&&normZone(d.zone_name||"");
+    if(z){ S.zone=z; S.zoneMulti=[z]; S.zm=GY.effective(z,S.regNames||[]); S.zoneSrc="토지특성정보"; renderReviewFormKeep(); changed=true; }
+    if(changed) renderParcel();
+  }).catch(function(){});
+}
+
+// ═══ 탭 ═══
+function switchTab(t){
+  document.querySelectorAll("#tabs .tab").forEach(function(b){ b.classList.toggle("active",b.dataset.tab===t); });
+  document.querySelectorAll(".tab-body").forEach(function(b){ b.classList.toggle("active",b.id==="tab-"+t); });
+  if(t==="near" && S && !$("tab-near").innerHTML) renderNear();
+}
+
+// ═══ 필지 카드 ═══
+function renderParcel(){
+  var p=S, zm=p.zm, h='';
+  h+='<div class="pc-top"><div class="pc-tags"><span class="tag brand">'+esc(p.gu||"고양시")+'</span><span class="tag">'+esc(p.dong)+'</span><span class="tag">'+esc(jimokFull(p.jimok))+'</span>'+(p.road?'<span class="tag">'+esc(p.road)+'</span>':'')+'</div>';
+  h+='<div class="pc-addr">'+esc(p.addr)+'</div>';
+  h+='<div class="pc-sub">PNU '+esc(p.pnu)+' <button data-act="copyPnu">복사</button></div></div>';
+  h+='<div class="pc-facts"><div class="pc-fact"><span>대지면적</span><b>'+(p.area?n1(p.area)+' ㎡':'-')+'</b></div>';
+  h+='<div class="pc-fact"><span>평 환산</span><b>'+(p.area?n1(p.area/3.3058)+' 평':'-')+'</b></div>';
+  h+='<div class="pc-fact"><span>공시지가'+(p.priceYear?' ('+esc(p.priceYear)+')':'')+'</span><b>'+(p.price?n0(p.price/10000)+' 만원/㎡':'-')+'</b></div></div>';
+
+  h+='<div class="zone-band">';
+  if(p.zone){
+    h+='<div class="zone-name"><i class="zone-sw" style="background:'+(ZONE_COLOR[p.zone]||"#ddd")+'"></i>'+esc(p.zone)+'지역'+
+      (p.zoneMulti.length>1?'<span class="zone-also">걸침: '+esc(p.zoneMulti.slice(1).join(", "))+'</span>':(p.zoneAdj.length?'<span class="zone-also">인접: '+esc(p.zoneAdj.join(", "))+'</span>':''))+'</div>';
+    h+='<div class="kpis">'+kpi("건폐율",zm.b,"%",zm.bArt)+kpi("용적률",zm.f,"%",zm.fArt)+kpi("층수",zm.h||"—",zm.h?"층":"",zm.h?zm.hNote:"용도지역 층수제한 없음")+'</div>';
+    if(zm.adj&&zm.adj.length) h+='<div class="zone-src" style="color:var(--info)"><span>지구·구역 조정: '+esc(zm.adj.join(" · "))+'</span></div>';
+    h+='<div class="zone-src"><span>'+esc(GY.src.urban.name)+(S.zoneSrc?' · '+esc(S.zoneSrc):'')+'</span><a href="#" data-act="zoneTable">고양시 기준표 ›</a></div>';
+  }else{
+    h+='<div class="zone-name"><i class="zone-sw"></i><span style="color:var(--muted)">용도지역 확인 중…</span></div>';
+  }
+  h+='</div>';
+  // 경고 배너
+  var al=[];
+  if(p.flags.gb) al.push(["fail","⛔","개발제한구역","원칙적으로 건축·형질변경 금지. 개발제한구역법상 허용 행위만 허가 가능"]);
+  if(p.flags.facility.length){ var fullF=p.flags.facility.some(function(x){return x.c==="포함";});
+    al.push([fullF?"fail":"warn","⚠","도시·군계획시설 "+(fullF?"포함":"일부 저촉"),"시설 부지는 결정 목적 외 건축 제한 — "+p.flags.facility.slice(0,3).map(function(x){return x.n+"("+x.c+")";}).join(", ")]); }
+  if(p.flags.military.length) al.push(["warn","🛡","군사시설 보호구역","관할 부대 협의 필요 — "+p.flags.military.slice(0,2).join(", ")]);
+  if(p.flags.culture.length) al.push(["warn","🏛","문화유산 영향 구역","국가유산 현상변경 검토 필요 — "+p.flags.culture.slice(0,2).join(", ")]);
+  if(p.flags.dup.length) al.push(["info","ℹ","지구단위계획구역","지구단위계획 결정 내용(용도·건폐율·용적률·높이)이 우선 적용됩니다"]);
+  al.forEach(function(a){ h+='<div class="alert '+a[0]+'"><span class="a-ico">'+a[1]+'</span><div><b>'+a[2]+'</b>'+esc(a[3])+'</div></div>'; });
+  $("parcelCard").innerHTML=h;
+}
+function kpi(label,val,unit,note){ return '<div class="kpi"><span>'+label+'</span><b>'+val+'<small>'+unit+'</small></b><em>'+esc(note||"")+'</em></div>'; }
+
+function zoneTable(){
+  var cats=[["주거지역",["제1종전용주거","제2종전용주거","제1종일반주거","제2종일반주거","제3종일반주거","준주거"]],["상업지역",["중심상업","일반상업","근린상업","유통상업"]],["공업지역",["전용공업","일반공업","준공업"]],["녹지지역",["보전녹지","생산녹지","자연녹지"]],["관리·농림·자연환경보전",["보전관리","생산관리","계획관리","농림","자연환경보전"]]];
+  var h='<h3>고양특례시 용도지역별 건축 기준</h3><div class="sub">'+esc(GY.src.urban.name)+' ('+esc(GY.src.urban.date)+') · 국토계획법 시행령 제84조·제85조</div>';
+  h+='<table class="tb"><tr><th>용도지역</th><th>건폐율</th><th>용적률</th><th>법정 상한</th><th>층수</th></tr>';
+  cats.forEach(function(c){
+    h+='<tr><td colspan="5" style="font-weight:800;color:var(--muted);background:var(--bg)">'+c[0]+'</td></tr>';
+    c[1].forEach(function(k){ var z=GY.zones[k], nat=GY.national[k]||{};
+      h+='<tr'+(S&&S.zone===k?' class="sel"':'')+'><td><i class="dot" style="background:'+ZONE_COLOR[k]+'"></i>'+k+'</td><td>'+z.b+'%</td><td><b>'+z.f+'%</b></td><td style="color:var(--muted)">'+(nat.b||"-")+'% / '+(nat.f||"-")+'%</td><td>'+(z.h?z.h+'층':'—')+'</td></tr>'; });
+  });
+  h+='</table><p class="hint" style="margin-top:10px">지구단위계획구역·개발진흥지구 등은 별도 결정 내용이 우선합니다. <a href="'+GY.src.urban.url+'" target="_blank" rel="noopener">조례 원문 ›</a></p>';
+  openModal(h);
+}
+
+// ═══ 사전검토 입력 ═══
+var plan={act:"신축",use:"제1종근린생활시설",sub:"소매점 1천㎡ 미만"};
+var PER_UNIT=/다가구주택|오피스텔|생활숙박/;
+// 세부용도 목록 (research/06 — 건축법 시행령 별표1 기준 77종). 데이터가 없으면 13개 대분류로 동작
+function parentList(){ return GY.subParents&&GY.subParents.length? GY.subParents : USES.reduce(function(a,g){return a.concat(g.items);},[]); }
+function subsOf(parent){ return GY.sub? GY.sub.uses.filter(function(u){return u.p===parent;}) : []; }
+function needUnits(){ return plan.use==="공동주택"||PER_UNIT.test(plan.sub||""); }
+function renderReviewForm(){
+  var h='<div class="card" id="planForm"><div class="card-t">건축계획 입력<small>필수: 면적 또는 층수 중 1개 이상</small></div>';
+  h+='<div class="field"><label>행위 구분</label><div class="chips" id="actChips">';
+  ACTS.forEach(function(a){ h+='<button class="chip'+(plan.act===a?' on':'')+'" data-v="'+a+'">'+a+'</button>'; });
+  h+='</div></div>';
+  var subs=subsOf(plan.use);
+  if(subs.length&&!subs.some(function(u){return u.k===plan.sub;})) plan.sub=subs[0].k;
+  h+='<div class="field"><label>건축물 용도 <span style="font-weight:500;color:var(--muted)">'+(plan.act==="용도변경"?"(변경 후 용도)":"")+'</span></label>';
+  h+='<div class="grid2" style="grid-template-columns:1fr 1.25fr;gap:6px"><select class="select" id="inPar" aria-label="대분류">';
+  parentList().forEach(function(p){ h+='<option'+(plan.use===p?' selected':'')+'>'+esc(p)+'</option>'; });
+  h+='</select><select class="select" id="inUse" aria-label="세부 용도">';
+  if(subs.length) subs.forEach(function(u){ h+='<option value="'+esc(u.k)+'"'+(plan.sub===u.k?' selected':'')+'>'+esc(u.k)+'</option>'; });
+  else h+='<option value="">(세부 구분 없음)</option>';
+  h+='</select></div><div class="hint" id="useHint"></div></div>';
+  if(plan.act==="용도변경"){
+    var cur=(S.bld&&S.bld.mainPurpsCdNm)||"", pick="";
+    if(cur&&GY.sub){ var hit=GY.sub.uses.filter(function(u){return cur.indexOf(u.k)>=0;})[0]||GY.sub.uses.filter(function(u){return u.p===cur||cur.indexOf(u.p.replace("시설",""))>=0;})[0]; pick=hit?hit.k:""; }
+    h+='<div class="field"><label>현재(변경 전) 용도</label><select class="select" id="inFrom"><option value="">선택</option>';
+    if(GY.sub) parentList().forEach(function(p){ h+='<optgroup label="'+esc(p)+'">'; subsOf(p).forEach(function(u){ h+='<option value="'+esc(u.k)+'"'+(pick===u.k?' selected':'')+'>'+esc(u.k)+'</option>'; }); h+='</optgroup>'; });
+    else parentList().forEach(function(p){ h+='<option>'+esc(p)+'</option>'; });
+    h+='</select><div class="hint">건축물대장 주용도: '+esc(cur||"조회 전/없음")+'</div></div>';
+  }
+  h+='<div class="grid2"><div class="field"><label>건축면적</label><div class="num"><input type="number" id="inBa" min="0" inputmode="decimal" placeholder="0"><i>㎡</i></div></div>';
+  h+='<div class="field"><label>연면적 (지상+지하)</label><div class="num"><input type="number" id="inTa" min="0" inputmode="decimal" placeholder="0"><i>㎡</i></div></div>';
+  h+='<div class="field"><label>용적률 산정 연면적</label><div class="num"><input type="number" id="inFa" min="0" inputmode="decimal" placeholder="미입력 시 연면적"><i>㎡</i></div></div>';
+  h+='<div class="field"><label>지상 층수 / 높이</label><div class="grid2" style="gap:6px"><div class="num"><input type="number" id="inFl" min="0" placeholder="0"><i>층</i></div><div class="num"><input type="number" id="inHt" min="0" placeholder="0"><i>m</i></div></div></div>';
+  h+='<div class="field"><label>지하 층수</label><div class="num"><input type="number" id="inUf" min="0" placeholder="0"><i>층</i></div></div>';
+  h+='<div class="field"><label>분양 목적</label><label class="lyr" style="padding:9px 10px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:#fff"><span>분양 목적 건축물</span><span class="tgl"><input type="checkbox" id="inSale"><b></b></span></label></div>';
+  if(S.flags&&S.flags.gb) h+='<div class="field" style="grid-column:1/-1"><label>개발제한구역 거주 요건</label><label class="lyr" style="padding:9px 10px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:#fff"><span>개발제한구역 지정 당시부터 거주 (지정당시거주자)</span><span class="tgl"><input type="checkbox" id="inGbRes"><b></b></span></label></div>';
+  if(needUnits()) h+='<div class="field"><label>세대(호실) 수 / 세대당 전용면적</label><div class="grid2" style="gap:6px"><div class="num"><input type="number" id="inHh" min="0" placeholder="0"><i>세대</i></div><div class="num"><input type="number" id="inUa" min="0" placeholder="84"><i>㎡</i></div></div></div>';
+  h+='</div>';
+  if(S.area&&S.zm) h+='<div class="hint" style="margin:-4px 0 10px 4px">최대 건축면적 약 <b>'+n0(S.area*S.zm.b/100)+'㎡</b> · 최대 용적률 연면적 약 <b>'+n0(S.area*S.zm.f/100)+'㎡</b> <button data-act="fillMax">최대치 채우기</button></div>';
+  h+='<button class="btn-primary block" data-act="judge">사전검토 실행</button></div><div id="reviewOut"></div>';
+  $("tab-review").innerHTML=h;
+  updateUseHint();
+}
+function updateUseHint(){
+  var el=$("useHint"); if(!el||!S) return;
+  var u=$("inUse").value, r=S.zone&&GY.sub&&GY.sub.matrix[S.zone]&&GY.sub.matrix[S.zone][u];
+  if(!r) r=S.zone&&GY.useZone[S.zone]&&GY.useZone[S.zone][plan.use];
+  if(!r){ el.innerHTML=""; return; }
+  var map_={ok:["ok","건축 가능"],cond:["warn","조건부 가능"],no:["fail","건축 불가"]}[r.s]||["na","확인 필요"];
+  el.innerHTML='<span class="tag '+map_[0]+'">'+S.zone+' · '+map_[1]+'</span> '+esc(r.c||"");
+}
+function val(id){ var e=$(id); return e?parseFloat(e.value)||0:0; }
+
+// ═══ 판정 엔진 ═══
+function judge(){
+  if(!S) return;
+  var from=$("inFrom")?$("inFrom").value:"", fromSub=GY.subByKey&&GY.subByKey[from];
+  var P={act:plan.act,use:plan.use,sub:$("inUse").value,from:from,fromParent:fromSub?fromSub.p:from,ba:val("inBa"),ta:val("inTa"),fa:val("inFa"),fl:Math.round(val("inFl")),ht:val("inHt"),hh:Math.round(val("inHh")),ua:val("inUa"),uf:Math.round(val("inUf")),sale:!!($("inSale")&&$("inSale").checked),gbResident:!!($("inGbRes")&&$("inGbRes").checked)};
+  if(!P.fa) P.fa=P.ta;
+  if(!P.ba&&!P.ta&&!P.fl){ toast("건축면적·연면적·층수 중 하나 이상 입력하세요"); return; }
+  plan.sub=P.sub;
+  var C=GY.judge(S,P,{jimokFull:jimokFull,n0:n0,n1:n1});
+  renderVerdict(C,P);
+}
+
+var GROUPS=[["site","입지·규제"],["use","용도"],["scale","규모·밀도"],["proc","절차"],["duty","설치의무·부담"]];
+function renderVerdict(C,P){
+  var cnt={fail:0,warn:0,ok:0};
+  C.forEach(function(c){ if(cnt[c.st]!=null) cnt[c.st]++; });
+  var ov=cnt.fail?"fail":cnt.warn?"warn":"ok";
+  var title={fail:"건축 곤란 항목 있음",warn:"조건부 가능 · 확인 필요",ok:"사전검토 적합"}[ov];
+  var desc={fail:"부적합 항목을 해소하지 않으면 허가가 어렵습니다. 아래 상세 근거를 확인하세요.",warn:"기준은 충족하나 협의·추가 확인이 필요한 항목이 있습니다.",ok:"입력한 계획이 주요 기준을 충족합니다. 세부 설계 시 관계 법령을 재확인하세요."}[ov];
+  var permit=C.filter(function(c){return c.key==="permitType";})[0];
+  var h='<div class="print-only" style="margin-bottom:10px"><b style="font-size:16px">고양특례시 건축 인허가 사전검토 결과</b><br><span style="font-size:12px;color:#666">'+esc(S.addr)+' · PNU '+S.pnu+' · '+new Date().toLocaleString("ko-KR")+'</span><br><span style="font-size:12px">계획: '+esc(P.act+" / "+P.use+" / 건축면적 "+n0(P.ba)+"㎡ / 연면적 "+n0(P.ta)+"㎡ / "+P.fl+"층")+'</span></div>';
+  h+='<div class="verdict '+ov+'"><div class="verdict-k">'+esc(S.zone?S.zone+"지역":"")+' · '+esc(P.act)+' · '+esc(P.use)+'</div><div class="verdict-v">'+title+'</div><div class="verdict-d">'+desc+'</div>';
+  h+='<div class="verdict-cnt"><span>부적합 '+cnt.fail+'</span><span>확인 '+cnt.warn+'</span><span>적합 '+cnt.ok+'</span>'+(permit?'<span>'+esc(permit.v)+'</span>':'')+'</div>';
+  h+='<div class="verdict-act"><button data-act="print">🖨 검토서 인쇄·PDF</button><button data-act="openAll">전체 펼치기</button></div></div>';
+  GROUPS.forEach(function(g){
+    var items=C.filter(function(c){return c.g===g[0];}); if(!items.length) return;
+    h+='<div class="grp"><div class="grp-t"><b>'+g[1]+'</b>'+items.length+'</div>';
+    items.forEach(function(c){ h+=chkHtml(c); });
+    h+='</div>';
+  });
+  h+='<p class="hint" style="padding:0 4px 12px">본 결과는 공간정보·조례 기준에 따른 <b>참고용 사전검토</b>이며 법적 효력이 없습니다. 실제 허가 여부는 관할 구청 건축부서의 검토로 결정됩니다.</p>';
+  $("reviewOut").innerHTML=h;
+  $("reviewOut").scrollIntoView({behavior:"smooth",block:"start"});
+}
+function chkHtml(c){
+  var sym={ok:"✓",warn:"!",fail:"✕",info:"i",na:"–"}[c.st]||"–";
+  var h='<div class="chk '+c.st+'"><button class="chk-h" data-act="toggle"><span class="st '+c.st+'">'+sym+'</span><span class="chk-n">'+esc(c.n)+'</span><span class="chk-v '+c.st+'">'+esc(c.v)+'</span><i class="chev"></i></button><div class="chk-d">';
+  if(c.bar) h+='<div class="bar"><i style="width:'+Math.min(100,c.bar.p)+'%;background:var(--'+(c.bar.p>100?"fail":c.bar.p>90?"warn":"ok")+')"></i></div><div class="hint" style="margin-bottom:8px">한도 대비 '+n1(c.bar.p)+'% 사용</div>';
+  if(c.calc) h+='<div class="calc">'+esc(c.calc)+'</div>';
+  if(c.d) h+='<div class="det">'+esc(c.d)+'</div>';
+  if(c.src&&c.src.length){ h+='<div class="srcs">'; c.src.forEach(function(s){ h+= s.u? '<a class="src '+s.t+'" href="'+esc(s.u)+'" target="_blank" rel="noopener">'+esc(s.l)+'</a>' : '<span class="src '+s.t+'">'+esc(s.l)+'</span>'; }); h+='</div>'; }
+  return h+'</div></div>';
+}
+
+// ═══ 토지이용규제 탭 ═══
+function renderReg(){
+  var r=S.reg||{}, all=r.all||[];
+  if(!all.length){ $("tab-reg").innerHTML='<div class="card"><div class="empty-s">이 필지의 토지이용규제 정보가 없습니다</div></div>'; return; }
+  var groups=[["용도지역","^UQA|^UQB|^UQC|^UQD"],["용도지구·구역","^UQF|^UQQ|^UQB|^UQR"],["도시·군계획시설","^UQS|^UQT"],["다른 법령 규제","."]];
+  var used={}, h='';
+  var imp={restrict:["fail","제한"],review:["warn","검토"],allow:["ok","허용"]};
+  h+='<div class="card"><div class="card-t">토지이용규제 현황<small>총 '+all.length+'건 · 토지이용규제정보서비스</small></div>';
+  h+='<div class="hint" style="margin:-6px 0 4px">포함: 필지가 해당 구역 안 · 저촉: 일부 걸침 · 접함: 경계에 접함</div></div>';
+  groups.forEach(function(g){
+    var re=new RegExp(g[1]);
+    var items=all.filter(function(x,i){ if(used[i]) return false; if(re.test(x.code||"")){ used[i]=1; return true; } return false; });
+    if(!items.length) return;
+    h+='<div class="card"><div class="card-t">'+g[0]+'<small>'+items.length+'</small></div><div class="rows">';
+    items.forEach(function(x){
+      var d=x.reg_detail||{}, im=imp[d.impact]||["na",""];
+      var zk=/^UQ[A-D]/.test(x.code||"")&&normZone(x.name), zz=zk&&GY.zones[zk];
+      var detail=GY.regNote(x.name)||(zz?"고양시 도시계획 조례: 건폐율 "+zz.b+"% · 용적률 "+zz.f+"%"+(zz.h?" · "+zz.h+"층 이하":"")+" (법정 상한 "+GY.national[zk].b+"% · "+GY.national[zk].f+"%)":"")||d.detail||"";
+      var cf=x.conflict||"";
+      h+='<div class="row"><div class="rn"><b>'+esc(x.name)+' <span class="tag '+(cf==="포함"?"brand":cf==="저촉"?"warn":"")+'">'+esc(cf)+'</span>'+(im[1]?' <span class="tag '+im[0]+'">'+im[1]+'</span>':'')+'</b>'+(detail?'<small>'+esc(detail)+'</small>':'')+'</div><a href="'+lawUrl(x)+'" target="_blank" rel="noopener">법령 ›</a></div>';
+    });
+    h+='</div></div>';
+  });
+  h+='<div class="card"><div class="card-t">외부 열람</div><div class="rows">';
+  h+=extRow("토지이용계획확인원 (토지이음)","https://www.eum.go.kr/web/ar/lu/luLandDet.jsp?pnu="+S.pnu+"&mode=search&isNoScr=script&selGbn=umd");
+  h+=extRow("고양시 도시계획 조례","ordLink");
+  h+=extRow("고양시 건축 조례",GY.src.building.url);
+  h+='</div></div>';
+  $("tab-reg").innerHTML=h.replace('href="ordLink"','href="'+GY.src.urban.url+'"');
+}
+function extRow(n,u){ return '<div class="row"><div class="rn"><b>'+n+'</b></div><a href="'+u+'" target="_blank" rel="noopener">바로가기 ›</a></div>'; }
+function lawUrl(x){
+  var n=x.name||"", c=x.code||"";
+  var m=GY.lawFor(n,c);
+  return lawLink(m.law,m.art);
+}
+
+// ═══ 건축물대장 ═══
+function bldSkeleton(){ return '<div class="card"><div class="card-t">건축물대장 조회 중…</div><div class="skel"></div><div class="skel" style="width:70%"></div><div class="skel" style="width:85%"></div></div>'; }
+function parsePNU(pnu){ if(!pnu||pnu.length<19) return null; return {sigunguCd:pnu.substring(0,5),bjdongCd:pnu.substring(5,10),platGbCd:pnu.charAt(10)==="2"?"1":"0",bun:pnu.substring(11,15),ji:pnu.substring(15,19)}; }
+function bldUrl(ep,pp){ return ep+"?serviceKey="+BLD_KEY+"&sigunguCd="+pp.sigunguCd+"&bjdongCd="+pp.bjdongCd+"&platGbCd="+pp.platGbCd+"&bun="+pp.bun+"&ji="+pp.ji+"&_type=json&numOfRows=100&pageNo=1"; }
+function bldFetch(url){ return fetch(url).then(function(r){return r.json();}).then(function(d){ var b=d&&d.response&&d.response.body, it=b&&b.items&&b.items.item; if(!it||!(parseInt(b.totalCount)>0)) return []; return Array.isArray(it)?it:[it]; }).catch(function(){ return []; }); }
+function fetchBuilding(pnu){
+  var pp=parsePNU(pnu); if(!pp){ $("tab-bld").innerHTML='<div class="card"><div class="empty-s">PNU 확인 불가</div></div>'; return; }
+  Promise.all([bldFetch(bldUrl(BLD_API.title,pp)),bldFetch(bldUrl(BLD_API.recap,pp)),bldFetch(bldUrl(BLD_API.floor,pp))]).then(function(r){
+    if(!S||S.pnu!==pnu) return;
+    var titles=r[0], recaps=r[1], floors=r[2];
+    // 주건축물 우선 정렬 (연면적 큰 순)
+    titles.sort(function(a,b){ return (parseFloat(b.totArea)||0)-(parseFloat(a.totArea)||0); });
+    S.bld=titles[0]||recaps[0]||null; S.bldAll=titles; S.bldRecap=recaps[0]||null;
+    var h='';
+    if(!titles.length&&!recaps.length){ h='<div class="card"><div class="empty-s">🏗 이 필지에 등록된 건축물대장이 없습니다<br><small>나대지이거나 미등재 건축물일 수 있습니다</small></div></div>'; }
+    if(recaps.length){ var c=recaps[0];
+      h+='<div class="card"><div class="card-t">총괄표제부<small>'+esc(c.bldNm||"")+'</small></div><table class="kv">'+
+        kvr("대지면적",c.platArea&&n1(c.platArea)+" ㎡")+kvr("건축면적 / 건폐율",(c.archArea?n1(c.archArea)+" ㎡":"-")+" / "+(c.bcRat?c.bcRat+"%":"-"))+kvr("연면적 / 용적률",(c.totArea?n1(c.totArea)+" ㎡":"-")+" / "+(c.vlRat?c.vlRat+"%":"-"))+
+        kvr("주·부속 건축물",(c.mainBldCnt||0)+"동 / "+(c.atchBldCnt||0)+"동")+kvr("세대수",c.hhldCnt)+kvr("총 주차",c.totPkngCnt&&c.totPkngCnt+"대")+'</table></div>'; }
+    titles.slice(0,6).forEach(function(b,i){
+      h+='<div class="card"><div class="card-t">'+esc((b.dongNm?b.dongNm+" · ":"")+(b.bldNm||"건축물 "+(i+1)))+'<small>'+esc(b.mainAtchGbCdNm||"")+'</small></div>';
+      h+='<div class="pc-tags" style="margin-bottom:10px"><span class="tag info">'+esc(b.mainPurpsCdNm||"용도 미상")+'</span><span class="tag">'+esc(b.strctCdNm||"")+'</span><span class="tag">지상 '+(b.grndFlrCnt||0)+'층 / 지하 '+(b.ugrndFlrCnt||0)+'층</span></div>';
+      h+='<table class="kv">'+kvr("대지면적",b.platArea&&parseFloat(b.platArea)?n1(b.platArea)+" ㎡":"")+kvr("건축면적 / 건폐율",(b.archArea?n1(b.archArea)+" ㎡":"-")+" / "+(parseFloat(b.bcRat)?b.bcRat+"%":"-"))+
+        kvr("연면적 / 용적률",(b.totArea?n1(b.totArea)+" ㎡":"-")+" / "+(parseFloat(b.vlRat)?b.vlRat+"%":"-"))+kvr("높이",parseFloat(b.heit)?b.heit+" m":"")+
+        kvr("세대 / 가구",(b.hhldCnt||0)+" / "+(b.fmlyCnt||0))+kvr("승강기","승용 "+(b.rideUseElvtCnt||0)+" · 비상용 "+(b.emgenUseElvtCnt||0))+
+        kvr("허가일",fmtDate(b.pmsDay))+kvr("사용승인일",'<b style="color:var(--brand-700)">'+fmtDate(b.useAprDay)+'</b>',true)+kvr("내진설계",b.rserthqkDsgnApplyYn==="1"?"적용":(b.rserthqkDsgnApplyYn==="0"?"미적용":""))+'</table></div>';
+    });
+    if(titles.length>6) h+='<div class="hint" style="padding:0 6px 10px">외 '+(titles.length-6)+'동은 세움터에서 확인하세요.</div>';
+    if(floors.length){
+      floors.sort(function(a,b){ var f=function(x){ return (x.flrGbCdNm||"").indexOf("지하")>=0?-(parseInt(x.flrNo)||0):(parseInt(x.flrNo)||0)+100; }; return (a.dongNm||"").localeCompare(b.dongNm||"")||f(a)-f(b); });
+      h+='<div class="card"><div class="card-t">층별 개요<small>'+floors.length+'건</small></div><table class="tb"><tr><th>동</th><th>층</th><th>용도</th><th style="text-align:right">면적(㎡)</th></tr>';
+      floors.slice(0,40).forEach(function(f){ h+='<tr><td>'+esc(f.dongNm||"")+'</td><td>'+esc((f.flrGbCdNm||"").replace("지상","")+(f.flrNo||""))+'</td><td>'+esc(f.mainPurpsCdNm||f.etcPurps||"-")+'</td><td style="text-align:right">'+(f.area?n1(f.area):"-")+'</td></tr>'; });
+      h+='</table></div>';
+    }
+    h+='<div class="card"><div class="card-t">공식 열람·발급</div><div class="rows">'+extRow("건축물대장 열람 (세움터)","https://www.eais.go.kr/")+extRow("건축물대장 발급 (정부24)","https://www.gov.kr/mw/AA020InfoCappView.do?HighCtgCD=A09006&CappBizCD=15000000066")+'</div></div>';
+    $("tab-bld").innerHTML=h;
+    if(plan.act==="용도변경"||plan.act==="증축") renderReviewFormKeep();
+  });
+}
+function kvr(k,v,raw){ if(v==null||v===""||v==="undefined") return ""; return '<tr><td>'+k+'</td><td>'+(raw?v:esc(v))+'</td></tr>'; }
+// 입력값·결과를 유지한 채 폼 재구성 (행위·용도 변경, 건축물대장 도착 시)
+var FORM_IDS=["inBa","inTa","inFa","inFl","inHt","inUf","inHh","inUa"];
+function renderReviewFormKeep(){
+  var keep={}, sale=$("inSale")&&$("inSale").checked, gbr=$("inGbRes")&&$("inGbRes").checked, out=$("reviewOut")&&$("reviewOut").innerHTML;
+  FORM_IDS.forEach(function(id){ if($(id)) keep[id]=$(id).value; });
+  renderReviewForm();
+  for(var k in keep) if($(k)) $(k).value=keep[k];
+  if($("inSale")) $("inSale").checked=!!sale;
+  if($("inGbRes")) $("inGbRes").checked=!!gbr;
+  if(out) $("reviewOut").innerHTML=out;
+}
+
+// ═══ 협의·절차 탭 ═══
+function renderProc(){
+  var h='<div class="card"><div class="card-t">허가권자 · 접수처</div>'+GY.authorityHtml(S)+'</div>';
+  var cs=GY.consults(S);
+  h+='<div class="card"><div class="card-t">협의 대상 부서·기관<small>'+cs.length+'곳</small></div><div class="rows">';
+  cs.forEach(function(c){ h+='<div class="row"><div class="rn"><b>'+esc(c.d)+' <span class="tag '+(c.q==="필수"?"fail":"warn")+'">'+esc(c.q)+'</span></b><small>'+esc(c.r)+'</small></div>'+(c.law?'<a href="'+lawLink(c.law,c.art)+'" target="_blank" rel="noopener">근거 ›</a>':'')+'</div>'; });
+  h+='</div></div>';
+  h+='<div class="card"><div class="card-t">인허가 진행 절차</div><ol class="flow">';
+  GY.flow.forEach(function(f){ h+='<li><b>'+esc(f[0])+'</b><small>'+esc(f[1])+'</small></li>'; });
+  h+='</ol></div>';
+  h+='<div class="card"><div class="card-t">건축허가 의제 처리 (건축법 제11조⑤)</div><div class="rows">';
+  GY.deemed.forEach(function(x){ h+='<div class="row"><div class="rn"><b>'+esc(x[0])+'</b></div><a href="'+lawLink(x[1],x[2])+'" target="_blank" rel="noopener">'+esc(x[1].replace(/의 계획 및 이용에 관한 법률/,"계획법"))+' '+esc(x[2])+' ›</a></div>'; });
+  h+='</div></div>';
+  $("tab-proc").innerHTML=h;
+}
+
+// ═══ 주변사례 ═══
+var nearData=null, nearSel=-1, nearRadius=1000;
+function renderNear(){
+  $("tab-near").innerHTML='<div class="card"><div class="card-t">주변 건축 인허가 사례</div><div class="skel"></div><div class="skel" style="width:60%"></div></div>';
+  var p=nearData? Promise.resolve(nearData) : fetch(URL_.permits+"/query?where="+encodeURIComponent("sigungu_cd_nm LIKE '고양시%'")+"&outFields=*&f=json").then(function(r){return r.json();}).then(function(d){ nearData=(d.features||[]).map(function(f){return f.attributes;}).filter(function(a){return a.x_lon&&a.y_lat;}); return nearData; });
+  p.then(function(rows){ drawNear(rows); }).catch(function(){ $("tab-near").innerHTML='<div class="card"><div class="empty-s">주변사례 데이터를 불러오지 못했습니다</div></div>'; });
+}
+function hav(lon1,lat1,lon2,lat2){ var R=6371000,t=Math.PI/180,dl=(lat2-lat1)*t,dn=(lon2-lon1)*t,a=Math.sin(dl/2)*Math.sin(dl/2)+Math.cos(lat1*t)*Math.cos(lat2*t)*Math.sin(dn/2)*Math.sin(dn/2); return 2*R*Math.asin(Math.sqrt(a)); }
+function drawNear(rows){
+  var list=rows.map(function(a){ return {a:a,d:hav(S.lon,S.lat,parseFloat(a.x_lon),parseFloat(a.y_lat))}; }).filter(function(x){return x.d<=nearRadius;}).sort(function(x,y){return x.d-y.d;});
+  S.near=list;
+  var h='<div class="card"><div class="card-t">주변 건축 인허가 사례<small>반경 '+(nearRadius>=1000?nearRadius/1000+"km":nearRadius+"m")+' · '+list.length+'건</small></div>';
+  h+='<div class="chips" id="nearR">'+[500,1000,2000,3000].map(function(r){return '<button class="chip'+(r===nearRadius?' on':'')+'" data-r="'+r+'">'+(r>=1000?r/1000+"km":r+"m")+'</button>';}).join("")+'</div></div>';
+  if(!list.length){ h+='<div class="card"><div class="empty-s">반경 내 수집된 인허가 사례가 없습니다.<br><small>현재 고양시 사례 '+rows.length+'건 수집됨 · 반경을 넓혀 보세요</small></div></div>'; }
+  else{
+    var bcr=list.filter(function(x){return parseFloat(x.a.bcrat)>0;}), far=list.filter(function(x){return parseFloat(x.a.vlrat)>0;});
+    var avg=function(arr,k){ return arr.length? arr.reduce(function(s,x){return s+parseFloat(x.a[k]);},0)/arr.length : 0; };
+    h+='<div class="intro-stats" style="margin-bottom:12px"><div class="stat"><b>'+list.length+'</b><span>사례 수</span></div><div class="stat"><b>'+(bcr.length?n1(avg(bcr,"bcrat"))+'%':'-')+'</b><span>평균 건폐율</span></div><div class="stat"><b>'+(far.length?n0(avg(far,"vlrat"))+'%':'-')+'</b><span>평균 용적률</span></div></div>';
+    h+='<div class="card" style="padding:8px 10px"><table class="tb"><tr><th>허가일</th><th>구분</th><th>용도</th><th style="text-align:right">거리</th></tr>';
+    list.slice(0,60).forEach(function(x,i){ var a=x.a;
+      h+='<tr class="clk" data-near="'+i+'"><td>'+esc(fmtDate(a.arch_pms_date))+'</td><td><i class="dot" style="background:'+nearColor(a.arch_gb_cd_nm)+'"></i>'+esc(a.arch_gb_cd_nm||"-")+'</td><td>'+esc(a.main_prpos_cd_nm||"-")+'</td><td style="text-align:right">'+n0(x.d)+'m</td></tr>'; });
+    h+='</table></div><p class="hint" style="padding:0 6px">출처: 건축인허가 정보(국토교통부) 수집분 · 행 클릭 시 상세</p>';
+  }
+  $("tab-near").innerHTML=h;
+  drawNearMap(list);
+}
+function nearColor(t){ return {"신축":"#00A0B0","증축":"#2F6FDE","대수선":"#0E9F6E","용도변경":"#8E44AD","개축":"#E07B00","재축":"#795548"}[t]||"#8795A1"; }
+function drawNearMap(list){
+  gfxNear.removeAll();
+  list.forEach(function(x,i){ var c=hexA(nearColor(x.a.arch_gb_cd_nm),1);
+    gfxNear.add(new E.Graphic({geometry:{type:"point",longitude:parseFloat(x.a.x_lon),latitude:parseFloat(x.a.y_lat)},symbol:{type:"simple-marker",size:i===nearSel?16:9,color:c,outline:{color:[255,255,255],width:i===nearSel?3:1.2}}}));
+  });
+}
+function nearDetail(i){
+  var x=S.near[i]; if(!x) return; var a=x.a; nearSel=i; drawNearMap(S.near);
+  view.goTo({center:[parseFloat(a.x_lon),parseFloat(a.y_lat)],zoom:Math.max(view.zoom,17)},{duration:600});
+  var h='<h3>'+esc(a.bld_nm||a.main_prpos_cd_nm||"인허가 사례")+'</h3><div class="sub">'+esc((a.sigungu_cd_nm||"")+" "+(a.bjdong_cd_nm||"")+" "+(+a.mnnm||"")+(+a.slno?"-"+(+a.slno):""))+' · 현재 필지에서 '+n0(x.d)+'m</div><table class="kv">'+
+    kvr("건축구분",a.arch_gb_cd_nm)+kvr("허가/신고",a.pms_decl_gb_cd_nm)+kvr("허가일",fmtDate(a.arch_pms_date))+kvr("주용도",a.main_prpos_cd_nm)+kvr("기타용도",a.etc_prpos_cntt)+
+    kvr("대지면적",a.plat_area&&n1(a.plat_area)+" ㎡")+kvr("건축면적",a.arch_area&&n1(a.arch_area)+" ㎡")+kvr("연면적",a.totarea&&n1(a.totarea)+" ㎡")+kvr("건폐율",parseFloat(a.bcrat)?n1(a.bcrat)+" %":"")+kvr("용적률",parseFloat(a.vlrat)?n1(a.vlrat)+" %":"")+
+    kvr("착공",fmtDate(a.real_stcns_date))+kvr("사용승인",fmtDate(a.useapr_date))+'</table>';
+  openModal(h);
+}
+
+// ═══ 인쇄 ═══
+function printReport(){ document.querySelectorAll("#reviewOut .chk").forEach(function(c){c.classList.add("open");}); setTimeout(function(){ window.print(); },100); }
+
+// ═══ 검색 ═══
+function doSearch(q){
+  q=(q||"").trim(); if(!q) return;
+  var full=/고양/.test(q)? q : "경기도 고양시 "+q;
+  loading(true,"주소를 찾는 중");
+  api({action:"geocode",address:full}).then(function(d){
+    if(d.status!=="ok"||!d.lon){ loading(false); toast("주소를 찾을 수 없습니다. 동·지번을 확인해 주세요"); return; }
+    require(["esri/geometry/Point"],function(Point){ selectAtPoint(new Point({longitude:d.lon,latitude:d.lat}),false); });
+  }).catch(function(){ loading(false); toast("주소 검색 중 오류가 발생했습니다"); });
+}
+
+// ═══ 구 이동 ═══
+function goGu(code){
+  document.querySelectorAll(".gu-btn").forEach(function(b){ b.classList.toggle("active",b.dataset.gu===code); });
+  if(code==="all"){ if(homeExtent) view.goTo(homeExtent,{duration:700}); return; }
+  guLayer.queryFeatures({where:"sigungu_cd='"+code+"'",returnGeometry:true,outSpatialReference:view.spatialReference}).then(function(fs){ if(fs.features[0]) view.goTo(fs.features[0].geometry.extent.clone().expand(1.15),{duration:700}); });
+}
+
+// ═══ 도움말 ═══
+function help(){
+  openModal('<h3>이용 안내</h3><div class="sub">고양특례시 건축 인허가 사전검토 서비스</div>'+
+  '<ol class="flow"><li><b>필지 선택</b><small>상단 검색창에 동·지번 또는 도로명 주소를 입력하거나 지도에서 필지를 클릭합니다. 고양시 외 지역은 선택되지 않습니다.</small></li>'+
+  '<li><b>대지 정보 확인</b><small>용도지역, 고양시 조례 기준 건폐율·용적률·층수, 토지이용규제, 기존 건축물대장을 자동으로 조회합니다.</small></li>'+
+  '<li><b>건축계획 입력</b><small>행위(신축·증축 등), 용도, 면적, 층수를 입력하고 사전검토를 실행합니다.</small></li>'+
+  '<li><b>결과 확인·출력</b><small>항목별 판정과 법령·조례 근거를 확인하고 검토서를 인쇄(PDF 저장)할 수 있습니다.</small></li></ol>'+
+  '<div class="card" style="background:var(--bg);box-shadow:none;margin:6px 0 0"><div class="card-t" style="margin-bottom:6px">적용 기준</div><div class="rows">'+
+  GY.sources().map(function(s){return '<div class="row"><div class="rn"><b>'+esc(s.name)+'</b><small>'+esc(s.date)+'</small></div><a href="'+s.url+'" target="_blank" rel="noopener">원문 ›</a></div>';}).join("")+
+  '</div></div><p class="hint" style="margin-top:10px">본 서비스는 참고용 사전검토 도구로 법적 효력이 없습니다. 지구단위계획·개별 법령에 따라 결과가 달라질 수 있습니다.</p>');
+}
+
+// ═══ 이벤트 ═══
+document.addEventListener("click",function(e){
+  var t=e.target.closest("[data-act],[data-tab],[data-gu],[data-bm],[data-close],.chip,[data-near],[data-sample]");
+  if(!t) return;
+  if(t.dataset.close!==undefined||t.id==="modal"){ closeModal(); return; }
+  if(t.dataset.tab){ switchTab(t.dataset.tab); return; }
+  if(t.dataset.gu){ goGu(t.dataset.gu); return; }
+  if(t.dataset.bm){ setBasemap(t.dataset.bm); return; }
+  if(t.dataset.sample){ $("addrInput").value=t.dataset.sample; doSearch(t.dataset.sample); return; }
+  if(t.dataset.near){ nearDetail(+t.dataset.near); return; }
+  if(t.dataset.r){ nearRadius=+t.dataset.r; nearSel=-1; drawNear(nearData||[]); return; }
+  if(t.parentElement&&t.parentElement.id==="actChips"){ plan.act=t.dataset.v; plan.sub=$("inUse").value; renderReviewFormKeep(); return; }
+  var a=t.dataset.act;
+  if(a==="judge") judge();
+  else if(a==="toggle") t.closest(".chk").classList.toggle("open");
+  else if(a==="openAll") document.querySelectorAll("#reviewOut .chk").forEach(function(c){c.classList.add("open");});
+  else if(a==="print") printReport();
+  else if(a==="zoneTable"){ e.preventDefault(); zoneTable(); }
+  else if(a==="copyPnu"){ try{ navigator.clipboard.writeText(S.pnu); toast("PNU를 복사했습니다"); }catch(_){ } }
+  else if(a==="fillMax"){ $("inBa").value=Math.floor(S.area*S.zm.b/100); $("inTa").value=Math.floor(S.area*S.zm.f/100); }
+});
+document.addEventListener("change",function(e){
+  if(e.target.id==="inPar"){ plan.use=e.target.value; plan.sub=""; renderReviewFormKeep(); }
+  if(e.target.id==="inUse"){ plan.sub=e.target.value; if(needUnits()!==!!$("inHh")) renderReviewFormKeep(); else updateUseHint(); }
+});
+$("modal").addEventListener("click",function(e){ if(e.target.id==="modal") closeModal(); });
+document.addEventListener("keydown",function(e){ if(e.key==="Escape") closeModal(); });
+$("searchForm").addEventListener("submit",function(e){ e.preventDefault(); doSearch($("addrInput").value); });
+$("btnHelp").onclick=help;
+
+// 샘플 필지 + 소개 통계
+$("samples").innerHTML=GY.samples.map(function(s){ return '<button class="sample" data-sample="'+esc(s.addr)+'"><i></i>'+esc(s.label)+'</button>'; }).join("");
+$("introStats").innerHTML=GY.introStats.map(function(s){ return '<div class="stat"><b>'+esc(s.v)+'</b><span>'+esc(s.k)+'</span></div>'; }).join("");
+// 브랜드 색 적용
+if(GY.brand){ var rs=document.documentElement.style; for(var k in GY.brand) rs.setProperty(k,GY.brand[k]); }
+
+})();

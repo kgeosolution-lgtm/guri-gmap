@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-S3CV3WNE2P"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-S3CV3WNE2P');
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>고양특례시 건축 인허가 사전검토</title>
+<meta name="description" content="고양특례시 필지별 건축 가능 여부·건폐율·용적률·조례 기준을 지도에서 바로 확인하는 인허가 사전검토 서비스">
+<link rel="icon" href="/app/favicon.ico" type="image/x-icon">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="https://js.arcgis.com/4.31/esri/themes/light/main.css">
+<link rel="stylesheet" href="assets/app.css">
+<script src="/app/protect.js"></script>
+</head>
+<body>
+<header class="hdr">
+  <div class="brand">
+    <svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true">
+      <rect width="40" height="40" rx="11" fill="var(--brand)"/>
+      <path d="M20 8c3.6 3.4 5.4 7 5.4 10.6 0 2.9-1.4 5-3.7 6.1V32h-3.4v-7.3c-2.3-1.1-3.7-3.2-3.7-6.1C14.6 15 16.4 11.4 20 8z" fill="#fff"/>
+      <path d="M11 22.5c2.8.2 5 1.4 6.6 3.6M29 22.5c-2.8.2-5 1.4-6.6 3.6" stroke="var(--brand-accent)" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+    </svg>
+    <div class="brand-txt">
+      <div class="brand-city">고양특례시</div>
+      <div class="brand-title">건축 인허가 사전검토</div>
+    </div>
+  </div>
+  <nav class="gu-nav" aria-label="구 바로가기">
+    <button data-gu="all" class="gu-btn active">고양시 전체</button>
+    <button data-gu="31101" class="gu-btn">덕양구</button>
+    <button data-gu="31103" class="gu-btn">일산동구</button>
+    <button data-gu="31104" class="gu-btn">일산서구</button>
+  </nav>
+  <div class="hdr-right">
+    <button class="ghost-btn" id="btnHelp" title="이용 안내">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1.1.9-1.1 1.6v.5M12 16.8v.2"/></svg>
+      <span>이용 안내</span>
+    </button>
+  </div>
+</header>
+
+<main class="app">
+  <aside class="panel" id="panel">
+    <section class="search">
+      <form class="search-box" id="searchForm" autocomplete="off">
+        <svg viewBox="0 0 24 24" class="ico"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg>
+        <input id="addrInput" placeholder="고양시 지번·도로명 주소 (예: 대화동 2600)" aria-label="주소 검색">
+        <button type="submit" class="btn-primary sm">검색</button>
+      </form>
+      <div class="samples" id="samples"></div>
+    </section>
+
+    <div class="panel-scroll" id="panelScroll">
+      <!-- 시작 화면 -->
+      <section class="intro" id="intro">
+        <div class="intro-hero">
+          <div class="intro-kicker">GOYANG SPECIAL CITY · PERMIT PRE-REVIEW</div>
+          <h2>필지 하나만 고르면<br><em>고양시 조례 기준</em>으로 바로 검토합니다</h2>
+          <p>용도지역·건폐율·용적률부터 주차·조경·협의부서까지, 건축허가 전에 확인해야 할 사항을 자동으로 정리합니다.</p>
+        </div>
+        <ol class="steps">
+          <li><span class="step-n">1</span><div><b>필지 선택</b><small>주소 검색 또는 지도에서 필지 클릭</small></div></li>
+          <li><span class="step-n">2</span><div><b>건축계획 입력</b><small>행위·용도·면적·층수</small></div></li>
+          <li><span class="step-n">3</span><div><b>자동 사전검토</b><small>법령·고양시 조례 근거와 함께 판정</small></div></li>
+        </ol>
+        <div class="intro-stats" id="introStats"></div>
+        <div class="intro-src">
+          <b>활용 데이터</b>
+          <span>토지이용규제정보(국토부)</span><span>연속지적도</span><span>건축물대장(건축HUB)</span><span>고양특례시 도시계획·건축·주차장 조례</span>
+        </div>
+      </section>
+
+      <!-- 필지 결과 -->
+      <section class="result" id="result" hidden>
+        <div class="parcel-card" id="parcelCard"></div>
+        <div class="tabs" role="tablist" id="tabs">
+          <button role="tab" data-tab="review" class="tab active">사전검토</button>
+          <button role="tab" data-tab="reg" class="tab">토지이용규제</button>
+          <button role="tab" data-tab="bld" class="tab">건축물대장</button>
+          <button role="tab" data-tab="proc" class="tab">협의·절차</button>
+          <button role="tab" data-tab="near" class="tab">주변사례</button>
+        </div>
+        <div class="tab-body active" id="tab-review"></div>
+        <div class="tab-body" id="tab-reg"></div>
+        <div class="tab-body" id="tab-bld"></div>
+        <div class="tab-body" id="tab-proc"></div>
+        <div class="tab-body" id="tab-near"></div>
+      </section>
+    </div>
+  </aside>
+
+  <section class="map-wrap">
+    <div id="viewDiv"></div>
+    <div class="map-top">
+      <div class="seg" id="bmSeg">
+        <button data-bm="satellite" class="active">위성</button>
+        <button data-bm="general">일반</button>
+      </div>
+    </div>
+    <div class="layer-card" id="layerCard">
+      <button class="layer-head" id="layerHead" aria-expanded="true">
+        <svg viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5z"/><path d="m3 13 9 5 9-5"/></svg>
+        <span>지도 레이어</span><i class="chev"></i>
+      </button>
+      <div class="layer-body" id="layerBody"></div>
+    </div>
+    <div class="legend-card" id="legendCard" hidden></div>
+    <div class="map-foot"><span id="coordTxt">고양특례시</span></div>
+    <div class="map-loading" id="loading"><div class="spinner"></div><span>필지 정보를 불러오는 중</span></div>
+  </section>
+</main>
+
+<div class="toast" id="toast" role="status"></div>
+<div class="modal" id="modal" hidden><div class="modal-box"><button class="modal-x" data-close>×</button><div id="modalBody"></div></div></div>
+
+<script src="assets/gy_data.js"></script>
+<script src="assets/rules.js"></script>
+<script src="https://js.arcgis.com/4.31/"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
