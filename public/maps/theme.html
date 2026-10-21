@@ -2197,7 +2197,10 @@ function renderList_(){
     const dynUrl=(GROUPS[curGroup]&&GROUPS[curGroup].dyn&&!GROUPS[curGroup].dynBuilt)? GROUPS[curGroup].dyn.url : null;
     const whyUrl=failed[0]||((dynUrl&&loadWhy[dynUrl])? dynUrl : null);
     if(whyUrl&&loadWhy[whyUrl]){
-      const reason=String(loadWhy[whyUrl][0]||'').replace(/^https?:\S+\s*→\s*/,'').slice(0,90);
+      const raw=String(loadWhy[whyUrl][0]||'').replace(/^https?:\S+\s*→\s*/,'').slice(0,90);
+      /* 흔한 원인은 쉬운 말로: 토큰 요구 = 레이어가 공개(모든 사용자) 공유가 안 된 상태(사무실 망에선 되고 밖에선 안 됨) */
+      const reason=/token required|499/i.test(raw)? '이 자료는 아직 공개(모든 사용자) 공유가 안 되어 있어요 — 포털에서 공유 설정을 바꿔야 밖에서도 보여요 ('+raw+')'
+        : /failed to fetch|networkerror|load failed/i.test(raw)? '서버에 연결하지 못했어요 — 잠시 뒤 다시 시도해 주세요 ('+raw+')' : raw;
       $('list').innerHTML=`<div class="empty">자료를 불러오지 못했어요.<br><span style="font-size:12px;color:#9AA6A0">${esc(reason)}</span><br><button type="button" class="copy-btn" style="margin:12px 0 0;padding:6px 14px;font-size:12.5px" onclick="retryGroup()">다시 시도</button></div>`;
       return;
     }

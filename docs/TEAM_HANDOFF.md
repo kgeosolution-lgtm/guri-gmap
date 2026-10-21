@@ -767,3 +767,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 담당자에게: 휴대폰에서 치안안심을 열어 목록에 뜨는 이유 한 줄을 캡처해 보내 달라고 요청 → 원인 확정 후 수정.
 - 브랜치: `work/kangmina-load-diag` (base `design/service-home-refresh` 0da82c7).
 - 검증: theme `node --check`, 치안안심 하네스, `npm run build:deploy`, prettier, `git diff --check` 통과.
+
+## 2026-10-21 치안안심이 휴대폰에서만 0건인 원인 추정: 새 레이어 공개 공유 미설정 (담당: 강민아)
+
+- 담당자 확인: 같은 휴대폰에서 다른 주제는 칩이 다 나오고 치안안심만 안심귀갓길 칩 하나(0건). → 종류별로 나눠 보는 방식 문제가 아니라, **치안안심이 쓰는 두 새 레이어(safety_all, safety_secure_map/1)만 휴대폰(외부 망)에서 못 받는 것**. 다른 주제의 레이어는 예전부터 공개 공유된 것들이고, GitHub Actions(외부 IP)에서도 이 서비스는 `499 Token Required` 였음. 사무실 망(데스크톱)에서는 포털 내부 접근이라 보였을 가능성이 큼.
+- 조치(코드): 빈 목록의 실패 이유가 "Token Required/499" 면 "이 자료는 아직 공개(모든 사용자) 공유가 안 되어 있어요 — 포털에서 공유 설정을 바꿔야…" 로, 연결 실패면 "서버에 연결하지 못했어요 — 잠시 뒤 다시 시도" 로 쉬운 말로 표시.
+- 조치(포털, 담당자): 구리시 포털에서 `safety_all` 과 `safety_secure_map` 항목을 **모든 사용자(공개)** 로 공유. 바꾼 뒤 휴대폰에서 "다시 시도".
+- 브랜치: `work/kangmina-load-reason-ko` (base `design/service-home-refresh` b587cf1).
+- 검증: theme `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
