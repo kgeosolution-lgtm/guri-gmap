@@ -838,3 +838,13 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 전후 비교: 스크래치 `compare-desktop.png`·`compare-mobile.png`(Playwright 오프라인, `pw/shot.js`).
 - 검증: theme `node --check`, 치안안심 하네스, `npx tsc --noEmit`, prettier, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-chip-style`.
 - 다음 후보(담당자 확인 뒤): 상단바·푸터를 지도 4쪽과 홈에서 같은 높이·글꼴·버튼으로, 팝업·목록 카드 모서리/그림자 규격 통일, 목록 아이콘 크기 통일, 3D·항공 페이지의 안내 카드 톤을 테마지도와 맞추기, 홈 카드 색을 accent 팔레트로(이번에 반영).
+
+## 2026-10-21 메인 푸터 새 단장 (담당: 강민아)
+
+- 디자인 통일 2차. 두 줄짜리 밋밋한 푸터를 **밝은 안내 영역 + 짙은 초록 띠** 구성으로.
+  - 안내 영역(`.footer-main`, 4칸 그리드): 브랜드(CI, "G-MAP 구리시 시민생활지도", `siteConfig.description` 한 줄) / 지도 바로가기(`footerLinks` — 헤더 메뉴와 같은 구성: 우리동네 찾기·3D입체지도·항공사진 비교·구리 동네소식(새 창)·G-MAP 소개, 유기동물은 `features.animalMap`) / 문의(부서·전화 `tel:` 링크·주소) / 맨 위로(원형 버튼, hover 시 초록으로).
+  - 띠(`.footer-bar`, `#173e30`): © 연도 구리시 · 구리시 문장(`guri-emblem.png`) "이 누리집은 구리시 누리집이에요" · 제작 케이지오솔루션.
+  - 모바일(≤900px): 브랜드 한 줄, 바로가기·문의 두 칸, 맨 위로 가운데, 띠는 줄바꿈 가운데 정렬.
+- 푸터는 `.service-home` 바깥이라 `var(--forest)`가 안 먹음 → 색 값을 직접 씀(처음 캡처에서 띠가 흰색으로 나온 원인).
+- 전후 비교: 스크래치 `footer-compare-desktop.png`·`footer-compare-mobile.png`(빌드 결과를 로컬 http 로 띄워 Playwright 캡처, `pw/footer-shot.js`).
+- 검증: `npx tsc --noEmit`, prettier, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-footer`. `KrdsFooter.tsx` 는 미사용(v1)이라 손대지 않음.

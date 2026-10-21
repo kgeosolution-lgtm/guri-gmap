@@ -1,6 +1,15 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { ArrowUpRight, Search, PawPrint, MapPin, Layers, Compass, ArrowRight } from 'lucide-react';
+import {
+  ArrowUpRight,
+  ArrowUp,
+  Search,
+  PawPrint,
+  MapPin,
+  Layers,
+  Compass,
+  ArrowRight,
+} from 'lucide-react';
 import { themeGroups } from '@/config/theme-groups.config';
 import { themeUrl, animalUrl, sceneUrl, aerialUrl } from '@/config/links';
 import { TimeLapseArt } from '@/components/TimeLapseArt';
@@ -12,6 +21,15 @@ import { siteConfig } from '@/config/site.config';
 import { getAutoSeason, seasonConfig } from '@/config/season.config';
 import type { SeasonKey } from '@/types/content';
 import './service-home.css';
+/** 푸터 '지도 바로가기' — 헤더 메뉴와 같은 구성 */
+const footerLinks: { label: string; href: string; external?: boolean }[] = [
+  { label: '우리동네 찾기', href: themeUrl('시즌·겨울') },
+  ...(siteConfig.features.animalMap ? [{ label: '유기동물 찾기', href: animalUrl() }] : []),
+  { label: '3D입체지도', href: sceneUrl() },
+  { label: '항공사진 비교', href: aerialUrl() },
+  { label: '구리 동네소식', href: 'https://guri.kgeohub.com/', external: true },
+  { label: 'G-MAP 소개', href: '#about' },
+];
 export default function Home() {
   const [query, setQuery] = useState('');
   const [selection, setSelection] = useState<'auto' | SeasonKey>('auto');
@@ -279,19 +297,55 @@ export default function Home() {
         </section>
       </main>
       <footer className="service-footer">
-        <div className="home-wrap">
-          <div className="footer-top">
+        <div className="home-wrap footer-main">
+          <div className="footer-brand">
             <img src="/images/guri-ci.png" alt="구리시" height="40" />
-            <p>
-              구리시 시민생활지도
-              <br />
-              <span>{siteConfig.contact.address}</span>
+            <p className="footer-site">
+              <b>G-MAP</b> 구리시 시민생활지도
             </p>
-            <a href="#main-content">맨 위로 ↑</a>
+            <p className="footer-tagline">{siteConfig.description}</p>
           </div>
-          <div className="footer-bottom">
+          <nav className="footer-col" aria-label="지도 바로가기">
+            <h3>지도 바로가기</h3>
+            <ul>
+              {footerLinks.map((l) => (
+                <li key={l.label}>
+                  <a
+                    href={l.href}
+                    {...(l.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                  >
+                    {l.label}
+                    {l.external && <ArrowUpRight size={13} aria-hidden="true" />}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+          <div className="footer-col">
+            <h3>문의</h3>
+            <ul>
+              <li>{siteConfig.contact.department}</li>
+              <li>
+                <a href={`tel:${siteConfig.contact.phone.replace(/[^\d]/g, '')}`}>
+                  {siteConfig.contact.phone}
+                </a>
+              </li>
+              <li>{siteConfig.contact.address}</li>
+            </ul>
+          </div>
+          <a className="footer-top-btn" href="#main-content" aria-label="맨 위로">
+            <ArrowUp size={18} aria-hidden="true" />
+            <span>맨 위로</span>
+          </a>
+        </div>
+        <div className="footer-bar">
+          <div className="home-wrap">
             <span>© {new Date().getFullYear()} 구리시</span>
-            <span>케이지오솔루션</span>
+            <span className="footer-id">
+              <img src="/images/guri-emblem.png" alt="" height="16" />이 누리집은 구리시
+              누리집이에요
+            </span>
+            <span>제작 케이지오솔루션</span>
           </div>
         </div>
       </footer>
