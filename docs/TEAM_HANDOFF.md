@@ -921,3 +921,9 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 
 - 담당자 지적: 안내문의 "오른쪽 위 ⋮ 메뉴"가 휴대폰(안드로이드 카카오톡 브라우저)에서는 오른쪽 아래에 있음. 위치를 단정하지 않도록 "브라우저의 ⋮ 메뉴"로 고침(`gmap-share.js` 안내문 2곳).
 - 검증: `node --check`, prettier, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-share-tip`.
+
+## 2026-10-21 그룹별 머리글 한 줄 소개 (추가 다듬기 2번) (담당: 강민아)
+
+- `theme.html` `GROUP_DESC`(그룹 11개: 겨울·여름·가을·치안안심·건강·의료·육아·교육·생활편의·우수맛집·문화·여가·반려동물·교통) + `groupDesc(g)`. '전체' 보기의 목록 머리글이 "○○ 분야의 생활 시설을 한 지도에서 확인하세요" 대신 그룹별 문구로. 칩을 고르면 전처럼 테마의 `info`. 새 그룹을 만들면 여기에 한 줄 추가(없으면 옛 문구로 폴백).
+- 문구는 초안 — 담당자·구리시가 고치면 `GROUP_DESC` 값만 바꾸면 됨.
+- 검증: theme `node --check`, 그룹 목록과 문구 키 대조(누락 0), `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-group-desc`.
