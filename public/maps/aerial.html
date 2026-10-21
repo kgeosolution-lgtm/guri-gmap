@@ -43,6 +43,8 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .ts-title{font-weight:700;font-size:14px;white-space:nowrap}
 .ts-hint{font-size:12px;color:var(--sub);flex:1;min-width:0}
 .ts-cmp{display:flex;align-items:center;gap:6px;font-size:13px;white-space:nowrap;margin-left:auto}
+.ts-info{display:none;width:22px;height:22px;border-radius:50%;border:1px solid var(--gray20);background:#fff;color:var(--gray70);font:700 12px/1 Georgia,serif;place-items:center}
+.ts-info[aria-expanded="true"]{background:var(--brand);border-color:var(--brand);color:#fff}
 .ts-cmp input{width:16px;height:16px;accent-color:var(--brand)}
 .ts-years{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
 .ts-years::-webkit-scrollbar{display:none}
@@ -172,9 +174,16 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
   .main.rv-open .map-ctl,.main.rv-open .region{right:12px}
   .main.rv-open .cmp-lbl.r{right:12px}
   .main.rv-open .ts-bar,.main.rv-open .map-toast{display:none}
-  .ts-bar{left:8px;right:8px;transform:none;width:auto;max-width:none;bottom:8px;padding:8px 10px 10px}
+  .ts-bar{left:8px;right:8px;transform:none;width:auto;max-width:none;bottom:8px;padding:7px 10px 9px}
   .ts-title{font-size:13px}
-  .ts-hint{flex-basis:100%;order:3}
+  .ts-head{margin-bottom:6px}
+  /* 안내문은 접어 두고(지도를 넓게) ⓘ 를 누를 때만 펼친다. 확대 한계 경고(zoomed)만은 바로 보인다 */
+  .ts-info{display:grid;order:2}
+  .ts-hint{flex-basis:100%;order:3;display:none;font-size:11.5px}
+  .ts-note.show{display:none}
+  .ts-note.show.zoomed{display:block;font-size:11.5px}
+  .ts-bar.info-open .ts-hint{display:block}
+  .ts-bar.info-open .ts-note.show{display:block}
   .ts-year{height:30px;padding:0 9px;font-size:12px}
   .map-toast{bottom:140px}
   .cmp-lbl{bottom:auto;top:60px}
@@ -224,6 +233,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
     <div class="ts-head">
       <span class="ts-title">항공사진 비교</span>
       <span class="ts-hint" id="tsHint"></span>
+      <button type="button" class="ts-info" id="tsInfo" aria-label="안내 보기" aria-expanded="false" title="안내" onclick="toggleTsInfo()">i</button>
       <label class="ts-cmp"><input type="checkbox" id="tsCompare"> 두 시기 비교</label>
     </div>
     <div class="ts-years" id="tsYears"></div>
@@ -584,6 +594,8 @@ function renderBar(){
   updateNote();
 }
 /* 2019년 이하 연도를 골랐을 때 안내. 실제로 1:4,500 보다 크게 확대한 상태면 강조해서 '지금 지형도가 보이는 이유'를 알린다 */
+/* 모바일 ⓘ: 안내문 펼치기/접기 */
+function toggleTsInfo(force){ const bar=$('tsBar'), b=$('tsInfo'); if(!bar) return; const on= force===undefined? !bar.classList.contains('info-open') : !!force; bar.classList.toggle('info-open',on); if(b) b.setAttribute('aria-expanded',on?'true':'false'); }
 function updateNote(){
   const el=$('tsNote'); if(!el) return;
   const L=NGII.limited, two=compare&&baseYear!==year;

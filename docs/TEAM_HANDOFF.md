@@ -753,3 +753,9 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 항공사진 비교 로드뷰 안내: 모바일(≤640px)은 패널이 아래에 열리므로 "로드뷰가 아래쪽에 열려요"로.
 - 브랜치: `work/kangmina-mobile-fixes` (base `design/service-home-refresh` 27000bc).
 - 검증: 치안안심 하네스(0건이면 dynBuilt 없음·캐시 삭제·재시도 횟수, 실패 표시 처리 정적 검사) 통과, theme/aerial `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
+
+## 2026-10-21 항공사진 비교 모바일: 연도 막대 안내문을 접어 두고 ⓘ 로 펼치기 (담당: 강민아)
+
+- 모바일(≤640px)에서 "왼쪽 ○년 ↔ 오른쪽 ○년…"·"○년 항공사진은 1:4,500 보다…" 안내가 두 줄씩 차지해 지도가 좁아 보임 → 안내문(`.ts-hint`, `.ts-note`)은 접어 두고 제목 옆 **ⓘ 버튼**(`#tsInfo`, `toggleTsInfo()`)을 누를 때만 펼침(`.ts-bar.info-open`). 확대 한계 경고(`.ts-note.zoomed`: 사진이 안 나오는 축척)만은 접힌 상태에서도 바로 보임. 데스크톱은 전과 같음(ⓘ 숨김).
+- 브랜치: `work/kangmina-tsbar-mobile` (base `design/service-home-refresh` 9b1bd0d).
+- 검증: aerial 인라인 스크립트 `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
