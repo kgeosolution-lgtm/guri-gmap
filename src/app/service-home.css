@@ -1,6 +1,9 @@
 .service-home {
   --forest: #173e30;
   --muted: #69776f;
+  /* 섹션 리듬: 모든 본문 섹션(찾기·3D·항공·동네소식·소개)이 같은 위아래 여백을 쓴다. 모바일은 --sec-y-m */
+  --sec-y: 80px;
+  --sec-y-m: 48px;
   color: var(--forest);
   background: #fff;
   font-family: var(--krds-font-family-base), sans-serif;
@@ -110,8 +113,8 @@
   font-size: 12px;
 }
 .discovery {
-  padding-top: 80px;
-  padding-bottom: 88px;
+  padding-top: var(--sec-y);
+  padding-bottom: var(--sec-y);
 }
 .section-heading {
   display: flex;
@@ -235,8 +238,8 @@
   grid-template-columns: 1fr 1.2fr;
   align-items: center;
   gap: 80px;
-  padding-top: 60px;
-  padding-bottom: 60px;
+  padding-top: var(--sec-y);
+  padding-bottom: var(--sec-y);
 }
 .pet-layout h2 {
   color: #532f3a;
@@ -290,8 +293,8 @@
   grid-template-columns: 1fr 1.2fr;
   align-items: center;
   gap: 80px;
-  padding-top: 60px;
-  padding-bottom: 60px;
+  padding-top: var(--sec-y);
+  padding-bottom: var(--sec-y);
 }
 .scene-layout h2 {
   color: #1f3a63;
@@ -340,8 +343,8 @@
   grid-template-columns: 1fr 1.2fr;
   align-items: center;
   gap: 80px;
-  padding-top: 60px;
-  padding-bottom: 60px;
+  padding-top: var(--sec-y);
+  padding-bottom: var(--sec-y);
 }
 .aerial-layout .eyebrow {
   margin-bottom: 17px !important;
@@ -380,8 +383,8 @@
   display: grid;
   grid-template-columns: 1fr 1.25fr;
   gap: 80px;
-  padding-top: 90px;
-  padding-bottom: 90px;
+  padding-top: var(--sec-y);
+  padding-bottom: var(--sec-y);
 }
 .about-section .eyebrow {
   margin-bottom: 18px !important;
@@ -553,8 +556,8 @@
   grid-template-columns: 1fr 1.2fr;
   align-items: center;
   gap: 80px;
-  padding-top: 60px;
-  padding-bottom: 60px;
+  padding-top: var(--sec-y);
+  padding-bottom: var(--sec-y);
 }
 .news-layout h2 {
   color: #5a3a12;
@@ -659,8 +662,8 @@
     gap: 15px;
   }
   .discovery {
-    padding-top: 48px;
-    padding-bottom: 50px;
+    padding-top: var(--sec-y-m);
+    padding-bottom: var(--sec-y-m);
   }
   .service-home h2 {
     font-size: 26px;
@@ -695,8 +698,8 @@
   }
   .pet-layout {
     grid-template-columns: 1fr;
-    padding-top: 48px;
-    padding-bottom: 45px;
+    padding-top: var(--sec-y-m);
+    padding-bottom: var(--sec-y-m);
     gap: 28px;
   }
   .pet-illustration {
@@ -719,8 +722,8 @@
   }
   .scene-layout {
     grid-template-columns: 1fr;
-    padding-top: 48px;
-    padding-bottom: 45px;
+    padding-top: var(--sec-y-m);
+    padding-bottom: var(--sec-y-m);
     gap: 28px;
   }
   .scene-illustration {
@@ -746,8 +749,8 @@
   }
   .aerial-layout {
     grid-template-columns: 1fr;
-    padding-top: 48px;
-    padding-bottom: 45px;
+    padding-top: var(--sec-y-m);
+    padding-bottom: var(--sec-y-m);
     gap: 28px;
   }
   .aerial-illustration {
@@ -773,14 +776,14 @@
   }
   .about-section {
     grid-template-columns: 1fr;
-    padding-top: 50px;
-    padding-bottom: 50px;
+    padding-top: var(--sec-y-m);
+    padding-bottom: var(--sec-y-m);
     gap: 35px;
   }
   .news-layout {
     grid-template-columns: 1fr;
-    padding-top: 48px;
-    padding-bottom: 45px;
+    padding-top: var(--sec-y-m);
+    padding-bottom: var(--sec-y-m);
     gap: 28px;
   }
   .news-illustration {
