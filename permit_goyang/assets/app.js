@@ -484,8 +484,8 @@ function analyzeRoads(){
 }
 function terrainText(t){
   if(!t) return {elev:"분석 중",slope:"분석 중"};
-  var elev = t.min==null ? "평지" :(t.min===t.max ? "약 "+t.min+"m" : "약 "+t.min+"~"+t.max+"m");
-  var slope = t.flat ? "완만" : "약 "+t.slope.toFixed(1)+"°";
+  var elev = t.min==null ? "평지" : (t.min===t.max ? t.min+"m" : t.min+"~"+t.max+"m");
+  var slope = t.flat ? "완만" : t.slope.toFixed(1)+"°";
   return {elev:elev,slope:slope};
 }
 // ═══ 공유 링크 (?pnu=) ═══
@@ -546,7 +546,7 @@ function renderParcel(){
   var tt=terrainText(p.terrain);
   h+='<div class="pc-facts"><div class="pc-fact"><span>대지면적</span><b>'+(p.area?n0(p.area)+'㎡':'-')+'</b><small>'+(p.area?n0(p.area/3.3058)+'평':'')+'</small></div>';
   h+='<div class="pc-fact"><span>공시지가</span><b>'+(p.price?n0(p.price/10000)+'만원':'-')+'</b><small>'+(p.price?'㎡당'+(p.priceYear&&/^\d+$/.test(p.priceYear)?' · '+esc(p.priceYear):''):'')+'</small></div>';
-  h+='<div class="pc-fact"><span>표고</span><b>'+esc(tt.elev)+'</b><small>5m 등고선</small></div>';
+  h+='<div class="pc-fact"><span>표고</span><b>'+esc(tt.elev)+'</b><small>등고선 추정</small></div>';
   h+='<div class="pc-fact"><span>평균경사</span><b>'+esc(tt.slope)+'</b><small>'+(p.terrain&&p.terrain.flat?'높이차 5m 미만':p.terrain&&p.terrain.slope>=15?'<span style="color:var(--fail)">15° 이상</span>':'개발행위 기준 15°')+'</small></div></div>';
 
   h+='<div class="zone-band">';
@@ -666,7 +666,8 @@ function renderVerdict(C,P,silent){
   var title={fail:"건축 곤란 항목 있음",warn:"조건부 가능 · 확인 필요",ok:"사전검토 적합"}[ov];
   var desc={fail:"부적합 항목을 해소하지 않으면 허가가 어렵습니다. 아래 상세 근거를 확인하세요.",warn:"기준은 충족하나 협의·추가 확인이 필요한 항목이 있습니다.",ok:"입력한 계획이 주요 기준을 충족합니다. 세부 설계 시 관계 법령을 재확인하세요."}[ov];
   var permit=C.filter(function(c){return c.key==="permitType";})[0];
-  var h='<div class="print-only" style="margin-bottom:10px"><b style="font-size:16px">고양특례시 건축 인허가 사전검토 결과</b><br><span style="font-size:12px;color:#666">'+esc(S.addr)+' · PNU '+S.pnu+' · '+new Date().toLocaleString("ko-KR")+'</span><br><span style="font-size:12px">계획: '+esc(P.act+" / "+P.use+" / 건축면적 "+n0(P.ba)+"㎡ / 연면적 "+n0(P.ta)+"㎡ / "+P.fl+"층")+'</span></div>';
+  var h='<div class="print-only" style="margin-bottom:10px"><b style="font-size:16px">고양특례시 건축 인허가 사전검토 결과</b><br><span style="font-size:12px;color:#666">'+esc(S.addr)+' · PNU '+S.pnu+' · '+new Date().toLocaleString("ko-KR")+'</span><br><span style="font-size:12px">계획: '+esc(P.act+" / "+(P.sub||P.use)+" / 건축면적 "+n0(P.ba)+"㎡ / 연면적 "+n0(P.ta)+"㎡ / "+P.fl+"층")+'</span>'+
+    '<div id="printMap" style="margin-top:8px"></div></div>';
   h+='<div class="verdict '+ov+'"><div class="verdict-k">'+esc(S.zone?S.zone+"지역":"")+' · '+esc(P.act)+' · '+esc(P.use)+'</div><div class="verdict-v">'+title+'</div><div class="verdict-d">'+desc+'</div>';
   h+='<div class="verdict-cnt"><span>부적합 '+cnt.fail+'</span><span>확인 '+cnt.warn+'</span><span>적합 '+cnt.ok+'</span>'+(permit?'<span>'+esc(permit.v)+'</span>':'')+'</div>';
   h+='<div class="verdict-act"><button data-act="print">🖨 검토서 인쇄·PDF</button><button data-act="openAll">전체 펼치기</button></div></div>';
@@ -839,7 +840,28 @@ function nearDetail(i){
 }
 
 // ═══ 인쇄 ═══
-function printReport(){ document.querySelectorAll("#reviewOut .chk").forEach(function(c){c.classList.add("open");}); setTimeout(function(){ window.print(); },100); }
+// 검토서 인쇄: 필지 지도 화면을 찍어 검토서 머리에 넣고 인쇄(PDF 저장)
+function printReport(){
+  document.querySelectorAll("#reviewOut .chk").forEach(function(c){c.classList.add("open");});
+  var box=$("printMap"), go=function(){ setTimeout(function(){ window.print(); },150); };
+  if(!box||!view||!S||!S.geom){ go(); return; }
+  loading(true,"검토서를 준비하는 중");
+  view.goTo(S.geom.extent.clone().expand(2.6),{duration:0}).then(function(){ return view.takeScreenshot({width:1100,height:560,format:"jpg",quality:88}); })
+    .then(function(shot){ box.innerHTML='<img src="'+shot.dataUrl+'" alt="필지 위치도" style="width:100%;border:1px solid #ccc;border-radius:6px"><div style="font-size:10px;color:#777;margin-top:2px">필지 위치도 · 배경: 지도 화면 그대로</div>'; })
+    .catch(function(){}).then(function(){ loading(false); go(); });
+}
+// 공유: 링크 복사 + QR 코드 (행사장에서 휴대폰으로 바로 열기)
+function shareModal(){
+  var u=location.origin+location.pathname+"?pnu="+S.pnu;
+  try{ navigator.clipboard.writeText(u); }catch(_){}
+  openModal('<h3>이 필지 공유</h3><div class="sub">'+esc(S.addr)+'</div>'+
+    '<div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap"><div id="qrBox" style="width:168px;height:168px;background:#fff;padding:8px;border:1px solid var(--line);border-radius:12px"></div>'+
+    '<div style="flex:1;min-width:200px"><p style="font-size:13px;line-height:1.6;margin-bottom:8px">휴대폰 카메라로 QR을 비추면 같은 필지가 열립니다.<br>링크는 클립보드에 복사했습니다.</p>'+
+    '<input class="select" readonly value="'+esc(u)+'" onclick="this.select()" style="font-size:12px"></div></div>');
+  var draw=function(){ try{ new QRCode($("qrBox"),{text:u,width:150,height:150,colorDark:"#023D37",colorLight:"#ffffff",correctLevel:QRCode.CorrectLevel.M}); }catch(e){ $("qrBox").textContent="QR 생성 실패"; } };
+  if(window.QRCode) draw();
+  else { var s=document.createElement("script"); s.src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"; s.onload=draw; s.onerror=function(){ $("qrBox").textContent="QR을 불러오지 못했습니다"; }; document.head.appendChild(s); }
+}
 
 // ═══ 검색 ═══
 function doSearch(q){
@@ -895,7 +917,7 @@ document.addEventListener("click",function(e){
   else if(a==="print") printReport();
   else if(a==="zoneTable"){ e.preventDefault(); zoneTable(); }
   else if(a==="copyPnu"){ try{ navigator.clipboard.writeText(S.pnu); toast("PNU를 복사했습니다"); }catch(_){ } }
-  else if(a==="share"){ var u=location.origin+location.pathname+"?pnu="+S.pnu; try{ navigator.clipboard.writeText(u); toast("이 필지 링크를 복사했습니다"); }catch(_){ prompt("링크를 복사하세요",u); } }
+  else if(a==="share") shareModal();
   else if(a==="fillMax"){ $("inBa").value=Math.floor(S.area*S.zm.b/100); $("inTa").value=Math.floor(S.area*S.zm.f/100); }
 });
 document.addEventListener("change",function(e){

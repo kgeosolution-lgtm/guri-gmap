@@ -30,11 +30,11 @@ jobs:
           $src = Join-Path $env:GITHUB_WORKSPACE 'permit_goyang'
           $expected = [ordered]@{
             'assets/app.css' = 'e18fb28220b94c6c90cb901f0e759e42edcf83e41e3088690f9f1f01b1477424'
-            'assets/app.js' = '65872ae3c9fb973961288e4d7e97b9c6edbe4733b6f802c516df7edb59fa9260'
+            'assets/app.js' = '3e2c5921d106c28f3f2be1ae82dc99154efed8ce12e7aff2a35ae251f61b485a'
             'assets/gy_bounds.js' = '8b56c92e5fd10f4c9f2125ab19728122b69cf57e408ad677526dd552a05f6340'
             'assets/gy_data.js' = 'ee3bc2c6a297580257f8ae24300d0d17abf5d75dee167f4eaca0fd6b79d98d81'
             'assets/rules.js' = 'd10ae708c1c157f885f5cf4798e0964415eecd4bbd369c12779aa8034af8f37b'
-            'index.html' = 'a59d818a7d894a78759d19d9c631ee9e08070c0f332485dbc4cfbab1eb7300e7'
+            'index.html' = '6831fa1f4947bf08c5fa915f09a2bc22edb56abea6dfd30ddae984606fec8491'
             'web.config' = '216e727d9ae34fdf499be4fa06b962ef68f91cd3e8a1a7c1003c6f840e9af398'
           }
           function Test-Tree($root, $label) {
