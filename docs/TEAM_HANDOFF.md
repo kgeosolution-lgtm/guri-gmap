@@ -888,3 +888,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 계절 강조색(`season.config.ts` accentColor)을 그룹 팔레트와 연결: 겨울 `#35679A`(=시즌·겨울), 가을 `#A65A2E`(=시즌·가을), 여름 `#2A7FA8`(=시즌·여름). 봄은 해당 그룹이 없어 그대로.
 - 전후: 스크래치 `home-compare-1280.png`·`home-compare-390.png`(전체 페이지, 왼쪽 전·오른쪽 후).
 - 검증: `npx tsc --noEmit`, prettier, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-section-rhythm`.
+
+## 2026-10-21 모바일 바텀시트·상단 막대 통일(공통 요소 5번) (담당: 강민아)
+
+- 손잡이 모양(`.sheet-handle`: 44×5 회색 막대 + 11px 안내 글자)을 `gmap-shared.css` 로 옮겨 지도 4쪽 공용으로. theme.html 의 중복 규칙은 제거(모바일에서 `display:block` 켜는 줄과 ::before 글자만 남김).
+- 3D(`.bar`)·항공(`.ts-bar`)의 모바일 하단 막대를 우리동네 찾기 목록과 같은 **바텀시트 모양**으로: 화면 아래에 붙고(좌우 여백 0), 위 모서리 16px(`--ui-radius-lg`), 같은 그림자, 맨 위에 손잡이. 손잡이를 누르면 `.min` 으로 접혀 손잡이만 남고 지도가 커짐(글자: 3D '장소 목록 보기 ▴', 항공 '연도 선택 보기 ▴' ↔ '지도 크게 보기 ▾'). 우리동네 찾기는 기존처럼 끌기 가능(min/peek/half/full), 3D·항공은 누르기 토글.
+- 지도 컨트롤 버튼은 세 쪽 모두 34px·오른쪽 10px. 위치(위/아래)는 페이지 구조에 따라 다름: 우리동네 찾기는 오른쪽 위, 3D·항공은 하단 막대 위(검색창이 위를 차지).
+- 상단바는 #95 에서 이미 56px 공통. 유기동물 찾기는 숨김 상태라 손대지 않음.
+- 검증: Playwright 모바일(390px) — 세 쪽 모두 손잡이 표시, 모서리 16px·그림자 동일, 손잡이 클릭 시 글자 전환 확인(`pw/sheet-test.js`); 지도 3쪽 `node --check`, prettier, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-mobile-sheet`.

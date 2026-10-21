@@ -174,7 +174,12 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
   .main.rv-open .map-ctl,.main.rv-open .region{right:12px}
   .main.rv-open .cmp-lbl.r{right:12px}
   .main.rv-open .ts-bar,.main.rv-open .map-toast{display:none}
-  .ts-bar{left:8px;right:8px;transform:none;width:auto;max-width:none;bottom:8px;padding:7px 10px 9px}
+  /* 바텀시트(우리동네 찾기 목록과 같은 모양): 화면 아래 붙고, 손잡이를 누르면 접혀 지도를 크게 */
+  .ts-bar{left:0;right:0;bottom:0;transform:none;width:auto;max-width:none;border:0;border-radius:var(--ui-radius-lg,16px) var(--ui-radius-lg,16px) 0 0;box-shadow:0 -10px 34px rgba(20,40,32,.22);padding:0 12px 11px;transition:transform .28s cubic-bezier(.3,.9,.35,1)}
+  .ts-bar .sheet-handle{display:block}
+  .ts-bar.min{transform:translateY(calc(100% - 46px))}
+  .ts-bar.min .sh-txt::before{content:'연도 선택 보기 ▴'}
+  .ts-bar:not(.min) .sh-txt::before{content:'지도 크게 보기 ▾'}
   .ts-title{font-size:13px}
   .ts-head{margin-bottom:6px}
   /* 안내문은 접어 두고(지도를 넓게) ⓘ 를 누를 때만 펼친다. 확대 한계 경고(zoomed)만은 바로 보인다 */
@@ -187,7 +192,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
   .ts-year{height:30px;padding:0 9px;font-size:12px}
   .map-toast{bottom:140px}
   .cmp-lbl{bottom:auto;top:60px}
-  .map-ctl{top:auto;bottom:150px}
+  .map-ctl{top:auto;bottom:150px;right:10px}
   .search-host{width:calc(100% - 24px)}
   .cmp-lbl{top:62px}
   .ov-bar.show~.cmp-lbl{display:none}
@@ -230,6 +235,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
   </div>
   <div class="key-warn" id="keyWarn"><b>인증키가 없어요.</b> 국토정보플랫폼 항공사진 인증키를 이 파일의 <code>NGII.apiKey</code>에 넣어야 사진이 보여요.</div>
   <div class="ts-bar" id="tsBar" role="group" aria-label="연도 선택">
+    <div class="sheet-handle" onclick="this.parentNode.classList.toggle('min')" aria-hidden="true"><span></span><small class="sh-txt"></small></div>
     <div class="ts-head">
       <span class="ts-title">항공사진 비교</span>
       <span class="ts-hint" id="tsHint"></span>
