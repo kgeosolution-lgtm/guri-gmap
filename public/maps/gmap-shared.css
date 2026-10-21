@@ -260,11 +260,14 @@
 }
 .gm-share-btns {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
   gap: 8px;
   margin-top: 12px;
 }
-.gm-share-btns a {
+.gm-share-btns a,
+.gm-share-btns button {
+  background: #fff;
+  font-family: inherit;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -278,10 +281,12 @@
   font-weight: 700;
   cursor: pointer;
 }
-.gm-share-btns a:hover {
+.gm-share-btns a:hover,
+.gm-share-btns button:hover {
   background: #f6f9f6;
 }
-.gm-share-btns a span {
+.gm-share-btns a span,
+.gm-share-btns button span {
   width: 40px;
   height: 40px;
   border-radius: 50%;
