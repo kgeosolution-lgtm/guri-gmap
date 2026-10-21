@@ -1,0 +1,12 @@
+{
+  "_comment": "사이트 공통 메뉴(한 곳). 홈 SiteHeader.tsx 와 지도 4쪽의 정적 헤더(scripts/sync-shell.mjs 가 써 넣음)가 모두 이 파일을 읽는다. kind: theme(group)·animal(feature)·scene·aerial·external(href)·home(hash)",
+  "links": [
+    { "label": "우리동네 찾기", "kind": "theme", "group": "시즌·겨울" },
+    { "label": "유기동물 찾기", "kind": "animal", "feature": "animalMap" },
+    { "label": "3D입체지도", "kind": "scene" },
+    { "label": "항공사진 비교", "kind": "aerial" },
+    { "label": "구리 동네소식", "kind": "external", "href": "https://guri.kgeohub.com/" },
+    { "label": "G-MAP 소개", "kind": "home", "hash": "#about" }
+  ],
+  "search": { "label": "테마 찾기", "hash": "#search" }
+}
