@@ -707,3 +707,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 메인 페이지: G-MAP 소개 구역 아래에 `news-section`(연한 주황 띠: "우리 동네 소식, 한곳에서 보세요" + "구리 동네소식 보러 가기 ↗" 버튼, 새 창). CSS `.news-section/.news-layout/.news-button`, 900px 이하 1열.
 - 브랜치: `work/kangmina-news-menu` (base `design/service-home-refresh` 27c3c75).
 - 검증: `tsc --noEmit`, prettier(src·site-shell.css), 지도 4쪽 인라인 스크립트·review.js `node --check`, 치안안심 하네스, `npm run build:deploy` 후 홈·지도 출력에 동네소식 링크 확인, `git diff --check` 통과.
+
+## 2026-10-21 메인 동네소식 구역을 3D·항공과 같은 구성으로, 구역 번호 라벨 제거 (담당: 강민아)
+
+- 담당자 피드백: 동네소식 띠가 성의 없어 보임 → 3D·항공 구역과 같은 구성(원형 일러스트 + 보조 문구 + 제목 + 설명 + 버튼)으로 다시 만듦. 소개(ABOUT) 식 좌우 2단보다 이 구성을 택한 이유: 동네소식은 3D·항공처럼 "들어가 보는 서비스"라 같은 결로 나란히 두는 쪽이 자연스럽고, ABOUT 구성은 사이트 설명 한 곳에만 쓰는 것이 구분이 됨.
+- 새 일러스트 `src/components/NewsArt.tsx`(소식지 한 장: 제목·사진·글줄 + 확성기 배지, 선 currentColor·면 `--art-fill`), 따뜻한 주황 계열(`.news-illustration` 배경 #fbe8d3, 면 #f2cfae, 선 #b25a1e), 문구 "함께 나누는 구리 / 우리 동네 소식을 한곳에서 만나보세요. / 행사와 공지, 생활 정보까지 구리 동네소식에서 모아 볼 수 있어요.", 버튼 "구리 동네소식 보기 ↗"(새 창). 모바일(620px 이하)은 다른 구역과 같이 1열·가운데 정렬.
+- 3D·항공(및 숨겨진 유기동물) 구역 오른쪽 위 "02 / SKYLINE", "03 / TIMELINE" 라벨 제거(`*-section-index` 요소·CSS 삭제).
+- 브랜치: `work/kangmina-news-section` (base `design/service-home-refresh` 5438beb).
+- 검증: `tsc --noEmit`, prettier, `npm run build:deploy` 후 홈 출력에 라벨 0회·동네소식 구역 확인, `git diff --check` 통과.

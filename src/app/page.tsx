@@ -5,6 +5,7 @@ import { themeGroups } from '@/config/theme-groups.config';
 import { themeUrl, animalUrl, sceneUrl, aerialUrl } from '@/config/links';
 import { TimeLapseArt } from '@/components/TimeLapseArt';
 import { SkylineArt } from '@/components/SkylineArt';
+import { NewsArt } from '@/components/NewsArt';
 import { SiteHeader } from '@/components/krds/SiteHeader';
 import { SkipLink, Masthead } from '@/components/krds/Masthead';
 import { siteConfig } from '@/config/site.config';
@@ -152,7 +153,6 @@ export default function Home() {
                   유기동물 찾기 <ArrowUpRight size={19} />
                 </a>
               </div>
-              <span className="pet-section-index">02 / COMPANION</span>
             </div>
           </section>
         )}
@@ -178,9 +178,6 @@ export default function Home() {
                 3D입체지도 보기 <ArrowUpRight size={19} />
               </a>
             </div>
-            <span className="scene-section-index">
-              {siteConfig.features.animalMap ? '03' : '02'} / SKYLINE
-            </span>
           </div>
         </section>
         <section className="aerial-section">
@@ -205,9 +202,6 @@ export default function Home() {
                 항공사진 비교 보기 <ArrowUpRight size={19} />
               </a>
             </div>
-            <span className="aerial-section-index">
-              {siteConfig.features.animalMap ? '04' : '03'} / TIMELINE
-            </span>
           </div>
         </section>
         <section id="about" className="home-wrap about-section">
@@ -255,27 +249,31 @@ export default function Home() {
         </section>
         <section className="news-section">
           <div className="home-wrap news-layout">
+            <div className="news-illustration" aria-hidden="true">
+              <NewsArt />
+              <span>NEIGHBORHOOD NEWS</span>
+            </div>
             <div>
-              <p className="eyebrow">NEIGHBORHOOD NEWS</p>
+              <p className="eyebrow">함께 나누는 구리</p>
               <h2>
-                우리 동네 소식,
+                우리 동네 소식을
                 <br />
-                한곳에서 보세요.
+                한곳에서 만나보세요.
               </h2>
               <p>
                 행사와 공지, 생활 정보까지
                 <br />
                 구리 동네소식에서 모아 볼 수 있어요.
               </p>
+              <a
+                className="home-button"
+                href="https://guri.kgeohub.com/"
+                target="_blank"
+                rel="noopener"
+              >
+                구리 동네소식 보기 <ArrowUpRight size={19} />
+              </a>
             </div>
-            <a
-              className="home-button news-button"
-              href="https://guri.kgeohub.com/"
-              target="_blank"
-              rel="noopener"
-            >
-              구리 동네소식 보러 가기 <ArrowUpRight size={19} />
-            </a>
           </div>
         </section>
       </main>

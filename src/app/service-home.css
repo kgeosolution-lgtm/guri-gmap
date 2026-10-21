@@ -275,14 +275,6 @@
   color: #a06373;
   margin-top: 15px;
 }
-.pet-section-index {
-  position: absolute;
-  right: 32px;
-  top: 24px;
-  font-size: 9px;
-  letter-spacing: 0.15em;
-  color: #b6929c;
-}
 .scene-section {
   background: #eef3fa;
   border-top: 1px solid #dfe7f3;
@@ -333,14 +325,6 @@
   color: #6b83a8;
   margin-top: 12px;
 }
-.scene-section-index {
-  position: absolute;
-  right: 32px;
-  top: 24px;
-  font-size: 9px;
-  letter-spacing: 0.15em;
-  color: #8ea1bd;
-}
 .aerial-section {
   background: #f4f8f6;
   border-bottom: 1px solid #e4ede8;
@@ -386,14 +370,6 @@
   padding-left: 0.42em;
   color: #6f9482;
   margin-top: 12px;
-}
-.aerial-section-index {
-  position: absolute;
-  right: 32px;
-  top: 24px;
-  font-size: 9px;
-  letter-spacing: 0.15em;
-  color: #93aa9d;
 }
 .about-section {
   display: grid;
@@ -486,34 +462,61 @@
     translate: 0 0;
   }
 }
-/* 동네소식 — G-MAP 소개 아래 띠 (구리 동네소식 사이트로 연결) */
+/* 동네소식 — 3D·항공과 같은 구성(원형 일러스트 + 글 + 버튼), 구리 동네소식 사이트로 새 창 */
 .news-section {
   background: #fff6ec;
   border-top: 1px solid #f3e3cf;
 }
 .news-layout {
+  position: relative;
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr 1.2fr;
   align-items: center;
-  gap: 40px;
-  padding-top: 50px;
-  padding-bottom: 50px;
+  gap: 80px;
+  padding-top: 60px;
+  padding-bottom: 60px;
 }
 .news-layout h2 {
   color: #5a3a12;
 }
-.news-layout > div > p:not(.eyebrow) {
+.news-layout .eyebrow {
+  margin-bottom: 17px !important;
+}
+.news-layout p:not(.eyebrow) {
   font-size: 14px;
   line-height: 1.9;
   color: #8a6a44;
-  margin-top: 16px;
+  margin: 20px 0;
 }
-.news-button {
+.news-illustration {
+  --art-fill: #f2cfae;
+  width: 250px;
+  height: 250px;
+  border-radius: 50%;
+  background: #fbe8d3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  margin: auto;
+  color: #b25a1e;
+}
+.news-illustration svg {
+  width: 160px;
+  height: 134px;
+}
+.news-illustration span {
+  font-size: 9px;
+  letter-spacing: 0.42em;
+  padding-left: 0.42em;
+  color: #c08a5a;
+  margin-top: 12px;
+}
+.news-layout .home-button {
   background: #c75a24;
   border-color: #c75a24;
-  white-space: nowrap;
 }
-.news-button:hover {
+.news-layout .home-button:hover {
   background: #a9471a;
   border-color: #a9471a;
 }
@@ -634,11 +637,6 @@
   .pet-layout .eyebrow {
     justify-content: center;
   }
-  .pet-section-index {
-    font-size: 8px;
-    right: 22px;
-    top: 17px;
-  }
   .scene-layout {
     grid-template-columns: 1fr;
     padding-top: 48px;
@@ -665,11 +663,6 @@
   }
   .scene-layout p:not(.eyebrow) br {
     display: none;
-  }
-  .scene-section-index {
-    font-size: 8px;
-    right: 22px;
-    top: 17px;
   }
   .aerial-layout {
     grid-template-columns: 1fr;
@@ -698,11 +691,6 @@
   .aerial-layout p:not(.eyebrow) br {
     display: none;
   }
-  .aerial-section-index {
-    font-size: 8px;
-    right: 22px;
-    top: 17px;
-  }
   .about-section {
     grid-template-columns: 1fr;
     padding-top: 50px;
@@ -711,9 +699,30 @@
   }
   .news-layout {
     grid-template-columns: 1fr;
-    gap: 24px;
-    padding-top: 40px;
-    padding-bottom: 40px;
+    padding-top: 48px;
+    padding-bottom: 45px;
+    gap: 28px;
+  }
+  .news-illustration {
+    width: 160px;
+    height: 160px;
+  }
+  .news-illustration svg {
+    width: 100px;
+    height: 84px;
+  }
+  .news-illustration span {
+    font-size: 7px;
+    margin-top: 6px;
+  }
+  .news-layout > div:nth-child(2) {
+    text-align: center;
+  }
+  .news-layout .eyebrow {
+    justify-content: center;
+  }
+  .news-layout p:not(.eyebrow) br {
+    display: none;
   }
   .usage-guide > div {
     gap: 14px;
