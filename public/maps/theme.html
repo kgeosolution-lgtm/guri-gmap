@@ -1657,6 +1657,21 @@ function opStatus(r,t){
 
 /* ════════ 상태 ════════ */
 const visibleGroups=()=>Object.keys(GROUPS).filter(g=>!GROUPS[g].hidden);   /* hidden:true 그룹 제외 */
+/* 그룹별 한 줄 소개 — '전체' 보기일 때 목록 머리글에. 칩을 고르면 테마의 info 가 대신 나온다 */
+const GROUP_DESC={
+  '시즌·겨울':'추울 때 쉴 곳과 제설함, 미끄러운 길을 미리 확인하세요.',
+  '시즌·여름':'더위를 피할 쉼터와 물놀이장, 그늘막을 한눈에 보세요.',
+  '시즌·가을':'단풍길과 둘레길, 가을 축제를 한 지도에서 만나세요.',
+  '치안안심':'CCTV와 비상벨, 안심귀갓길까지 우리 동네 안전 시설을 확인하세요.',
+  '건강·의료':'가까운 약국과 병의원, 예방접종 기관을 찾아보세요.',
+  '육아·교육':'어린이집과 학교, 도서관 등 아이와 함께 갈 곳을 찾아보세요.',
+  '생활편의':'주차장과 화장실, 충전소 등 생활에 필요한 시설을 찾아보세요.',
+  '우수맛집':'와구리맛집과 오래된 노포식당, 구리의 맛을 찾아보세요.',
+  '문화·여가':'축제와 명소, 둘레길과 공원까지 쉬고 즐길 곳을 찾아보세요.',
+  '반려동물':'동물병원과 동물약국 등 반려동물과 함께 필요한 곳을 찾아보세요.',
+  '교통':'버스정류장과 공사·통제 구간을 미리 확인하세요.'
+};
+const groupDesc=g=>GROUP_DESC[g]||`${g} 분야의 생활 시설을 한 지도에서 확인하세요.`;
 let curGroup=visibleGroups()[0], curCat='전체', sortMode='name', myLoc=null, selectedRow=null, curQ='', curDong='';
 const DEBUG=/[?&]debug=1/.test(location.search);
 const layerUrl={};    /* 서비스 루트 → 실제 레이어 URL */
@@ -2390,7 +2405,7 @@ function renderThemeHead(t){
     box.innerHTML=`<img class="th-ic" src="${symUrl(curCat)}" alt=""><div class="th-tx"><div class="th-nm">${esc(curCat)}<span class="th-n">${n}곳</span></div><div class="th-info">${esc(t.info||'')}</div></div>`;
   }else{
     const ic=TOPIC_IC[GROUPS[curGroup].icon];
-    box.innerHTML=`${ic?`<img class="th-ic" src="${ic}" alt="">`:''}<div class="th-tx"><div class="th-nm">${esc(curGroup)}<span class="th-n">${n}곳</span></div><div class="th-info">${esc(curGroup)} 분야의 생활 시설을 한 지도에서 확인하세요.</div></div>`;
+    box.innerHTML=`${ic?`<img class="th-ic" src="${ic}" alt="">`:''}<div class="th-tx"><div class="th-nm">${esc(curGroup)}<span class="th-n">${n}곳</span></div><div class="th-info">${esc(groupDesc(curGroup))}</div></div>`;
   }
 }
 /* 목록에 보여줄 운영시간 한 줄 */
