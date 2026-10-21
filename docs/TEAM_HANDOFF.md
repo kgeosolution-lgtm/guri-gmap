@@ -909,3 +909,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 공유: 담당자 확인 — 항공사진 비교를 휴대폰(카카오톡 안 브라우저)에서 공유 아이콘을 누르면 "주소를 복사했어요" 토스트만 뜸. 그 브라우저엔 기기 공유창(`navigator.share`)이 없어 복사로 떨어지던 것.
   → `public/maps/gmap-share.js`(+ `gmap-shared.css` `.gm-share-*`): `gmapShare({title,url})` — 기기 공유창이 있으면 그것, 없으면 **페이지 안 공유창**(주소 복사·카카오톡(sharer.kakao.com)·문자(sms:)·이메일(mailto:) + 안내 한 줄). 데스크톱은 가운데 창, 모바일은 바텀시트. 우리동네 찾기·3D·항공 세 쪽의 `shareUrl()`이 같은 함수를 씀(옛 복사 폴백은 http 가 아닌 주소용으로 남김).
 - 검증: Playwright(로컬 http, `navigator.share` 없음) — 항공(모바일)·우리동네 찾기(데스크톱) 공유창 열림·주소·카카오 링크 확인(`pw/share-test.js`); 지도 3쪽 `node --check`, prettier, `npm run build:deploy`(`out/maps/gmap-share.js` 포함), `git diff --check` 통과. 브랜치 `work/kangmina-share-dialog`.
+
+## 2026-10-21 공유창 카카오톡 단추: 앱 키 없이는 숨김 (담당: 강민아)
+
+- 담당자 확인: 공유창의 '카카오톡'(sharer.kakao.com 링크)을 누르면 "요청 실패 — 잘못된 요청으로 인증에 실패". 카카오 공유는 **카카오 개발자 앱의 JavaScript 키와 도메인 등록**이 있어야 동작함(키 없는 sharer 주소는 막혀 있음).
+- 조치(`gmap-share.js`): 카카오톡 단추를 카카오 JS SDK(2.7.4, `Kakao.Share.sendDefault` 텍스트 메시지)로 바꾸고 `KAKAO_JS_KEY` 가 비어 있으면 **단추를 숨기고** 안내문을 "카카오톡으로 보내려면 '복사'한 주소를 대화창에 붙여 넣거나, 오른쪽 위 ⋮ 메뉴의 '공유하기'를 눌러 주세요" 로. SDK 는 단추를 처음 누를 때만 불러옴.
+- 키 발급 절차(구리시 또는 케이지오 카카오 계정): developers.kakao.com → 내 애플리케이션 → 앱 추가(이름 예: 구리시 G-MAP) → [앱 키] **JavaScript 키** 복사 → [플랫폼 > Web] 사이트 도메인에 `https://kgeodata.com` 과 최종 서비스 도메인 등록. 카카오 로그인·동의항목은 필요 없음. 키를 `public/maps/gmap-share.js` 맨 위 `KAKAO_JS_KEY` 에 넣고 배포하면 단추가 살아남.
+- 검증: Playwright(로컬 http) 키 없음 → 카카오 단추 숨김·안내문 확인(`pw/share-test.js`); `node --check`, prettier, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-share-kakao`.
