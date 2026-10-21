@@ -698,3 +698,12 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 조치: `buildDynThemes` 호출 직후, 그룹 테마 중 아직 안 받은 자료를 `jobs` 에 더함. 하네스에 호출 위치 정적 검사 추가.
 - 브랜치: `work/kangmina-safe-route-load` (base `design/service-home-refresh` 1ef580e).
 - 검증: 치안안심 하네스, theme.html `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
+
+## 2026-10-21 메뉴: 수정 요청 빼고 구리 동네소식 추가, 메인에 동네소식 구역, 안심귀갓길 지정일 제거 (담당: 강민아)
+
+- 안심귀갓길 팝업·목록에서 "📅 2019.06 지정" 제거(`지정일` 칩·목록 문구 삭제, 자동 행에서도 숨김).
+- "수정 요청" 메뉴: 시민용 메뉴에서 뺌. `review.js` 는 주소에 `?review`(예: `?review=1`, 관리자 `?review=guri`)가 있을 때만 메뉴·창을 만든다(`REVIEW_ON`). 검토용으로는 그대로 쓸 수 있음 — `docs/review/README.md` 5절에 적음.
+- "구리 동네소식"(https://guri.kgeohub.com/, 새 창): 홈 헤더 `SiteHeader.tsx`(PC·모바일, `external` 링크는 `target=_blank rel=noopener`)와 정적 지도 4쪽 헤더(PC·모바일 메뉴)에 G-MAP 소개 다음으로 추가.
+- 메인 페이지: G-MAP 소개 구역 아래에 `news-section`(연한 주황 띠: "우리 동네 소식, 한곳에서 보세요" + "구리 동네소식 보러 가기 ↗" 버튼, 새 창). CSS `.news-section/.news-layout/.news-button`, 900px 이하 1열.
+- 브랜치: `work/kangmina-news-menu` (base `design/service-home-refresh` 27c3c75).
+- 검증: `tsc --noEmit`, prettier(src·site-shell.css), 지도 4쪽 인라인 스크립트·review.js `node --check`, 치안안심 하네스, `npm run build:deploy` 후 홈·지도 출력에 동네소식 링크 확인, `git diff --check` 통과.

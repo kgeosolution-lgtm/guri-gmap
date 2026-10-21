@@ -1,6 +1,6 @@
 /* ==========================================================================
    구리 생활지도 · 수정 요청 위젯 (review.js)
-   - 헤더 "테마 찾기" 옆에 "수정 요청" 메뉴를 붙이고, 클릭하면 창이 열려요.
+   - 주소 뒤에 ?review=1 이 있을 때만 헤더에 "수정 요청" 메뉴를 붙이고, 클릭하면 창이 열려요. (시민용 메뉴에서는 보이지 않음)
    - 화면 캡처는 드래그로 원하는 부분만 잘라 담아요(전체는 전체 드래그).
    - 여러 명이 올린 요청이 구글 시트 한 장에 모이고, 상태(수정전/수정완료)를 함께 봐요. (서버 없음 — docs/review/README.md)
    - 오픈할 때는 이 스크립트 <script> 한 줄만 빼면 깨끗이 사라져요.
@@ -439,6 +439,8 @@
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && $('grLb').classList.contains('on')) closeLb(); });
   }
 
-  function init() { build(); wire(); }
+  /* 시민용 메뉴에서는 빼고(구리시 요청, 2026-10), 검토할 때만 주소 뒤에 ?review=1 (관리자는 ?review=guri) 을 붙여 연다 */
+  var REVIEW_ON = /[?&]review(=|&|$)/.test(location.search);
+  function init() { if (!REVIEW_ON) return; build(); wire(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
