@@ -371,7 +371,8 @@ function judge(S,P,fx){
 //   서버 폴리곤(이름 없음) → polyMap 후보 ∩ 법정동 후보 → 구역 확정
 // ─────────────────────────────────────────────
 var DUPD=(typeof GY_DATA!=="undefined"&&GY_DATA.dup)||null;
-function dupDistricts(objectids,dong,jibun){
+function hav(lon1,lat1,lon2,lat2){ var R=6371000,t=Math.PI/180,a=Math.pow(Math.sin((lat2-lat1)*t/2),2)+Math.cos(lat1*t)*Math.cos(lat2*t)*Math.pow(Math.sin((lon2-lon1)*t/2),2); return 2*R*Math.asin(Math.sqrt(a)); }
+function dupDistricts(objectids,dong,jibun,lon,lat){
   if(!DUPD) return [];
   var poly=[]; (objectids||[]).forEach(function(o){ (DUPD.polyMap[o]||[]).forEach(function(i){ if(poly.indexOf(i)<0) poly.push(i); }); });
   var byDong=[]; DUPD.districts.forEach(function(z,i){ if((z.dongs||[]).indexOf(dong)>=0) byDong.push(i); });
@@ -385,6 +386,16 @@ function dupDistricts(objectids,dong,jibun){
   var spots=base.filter(isSpot), plain=base.filter(function(i){return !isSpot(i);});
   if(base.length&&plain.length<=1) // 확정: 일반 구역 1개 (+ 그 안의 특별계획구역)
     return spots.concat(plain).map(function(i){ return {idx:i,z:DUPD.districts[i],certain:true}; });
+  // 폴리곤 정보가 없고 그 동에 조사된 구역이 하나뿐이면 '동 기준 추정'
+  var plainDong=byDong.filter(function(i){return !isSpot(i);});
+  if(!base.length&&plainDong.length===1)
+    return byDong.filter(isSpot).concat(plainDong).map(function(i){ return {idx:i,z:DUPD.districts[i],certain:"dong"}; });
+  // 같은 동에 여러 구역: 대표 지번 위치와의 거리로 추정 (700m 이내 + 다음 후보보다 1.8배 이상 가까울 때만)
+  if(!base.length&&plainDong.length>1&&lon&&DUPD.repPoints){
+    var dist=plainDong.map(function(i){ var ps=DUPD.repPoints[i]||[]; var d=Infinity; ps.forEach(function(p){ var dd=hav(lon,lat,p[0],p[1]); if(dd<d) d=dd; }); return {i:i,d:d}; }).sort(function(a,b){return a.d-b.d;});
+    if(dist[0].d<700&&(dist.length<2||dist[1].d>=dist[0].d*1.8))
+      return byDong.filter(isSpot).concat([dist[0].i]).map(function(i){ return {idx:i,z:DUPD.districts[i],certain:"near",dist:Math.round(dist[0].d)}; });
+  }
   var cands=base.length?base:byDong;         // 미확정: 후보만 제시
   return cands.map(function(i){ return {idx:i,z:DUPD.districts[i],certain:false}; });
 }
@@ -426,7 +437,7 @@ function dupCheck(S,P,fx){
     var v=probs.length?"해당 블록이면 기준 초과":(cand.length?cand.length+"개 블록 유형 해당 가능":"블록 기준 확인 필요");
     var dec=z.decision||{};
     out.push({g:"site",n:"지구단위계획 — "+z.name.replace(/\(.*$/,"").trim(),st:st,v:v,
-      calc:(lines.length?lines.join("\n"):"이 용도에 해당하는 블록 기준을 찾지 못했습니다.")+(probs.length?"\n\n✕ "+probs.join("\n✕ "):""),
+      calc:(c.certain==="dong"?"※ 법정동 기준 추정 — 이 동에서 조사된 지구단위계획구역은 이 구역뿐입니다 (조사 밖 소규모 구역일 수 있음)\n":c.certain==="near"?"※ 위치 기준 추정 — 구역 대표 지점에서 약 "+c.dist+"m (토지이음에서 구역명 확인 권장)\n":"")+(lines.length?lines.join("\n"):"이 용도에 해당하는 블록 기준을 찾지 못했습니다.")+(probs.length?"\n\n✕ "+probs.join("\n✕ "):""),
       d:(b0&&(b0.allowed||b0.prohibited)?"허용: "+String(b0.allowed||"-").slice(0,220)+(b0.prohibited?"\n불허: "+String(b0.prohibited).slice(0,160):"")+"\n":"")+(b0&&b0.shop?"점포 비율: "+b0.shop+"\n":"")+(b0&&b0.hh?"가구 수: "+b0.hh+"\n":"")+(b0&&b0.notes?"비고: "+String(b0.notes).slice(0,200)+"\n":"")+
         "\n필지가 속한 블록(획지)은 결정도로 확인해야 정확합니다."+(z.status==="partial"?" 이 구역은 조사 범위가 일부입니다.":"")+(dec.no?"\n최신 결정: "+dec.no+" ("+(dec.date||"")+")":""),
       src:[L("auto","지구단위계획구역: 토지이용규제")].concat(dec.url?[L("ord",dec.no||"결정 고시",dec.url)]:[]).concat(typeof z.guideline==="string"&&/^https?:/.test(z.guideline.split(" ")[0])?[L("ord","시행지침",z.guideline.split(" ")[0])]:[])});

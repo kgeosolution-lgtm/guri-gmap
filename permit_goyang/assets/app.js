@@ -121,10 +121,14 @@ require([
       symbol:{type:"text",color:[255,255,255],haloColor:[20,30,40,0.85],haloSize:1.1,font:{size:9,family:"sans-serif"}},minScale:3000,labelPlacement:"always-horizontal",deconflictionStrategy:"static"}]
   });
 
-  // ── 행정구 경계 ──
-  guLayer=new FeatureLayer({url:URL_.gu,definitionExpression:"sigungu_cd IN ('31101','31103','31104')",outFields:["sigungu_cd","sigungu_nm"],title:"행정구",
-    renderer:{type:"simple",symbol:{type:"simple-fill",color:[0,0,0,0],outline:{color:[255,255,255,0.9],width:1.6,style:"dash"}}},
-    labelingInfo:[{labelExpressionInfo:{expression:"Replace($feature.sigungu_nm,'고양시 ','')"},symbol:{type:"text",color:"#fff",haloColor:[0,60,70,0.9],haloSize:2,font:{size:15,weight:"bold"}},maxScale:30000}]
+  // ── 행정구 경계: 정적 사본(gy_bounds.js) — 서버 서비스가 바뀌어도 지도 틀은 유지 ──
+  guLayer=new GraphicsLayer({title:"행정구"});
+  var guLabels=[];
+  if(window.GY_BOUNDS) GY_BOUNDS.gu.forEach(function(g){
+    var geom=new Polygon({spatialReference:{wkid:102100},rings:g.rings});
+    guLayer.add(new Graphic({geometry:geom,attributes:{cd:g.cd,nm:g.nm},symbol:{type:"simple-fill",color:[0,0,0,0],outline:{color:[255,255,255,0.9],width:1.6,style:"dash"}}}));
+    var lbl=new Graphic({geometry:geom.centroid,symbol:{type:"text",text:g.nm,color:"#fff",haloColor:[0,60,70,0.9],haloSize:2,font:{size:15,weight:"bold",family:"sans-serif"}}});
+    guLayer.add(lbl); guLabels.push(lbl);
   });
 
   var gfxMask=new GraphicsLayer({title:"고양시 외곽"}), gfxBnd=new GraphicsLayer({title:"고양시 경계"});
@@ -139,8 +143,13 @@ require([
   view.ui.add(homeWidget,"top-right");
   view.ui.add(new ScaleBar({view:view,unit:"metric"}),"bottom-right");
 
-  // ── 고양시 경계: 외곽 마스크 + 경계선 + 이동 제한 ──
-  new FeatureLayer({url:URL_.boundary}).queryFeatures({where:"1=1",returnGeometry:true,outSpatialReference:{wkid:102100}}).then(function(fs){
+  view.watch("scale",function(s){ var on=s>30000; guLabels.forEach(function(l){ l.visible=on; }); });
+
+  // ── 고양시 경계: 외곽 마스크 + 경계선 + 이동 제한 (정적 사본 우선, 없으면 서비스) ──
+  var bnd = window.GY_BOUNDS
+    ? Promise.resolve({features:[{geometry:new Polygon({spatialReference:{wkid:102100},rings:GY_BOUNDS.boundary})}]})
+    : new FeatureLayer({url:URL_.boundary}).queryFeatures({where:"1=1",returnGeometry:true,outSpatialReference:{wkid:102100}});
+  bnd.then(function(fs){
     if(!fs.features.length) return;
     goyangGeom=fs.features[0].geometry;
     goyangExtent=goyangGeom.extent;
@@ -215,6 +224,23 @@ function buildLayerPanel(){
   });
   $("layerHead").onclick=function(){ $("layerCard").classList.toggle("collapsed"); };
   if(window.innerWidth<820) $("layerCard").classList.add("collapsed");
+  checkLayerHealth();
+}
+// 서버 서비스가 다른 자료로 덮어써지는 경우가 있어, 로드 실패한 레이어는 패널에서 비활성화
+function checkLayerHealth(){
+  LAYER_UI.forEach(function(l){
+    if(!l.id||l.id==="gu") return;
+    var L=layerObj(l.id); if(!L) return;
+    Promise.all((Array.isArray(L)?L:[L]).map(function(x){ return x.load(); })).catch(function(e){
+      console.warn("레이어 서비스 오류:",l.n,e&&e.message);
+      var inp=document.querySelector('[data-lyr="'+l.id+'"]'); if(!inp) return;
+      inp.checked=false; inp.disabled=true;
+      var row=inp.closest(".lyr"); row.style.opacity=.45; row.title="서비스 점검 중";
+      row.querySelector("span").textContent=l.n+" (점검 중)";
+      (Array.isArray(L)?L:[L]).forEach(function(x){ x.visible=false; });
+      if(l.id==="dup") window.__dupBroken=true;
+    });
+  });
 }
 function renderLegend(on){
   var el=$("legendCard"); if(!on){ el.hidden=true; return; }
@@ -328,11 +354,12 @@ function uniq(a){ return a.filter(function(v,i){return a.indexOf(v)===i;}); }
 // 지구단위계획 구역 식별: 서버 폴리곤(objectid) + 법정동 → rules.js dupDistricts
 function resolveDup(){
   var pnu=S.pnu, g=S.geom, pt=(g&&g.centroid&&E.ge.contains(g,g.centroid))?g.centroid:g;
-  layers.dup.queryFeatures({geometry:pt,spatialRelationship:"intersects",outFields:["objectid"],returnGeometry:false}).then(function(fs){
-    if(!S||S.pnu!==pnu) return;
-    S.dupList=GY.dupDistricts(fs.features.map(function(f){return f.attributes.objectid;}),S.dong,S.jibun);
-    renderParcel();
-  }).catch(function(e){ console.warn("지구단위계획 조회 실패",e); });
+  function done(ids){ if(!S||S.pnu!==pnu) return; S.dupList=GY.dupDistricts(ids,S.dong,S.jibun,S.lon,S.lat); renderParcel(); }
+  // 폴리곤 서비스가 없거나 실패하면 법정동 기준으로만 판별
+  if(window.__dupBroken){ done([]); return; }
+  layers.dup.queryFeatures({geometry:pt,spatialRelationship:"intersects",outFields:["objectid"],returnGeometry:false})
+    .then(function(fs){ done(fs.features.map(function(f){return f.attributes.objectid;})); })
+    .catch(function(e){ console.warn("지구단위계획 폴리곤 조회 실패 → 법정동 기준",e&&e.message); window.__dupBroken=true; done([]); });
 }
 function dupModal(i){
   var c=(S.dupList||[])[i]; if(!c) return; var z=c.z, dec=z.decision||{};
@@ -392,7 +419,7 @@ function renderParcel(){
   if(p.flags.culture.length) al.push(["warn","🏛","문화유산 영향 구역","국가유산 현상변경 검토 필요 — "+p.flags.culture.slice(0,2).join(", ")]);
   var dupHtml="";
   if(p.flags.dup.length){
-    if(p.dupList&&p.dupList.length) dupHtml=p.dupList.slice(0,3).map(function(c,i){ return '<button class="chip" style="margin:6px 4px 0 0;padding:4px 10px;font-size:12px" data-dup="'+i+'">'+esc(c.z.name.replace(/\(.*$/,"").trim())+(c.certain?'':' (후보)')+' ›</button>'; }).join("");
+    if(p.dupList&&p.dupList.length) dupHtml=p.dupList.slice(0,3).map(function(c,i){ return '<button class="chip" style="margin:6px 4px 0 0;padding:4px 10px;font-size:12px" data-dup="'+i+'">'+esc(c.z.name.replace(/\(.*$/,"").trim())+(c.certain===true?'':c.certain==="dong"?' (동 기준)':c.certain==="near"?' (위치 추정)':' (후보)')+' ›</button>'; }).join("");
     al.push(["info","ℹ","지구단위계획구역","결정 내용(용도·건폐율·용적률·높이)이 조례보다 우선 적용됩니다"+(p.dupList&&!p.dupList.length?" — 조사된 34개 구역 밖이니 토지이음에서 결정도를 확인하세요":""),true]);
   }
   al.forEach(function(a){ h+='<div class="alert '+a[0]+'"><span class="a-ico">'+a[1]+'</span><div><b>'+a[2]+'</b>'+esc(a[3])+(a[4]?'<div>'+dupHtml+'</div>':'')+'</div></div>'; });
@@ -676,7 +703,8 @@ function doSearch(q){
 function goGu(code){
   document.querySelectorAll(".gu-btn").forEach(function(b){ b.classList.toggle("active",b.dataset.gu===code); });
   if(code==="all"){ if(homeExtent) view.goTo(homeExtent,{duration:700}); return; }
-  guLayer.queryFeatures({where:"sigungu_cd='"+code+"'",returnGeometry:true,outSpatialReference:view.spatialReference}).then(function(fs){ if(fs.features[0]) view.goTo(fs.features[0].geometry.extent.clone().expand(1.15),{duration:700}); });
+  var g=guLayer.graphics.find(function(x){ return x.attributes&&x.attributes.cd===code; });
+  if(g) view.goTo(g.geometry.extent.clone().expand(1.15),{duration:700});
 }
 
 // ═══ 도움말 ═══
