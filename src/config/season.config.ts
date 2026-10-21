@@ -43,7 +43,7 @@ export const seasonConfig: Record<SeasonKey, SeasonTheme> = {
     heroImage: '/images/hero-summer.webp',
     place: '이문안호수공원',
     backgroundColor: '#E6F4F3',
-    accentColor: '#078C78',
+    accentColor: '#2A7FA8', // = theme.html 시즌·여름 accent
     accentSoft: '#E8F8F4',
     titleColor: '#083D43',
     eyebrow: '초록과 강바람이 반가운 여름',
@@ -61,7 +61,7 @@ export const seasonConfig: Record<SeasonKey, SeasonTheme> = {
     heroImage: '/images/hero-autumn.webp',
     place: '한강시민공원',
     backgroundColor: '#F7EBDD',
-    accentColor: '#C75A24',
+    accentColor: '#A65A2E', // = theme.html 시즌·가을 accent
     accentSoft: '#FFF1E8',
     titleColor: '#472B20',
     eyebrow: '천천히 걷고 싶은 구리의 가을',
@@ -79,7 +79,7 @@ export const seasonConfig: Record<SeasonKey, SeasonTheme> = {
     heroImage: '/images/hero-winter.webp',
     place: '동구릉',
     backgroundColor: '#E8F0FA',
-    accentColor: '#3B6FA9',
+    accentColor: '#35679A', // = theme.html 시즌·겨울 accent
     accentSoft: '#EDF5FF',
     titleColor: '#173B61',
     eyebrow: '포근한 일상을 잇는 구리의 겨울',

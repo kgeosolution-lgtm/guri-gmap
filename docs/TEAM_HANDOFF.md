@@ -880,3 +880,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 담당자 캡처(데스크톱, 시즌·겨울): 칩 전부 0, 목록은 회색 자리표시(skeleton), 지도 오른쪽 위 '불러오는 중…'. 코드 경로는 가짜 응답으로 끝까지 확인됨(8개 레이어 → 칩 건수·목록·머리글 모두 표시, `pw/flow-test.js`). 캡처 상태는 **요청이 끝나지 않고 계속 대기 중**인 모양 — 서버(guri.go.kr, hosts 로 내부 IP)에 연결은 되는데 응답이 안 오는 경우(VPN·내부망 끊김 등). 이전에는 그러면 영원히 '불러오는 중…' 이었음.
 - 조치(`theme.html`): `fetchT(url,ms)`(AbortController, `FETCH_MS`=25초)를 레이어 질의·메타 조회·행정동 경계에 적용. 질의가 시간 초과면 메타 조회로 더 기다리지 않고, 같은 그룹의 나머지 레이어도 즉시 실패 처리(`srvDown`) → 총 대기 25초 뒤 빈 목록 + '다시 시도'. 실패 이유는 "응답 없음(25초)".
 - 검증: `pw/hang-test.js`(guri 요청에 응답을 안 주는 상황) 28초 시점에 목록 복귀 확인, `flow-test.js`(가짜 응답) 정상, 치안안심 하네스, theme `node --check`, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-fetch-timeout`.
+
+## 2026-10-21 메인 섹션 리듬 통일(공통 요소 4번) (담당: 강민아)
+
+- `service-home.css` `.service-home` 에 `--sec-y: 80px`(모바일 `--sec-y-m: 48px`). 본문 섹션 다섯 곳(찾기 80/88, 3D·항공·동네소식 60/60, 소개 90/90; 모바일 48/50·48/45·50/50)이 제각각이던 위아래 여백을 모두 이 값으로. 히어로(56px)와 푸터는 성격이 달라 그대로.
+- 제목 h2(32px, 모바일 26px)·eyebrow(11px)·설명(14px)은 이미 통일돼 있었음.
+- 계절 강조색(`season.config.ts` accentColor)을 그룹 팔레트와 연결: 겨울 `#35679A`(=시즌·겨울), 가을 `#A65A2E`(=시즌·가을), 여름 `#2A7FA8`(=시즌·여름). 봄은 해당 그룹이 없어 그대로.
+- 전후: 스크래치 `home-compare-1280.png`·`home-compare-390.png`(전체 페이지, 왼쪽 전·오른쪽 후).
+- 검증: `npx tsc --noEmit`, prettier, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-section-rhythm`.
