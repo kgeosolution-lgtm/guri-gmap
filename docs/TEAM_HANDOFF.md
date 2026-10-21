@@ -723,3 +723,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 문구: "행사와 공지, 공약지도와 생활 정보까지 / 구리 동네소식에서 모아 볼 수 있어요."
 - 브랜치: `work/kangmina-news-order` (base `design/service-home-refresh` e792102).
 - 검증: `tsc --noEmit`, prettier, `npm run build:deploy` 후 홈 출력에서 구역 순서·메뉴 순서·문구, 지도 3쪽 메뉴 순서 확인, `git diff --check` 통과.
+
+## 2026-10-21 메인 계절 사진 교체 + 장소명 표기 (담당: 강민아)
+
+- 담당자가 준 사진 4장으로 `public/images/hero-{spring,summer,autumn,winter}.webp` 교체: 봄 장자호수공원(1916×821), 여름 이문안호수공원(1919×820), 가을 한강시민공원(1916×821), 겨울 동구릉(1771×888). 원본 webp 그대로(각 350~420KB).
+- 장소명: `season.config.ts` 에 `place` 추가, 히어로 오른쪽 아래에 `.season-place`(11px 흰 글씨, 반투명 검정 알약)로 표시. 사진이 바뀌면 글씨도 같이 바뀜.
+- 브랜치: `work/kangmina-season-photos` (base `design/service-home-refresh` fb90eb5).
+- 검증: `tsc --noEmit`, prettier, `npm run build:deploy` 후 출력에 장소명·사진 파일 확인, `git diff --check` 통과.
