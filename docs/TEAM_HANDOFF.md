@@ -815,3 +815,9 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 시종점(점): 시점/종점 여부는 `icyEnd()`가 비고('결빙취약구간종점')·구분 값에서 읽어 이름("강변북로 종점")·부제·칩에 씀. 팝업은 구간·시점 주소·종점 주소·비고만 보이고 구분(=결빙취약구간)·시점_경도·정북기준_1·기점기준심은 숨김.
 - 검증: theme `node --check`, Playwright 오프라인(캡처와 같은 모양의 가짜 행: 이름·부제 확인), `npm run build:deploy`, `git diff --check` 통과. 팝업 본문은 `POP_MAP`이 지도 초기화 뒤에 생겨 오프라인 검사가 안 되므로 배포본에서 확인.
 - 브랜치: `work/kangmina-winter-pop`.
+
+## 2026-10-21 팝업 자동 항목 라벨 정리, 시종점 중복 항목 숨김 (담당: 강민아)
+
+- 팝업의 자동 항목 라벨에서 밑줄(_)을 띄어쓰기로 바꾸고 `_동` 꼬리는 뗀다(관리부서_동 → 관리부서, 관리자_전화번호 → 관리자 전화번호). 모든 테마 공통.
+- 결빙취약구간 시종점: 위에 '시점 주소'·'종점 주소'가 있으니 원본 항목(시점지번주·종점지번주)은 `hidePat`으로 숨김. 총길이는 '구간 길이'로 km 표시(`hikeLen`)하고 원본은 숨김.
+- 검증: theme `node --check`, 라벨/정규식 단위 확인, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-pop-labels`.
