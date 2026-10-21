@@ -137,19 +137,15 @@ function judge(S,P,fx){
       d:"도시·군계획시설 부지에서는 시설사업 외의 건축이 제한됩니다(국토계획법 제64조).\n"+(full.length?"필지 전체가 시설 부지에 포함되어 있어 일반 건축이 어렵습니다. 시설 결정·집행 현황을 확인하세요.":"저촉 부분을 제외한 면적으로 건축계획을 세우거나, 시설 결정 현황(실시계획·보상 여부)을 확인하세요."),
       src:[L("auto","토지이용규제정보"),L("law","국토계획법 제64조",LAW.plan+"/제64조")]});
   }
-  if(F.military&&F.military.length){
-    C.push({g:"site",n:"군사기지·군사시설 보호구역",st:"warn",v:"관할부대 협의",
-      calc:F.military.join("\n"),
-      d:"보호구역 안의 건축·형질변경은 관할 부대장과 협의해야 합니다(군사기지법 제13조). 통제보호구역은 원칙적 건축 금지, 제한보호구역은 협의 조건부 가능.\n비행안전구역은 구역별 높이 제한이 적용됩니다.",
-      src:[L("auto","토지이용규제정보"),L("law","군사기지법 제9조·제13조",LAW.mil+"/제13조")]});
-  }
+  if(F.military&&F.military.length) militaryCheck(S,P,fx).forEach(function(c){ C.push(c); });
   if(F.culture&&F.culture.length){
     C.push({g:"site",n:"문화유산 주변 규제",st:"warn",v:"현상변경 검토",
       calc:F.culture.join("\n"),
       d:"국가유산(문화유산) 보존구역 및 역사문화환경 보존지역 내 건설공사는 현상변경 허가 또는 허용기준 검토가 필요합니다. 고양시 문화유산 관련 부서·국가유산청 협의 대상입니다.",
       src:[L("auto","토지이용규제정보"),L("law","문화유산법 제35조","https://www.law.go.kr/법령/문화유산의보존및활용에관한법률/제35조")]});
   }
-  if(F.dup&&F.dup.length){
+  if(F.dup&&F.dup.length&&S.dupList&&S.dupList.length) dupCheck(S,P,fx).forEach(function(c){ C.push(c); });
+  else if(F.dup&&F.dup.length){
     C.push({g:"site",n:"지구단위계획구역",st:"warn",v:"결정 내용 우선",
       calc:F.dup.join(", "),
       d:"지구단위계획구역에서는 지구단위계획에서 정한 용도·건폐율·용적률·높이·배치·형태 기준이 조례 기준보다 우선 적용됩니다(국토계획법 제54조).\n해당 획지의 결정도·시행지침을 고양시 도시계획과 또는 토지이음에서 확인하세요.",
@@ -316,26 +312,39 @@ function judge(S,P,fx){
     var pk=parkingCalc(P);
     if(pk) C.push({g:"duty",n:"부설주차장",st:"info",v:pk.cnt+"대 이상",calc:pk.calc,d:pk.detail,src:[L("input","용도·면적: 입력값"),L("law","주차장법 제19조",LAW.park+"/제19조"),ordSrc("parking",src.parking.name+" "+(pk.art||""))]});
   }
-  // 소방 (개략)
+  // 소방 — 소방시설법 시행령 제7조(건축허가 동의)·별표4 (research/07)
   if(P.ta>0||P.fl>0){
-    var fi=[];
-    if(P.fl>=6) fi.push("스프링클러설비 — 층수 6층 이상 특정소방대상물 전 층");
-    if(P.fl>=11) fi.push("비상방송·옥내소화전 등 고층건축물 기준 강화 (11층 이상)");
-    if(P.fl>=30||P.ht>=120) fi.push("초고층(30층 이상 또는 120m 이상) — 피난안전구역, 사전재난영향성검토");
-    if(P.ta>=600&&/근린|판매|업무|숙박|의료|문화|운동|교육/.test(P.use)) fi.push("자동화재탐지설비 — 연면적 600㎡ 이상(근린생활시설 등)");
-    if(P.ta>=1500) fi.push("옥내소화전설비 — 연면적 1,500㎡ 이상(일반 기준)");
-    if(P.use==="공동주택") fi.push("공동주택: 스프링클러·자동화재탐지 등 공동주택 화재안전기준 적용");
-    if(P.ta>=400||P.fl>=6) fi.push("건축허가 동의(소방서) 대상 가능성 — 연면적 400㎡ 이상 등");
-    if(fi.length) C.push({g:"duty",n:"소방시설 (개략)",st:"info",v:fi.length+"개 항목",calc:fi.map(function(x,i){return (i+1)+". "+x;}).join("\n"),d:"용도·세부 면적에 따라 달라지는 개략 판정입니다. 관할 소방서(고양소방서·일산소방서) 건축허가 동의 단계에서 확정됩니다.",src:[L("law","소방시설법 시행령 별표4",LAW.fire),L("law","소방시설법 제6조","https://www.law.go.kr/법령/소방시설설치및관리에관한법률/제6조")]});
+    var fi=[], u=P.use, sb=P.sub||"", ta=P.ta, fl=P.fl;
+    var lodge=/숙박/.test(u), apt=/아파트|기숙사/.test(sb)||(u==="공동주택"&&!/연립|다세대|도시형/.test(sb));
+    var consent= ta>=400 || fl>=6 || u==="공동주택" || lodge || (/교육연구/.test(u)&&ta>=100) || /의원/.test(sb) || P.uf>0;
+    if(consent) fi.push("건축허가 동의 대상 — 연면적 400㎡ 이상·6층 이상·공동주택·숙박시설·주차용 층 등 (영 제7조)");
+    if(fl>=6) fi.push("스프링클러 — 6층 이상 모든 층");
+    else if((lodge||/의료/.test(u))&&ta>=600) fi.push("스프링클러 — "+u+" 바닥면적 합계 600㎡ 이상 모든 층");
+    else if((/판매|창고/.test(u))&&ta>=5000) fi.push("스프링클러 — "+u+" 바닥면적 합계 5,000㎡ 이상");
+    else if(/연립|다세대/.test(sb)) fi.push("간이스프링클러 — 연립·다세대주택");
+    else if(/근린생활/.test(u)&&ta>=1000) fi.push("간이스프링클러 — 근린생활시설 바닥면적 합계 1,000㎡ 이상 모든 층");
+    else if(lodge&&ta>=300) fi.push("간이스프링클러 — 숙박시설 300~600㎡");
+    var hydrant= ta>=3000 || (/근린|판매|업무|숙박|의료|공장|창고/.test(u)&&ta>=1500);
+    if(hydrant) fi.push("옥내소화전 — 연면적 3,000㎡ 이상 (근생·판매·업무·숙박·의료·공장·창고 등은 1,500㎡ 이상)");
+    var afd= apt||lodge||fl>=6 || (/근린생활|의료|위락|장례/.test(u)&&ta>=600) || (/문화및집회|종교|판매|운수|운동|업무|공장|창고/.test(u)&&ta>=1000) || (/교육연구|수련/.test(u)&&ta>=2000);
+    if(afd) fi.push("자동화재탐지설비 — "+(apt?"아파트·기숙사 모든 층":lodge?"숙박시설 모든 층":fl>=6?"6층 이상 모든 층":"용도별 기준 면적 이상 (근생 600㎡, 업무·판매 1,000㎡ 등)"));
+    if(ta>=3500||fl>=11||P.uf>=3) fi.push("비상방송설비 — 연면적 3,500㎡ 이상·11층 이상·지하 3층 이상");
+    if(fl>=11) fi.push("비상콘센트 — 11층 이상의 층");
+    if((fl>=5&&ta>=6000)||(fl+P.uf)>=7) fi.push("연결송수관 — 5층 이상·6,000㎡ 이상 또는 지하 포함 7층 이상");
+    if(ta>=5000) fi.push("상수도 소화용수 — 연면적 5,000㎡ 이상");
+    if(fl>=30||P.ht>=120||ta>=200000||(u==="공동주택"&&(fl>=50||P.ht>=200))) fi.push("성능위주설계 대상 — 30층·120m 이상(아파트 50층·200m) 또는 연면적 20만㎡ 이상");
+    var fireSt = FIRE_ST[S.gu]||FIRE_ST["일산동구"];
+    if(fi.length) C.push({g:"duty",n:"소방시설",st:"info",v:fi.length+"개 항목",calc:fi.map(function(x,i){return (i+1)+". "+x;}).join("\n"),d:"세부 층별 면적·수용인원에 따라 추가될 수 있습니다. 건축허가 동의: "+fireSt,src:[L("law","소방시설법 시행령 제7조·별표4",LAW.fire)]});
   }
-  // 장애인 편의시설
-  var accUse=/근린|판매|업무|의료|교육|운동|문화|숙박/.test(P.use)||P.use==="공동주택";
-  if(accUse&&P.ta>0) C.push({g:"duty",n:"장애인 등 편의시설",st:"info",v:"대상 여부 확인",calc:"용도 '"+P.use+"'는 편의증진법상 대상시설 범주에 해당할 수 있습니다.\n(세부 용도·바닥면적 기준: 시행령 별표1)",d:"대상인 경우 주출입구 접근로, 장애인 전용 주차구획, 승강기, 화장실 등 설치 및 사용승인 전 적합성 확인이 필요합니다.",src:[L("law","장애인등편의법 시행령 별표1",LAW.acc)]});
-  // 에너지
-  if(P.ta>=500){
-    var en=["에너지절약계획서 제출 (연면적 합계 500㎡ 이상)"];
-    if(P.ta>=1000) en.push("제로에너지건축물 인증 대상 여부 확인 (민간 연면적 1,000㎡ 이상 등 단계적 의무화)");
-    C.push({g:"duty",n:"에너지 절약 설계",st:"info",v:P.ta>=1000?"ZEB 인증 검토":"계획서 제출",calc:en.join("\n"),d:ord.green||"",src:[L("law","녹색건축법 시행령 제10조",LAW.green+"/제10조")]});
+  // 장애인 등 편의시설 — 장애인등편의법 시행령 별표1 (research/07)
+  var acc=accTarget(P);
+  if(acc) C.push({g:"duty",n:"장애인 등 편의시설",st:acc.yes?"warn":"ok",v:acc.yes?"설치 대상":"대상 아님",calc:acc.text,d:acc.yes?"주출입구 접근로, 장애인 전용 주차구획, 출입구·복도, 승강기(해당 시), 화장실 등 설치와 사용승인 전 적합성 확인이 필요합니다.":"",src:[L("law","장애인등편의법 시행령 별표1",LAW.acc)]});
+  // 에너지 — 녹색건축법 시행령 제10조, 에너지절약설계기준 (research/07)
+  if(P.ta>=500&&grow){
+    var en=["에너지절약계획서 제출 — 연면적 합계 500㎡ 이상 (녹색건축법 시행령 제10조)"];
+    if(P.ta>=1000) en.push("에너지절약설계기준 필수항목 적용 — 연면적 1,000㎡ 이상 신축·재축·별동증축 (에너지성능지표 65점 이상)");
+    en.push("제로에너지건축물 인증은 공공건축물만 의무 — 민간 건축물은 의무 없음");
+    C.push({g:"duty",n:"에너지 절약 설계",st:"info",v:P.ta>=1000?"설계기준 필수항목":"계획서 제출",calc:en.join("\n"),d:ord.green||"",src:[L("law","녹색건축법 시행령 제10조",LAW.green+"/제10조")]});
   }
   // 미술작품
   if(ord.artwork&&P.ta>=ord.artwork.minArea&&!/단독주택/.test(P.use)){
@@ -355,6 +364,115 @@ function judge(S,P,fx){
   if(ch.length) C.push({g:"duty",n:"부담금 (개략)",st:"info",v:ch.length+"개 항목",calc:ch.map(function(x,i){return (i+1)+". "+x;}).join("\n"),d:"부과 여부·금액은 사업계획 확정 후 각 부과기관에서 산정합니다.",src:[L("law","학교용지법 제5조",LAW.school+"/제5조"),L("ord","고양시 하수도 사용 조례","https://www.law.go.kr/자치법규/고양시하수도사용조례")]});
 
   return C;
+}
+
+// ─────────────────────────────────────────────
+// 지구단위계획 — research/04 (34개 구역, 시행지침·결정고시)
+//   서버 폴리곤(이름 없음) → polyMap 후보 ∩ 법정동 후보 → 구역 확정
+// ─────────────────────────────────────────────
+var DUPD=(typeof GY_DATA!=="undefined"&&GY_DATA.dup)||null;
+function dupDistricts(objectids,dong,jibun){
+  if(!DUPD) return [];
+  var poly=[]; (objectids||[]).forEach(function(o){ (DUPD.polyMap[o]||[]).forEach(function(i){ if(poly.indexOf(i)<0) poly.push(i); }); });
+  var byDong=[]; DUPD.districts.forEach(function(z,i){ if((z.dongs||[]).indexOf(dong)>=0) byDong.push(i); });
+  var spotOk=function(i){ var sp=DUPD.spot&&DUPD.spot[i]; return sp && sp.dong===dong && String(jibun||"").indexOf(sp.jibunPrefix)===0; };
+  var isSpot=function(i){ return !!(DUPD.spot&&DUPD.spot[i]); };
+  // 특별계획구역 같은 지점형 구역은 지번이 맞을 때만 남김
+  poly=poly.filter(function(i){ return !isSpot(i)||spotOk(i); });
+  byDong=byDong.filter(function(i){ return !isSpot(i)||spotOk(i); });
+  var both=poly.filter(function(i){return byDong.indexOf(i)>=0;});
+  var base=both.length?both:poly;            // 폴리곤으로 확인된 구역
+  var spots=base.filter(isSpot), plain=base.filter(function(i){return !isSpot(i);});
+  if(base.length&&plain.length<=1) // 확정: 일반 구역 1개 (+ 그 안의 특별계획구역)
+    return spots.concat(plain).map(function(i){ return {idx:i,z:DUPD.districts[i],certain:true}; });
+  var cands=base.length?base:byDong;         // 미확정: 후보만 제시
+  return cands.map(function(i){ return {idx:i,z:DUPD.districts[i],certain:false}; });
+}
+function blockMatches(b,P,zone){
+  var t=(b.type||"")+" "+(b.use||""), u=P.use;
+  var useOk = u==="단독주택"?/단독/.test(t) : u==="공동주택"?/아파트|공동|연립|복합|주상/.test(t) : /근린생활/.test(u)?/근린생활|단독|상업|점포/.test(t) : /판매|업무|숙박|문화|의료|운동|교육/.test(u)?/상업|업무|복합|지원|공공|교육|의료|종교/.test(t) : /공장|창고/.test(u)?/산업|공장|도시지원|자족|기업|유통|물류/.test(t) : true;
+  var zz=(b.zone||"")+" "+(b.type||"");
+  var zoneOk = !zone || !b.zone ? true : (zone.indexOf("상업")>=0? (/상업/.test(zz)&&(zz.indexOf(zone.replace("상업",""))>=0||!/근린|일반|중심/.test(zz))) : /주거/.test(zone)? /주거|단독|연립|아파트|근린생활/.test(zz) : true);
+  return useOk&&zoneOk;
+}
+function floorsMax(s){ if(!s) return null; var m=String(s).match(/최고\s*(\d+)\s*층|(\d+)\s*층\s*이하/); return m?+(m[1]||m[2]):null; }
+function dupCheck(S,P,fx){
+  var out=[], n1=fx.n1, list=S.dupList||[];
+  if(!list.length) return out;
+  if(!list[0].certain){
+    out.push({g:"site",n:"지구단위계획구역 — 구역 확인 필요",st:"warn",v:"후보 "+list.length+"곳",
+      calc:"이 필지가 속한 지구단위계획구역을 자동으로 특정하지 못했습니다.\n같은 동의 조사된 구역(후보): "+list.map(function(c){return c.z.name.replace(/\(.*$/,"").trim();}).join(", "),
+      d:"토지이음 토지이용계획에서 구역명과 결정도를 확인한 뒤, 상단 후보 버튼에서 해당 구역의 블록 기준을 보세요. 조사 범위 밖의 소규모 구역일 수도 있습니다.",
+      src:[L("auto","토지이음에서 구역 확인","https://www.eum.go.kr/web/ar/lu/luLandDet.jsp?pnu="+S.pnu+"&mode=search&isNoScr=script&selGbn=umd")]});
+    return out;
+  }
+  list.slice(0,3).forEach(function(c){
+    var z=c.z, sa=+S.area||0, bcr=sa?P.ba/sa*100:0, far=sa?P.fa/sa*100:0;
+    var cand=(z.blocks||[]).filter(function(b){return blockMatches(b,P,S.zone);});
+    var probs=[], lines=[];
+    cand.slice(0,6).forEach(function(b){
+      var fm=b.far&&(b.far.max||b.far.allowed||b.far.base), fl=floorsMax(b.floors);
+      lines.push("· "+b.type+(b.zone?" ["+b.zone+"]":"")+" — 건폐율 "+(b.bcr!=null?b.bcr+"%":"조례 준용")+" · 용적률 "+(fm?(b.far.base&&b.far.max&&b.far.base!==b.far.max?b.far.base+"/"+(b.far.allowed||"-")+"/"+b.far.max+"%(기준/허용/상한)":fm+"%"):"조례 준용")+" · "+(b.floors||"층수 별도 없음"));
+      if(cand.length===1){
+        if(b.bcr!=null&&P.ba&&bcr>b.bcr) probs.push("건폐율 "+n1(bcr)+"% > "+b.bcr+"%");
+        if(fm&&P.fa&&far>fm) probs.push("용적률 "+n1(far)+"% > "+fm+"%");
+        if(fl&&P.fl&&P.fl>fl) probs.push("층수 "+P.fl+"층 > "+fl+"층");
+      }
+    });
+    var b0=cand[0];
+    // 필지의 실제 블록은 결정도로만 확정되므로 비교 결과는 '해당 블록이라면'으로 안내
+    if(probs.length) probs=probs.map(function(p){ return "'"+b0.type+"' 블록이라면 "+p; });
+    var st="warn";
+    var v=probs.length?"해당 블록이면 기준 초과":(cand.length?cand.length+"개 블록 유형 해당 가능":"블록 기준 확인 필요");
+    var dec=z.decision||{};
+    out.push({g:"site",n:"지구단위계획 — "+z.name.replace(/\(.*$/,"").trim(),st:st,v:v,
+      calc:(lines.length?lines.join("\n"):"이 용도에 해당하는 블록 기준을 찾지 못했습니다.")+(probs.length?"\n\n✕ "+probs.join("\n✕ "):""),
+      d:(b0&&(b0.allowed||b0.prohibited)?"허용: "+String(b0.allowed||"-").slice(0,220)+(b0.prohibited?"\n불허: "+String(b0.prohibited).slice(0,160):"")+"\n":"")+(b0&&b0.shop?"점포 비율: "+b0.shop+"\n":"")+(b0&&b0.hh?"가구 수: "+b0.hh+"\n":"")+(b0&&b0.notes?"비고: "+String(b0.notes).slice(0,200)+"\n":"")+
+        "\n필지가 속한 블록(획지)은 결정도로 확인해야 정확합니다."+(z.status==="partial"?" 이 구역은 조사 범위가 일부입니다.":"")+(dec.no?"\n최신 결정: "+dec.no+" ("+(dec.date||"")+")":""),
+      src:[L("auto","지구단위계획구역: 토지이용규제")].concat(dec.url?[L("ord",dec.no||"결정 고시",dec.url)]:[]).concat(typeof z.guideline==="string"&&/^https?:/.test(z.guideline.split(" ")[0])?[L("ord","시행지침",z.guideline.split(" ")[0])]:[])});
+  });
+  if(DUPD&&DUPD.renewal&&list.some(function(c){return /일산 지구단위계획\(일산신도시/.test(c.z.name);}))
+    out.push({g:"site",n:"일산신도시 재정비 (노후계획도시특별법)",st:"info",v:"기본계획 수립 · 특별정비구역 미지정",calc:String(DUPD.renewal.note||"").slice(0,600),src:[L("law","노후계획도시정비법","https://www.law.go.kr/법령/노후계획도시정비및지원에관한특별법")]});
+  return out;
+}
+
+// ─────────────────────────────────────────────
+// 군사기지·군사시설 보호구역 — research/07 (군사기지법 제9·10·13·14조, 영 제13·14조)
+//   토지이용규제 명칭의 "(고도 N m 위임지역)" = 관할부대가 고양시에 협의를 위탁한 높이 한도
+// ─────────────────────────────────────────────
+var DELEG_RE=/\((해발)?고도\s?(\d+(?:\.\d+)?)\s?m\s?(위임지역)?\)/;
+var AIR_RE=/위탁고도\s?:?\s?(\d+)\s?-\s?(\d+)\s?m/;
+function militaryCheck(S,P,fx){
+  var out=[], names=(S.regNames||[]).filter(function(n){return /보호구역|비행안전|대공방어|민간인통제/.test(n)&&!/문화|유산|상수원|수산|어린이|노인|장애인|생태|습지|야생|교육환경|상대보호|절대보호/.test(n);});
+  if(!names.length) return out;
+  var lawSrc=L("law","군사기지법 제13조·제14조",LAW.mil+"/제13조"), ht=P.ht||0, grow=/신축|증축|개축|재축/.test(P.act);
+  var seen={};
+  names.forEach(function(nm){
+    var base=nm.replace(/<[^>]*>/g,"").trim(); if(seen[base]) return; seen[base]=1;
+    var m=base.match(DELEG_RE), deleg=m?parseFloat(m[2]):null, sea=m&&!!m[1];
+    var partial=m&&names.some(function(x){ return x!==nm && x.replace(/\([^)]*위임지역\)/,"").replace(/<[^>]*>/g,"").trim()===base.replace(/\([^)]*위임지역\)/,"").trim(); });
+    var st="warn", v="관할부대 협의", calc=base, d="";
+    if(/^통제보호구역|민간인통제/.test(base)){ st="fail"; v="원칙적 신축 금지"; d="통제보호구역에서는 건축물 신축이 원칙적으로 금지됩니다. 예외(공공사업, 관할부대장이 인정한 창고·동식물관련시설·농업용 가설건축물 200㎡ 이하)도 협의가 필요합니다(법 제9조①1호)."; }
+    else if(/^비행안전제1구역/.test(base)){ st="fail"; v="건축 불가"; d="비행안전 제1구역(장애제거구역)은 군사시설 외 건축물·공작물을 설치할 수 없습니다(법 제10조①1호)."; }
+    else if(/^비행안전제\d구역/.test(base)){ v="표면높이 확인·협의"; d="구역별 장애물 표면높이 이상은 건축할 수 없고, 저촉 우려가 있으면 관할부대 협의 대상입니다(법 제10조, 제13조②1호). 표면높이는 기지 기준표면에서 계산하므로 부대 확인이 필요합니다."+(/헬기/.test(base)?"\n수색비행장은 2026.9.29. 헬기전용 작전기지로 변경되어 제1~3구역만 적용됩니다(국방부 고시 제2026-35호).":""); }
+    else if(/^대공방어협조구역/.test(base)){ var a=base.match(AIR_RE); v=a?"위탁고도 "+a[1]+"~"+a[2]+"m":"높이 협의"; d="위탁고도 이하는 고양시 자체 처리, 초과하면 관할부대 협의(법 제13조②2호)."; if(a&&ht&&ht<=+a[1]){ st="ok"; v="위탁고도 이하 — 협의 생략"; } }
+    else if(/폭발물/.test(base)){ v="관할부대 협의 (개축·대수선 포함)"; d="폭발물 관련 제한보호구역은 개축·재축·대수선·가설건축물·건축신고·용도변경신고도 협의 대상입니다(영 제13조③ 단서)."; }
+    else if(/^제한보호구역/.test(base)){
+      if(deleg!=null){
+        if(!ht){ v="높이 입력 필요 ("+(sea?"해발 ":"")+deleg+"m 위임)"; d="계획 높이를 입력하면 협의 필요 여부를 판정합니다."; }
+        else if(sea){ v="해발 "+deleg+"m 기준 확인"; d="해발고도 기준 위임입니다. 지반 표고 + 건물 높이 ≤ "+deleg+"m 이면 고양시 자체 처리, 초과하면 관할부대 협의."; }
+        else if(ht<=deleg){ st="ok"; v="위임고도 이하 — 군 협의 생략"; d="계획 높이 "+ht+"m ≤ 위임고도 "+deleg+"m → 관할부대 협의 없이 고양시가 자체 처리합니다(법 제14조, 영 제14조)."; }
+        else { v="위임고도 초과 — 부대 협의"; d="계획 높이 "+ht+"m > 위임고도 "+deleg+"m → 관할부대 협의 필요(통상 30일, 사전상담 시 20일)."; }
+        if(partial) d+="\n※ 같은 구역이 위임 없이도 표시되어 있어 필지 일부만 위임지역일 수 있습니다.";
+      }else{
+        v=grow?"부대 협의 (위임고도 확인)":v;
+        d=(grow?"신축·증축·공작물 설치·용도변경은 관할부대 협의 대상입니다(법 제13조①).\n단, 토지이음 토지이용계획에 '(고도 N m 위임지역)'이 표기된 필지는 그 높이 이하면 군 협의 없이 고양시가 처리합니다. 고양시 위임고도는 지역별 8~85m입니다(덕은동 8m, 용두·현천동 15m, 오금동 20m 등).":"")+"\n개축·재축·대수선·가설건축물·건축신고·용도변경신고는 협의가 생략됩니다(영 제13조③). 협의 기간 통상 30일.";
+        if(!grow&&!/폭발물/.test(base)){ st="info"; v="협의 생략 대상"; }
+      }
+    }
+    out.push({g:"site",n:"군사시설 보호구역",st:st,v:v,calc:calc,d:d,src:[L("auto","토지이용규제정보"),lawSrc,L("auto","토지이음에서 위임고도 확인","https://www.eum.go.kr/web/ar/lu/luLandDet.jsp?pnu="+S.pnu+"&mode=search&isNoScr=script&selGbn=umd")]});
+  });
+  return out;
 }
 
 // ─────────────────────────────────────────────
@@ -427,6 +545,32 @@ function gbCheck(S,P,fx){
   return out;
 }
 
+// 관할 소방서 (research/07, 2026-10-21 소방서 누리집)
+var FIRE_ST={
+  "덕양구":"고양소방서 화재예방과 소방민원팀 ☎ 031-931-0321",
+  "일산동구":"일산소방서 화재예방과 소방민원팀 ☎ 031-930-0321",
+  "일산서구":"일산소방서 화재예방과 소방민원팀 ☎ 031-930-0321"
+};
+// 장애인등편의법 시행령 별표1 대상 기준 (세부용도 → [기준면적㎡ 또는 0=면적무관 또는 null=대상아님, 설명])
+var ACC=[
+  [/소매점/,50,"1종근생 소매점: 바닥면적 50㎡ 이상"],[/휴게음식점·제과점 300㎡ 미만/,50,"휴게음식점·제과점: 50㎡ 이상"],[/휴게음식점·제과점 300㎡ 이상/,0,"휴게음식점·제과점 300㎡ 이상: 전부"],
+  [/이용원|미용원/,50,"이용원·미용원: 50㎡ 이상"],[/의원/,0,"의원·치과의원·한의원: 면적 무관 (100㎡ 미만은 증축 등만)"],[/지역아동센터|공공시설/,0,"지역아동센터·공공시설: 면적 무관"],
+  [/일반음식점/,50,"일반음식점: 50㎡ 이상"],[/학원·교습소 500/,0,"학원·교습소(2종근생): 전부"],[/독서실|동물병원|안마시술소/,0,"면적 무관"],
+  [/^공연장$|관람장/,0,"공연장·관람장: 면적 무관"],[/집회장|전시장/,500,"집회장·전시장: 500㎡ 이상"],[/동·식물원/,300,"동·식물원: 300㎡ 이상"],[/^종교시설$/,500,"종교집회장: 500㎡ 이상"],
+  [/도매시장|소매시장|상점/,1000,"판매시설: 1,000㎡ 이상"],[/병원/,0,"병원: 면적 무관"],[/^학교$/,0,"학교: 면적 무관"],[/^학원$/,500,"학원 등: 500㎡ 이상"],[/도서관/,1000,"도서관: 1,000㎡ 이상"],
+  [/아동관련|노인복지/,0,"노유자시설: 면적 무관"],[/운동시설/,500,"운동시설: 500㎡ 이상"],[/공공업무/,0,"공공청사: 면적 무관"],[/일반업무|오피스텔/,500,"일반업무시설·오피스텔: 500㎡ 이상"],
+  [/관광숙박/,0,"관광숙박시설: 전부"],[/일반숙박|생활숙박/,"room30","일반·생활숙박: 객실 30실 이상"],[/^주차장$/,0,"주차장: 면적 무관"],[/방송통신/,1000,"방송통신시설: 1,000㎡ 이상"],[/장례/,500,"장례식장: 500㎡ 이상"],
+  [/아파트/,0,"아파트: 전부"],[/연립주택|다세대주택/,"hh10","연립·다세대: 10세대 이상"],[/기숙사/,"p30","기숙사: 30인 이상"]
+];
+function accTarget(P){
+  var key=P.sub||P.use;
+  for(var i=0;i<ACC.length;i++){ var r=ACC[i]; if(!r[0].test(key)) continue;
+    var yes = r[1]===0 ? true : r[1]==="hh10" ? P.hh>=10 : r[1]==="room30" ? (P.hh?P.hh>=30:null) : r[1]==="p30" ? null : P.ta>=r[1];
+    return {yes:yes!==false, text:r[2]+(yes===null?" — 세대·객실·인원 수 입력 시 판정":"")+"\n계획: "+key+(P.ta?" · "+n0x(P.ta)+"㎡":"")+(P.hh?" · "+P.hh+"세대(실)":"")};
+  }
+  return /단독주택|공장|창고|축사/.test(key)? null : {yes:false,text:"'"+key+"'은(는) 별표1 대상시설 목록에 없거나 규모 기준 미만으로 보입니다 (세부 확인 권장)"};
+}
+
 function parkingCalc(P){
   var r=parking.rules[P.use]||parking.rules["기타"];
   if(P.use==="공동주택"){
@@ -465,7 +609,7 @@ function consults(S){
   if(F.culture&&F.culture.length) cs.push({d:d("문화유산","문화유산 담당 부서")+" / 국가유산청",r:"문화유산 현상변경·영향 검토",q:"필수",law:"문화유산의 보존 및 활용에 관한 법률",art:"제35조"});
   if(F.facility&&F.facility.length) cs.push({d:d("도시계획","도시계획과"),r:"도시·군계획시설 저촉 검토",q:"필수",law:"국토의 계획 및 이용에 관한 법률",art:"제64조"});
   if(F.river&&F.river.length) cs.push({d:d("하천","하천 담당 부서"),r:"하천구역 점용허가",q:"필수",law:"하천법",art:"제33조"});
-  cs.push({d:d("소방","관할 소방서"),r:"건축허가 동의·소방시설 협의",q:"해당 시",law:"소방시설 설치 및 관리에 관한 법률",art:"제6조"});
+  cs.push({d:FIRE_ST[S.gu]||d("소방","관할 소방서"),r:"건축허가 동의·소방시설 협의",q:"해당 시",law:"소방시설 설치 및 관리에 관한 법률",art:"제6조"});
   cs.push({d:d("도로","도로 담당 부서"),r:"도로점용·진출입로·접도 확인",q:"해당 시",law:"도로법",art:"제61조"});
   cs.push({d:d("하수","하수도 담당 부서"),r:"배수설비·개인하수처리시설·원인자부담금",q:"해당 시",law:"하수도법",art:"제27조"});
   cs.push({d:d("교통","교통 담당 부서"),r:"교통영향평가·부설주차장",q:"해당 시",law:"도시교통정비 촉진법",art:"제15조"});
@@ -719,7 +863,9 @@ GYX.authority=function(S,P){
   var city = F.gb || P.fl>=7 || P.ta>2000;
   var t = city ? "허가권자: 고양특례시장 — 본청 건축정책과 처리 (7층 이상·연면적 2천㎡ 초과 또는 개발제한구역, ☎ 031-8075-3130)"
                : "허가권자: "+gu+"청장 — "+gu+"청 건축과 처리 (6층 이하·연면적 2천㎡ 이하, ☎ "+(GU_TEL[gu]||"")+")";
-  if(P.fl>=21||P.ta>=100000) t+="\n※ 21층 이상 또는 연면적 10만㎡ 이상: 건축법 제11조② 도지사 사전승인 대상 여부 확인";
+  // 특례시: 도지사 사전승인은 51층 이상 또는 연면적 20만㎡ 이상만 (지방분권균형발전법 제59조제2호)
+  if(P.fl>=51||P.ta>=200000) t+="\n※ 51층 이상 또는 연면적 20만㎡ 이상: 경기도지사 사전승인 대상 (특례시 — 지방분권균형발전법 제59조제2호, 건축법 제11조②)";
+  else if(P.fl>=21||P.ta>=100000) t+="\n※ 21층·10만㎡ 이상이지만 고양시는 특례시라 도지사 사전승인 없이 시장이 처리 (51층·20만㎡ 미만)";
   return {text:t+"\n근거: 고양시 사무위임 조례 별표1 (건축정책과 1.1~1.3)",city:city};
 };
 GYX.authorityRows=[
@@ -745,7 +891,7 @@ departments["개발제한"]="도시계획정책관 개발제한구역관리팀 (
 return {
   brand:null, src:src, national:national, zones:zones, useZone:useZone, ord:ord, parking:parking, departments:departments,
   lawFor:lawFor, regNote:regNote, judge:judge, effective:effective,
-  sub:SUB, subByKey:subByKey, subParents:subParents, authorityHtml:authorityHtml, consults:consults, flow:flow, deemed:deemed, sources:sources, X:GYX,
+  sub:SUB, subByKey:subByKey, subParents:subParents, dupDistricts:dupDistricts, dup:DUPD, authorityHtml:authorityHtml, consults:consults, flow:flow, deemed:deemed, sources:sources, X:GYX,
   // 시연용 필지 — 용도지역·규제 유형별 (2026-10-21 토지이용규제 조회 기준)
   samples:[
     {label:"킨텍스 · 일반상업",addr:"일산서구 대화동 2600"},

@@ -30,9 +30,9 @@ jobs:
           $src = Join-Path $env:GITHUB_WORKSPACE 'permit_goyang'
           $expected = [ordered]@{
             'assets/app.css' = '673afe222abeca6b44359a767a003849c5a7e97061ec826580787cfb6d391ef5'
-            'assets/app.js' = '4747b01b49d013f72f3e57d2dfd8c5e2715cb62b8c6bd98ac6c61e6fbcbd147a'
-            'assets/gy_data.js' = 'ec4e6f702e84a6ce1ccf1de6d05b74c2ab60350ca508213dde3e8411f055652d'
-            'assets/rules.js' = '018698e41244ac9685c3ba42e6f05c9fb440eec64dddc717cab135a24ac2fa38'
+            'assets/app.js' = '18bb46f1c28e0093cd90281065be2672d911e640404f9ae71a5820eaf45d497f'
+            'assets/gy_data.js' = '5d7e33cf0fd17fb0ff62934802a2c443f1459b1caba3ae87cb4b21016d647718'
+            'assets/rules.js' = '90c672d9e10c607e3017c0d39741bd19365b1b1b77510168efbcfef3f136c351'
             'index.html' = '22b410ebdc0c8fd346cc443979af89df6acaad740ed23e00f4a9b6d644adbbd0'
             'web.config' = '216e727d9ae34fdf499be4fa06b962ef68f91cd3e8a1a7c1003c6f840e9af398'
           }

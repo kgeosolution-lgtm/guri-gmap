@@ -275,6 +275,7 @@ function loadParcel(feat,lon,lat,zoomTo){
     $("tab-near").innerHTML=""; gfxNear.removeAll();
     $("intro").hidden=true; $("result").hidden=false; switchTab("review"); $("panelScroll").scrollTop=0;
     if(!S.zone||!S.price) zoneFallback();
+    if(S.flags.dup.length) resolveDup();
   }).catch(function(e){ loading(false); console.error(e); toast("필지 정보 조회에 실패했습니다"); });
 }
 
@@ -308,7 +309,7 @@ function analyzeZones(){
   S.zm=S.zone?GY.effective(S.zone,names):null;
   S.flags={
     gb: names.some(function(n){return n.indexOf("개발제한구역")>=0;}),
-    military: names.filter(function(n){return /군사|보호구역|비행안전|비행장|대공방어/.test(n)&&!/문화|유산|상수원|수산|어린이|노인|장애인|생태|습지|야생/.test(n);}),
+    military: names.filter(function(n){return /군사|보호구역|비행안전|비행장|대공방어/.test(n)&&!/문화|유산|상수원|수산|어린이|노인|장애인|생태|습지|야생|교육환경|상대보호|절대보호/.test(n);}),
     culture: names.filter(function(n){return /문화재|문화유산|국가유산|역사문화/.test(n);}),
     water: names.filter(function(n){return /상수원|수질보전|수변구역/.test(n);}),
     dup: names.filter(function(n){return /지구단위계획/.test(n);}),
@@ -324,6 +325,24 @@ function analyzeZones(){
   };
 }
 function uniq(a){ return a.filter(function(v,i){return a.indexOf(v)===i;}); }
+// 지구단위계획 구역 식별: 서버 폴리곤(objectid) + 법정동 → rules.js dupDistricts
+function resolveDup(){
+  var pnu=S.pnu, g=S.geom, pt=(g&&g.centroid&&E.ge.contains(g,g.centroid))?g.centroid:g;
+  layers.dup.queryFeatures({geometry:pt,spatialRelationship:"intersects",outFields:["objectid"],returnGeometry:false}).then(function(fs){
+    if(!S||S.pnu!==pnu) return;
+    S.dupList=GY.dupDistricts(fs.features.map(function(f){return f.attributes.objectid;}),S.dong,S.jibun);
+    renderParcel();
+  }).catch(function(e){ console.warn("지구단위계획 조회 실패",e); });
+}
+function dupModal(i){
+  var c=(S.dupList||[])[i]; if(!c) return; var z=c.z, dec=z.decision||{};
+  var h='<h3>'+esc(z.name)+'</h3><div class="sub">'+esc((z.gu||[]).join("·"))+' · '+esc((z.dongs||[]).join(", "))+(dec.no?' · 최신 결정 '+esc(dec.no)+' ('+esc(dec.date||"")+')':'')+(z.status==="partial"?' · <b style="color:var(--warn)">일부 조사</b>':'')+'</div>';
+  h+='<table class="tb"><tr><th>블록 유형</th><th>건폐율</th><th>용적률</th><th>층수·높이</th></tr>';
+  (z.blocks||[]).forEach(function(b){ var f=b.far||{};
+    h+='<tr><td><b>'+esc(b.type)+'</b>'+(b.zone?'<br><small style="color:var(--muted)">'+esc(b.zone)+'</small>':'')+(b.allowed?'<br><small>허용: '+esc(String(b.allowed).slice(0,120))+'</small>':'')+'</td><td>'+(b.bcr!=null?b.bcr+'%':'<small>조례</small>')+'</td><td>'+(f.max||f.allowed||f.base?esc([f.base,f.allowed,f.max].filter(Boolean).join(" / "))+'%':'<small>조례</small>')+'</td><td><small>'+esc(b.floors||b.height||"-")+'</small></td></tr>'; });
+  h+='</table><p class="hint" style="margin-top:10px">필지가 속한 블록은 결정도로 확인하세요. 「조례」는 시행지침이 도시계획 조례를 준용하는 항목입니다.'+(dec.url?' <a href="'+esc(dec.url)+'" target="_blank" rel="noopener">결정 고시 ›</a>':'')+'</p>';
+  openModal(h);
+}
 function zoneFallback(){
   getJson(ZONE_PROXY+"?pnu="+S.pnu).then(function(d){
     if(!S||d.pnu!==S.pnu) return;
@@ -365,13 +384,18 @@ function renderParcel(){
   h+='</div>';
   // 경고 배너
   var al=[];
-  if(p.flags.gb) al.push(["fail","⛔","개발제한구역","원칙적으로 건축·형질변경 금지. 개발제한구역법상 허용 행위만 허가 가능"]);
+  if(p.flags.gb) al.push(["fail","⛔","개발제한구역","시행령 별표1의 허용 시설·규모만 가능 (주택·근생은 3층·232㎡ 등) — 사전검토에서 계획별로 판정합니다"]);
   if(p.flags.facility.length){ var fullF=p.flags.facility.some(function(x){return x.c==="포함";});
     al.push([fullF?"fail":"warn","⚠","도시·군계획시설 "+(fullF?"포함":"일부 저촉"),"시설 부지는 결정 목적 외 건축 제한 — "+p.flags.facility.slice(0,3).map(function(x){return x.n+"("+x.c+")";}).join(", ")]); }
-  if(p.flags.military.length) al.push(["warn","🛡","군사시설 보호구역","관할 부대 협의 필요 — "+p.flags.military.slice(0,2).join(", ")]);
+  if(p.flags.military.length){ var dm=p.flags.military.map(function(n){var m=n.match(/\((해발)?고도\s?(\d+(?:\.\d+)?)\s?m/);return m?(m[1]?"해발 ":"")+m[2]+"m":null;}).filter(Boolean);
+    al.push(["warn","🛡","군사시설 보호구역",(dm.length?"위임고도 "+dm.join("·")+" 이하는 고양시 자체 처리, 초과 시 관할부대 협의":"신축·증축 등은 관할부대 협의 필요")+" — "+p.flags.military[0].replace(/<[^>]*>/g,"")]); }
   if(p.flags.culture.length) al.push(["warn","🏛","문화유산 영향 구역","국가유산 현상변경 검토 필요 — "+p.flags.culture.slice(0,2).join(", ")]);
-  if(p.flags.dup.length) al.push(["info","ℹ","지구단위계획구역","지구단위계획 결정 내용(용도·건폐율·용적률·높이)이 우선 적용됩니다"]);
-  al.forEach(function(a){ h+='<div class="alert '+a[0]+'"><span class="a-ico">'+a[1]+'</span><div><b>'+a[2]+'</b>'+esc(a[3])+'</div></div>'; });
+  var dupHtml="";
+  if(p.flags.dup.length){
+    if(p.dupList&&p.dupList.length) dupHtml=p.dupList.slice(0,3).map(function(c,i){ return '<button class="chip" style="margin:6px 4px 0 0;padding:4px 10px;font-size:12px" data-dup="'+i+'">'+esc(c.z.name.replace(/\(.*$/,"").trim())+(c.certain?'':' (후보)')+' ›</button>'; }).join("");
+    al.push(["info","ℹ","지구단위계획구역","결정 내용(용도·건폐율·용적률·높이)이 조례보다 우선 적용됩니다"+(p.dupList&&!p.dupList.length?" — 조사된 34개 구역 밖이니 토지이음에서 결정도를 확인하세요":""),true]);
+  }
+  al.forEach(function(a){ h+='<div class="alert '+a[0]+'"><span class="a-ico">'+a[1]+'</span><div><b>'+a[2]+'</b>'+esc(a[3])+(a[4]?'<div>'+dupHtml+'</div>':'')+'</div></div>'; });
   $("parcelCard").innerHTML=h;
 }
 function kpi(label,val,unit,note){ return '<div class="kpi"><span>'+label+'</span><b>'+val+'<small>'+unit+'</small></b><em>'+esc(note||"")+'</em></div>'; }
@@ -669,8 +693,9 @@ function help(){
 
 // ═══ 이벤트 ═══
 document.addEventListener("click",function(e){
-  var t=e.target.closest("[data-act],[data-tab],[data-gu],[data-bm],[data-close],.chip,[data-near],[data-sample]");
+  var t=e.target.closest("[data-act],[data-tab],[data-gu],[data-bm],[data-close],.chip,[data-near],[data-sample],[data-dup]");
   if(!t) return;
+  if(t.dataset.dup!==undefined){ dupModal(+t.dataset.dup); return; }
   if(t.dataset.close!==undefined||t.id==="modal"){ closeModal(); return; }
   if(t.dataset.tab){ switchTab(t.dataset.tab); return; }
   if(t.dataset.gu){ goGu(t.dataset.gu); return; }
