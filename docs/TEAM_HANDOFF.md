@@ -745,3 +745,11 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 모바일(≤640px): 카드 기본 숨김, 아이콘 버튼으로 열고 닫음(기존 동작). `toggleOvBar` 는 `show` 클래스만 바꾸므로 데스크톱에선 영향 없음(로드뷰 켤 때도 카드 유지).
 - 브랜치: `work/kangmina-ovbar-desktop` (base `design/service-home-refresh` dd90daf).
 - 검증: aerial 인라인 스크립트 `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.
+
+## 2026-10-21 모바일 수정: 치안안심 0건이면 다시 받기, 로드뷰 안내 문구 (담당: 강민아)
+
+- 증상: 모바일에서 치안안심이 안심귀갓길 칩 하나(0건)만 보임. 데스크톱은 정상 → 첫 요청이 실패(느린 망·일시 오류)하면 `dataCache[url]=[]` 가 남아 다시 받지 않고, `dynBuilt` 도 남아 종류별 칩이 영영 안 만들어지던 구조.
+- 조치: 실패한 자료는 빈 배열에 `__failed` 표시 → `loadGroupData` 진입 때 캐시를 지우고 다시 받음. `buildDynThemes` 는 0건이면 `dynBuilt` 를 남기지 않고 캐시를 지우며, 같은 그룹에 머물러 있으면 3초 뒤 자동 재시도(최대 2번, 안내 토스트), 그래도 안 되면 "새로고침" 안내.
+- 항공사진 비교 로드뷰 안내: 모바일(≤640px)은 패널이 아래에 열리므로 "로드뷰가 아래쪽에 열려요"로.
+- 브랜치: `work/kangmina-mobile-fixes` (base `design/service-home-refresh` 27000bc).
+- 검증: 치안안심 하네스(0건이면 dynBuilt 없음·캐시 삭제·재시도 횟수, 실패 표시 처리 정적 검사) 통과, theme/aerial `node --check`, `npm run build:deploy`, prettier, `git diff --check` 통과.

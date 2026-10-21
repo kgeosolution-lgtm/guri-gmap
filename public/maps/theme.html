@@ -1924,10 +1924,16 @@ function safetyThemeFor(value,url,field,idx,constFields){
 async function buildDynThemes(g,loader){
   const G=GROUPS[g]; if(!G||!G.dyn||G.dynBuilt) return;
   const url=G.dyn.url; const pseudo={src:{url}};
-  try{ await loader(pseudo); }catch(e){ dataCache[url]=[]; console.warn('[치안안심] 불러오기 실패',String((e&&e.message)||e)); }
-  const rows=dataCache[url]||[]; G.dynBuilt=true;
+  if(dataCache[url]&&dataCache[url].__failed) delete dataCache[url];
+  try{ await loader(pseudo); }catch(e){ dataCache[url]=[]; dataCache[url].__failed=true; console.warn('[치안안심] 불러오기 실패',String((e&&e.message)||e)); }
+  const rows=dataCache[url]||[]; G.dynBuilt=rows.length>0;   /* 0건이면 다음에 다시 만든다 */
   const addExtra=()=>{ Object.assign(G.themes,G.dyn.extra||{}); };   /* 고정 테마(안심귀갓길 등)는 종류별 칩 뒤에 */
-  if(!rows.length){ console.warn('[치안안심] 자료 0건 — 레이어 공개(모든 사용자) 설정과 주소를 확인:',url); try{ toast('치안안심 자료를 불러오지 못했어요. 레이어 공개 설정을 확인해 주세요'); }catch(e){} addExtra(); return; }
+  if(!rows.length){ console.warn('[치안안심] 자료 0건 — 레이어 공개(모든 사용자) 설정과 주소를 확인:',url);
+    delete dataCache[url]; addExtra();
+    G.dynRetry=(G.dynRetry||0)+1;
+    if(G.dynRetry<=2){ try{ toast('치안안심 자료를 불러오는 중이에요. 잠시 뒤 다시 시도해요'); }catch(e){} setTimeout(()=>{ if(curGroup===g&&!G.dynBuilt) setGroup(g,curCat,false); },3000); }   /* 모바일 등에서 첫 요청이 실패하면 3초 뒤 다시(최대 2번) */
+    else { try{ toast('치안안심 자료를 불러오지 못했어요. 잠시 뒤 새로고침해 주세요'); }catch(e){} }
+    return; }
   const keys=Object.keys(rows[0]).filter(k=>!/^__/.test(k)); const norm=k=>String(k).toLowerCase().replace(/[_\s]/g,''); const low=keys.map(norm);
   let field=null; const nDistinct=k=>new Set(rows.map(r=>r[k]).filter(v=>v!=null&&String(v).trim())).size;
   const usable=k=>k&&nDistinct(k)>=2;   /* 값이 한 가지뿐인 항목(예: 구분=구리시시설물)은 건너뛴다 */
@@ -1944,6 +1950,7 @@ async function buildDynThemes(g,loader){
   console.info('[치안안심] 시설 종류 항목 "'+field+'" → '+vals.length+'가지: '+vals.join(', '));
 }
 async function loadGroupData(){
+  Object.values(groupThemes(curGroup)).forEach(t=>{ if(t.src&&dataCache[t.src.url]&&dataCache[t.src.url].__failed) delete dataCache[t.src.url]; });   /* 실패했던 자료는 다시 받는다 */
   const themes=Object.values(groupThemes(curGroup)).filter(t=>t.src);
   const jobs=[];   /* url별 1회 로드 */
   const seen=new Set();
@@ -1993,7 +2000,7 @@ async function loadGroupData(){
     if(!hit){
       console.warn('[데이터 없음]',url);
       why.forEach(w=>console.warn('   ↳',w));
-      dataCache[url]=[]; return;
+      dataCache[url]=[]; dataCache[url].__failed=true; return;   /* 실패 표시: 다음 그룹 진입 때 다시 받는다 */
     }
 
     const lu=hit.lu, j=hit.j, feats=j.features;
@@ -2050,7 +2057,7 @@ async function loadGroupData(){
     while(queue.length){
       const t=queue.shift();
       try{ await loadOne(t); }
-      catch(e){ dataCache[t.src.url]=[]; console.warn('[실패]',t.src.url,'|',String((e&&e.message)||e)); }
+      catch(e){ dataCache[t.src.url]=[]; dataCache[t.src.url].__failed=true; console.warn('[실패]',t.src.url,'|',String((e&&e.message)||e)); }
     }
   });
   await Promise.all(workers);
