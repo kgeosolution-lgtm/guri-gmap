@@ -34,7 +34,7 @@ jobs:
             'assets/gy_bounds.js' = '8b56c92e5fd10f4c9f2125ab19728122b69cf57e408ad677526dd552a05f6340'
             'assets/gy_data.js' = 'ee3bc2c6a297580257f8ae24300d0d17abf5d75dee167f4eaca0fd6b79d98d81'
             'assets/rules.js' = 'd10ae708c1c157f885f5cf4798e0964415eecd4bbd369c12779aa8034af8f37b'
-            'index.html' = 'd2ad8c6d3ebd746b0ef9eb82018be33d1d4a785a7b62c10b03784e1a441e4844'
+            'index.html' = 'a59d818a7d894a78759d19d9c631ee9e08070c0f332485dbc4cfbab1eb7300e7'
             'web.config' = '216e727d9ae34fdf499be4fa06b962ef68f91cd3e8a1a7c1003c6f840e9af398'
           }
           function Test-Tree($root, $label) {
