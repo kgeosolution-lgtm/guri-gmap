@@ -806,3 +806,12 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 필드 이름은 레이어를 아직 못 읽어(개발 환경에서 guri.go.kr 접속 불가) 후보를 넓게 잡았음. 실제 자료가 뜨면 목록 이름·부제·팝업이 맞는지 확인하고 `fields`/`pop` 후보를 다듬을 것.
 - 검증: theme `node --check`, Playwright(오프라인, 가짜 자료) — 기본 그룹=시즌·겨울, 칩 6개(시종점 숨김), 결빙취약구간 선택 시 구간+시종점 3건 목록, 이름/부제/길이 포맷 확인(`scratchpad/pw/winter-test.js`); `npx tsc --noEmit`, prettier, `npm run build:deploy`, `git diff --check` 통과.
 - 브랜치: `work/kangmina-winter` (base `design/service-home-refresh` c70f603).
+
+## 2026-10-21 겨울 팝업 손질: 제설함 문구·전화 라벨, 결빙취약구간 시점·종점 지번주소 (담당: 강민아)
+
+- 실제 자료 확인(담당자 캡처): 제설함 항목은 주소·전화·관리기관·비고·세부설치장소·관리부서_동·관리자_전화번호. 결빙취약구간(선·점) 항목은 구간·연장·**시점지번주·종점지번주**(ArcGIS 항목 이름이 잘린 것, 뜻은 시점/종점 지번주소)·시점_경도·정북기준_1·기점기준심 등.
+- 제설함: 안내문에서 "쓰고 난 삽은 다시 넣어 주세요" 삭제, 전화 버튼은 `telLabel:'관리기관에 전화하기'`.
+- 결빙취약구간(선): 팝업 시점·종점을 `시점지번주`/`종점지번주`(정확 일치 `pickVal(...,true)`)로. 부분 일치를 쓰면 '시점'이 `시점_경도`를 잡아 좌표가 보였음. 좌표·정북기준 항목은 `hidePat`으로 숨김.
+- 시종점(점): 시점/종점 여부는 `icyEnd()`가 비고('결빙취약구간종점')·구분 값에서 읽어 이름("강변북로 종점")·부제·칩에 씀. 팝업은 구간·시점 주소·종점 주소·비고만 보이고 구분(=결빙취약구간)·시점_경도·정북기준_1·기점기준심은 숨김.
+- 검증: theme `node --check`, Playwright 오프라인(캡처와 같은 모양의 가짜 행: 이름·부제 확인), `npm run build:deploy`, `git diff --check` 통과. 팝업 본문은 `POP_MAP`이 지도 초기화 뒤에 생겨 오프라인 검사가 안 되므로 배포본에서 확인.
+- 브랜치: `work/kangmina-winter-pop`.
