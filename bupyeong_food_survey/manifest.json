@@ -1,0 +1,17 @@
+{
+  "name": "부평구 식품업체 현장조사",
+  "short_name": "식품 현장조사",
+  "description": "식품 제조·가공업체 준수사항 체크리스트를 원본 양식 그대로 작성하고 부평구 포털 Survey123에 제출합니다.",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#dfe2e6",
+  "theme_color": "#2f3a4a",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

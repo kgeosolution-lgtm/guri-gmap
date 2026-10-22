@@ -31,7 +31,13 @@ jobs:
           $expected = [ordered]@{
             'app.js' = 'dab161ee761b9386b05d5cabb2e7f9c8d4d7f2e6b0da64587d3647418ade1bad'
             'form-layout.js' = '8869b80b99230962ab5f525eb101bc79849057eab9affcc7282ff9db025d205e'
-            'index.html' = 'bd684f2879ea0107f54beb9c36173abac9c64bdf49609425fbd074d2afd067eb'
+            'icons/apple-touch-icon.png' = '82e00167f23385e8608942bdb49b86b93d73254f84a44876357114bbc96bd686'
+            'icons/favicon-32.png' = '83c4cbeb8f91f142a00c107f72c753c4d1bd11d8f284b9806a65b2816d449070'
+            'icons/icon-192.png' = 'ba65cba72633785dbabb304f41ac21e45e7af69d01fa4149658f910c49092d7b'
+            'icons/icon-512.png' = '50b426dc602039287ffa09b8fe3e1085f26328913bd498201453b512ad030d3e'
+            'icons/icon-maskable-512.png' = '9935fbccb894067e33ad54e01fecc6bef94cd03b0fae7902cf20321a05a0786f'
+            'index.html' = '009440bfb73cb681f9a009dd977091fb8e2e7ce741b034e151f6df29aa9c3d46'
+            'manifest.json' = '0d7bae1a117ac80ddcde9a07b145bec8e3159819e6a9665a30450c0adc0403cf'
             'style.css' = 'c887805935779a63cb8606ae0797a791907dbdb22e0427015285aa2e4a079cf6'
           }
           function Test-Tree($root, $label) {
