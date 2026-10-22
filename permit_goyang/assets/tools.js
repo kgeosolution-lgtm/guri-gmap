@@ -137,7 +137,7 @@
   };
   T.busy = function () { return busy; };
   T.view = function () { return view; };  // 지금 뷰 (점검용)
-  // 3D 패널의 바로가기(동지 일조 등)에서 도구를 바로 엶
+  // 3D 패널의 바로가기(일조권 분석 등)에서 도구를 바로 엶
   T.run = function (a, opts) {
     if (!ctx) return;
     if (a === "distance" || a === "area") measure(a);
@@ -403,7 +403,7 @@
       const host = document.createElement("div");
       body.appendChild(host);
       const before = v.environment.lighting.clone();
-      // 해 조명으로 바꾸고 그림자 켬 (기본은 오늘 지금, 3D 규모 패널의 '동지 일조'는 12월 22일)
+      // 해 조명으로 바꾸고 그림자 켬 (기본은 오늘 지금, 3D 규모 패널의 '일조권 분석'은 동지 12월 22일)
       v.environment.lighting = { type: "sun", date: opts.date || new Date(), directShadowsEnabled: true, displayUTCOffset: KST };
       const w = new X.Daylight({ view: v, container: host, dateOrSeason: "date", visibleElements: { header: false, timezone: false } });
       w.viewModel.utcOffset = KST;  // 경도로 짐작하면 중국 시간(UTC+8)이 됨

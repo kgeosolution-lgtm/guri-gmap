@@ -2,8 +2,8 @@
  * ngii5000(수치지형도 1:5,000) 3D 보기 방식을 따름:
  *   같은 Map을 2D MapView ↔ 3D SceneView로 바꿔 끼움, 지형 = Terrain3D + NGII_DEM_5m,
  *   WebGL2·GPU 가속 미리 판정, 3D 분석 도구는 tools.js(GY_TOOLS)를 새 뷰에 붙임.
- * 3D 건물 = 포털의 경기도 LOD 씬 레이어(LOD2 상세 / LOD1 블록)만.
- * 고양 전용: 필지에 '최대 건축 가능 규모'와 '입력 계획'을 매스로 세움, 동지 일조·그림자 바로가기.
+ * 3D 건물 = 포털의 경기도 LOD1 씬 레이어만.
+ * 고양 전용: 필지에 '최대 건축 가능 규모'와 '입력 계획'을 매스로 세움, 일조권 분석(동지)·그림자 바로가기.
  * app.js가 window.GYAPP 으로 지도·상태를 넘겨줌.
  */
 (function(){
@@ -11,11 +11,10 @@
 var A=function(){ return window.GYAPP; };
 var HOST="https://kgeodata.com/server/rest/services/Hosted/";
 var ELEV=["https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer",HOST+"NGII_DEM_5m/ImageServer"];
-// 경기도 3D 건물 (포털 씬 레이어, 2025-08-12 자료)
-//   LOD1 = 전 건물(블록), LOD2 = 일부 건물만 상세 (노드 46개, 고양 일대는 수십 동 — 2026-10-22 nodepages 확인)
+// 경기도 3D 건물 (포털 씬 레이어, 2025-08-12 자료): LOD1(전 건물)만 씀
+//   LOD2는 일부 건물만 있어(노드 46개, 고양 일대 수십 동 — 2026-10-22 nodepages 확인) 넣지 않음
 var LOD={
-  lod1:{url:HOST+"LOD1_GGD_3D_Buildings_250812_2/SceneServer/layers/0",label:"LOD1",pnu:"pnu"},
-  lod2:{url:HOST+"LOD2_GGD_3D_Buildings_250812_2/SceneServer/layers/0",label:"LOD2",pnu:"pnu_no"}
+  lod1:{url:HOST+"LOD1_GGD_3D_Buildings_250812_2/SceneServer/layers/0",label:"LOD1",pnu:"pnu"}
 };
 var FLOOR_H=3.3;     // 매스 층고(m) — 근생·업무 기준 개략값
 var WINTER=new Date(Date.UTC(2026,11,22,3,0)); // 동지 12월 22일 정오(KST)
@@ -153,14 +152,10 @@ function renderPanel(ms){
     if(ms.plan) h+='<label class="m3-row"><input type="checkbox" id="m3Plan"'+(($("m3Plan")?$("m3Plan").checked:true)?" checked":"")+'><i class="m3-sw" style="background:#02574F;border-color:#fff"></i><span><b>입력한 건축계획</b><small>건축면적 '+n0(ms.plan.ba)+'㎡ · '+ms.plan.floors+'층 · 높이 약 '+Math.round(ms.plan.h)+'m</small></span></label>';
     else h+='<div class="m3-note">사전검토 탭에서 계획(건축면적·층수)을 입력·실행하면 계획 매스도 함께 세웁니다.</div>';
   }
-  h+='<div class="m3-sub">경기도 3D 건물</div><div class="m3-seg">'+
-     '<button data-b3="lod1" class="'+(bldgKind==="lod1"?"on":"")+'" title="경기도 전 건물 (블록 모형)">LOD1 전체</button>'+
-     '<button data-b3="lod2" class="'+(bldgKind==="lod2"?"on":"")+'" title="지붕 모양까지 만든 상세 모형 — 고양시는 일부 건물만 있음">LOD2 일부</button>'+
-     '<button data-b3="none" class="'+(bldgKind==="none"?"on":"")+'">끄기</button></div>';
-  h+='<div class="m3-sub">일조 확인</div><div class="m3-act">'+
-     '<button data-a3="winter">동지 일조</button><button data-a3="shadow">그림자 시간</button><button data-a3="tools">3D 분석</button></div>';
+  h+='<div class="m3-sub">일조·분석</div><div class="m3-act">'+
+     '<button data-a3="winter">일조권 분석</button><button data-a3="shadow">그림자 시간</button><button data-a3="tools">3D 분석</button></div>';
   h+='<div class="m3-act"><button data-a3="fly">필지로 이동</button><button data-a3="top">위에서 보기</button></div>';
-  h+='<div class="m3-foot">매스는 층고 '+FLOOR_H+'m · 대지경계 0.5m 이격 기준 개략 형태입니다. 높이·사선·지구단위계획 제한은 반영되지 않습니다. 건물: 경기도 3D 건물(2025.8).</div>';
+  h+='<div class="m3-foot">매스는 층고 '+FLOOR_H+'m · 대지경계 0.5m 이격 기준 개략 형태입니다. 높이·사선·지구단위계획 제한은 반영되지 않습니다. 건물: 경기도 3D 건물 LOD1(2025.8).</div>';
   el.innerHTML=h;
 }
 
@@ -214,13 +209,12 @@ async function setMode(m){
 
 // ── 이벤트 ──
 document.addEventListener("click",function(e){
-  var t=e.target.closest("[data-mode],[data-b3],[data-a3]"); if(!t) return;
+  var t=e.target.closest("[data-mode],[data-a3]"); if(!t) return;
   if(t.dataset.mode){ setMode(t.dataset.mode); return; }
-  if(t.dataset.b3){ setBldg(t.dataset.b3); return; }
   var a=t.dataset.a3;
   if(a==="fly") flyToParcel(false);
   else if(a==="top") flyToParcel(true);
-  else if(a==="winter"&&window.GY_TOOLS) GY_TOOLS.run("sun",{date:WINTER,title:"동지 일조 (12월 22일)",hint:"동지 정오 기준으로 해와 그림자를 보여 줍니다. 시각 막대를 끌거나 ▶ 를 눌러 9시~15시 그림자를 확인하세요 (건축법 시행령 제86조 일조 기준 참고)."});
+  else if(a==="winter"&&window.GY_TOOLS) GY_TOOLS.run("sun",{date:WINTER,title:"일조권 분석 (동지 12월 22일)",hint:"일조권 검토 기준일인 동지 정오의 해와 그림자를 보여 줍니다. 시각 막대를 끌거나 ▶ 를 눌러 9시~15시 그림자를 확인하세요 (건축법 시행령 제86조 일조 기준 참고)."});
   else if(a==="shadow"&&window.GY_TOOLS) GY_TOOLS.run("shadow",{date:WINTER,hint:"동지(12월 22일) 하루 동안 그늘이 지는 시간을 색으로 보여 줍니다. 날짜와 시간 범위를 바꿔 볼 수 있습니다."});
   else if(a==="tools"&&window.GY_TOOLS) GY_TOOLS.run("list");
 });

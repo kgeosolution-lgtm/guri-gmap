@@ -392,7 +392,7 @@ function loadParcel(feat,lon,lat,zoomTo){
     analyzeZones();
     renderParcel(); renderReviewForm(); renderReg(); renderProc();
     $("tab-bld").innerHTML=bldSkeleton(); fetchBuilding(pnu);
-    $("tab-near").innerHTML=""; gfxNear.removeAll();
+    $("tab-near").innerHTML=""; gfxNear.removeAll(); nearSel=-1;
     $("intro").hidden=true; $("result").hidden=false; switchTab("review"); $("panelScroll").scrollTop=0;
     if(!S.zone||!S.price) zoneFallback();
     if(S.flags.dup.length) resolveDup();
@@ -842,29 +842,71 @@ function drawNear(rows){
     var bcr=list.filter(function(x){return parseFloat(x.a.bcrat)>0;}), far=list.filter(function(x){return parseFloat(x.a.vlrat)>0;});
     var avg=function(arr,k){ return arr.length? arr.reduce(function(s,x){return s+parseFloat(x.a[k]);},0)/arr.length : 0; };
     h+='<div class="intro-stats" style="margin-bottom:12px"><div class="stat"><b>'+list.length+'</b><span>사례 수</span></div><div class="stat"><b>'+(bcr.length?n1(avg(bcr,"bcrat"))+'%':'-')+'</b><span>평균 건폐율</span></div><div class="stat"><b>'+(far.length?n0(avg(far,"vlrat"))+'%':'-')+'</b><span>평균 용적률</span></div></div>';
+    h+='<div id="nearPick"></div>'; // 행을 누르면 고른 사례 상세가 여기 (지도는 그 필지 경계를 보여 줌)
     h+='<div class="card" style="padding:8px 10px"><table class="tb"><tr><th>허가일</th><th>구분</th><th>용도</th><th style="text-align:right">거리</th></tr>';
     list.slice(0,60).forEach(function(x,i){ var a=x.a;
-      h+='<tr class="clk" data-near="'+i+'"><td>'+esc(fmtDate(a.arch_pms_date))+'</td><td><i class="dot" style="background:'+nearColor(a.arch_gb_cd_nm)+'"></i>'+esc(a.arch_gb_cd_nm||"-")+'</td><td>'+esc(a.main_prpos_cd_nm||"-")+'</td><td style="text-align:right">'+n0(x.d)+'m</td></tr>'; });
-    h+='</table></div><p class="hint" style="padding:0 6px">출처: 건축인허가 정보(국토교통부) 수집분 · 행 클릭 시 상세</p>';
+      h+='<tr class="clk'+(i===nearSel?' on':'')+'" data-near="'+i+'"><td>'+esc(fmtDate(a.arch_pms_date))+'</td><td><i class="dot" style="background:'+nearColor(a.arch_gb_cd_nm)+'"></i>'+esc(a.arch_gb_cd_nm||"-")+'</td><td>'+esc(a.main_prpos_cd_nm||"-")+'</td><td style="text-align:right">'+n0(x.d)+'m</td></tr>'; });
+    h+='</table></div><p class="hint" style="padding:0 6px">출처: 건축인허가 정보(국토교통부) 수집분 · 행을 누르면 지도에 그 필지 경계를 표시</p>';
   }
   $("tab-near").innerHTML=h;
   drawNearMap(list);
+  if(nearSel>=0&&list[nearSel]) renderNearPick(nearSel);
 }
 function nearColor(t){ return {"신축":"#00A0B0","증축":"#2F6FDE","대수선":"#0E9F6E","용도변경":"#8E44AD","개축":"#E07B00","재축":"#795548"}[t]||"#8795A1"; }
-function drawNearMap(list){
-  gfxNear.removeAll();
-  list.forEach(function(x,i){ var c=hexA(nearColor(x.a.arch_gb_cd_nm),1);
-    gfxNear.add(new E.Graphic({geometry:{type:"point",longitude:parseFloat(x.a.x_lon),latitude:parseFloat(x.a.y_lat)},symbol:{type:"simple-marker",size:i===nearSel?16:9,color:c,outline:{color:[255,255,255],width:i===nearSel?3:1.2}}}));
+// 사례 위치점 → 연속지적도 필지: 점 둘레 30m 안에서 지번(본번-부번)이 같은 필지, 없으면 점이 놓인 필지
+var nearParcel={}; // 사례 objectid → {geom, jibun} | null (한 번 찾은 것은 다시 묻지 않음)
+function nearJibun(a){ var m=+a.mnnm||0, s=+a.slno||0; return m? m+(s?"-"+s:"") : ""; }
+function findNearParcel(a){
+  var key=a.objectid;
+  if(key in nearParcel) return Promise.resolve(nearParcel[key]);
+  var pt=new E.Point({longitude:parseFloat(a.x_lon),latitude:parseFloat(a.y_lat)}), jb=nearJibun(a);
+  var q=function(dist){ var o={geometry:pt,spatialRelationship:"intersects",outFields:["a1","a5"],returnGeometry:true,outSpatialReference:view.spatialReference};
+    if(dist){ o.distance=dist; o.units="meters"; } return cadastral.queryFeatures(o).then(function(fs){ return fs.features; }).catch(function(){ return []; }); };
+  var lot=function(f){ var m=String(f.attributes.a5||"").replace(/^산\s*/,"").match(/^\d+(-\d+)?/); return m?m[0]:""; };
+  return Promise.all([q(0),q(30)]).then(function(r){
+    var f=(jb&&(r[0].filter(function(f){return lot(f)===jb;})[0]||r[1].filter(function(f){return lot(f)===jb;})[0]))||r[0][0]||null;
+    nearParcel[key]=f?{geom:f.geometry,jibun:String(f.attributes.a5||""),exact:!!jb&&lot(f)===jb}:null;
+    return nearParcel[key];
   });
 }
+function drawNearMap(list){
+  gfxNear.removeAll();
+  var sel=nearSel>=0&&list[nearSel]?list[nearSel]:null, par=sel?nearParcel[sel.a.objectid]:null;
+  list.forEach(function(x,i){ var c=hexA(nearColor(x.a.arch_gb_cd_nm),1);
+    if(i===nearSel&&par) return; // 고른 사례는 점 대신 필지 경계
+    gfxNear.add(new E.Graphic({geometry:{type:"point",longitude:parseFloat(x.a.x_lon),latitude:parseFloat(x.a.y_lat)},symbol:{type:"simple-marker",size:i===nearSel?16:9,color:c,outline:{color:[255,255,255],width:i===nearSel?3:1.2}}}));
+  });
+  if(par){
+    var c=nearColor(sel.a.arch_gb_cd_nm);
+    gfxNear.add(new E.Graphic({geometry:par.geom,symbol:{type:"simple-fill",color:[0,0,0,0],outline:{color:[255,255,255,0.95],width:5.5}}}));
+    gfxNear.add(new E.Graphic({geometry:par.geom,symbol:{type:"simple-fill",color:hexA(c,0.32),outline:{color:hexA(c,1),width:2.6}}}));
+    gfxNear.add(new E.Graphic({geometry:par.geom.centroid,symbol:{type:"text",text:sel.a.arch_gb_cd_nm||"사례",color:hexA(c,1),haloColor:[255,255,255,0.95],haloSize:2,font:{size:11,weight:"bold",family:"sans-serif"}}}));
+  }
+}
 function nearDetail(i){
-  var x=S.near[i]; if(!x) return; var a=x.a; nearSel=i; drawNearMap(S.near);
-  view.goTo({center:[parseFloat(a.x_lon),parseFloat(a.y_lat)],zoom:Math.max(view.zoom,17)},{duration:600});
-  var h='<h3>'+esc(a.bld_nm||a.main_prpos_cd_nm||"인허가 사례")+'</h3><div class="sub">'+esc((a.sigungu_cd_nm||"")+" "+(a.bjdong_cd_nm||"")+" "+(+a.mnnm||"")+(+a.slno?"-"+(+a.slno):""))+' · 현재 필지에서 '+n0(x.d)+'m</div><table class="kv">'+
+  var x=S.near[i]; if(!x) return; var a=x.a; nearSel=i;
+  document.querySelectorAll("#tab-near tr.clk").forEach(function(tr){ tr.classList.toggle("on",+tr.dataset.near===i); });
+  drawNearMap(S.near); renderNearPick(i);
+  findNearParcel(a).then(function(par){
+    if(nearSel!==i||S.near[i]!==x) return; // 그사이 다른 행을 누름
+    drawNearMap(S.near); renderNearPick(i);
+    var go=par? par.geom.extent.clone().expand(3.5) : {center:[parseFloat(a.x_lon),parseFloat(a.y_lat)],zoom:Math.max(view.zoom,17)};
+    if(window.GY3D&&GY3D.is3d()&&GY3D._view()) GY3D._view().goTo(go,{duration:700}).catch(function(){});
+    else view.goTo(go,{duration:600}).catch(function(){});
+  });
+}
+function renderNearPick(i){
+  var el=$("nearPick"), x=S.near&&S.near[i]; if(!el||!x) return; var a=x.a, par=nearParcel[a.objectid];
+  var where=(a.bjdong_cd_nm||"")+" "+nearJibun(a);
+  var pst=!(a.objectid in nearParcel)?'<span class="np-st">필지 경계를 찾는 중…</span>'
+    : par?'<span class="np-st ok">지도에 필지 경계 표시'+(par.exact?'':' (위치점이 놓인 필지: '+esc(par.jibun)+')')+'</span>'
+    : '<span class="np-st">지적도에서 필지를 찾지 못해 위치점으로 표시</span>';
+  el.innerHTML='<div class="card near-pick"><div class="card-t"><i class="dot" style="background:'+nearColor(a.arch_gb_cd_nm)+'"></i>'+esc(a.bld_nm||a.main_prpos_cd_nm||"인허가 사례")+
+    '<button class="np-x" data-near-close aria-label="사례 닫기">×</button></div><div class="np-sub">'+esc(where)+' · 현재 필지에서 '+n0(x.d)+'m</div>'+pst+'<table class="kv">'+
     kvr("건축구분",a.arch_gb_cd_nm)+kvr("허가/신고",a.pms_decl_gb_cd_nm)+kvr("허가일",fmtDate(a.arch_pms_date))+kvr("주용도",a.main_prpos_cd_nm)+kvr("기타용도",a.etc_prpos_cntt)+
     kvr("대지면적",a.plat_area&&n1(a.plat_area)+" ㎡")+kvr("건축면적",a.arch_area&&n1(a.arch_area)+" ㎡")+kvr("연면적",a.totarea&&n1(a.totarea)+" ㎡")+kvr("건폐율",parseFloat(a.bcrat)?n1(a.bcrat)+" %":"")+kvr("용적률",parseFloat(a.vlrat)?n1(a.vlrat)+" %":"")+
-    kvr("착공",fmtDate(a.real_stcns_date))+kvr("사용승인",fmtDate(a.useapr_date))+'</table>';
-  openModal(h);
+    kvr("착공",fmtDate(a.real_stcns_date))+kvr("사용승인",fmtDate(a.useapr_date))+'</table></div>';
+  el.scrollIntoView({block:"nearest",behavior:"smooth"});
 }
 
 // ═══ 인쇄 ═══
@@ -927,7 +969,8 @@ function help(){
 
 // ═══ 이벤트 ═══
 document.addEventListener("click",function(e){
-  var t=e.target.closest("[data-act],[data-tab],[data-gu],[data-bm],[data-close],.chip,[data-near],[data-sample],[data-dup]");
+  var t=e.target.closest("[data-act],[data-tab],[data-gu],[data-bm],[data-close],.chip,[data-near],[data-near-close],[data-sample],[data-dup]");
+  if(t&&t.hasAttribute("data-near-close")){ nearSel=-1; $("nearPick").innerHTML=""; document.querySelectorAll("#tab-near tr.clk.on").forEach(function(tr){ tr.classList.remove("on"); }); drawNearMap(S.near||[]); return; }
   if(!t) return;
   if(t.dataset.dup!==undefined){ dupModal(+t.dataset.dup); return; }
   if(t.dataset.close!==undefined||t.id==="modal"){ closeModal(); return; }
