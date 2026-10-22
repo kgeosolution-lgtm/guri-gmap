@@ -19,7 +19,7 @@ var LOD={
 var FLOOR_H=3.3;     // 매스 층고(m) — 근생·업무 기준 개략값
 var WINTER=new Date(Date.UTC(2026,11,22,3,0)); // 동지 12월 22일 정오(KST)
 
-var M=null, view3d=null, mode="2d", massLayer=null, bldgGroup=null, bldgKind="lod1";
+var M=null, view3d=null, mode="2d", massLayer=null, upLayer=null, bldgGroup=null, bldgKind="lod1"; // upLayer: 지붕 위 수직 증축 (지면 기준 높이로 띄움)
 var bldgLayers={}, m3min=false; // m3min: 3D 규모 패널을 제목만 남겨 접음
 
 function $(id){ return document.getElementById(id); }
@@ -41,9 +41,9 @@ function need(){
   return new Promise(function(res,rej){
     var t=setTimeout(function(){ rej(new Error("3D 기능을 불러오지 못했습니다")); },40000);
     require(["esri/views/SceneView","esri/layers/ElevationLayer","esri/Ground","esri/layers/SceneLayer","esri/layers/GroupLayer","esri/layers/GraphicsLayer","esri/Graphic",
-             "esri/geometry/geometryEngine"],
-      function(SceneView,ElevationLayer,Ground,SceneLayer,GroupLayer,GraphicsLayer,Graphic,ge){
-        clearTimeout(t); res({SceneView:SceneView,ElevationLayer:ElevationLayer,Ground:Ground,SceneLayer:SceneLayer,GroupLayer:GroupLayer,GraphicsLayer:GraphicsLayer,Graphic:Graphic,ge:ge});
+             "esri/geometry/geometryEngine","esri/layers/FeatureLayer"],
+      function(SceneView,ElevationLayer,Ground,SceneLayer,GroupLayer,GraphicsLayer,Graphic,ge,FeatureLayer){
+        clearTimeout(t); res({SceneView:SceneView,ElevationLayer:ElevationLayer,Ground:Ground,SceneLayer:SceneLayer,GroupLayer:GroupLayer,GraphicsLayer:GraphicsLayer,Graphic:Graphic,ge:ge,FeatureLayer:FeatureLayer});
       }, function(e){ clearTimeout(t); rej(e); });
   });
 }
@@ -53,6 +53,7 @@ async function init(){
   var app=A();
   app.map.ground=new M.Ground({layers:ELEV.map(function(u){ return new M.ElevationLayer({url:u}); })});
   massLayer=new M.GraphicsLayer({title:"3D 매스",elevationInfo:{mode:"on-the-ground"},listMode:"hide"});
+  upLayer=new M.GraphicsLayer({title:"3D 매스 (수직 증축)",elevationInfo:{mode:"relative-to-ground"},listMode:"hide"});
   bldgGroup=new M.GroupLayer({title:"3D 건물",listMode:"hide"});
   view3d=new M.SceneView({map:app.map,viewingMode:"global",qualityProfile:"high",popupEnabled:false,
     environment:{atmosphereEnabled:true,starsEnabled:false},
@@ -96,20 +97,63 @@ function insetTo(geom,targetArea,minInset,k){
   }
   return best;
 }
+// ── 기존 건물: 바닥 = 수치지형도 1:1,000 건물(고양, 필지 안), 높이 = 건축물대장 높이 → 대장 지상층수×층고 → 수치지형도 층수×층고 ──
+//   행위 구분마다 3D 표현이 다름: 신축은 기존 건물 철거 가정, 증축은 기존 건물 위·옆에 덧붙임,
+//   개축·재축은 종전 규모 안에서 다시 지음, 대수선·용도변경은 기존 건물 그대로(대상 건물 강조)
+var NGII_BLDG=HOST+"goyang_N1A_B0010000_building/FeatureServer/0";
+var exFoot={pnu:null,st:"",fs:[]};
+function loadFootprints(S){
+  if(!M||exFoot.pnu===S.pnu) return;
+  var cur=exFoot={pnu:S.pnu,st:"loading",fs:[]};
+  var k=Math.cos(S.lat*Math.PI/180), inner=M.ge.buffer(S.geom,-0.5/k,"meters")||S.geom;
+  new M.FeatureLayer({url:NGII_BLDG}).queryFeatures({geometry:inner,spatialRelationship:"intersects",outFields:["층수"],returnGeometry:true,outSpatialReference:S.geom.spatialReference})
+    .then(function(r){
+      cur.fs=r.features.map(function(f){ var g=M.ge.intersect(f.geometry,S.geom); return g?{g:g,fl:+f.attributes["층수"]||0,a:M.ge.planarArea(g,"square-meters")*k*k}:null; })
+        .filter(function(x){ return x&&x.a>=5; }).sort(function(a,b){ return b.a-a.a; });
+    }).catch(function(){ cur.fs=[]; })
+    .then(function(){ cur.st="done"; if(exFoot===cur&&mode==="3d") drawMasses(); });
+}
+function existing(S,k){
+  if(exFoot.pnu!==S.pnu||exFoot.st!=="done") return null; // 아직 찾는 중
+  var fs=exFoot.fs, b=S.bld||null, bFl=b&&+b.grndFlrCnt||0, bH=b&&+b.heit||0, bA=b&&+b.archArea||0;
+  if(!fs.length&&!(bA>0)) return {none:true};
+  var main=fs[0], fl=bFl||(main&&main.fl)||1, h=bH>2?bH:fl*FLOOR_H;
+  var foot=fs.length? (fs.length>1?M.ge.union(fs.map(function(x){return x.g;})):main.g) : insetTo(S.geom,Math.min(bA,+S.area||bA),0.5,k);
+  return {foot:foot,main:main?main.g:foot,parts:fs.length?fs:[{g:foot,fl:fl,a:bA}],fl:fl,h:h,area:M.ge.planarArea(foot,"square-meters")*k*k,
+    hSrc:bH>2?"대장 높이":bFl?"대장 "+bFl+"층×"+FLOOR_H+"m":"수치지형도 층수",fSrc:fs.length?"수치지형도 건물 "+fs.length+"동":"대장 건축면적으로 추정"};
+}
+function curAct(){ var a=A(); return a.act?a.act():"신축"; }
 function masses(){
   var app=A(), S=app.S(); if(!S||!S.zm||!S.geom||!M) return null;
-  var k=Math.cos(S.lat*Math.PI/180), zm=S.zm, sa=+S.area||0;
+  var k=Math.cos(S.lat*Math.PI/180), zm=S.zm, sa=+S.area||0, act=curAct();
+  loadFootprints(S);
   // 최대 규모: 건폐율 한도 바닥 × 층수 = min(용적률/건폐율, 층수 제한)
   var maxFloors=Math.max(1,Math.floor(zm.f/zm.b));
   if(zm.h) maxFloors=Math.min(maxFloors,zm.h);
   var maxBa=sa*zm.b/100;
   var setback=0.5; // 대지 안의 공지 최소(인접대지 0.5m) 개략
-  var out={max:{geom:insetTo(S.geom,maxBa,setback,k),floors:maxFloors,ba:maxBa,ta:Math.min(sa*zm.f/100,maxBa*maxFloors)}};
+  var out={act:act,ex:existing(S,k),max:{geom:insetTo(S.geom,maxBa,setback,k),floors:maxFloors,ba:maxBa,ta:Math.min(sa*zm.f/100,maxBa*maxFloors)}};
   out.max.h=maxFloors*FLOOR_H;
-  var P=S.lastP;
-  if(P&&P.ba>0&&(P.fl>0||P.ht>0)){
-    var fl=P.fl||Math.max(1,Math.round(P.ht/FLOOR_H));
-    out.plan={geom:insetTo(S.geom,Math.min(P.ba,sa),setback,k),floors:fl,ba:P.ba,ta:P.ta,h:P.ht||fl*FLOOR_H};
+  var P=S.lastP&&S.lastP.act===act?S.lastP:null, ex=out.ex&&!out.ex.none?out.ex:null;
+  if(act==="증축"){
+    if(ex&&P){
+      // 수직 증축: 계획 층수(증축 후 전체)가 기존보다 많으면 주 건물 위에 그 층만큼
+      var topH=P.ht>ex.h?P.ht:(P.fl>ex.fl?ex.h+(P.fl-ex.fl)*FLOOR_H:0);
+      if(topH>ex.h) out.up={geom:ex.main,base:ex.h,h:topH-ex.h,floors:P.fl>ex.fl?P.fl-ex.fl:Math.round((topH-ex.h)/FLOOR_H)};
+      // 수평 증축: 증축 건축면적만큼 기존 건물 옆으로 (기존+증축 면적의 바닥에서 기존 바닥을 뺀 부분)
+      if(P.ba>0){
+        var env=insetTo(S.geom,Math.min(ex.area+P.ba,sa),setback,k), side=env&&M.ge.difference(env,ex.foot);
+        var sideA=side?M.ge.planarArea(side,"square-meters")*k*k:0;
+        if(sideA>=1) out.side={geom:side,h:ex.h,ba:P.ba,area:sideA};
+      }
+    }
+  }else if(act==="대수선"||act==="용도변경"){
+    // 규모 변화 없음: 기존 건물만
+  }else if(P&&(P.ba>0||ex)&&(P.fl>0||P.ht>0)){
+    // 신축·개축·재축: 계획 매스 (개축·재축은 종전 건물 자리에서 다시 지음)
+    var fl=P.fl||Math.max(1,Math.round(P.ht/FLOOR_H)), ba=P.ba||(ex?ex.area:0), base=S.geom;
+    if(act!=="신축"&&ex) base=ba<=ex.area*1.02?ex.foot:S.geom;
+    out.plan={geom:insetTo(base,Math.min(ba,sa),base===S.geom?setback:0,k),floors:fl,ba:ba,ta:P.ta,h:P.ht||fl*FLOOR_H};
   }
   return out;
 }
@@ -123,18 +167,41 @@ function hideExistingOnParcel(){
     lv.filter={geometry:inner,spatialRelationship:"disjoint"};
   }).catch(function(e){ console.warn("기존 건물 숨김 실패",e&&e.message); });
 }
+// 체크 상태: 행위 구분이 바뀌면 그 행위의 기본값으로 (최대 규모는 신축에서만 처음부터 켬)
+var chk={}, chkAct=null;
+function isOn(id,def){ return id in chk?chk[id]:def; }
+function syncChecks(act){
+  if(act!==chkAct){ chk={}; chkAct=act; return; }
+  ["m3Max","m3Plan","m3Ex"].forEach(function(id){ var e=$(id); if(e) chk[id]=e.checked; });
+}
+var C_EX=[218,213,204,1], C_PLAN=[2,87,79,0.88], C_MAX=[174,182,27,0.55];
 function drawMasses(){
   if(!massLayer) return;
-  massLayer.removeAll();
+  massLayer.removeAll(); upLayer.removeAll();
   hideExistingOnParcel();
   var ms=masses(); if(!ms) { renderPanel(); return; }
-  var add=function(m,color,edge,label){
-    if(!m||!m.geom) return;
-    massLayer.add(new M.Graphic({geometry:m.geom,attributes:{label:label},symbol:{type:"polygon-3d",symbolLayers:[{type:"extrude",size:m.h,material:{color:color},edges:{type:"solid",color:edge,size:1}}]}}));
+  syncChecks(ms.act);
+  var ext=function(geom,h,color,edge,lyr,dash){
+    if(!geom||!(h>0)) return;
+    (lyr||massLayer).add(new M.Graphic({geometry:geom,symbol:{type:"polygon-3d",symbolLayers:[{type:"extrude",size:h,material:{color:color},edges:{type:"solid",color:edge,size:dash?1.5:1}}]}}));
   };
-  var showMax=$("m3Max")?$("m3Max").checked:true, showPlan=$("m3Plan")?$("m3Plan").checked:true;
-  if(showMax) add(ms.max,[174,182,27,ms.plan&&showPlan?0.28:0.55],[120,126,10,0.9],"최대");
-  if(showPlan&&ms.plan) add(ms.plan,[2,87,79,0.88],[255,255,255,0.9],"계획");
+  var ex=ms.ex&&!ms.ex.none?ms.ex:null, act=ms.act;
+  if(isOn("m3Max",act==="신축")) ext(ms.max.geom,ms.max.h,[C_MAX[0],C_MAX[1],C_MAX[2],ms.plan||ms.up||ms.side?0.22:0.55],[120,126,10,0.9]);
+  if(ex&&act!=="신축"&&isOn("m3Ex",true)){
+    if(act==="개축"||act==="재축") ext(ex.foot,ex.h,[110,120,130,0.16],[40,50,60,0.9],null,true); // 종전 규모(유리처럼 비침)
+    else{
+      var hl=act==="대수선"||act==="용도변경"; // 대상 건물은 강조 색
+      ex.parts.forEach(function(p,i){ ext(p.g,i===0?ex.h:Math.max(1,p.fl||1)*FLOOR_H,hl?C_PLAN:C_EX,hl?[255,255,255,0.9]:[90,84,74,0.7]); });
+    }
+  }
+  if(isOn("m3Plan",true)){
+    if(ms.plan) ext(ms.plan.geom,ms.plan.h,C_PLAN,[255,255,255,0.9]);
+    if(ms.side) ext(ms.side.geom,ms.side.h,C_PLAN,[255,255,255,0.9]);
+    if(ms.up){ // 기존 건물 지붕 높이에서 시작 (지면 기준 높이로 띄움)
+      var g=ms.up.geom, up={type:"polygon",hasZ:true,spatialReference:g.spatialReference,rings:g.rings.map(function(r){ return r.map(function(p){ return [p[0],p[1],ms.up.base]; }); })};
+      ext(up,ms.up.h,C_PLAN,[255,255,255,0.9],upLayer);
+    }
+  }
   renderPanel(ms);
 }
 
@@ -149,9 +216,30 @@ function renderPanel(ms){
   if(!S){ h+='<div class="m3-empty">필지를 선택하면 최대 건축 가능 규모를 3D로 세워 보여 줍니다.</div>'; }
   else if(!ms){ h+='<div class="m3-empty">용도지역을 확인하는 중입니다…</div>'; }
   else{
-    h+='<label class="m3-row"><input type="checkbox" id="m3Max"'+(($("m3Max")?$("m3Max").checked:true)?" checked":"")+'><i class="m3-sw" style="background:rgba(174,182,27,.55);border-color:#7e8610"></i><span><b>최대 건축 가능 규모</b><small>건폐율 '+S.zm.b+'% · '+ms.max.floors+'층 · 높이 약 '+Math.round(ms.max.h)+'m · 연면적 약 '+n0(ms.max.ta)+'㎡</small></span></label>';
-    if(ms.plan) h+='<label class="m3-row"><input type="checkbox" id="m3Plan"'+(($("m3Plan")?$("m3Plan").checked:true)?" checked":"")+'><i class="m3-sw" style="background:#02574F;border-color:#fff"></i><span><b>입력한 건축계획</b><small>건축면적 '+n0(ms.plan.ba)+'㎡ · '+ms.plan.floors+'층 · 높이 약 '+Math.round(ms.plan.h)+'m</small></span></label>';
-    else h+='<div class="m3-note">사전검토 탭에서 계획(건축면적·층수)을 입력·실행하면 계획 매스도 함께 세웁니다.</div>';
+    var act=ms.act, ex=ms.ex, P=S.lastP&&S.lastP.act===act;
+    var row=function(id,def,sw,title,sub){ return '<label class="m3-row"><input type="checkbox" id="'+id+'"'+(isOn(id,def)?" checked":"")+'><i class="m3-sw" style="'+sw+'"></i><span><b>'+title+'</b><small>'+sub+'</small></span></label>'; };
+    var SW_PLAN="background:#02574F;border-color:#fff", SW_EX="background:#dad5cc;border-color:#5a544a", SW_GHOST="background:rgba(110,120,130,.16);border-color:#28323c;border-style:dashed";
+    var exTxt=ex&&!ex.none?ex.fl+'층 · 높이 약 '+Math.round(ex.h)+'m ('+ex.hSrc+') · 바닥 약 '+n0(ex.area)+'㎡ ('+ex.fSrc+')':'';
+    h+='<div class="m3-act-k">행위 구분 <b>'+act+'</b><span>사전검토 탭에서 바꿀 수 있습니다</span></div>';
+    if(act!=="신축"&&!ex) h+='<div class="m3-empty">필지 안 기존 건물을 찾는 중입니다…</div>';
+    else if(act!=="신축"&&ex.none) h+='<div class="m3-note">이 필지에서 기존 건물(수치지형도 건물·건축물대장)을 찾지 못했습니다. '+act+'은 기존 건물이 있어야 하는 행위입니다.</div>';
+    if(act==="신축"){
+      if(ms.plan) h+=row("m3Plan",true,SW_PLAN,"신축 계획",'건축면적 '+n0(ms.plan.ba)+'㎡ · '+ms.plan.floors+'층 · 높이 약 '+Math.round(ms.plan.h)+'m');
+      else h+='<div class="m3-note">사전검토 탭에서 계획(건축면적·층수)을 입력·실행하면 계획 매스도 함께 세웁니다.</div>';
+      if(ex&&!ex.none) h+='<div class="m3-note">기존 건물('+ex.fSrc+')은 철거 후 신축하는 것으로 보고 감췄습니다.</div>';
+    }else if(act==="증축"&&ex&&!ex.none){
+      h+=row("m3Ex",true,SW_EX,"기존 건물 (유지)",exTxt);
+      if(ms.up||ms.side) h+=row("m3Plan",true,SW_PLAN,"증축 부분",[ms.up?'수직 +'+ms.up.floors+'층 (높이 약 '+Math.round(ms.up.base+ms.up.h)+'m까지)':'',ms.side?'수평 +'+n0(ms.side.ba)+'㎡':''].filter(Boolean).join(' · '));
+      else h+='<div class="m3-note">'+(P?'증축 층수가 기존('+ex.fl+'층) 이하이고 증축 건축면적이 없어 덧붙일 부분이 없습니다.':'사전검토 탭에 <b>증축 건축면적</b>(옆으로 넓힘)이나 <b>증축 후 지상 층수</b>(위로 올림)를 넣고 실행하면 기존 건물에 덧붙여 보여 줍니다.')+'</div>';
+    }else if((act==="개축"||act==="재축")&&ex&&!ex.none){
+      h+=row("m3Ex",true,SW_GHOST,"종전 규모 (철거 전)",exTxt);
+      if(ms.plan) h+=row("m3Plan",true,SW_PLAN,act+" 계획",'건축면적 '+n0(ms.plan.ba)+'㎡ · '+ms.plan.floors+'층 · 높이 약 '+Math.round(ms.plan.h)+'m'+(ms.plan.h>ex.h+0.5||ms.plan.ba>ex.area*1.02?' · <span class="m3-warn">종전 규모 초과 → 증축·신축 검토</span>':''));
+      else h+='<div class="m3-note">'+act+'은 종전 규모 범위 안에서 다시 짓는 행위입니다. 계획(건축면적·층수)을 입력·실행하면 종전 규모와 비교해 세웁니다.</div>';
+    }else if(ex&&!ex.none){ // 대수선·용도변경
+      h+=row("m3Ex",true,SW_PLAN,act+" 대상 건물",exTxt);
+      h+='<div class="m3-note">'+(act==="대수선"?'대수선은 기존 건물의 주요구조부를 고치는 행위로 규모(바닥·층수·높이)는 바뀌지 않습니다.':'용도변경은 건물 규모는 그대로 두고 쓰임만 바꿉니다. 바뀐 용도 기준의 주차·소방·피난 기준은 사전검토 탭을 확인하세요.')+'</div>';
+    }
+    h+=row("m3Max",act==="신축",'background:rgba(174,182,27,.55);border-color:#7e8610',"최대 건축 가능 규모",'건폐율 '+S.zm.b+'% · '+ms.max.floors+'층 · 높이 약 '+Math.round(ms.max.h)+'m · 연면적 약 '+n0(ms.max.ta)+'㎡');
   }
   h+='<div class="m3-sub">일조·분석</div><div class="m3-act">'+
      '<button data-a3="winter">일조권 분석</button><button data-a3="shadow">그림자 시간</button><button data-a3="tools">3D 분석</button></div>';
@@ -180,6 +268,7 @@ async function setMode(m){
     var vp=app.view.viewpoint.clone();
     if(!app.map.layers.includes(bldgGroup)) app.map.layers.add(bldgGroup);
     if(!app.map.layers.includes(massLayer)) app.map.layers.add(massLayer);
+    if(!app.map.layers.includes(upLayer)) app.map.layers.add(upLayer);
     setBldg(bldgKind);
     app.view.container=null;
     view3d.container="viewDiv";
@@ -196,7 +285,7 @@ async function setMode(m){
   }else{
     var vp3=view3d&&view3d.viewpoint?view3d.viewpoint.clone():null;
     if(view3d) view3d.container=null;
-    app.map.layers.remove(bldgGroup); app.map.layers.remove(massLayer); // 3D 건물·매스는 2D 지도에 그릴 수 없음
+    app.map.layers.removeMany([bldgGroup,massLayer,upLayer]); // 3D 건물·매스는 2D 지도에 그릴 수 없음
     app.view.container="viewDiv";
     if(vp3&&vp3.targetGeometry){ app.view.goTo({target:vp3.targetGeometry,scale:Math.max(vp3.scale,500)},{animate:false}).catch(function(){}); }
     mode="2d";
@@ -225,7 +314,7 @@ document.addEventListener("click",function(e){
   else if(a==="tools"&&window.GY_TOOLS) GY_TOOLS.run("list");
 });
 document.addEventListener("change",function(e){
-  if(e.target.id==="m3Max"||e.target.id==="m3Plan") drawMasses();
+  if(e.target.id==="m3Max"||e.target.id==="m3Plan"||e.target.id==="m3Ex") drawMasses();
 });
 
 // app.js가 필지·계획이 바뀔 때 부름

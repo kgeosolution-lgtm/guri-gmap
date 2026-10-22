@@ -192,7 +192,7 @@ require([
   buildLayerPanel();
   window.__gy={view:view,map:map,layers:layers};
   // scene3d.js(3D 규모 검토)에 넘겨줄 것
-  window.GYAPP={map:map,view:view,S:function(){return S;},selectAtPoint:selectAtPoint,toast:toast,loading:loading};
+  window.GYAPP={map:map,view:view,S:function(){return S;},act:function(){return plan.act;},selectAtPoint:selectAtPoint,toast:toast,loading:loading};
   // 지도 도구(tools.js): 내 위치·거리·면적·오른쪽 버튼 메뉴, 3D 분석
   if(window.GY_TOOLS) GY_TOOLS.init({map:map,view2d:view,
     setMode:function(m){ return window.GY3D?GY3D.setMode(m):Promise.resolve(); },
@@ -647,10 +647,13 @@ function renderReviewForm(){
     else parentList().forEach(function(p){ h+='<option>'+esc(p)+'</option>'; });
     h+='</select><div class="hint">건축물대장 주용도: '+esc(cur||"조회 전/없음")+'</div></div>';
   }
-  h+='<div class="grid2"><div class="field"><label for="inBa">건축면적</label><div class="num"><input type="number" id="inBa" min="0" inputmode="decimal" placeholder="0"><i>㎡</i></div></div>';
-  h+='<div class="field"><label for="inTa">연면적 (지상+지하)</label><div class="num"><input type="number" id="inTa" min="0" inputmode="decimal" placeholder="0"><i>㎡</i></div></div>';
-  h+='<div class="field"><label for="inFa">용적률 산정 연면적</label><div class="num"><input type="number" id="inFa" min="0" inputmode="decimal" placeholder="미입력 시 연면적"><i>㎡</i></div></div>';
-  h+='<div class="field"><label for="inFl">지상 층수 / 높이</label><div class="grid2" style="gap:6px"><div class="num"><input type="number" id="inFl" min="0" placeholder="0" aria-label="지상 층수"><i>층</i></div><div class="num"><input type="number" id="inHt" min="0" placeholder="0" aria-label="높이(m)"><i>m</i></div></div></div>';
+  // 증축: 면적은 '증축 부분'(기존과 합산해 판정), 층수·높이는 '증축 후 전체'
+  var add=plan.act==="증축"?"증축 ":"";
+  if(add){ var eb=S.bld; h+='<div class="hint" style="margin:-4px 0 10px 4px">기존 건물(건축물대장): '+(eb?'지상 '+(eb.grndFlrCnt||"?")+'층 · 건축면적 '+(eb.archArea?n1(eb.archArea)+'㎡':'?')+' · 연면적 '+(eb.totArea?n1(eb.totArea)+'㎡':'?'):'조회 전/없음')+'<br>면적은 <b>늘어나는 부분만</b>, 층수는 <b>증축 후 전체 층수</b>를 넣으세요.</div>'; }
+  h+='<div class="grid2"><div class="field"><label for="inBa">'+add+'건축면적</label><div class="num"><input type="number" id="inBa" min="0" inputmode="decimal" placeholder="0"><i>㎡</i></div></div>';
+  h+='<div class="field"><label for="inTa">'+add+'연면적 (지상+지하)</label><div class="num"><input type="number" id="inTa" min="0" inputmode="decimal" placeholder="0"><i>㎡</i></div></div>';
+  h+='<div class="field"><label for="inFa">'+add+'용적률 산정 연면적</label><div class="num"><input type="number" id="inFa" min="0" inputmode="decimal" placeholder="미입력 시 연면적"><i>㎡</i></div></div>';
+  h+='<div class="field"><label for="inFl">'+(add?'증축 후 ':'')+'지상 층수 / 높이</label><div class="grid2" style="gap:6px"><div class="num"><input type="number" id="inFl" min="0" placeholder="0" aria-label="지상 층수"><i>층</i></div><div class="num"><input type="number" id="inHt" min="0" placeholder="0" aria-label="높이(m)"><i>m</i></div></div></div>';
   h+='<div class="field"><label for="inUf">지하 층수</label><div class="num"><input type="number" id="inUf" min="0" placeholder="0"><i>층</i></div></div>';
   h+='<div class="field"><label>분양 목적</label><label class="lyr" style="padding:9px 10px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:#fff"><span>분양 목적 건축물</span><span class="tgl"><input type="checkbox" id="inSale"><b></b></span></label></div>';
   if(S.flags&&S.flags.gb) h+='<div class="field" style="grid-column:1/-1"><label>개발제한구역 거주 요건</label><label class="lyr" style="padding:9px 10px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:#fff"><span>개발제한구역 지정 당시부터 거주 (지정당시거주자)</span><span class="tgl"><input type="checkbox" id="inGbRes"><b></b></span></label></div>';
@@ -769,6 +772,7 @@ function fetchBuilding(pnu){
     // 주건축물 우선 정렬 (연면적 큰 순)
     titles.sort(function(a,b){ return (parseFloat(b.totArea)||0)-(parseFloat(a.totArea)||0); });
     S.bld=titles[0]||recaps[0]||null; S.bldAll=titles; S.bldRecap=recaps[0]||null;
+    if(window.GY3D) GY3D.refresh(); // 3D 기존 건물 높이(대장 높이·층수)
     var h='';
     if(!titles.length&&!recaps.length){ h='<div class="card"><div class="empty-s">🏗 이 필지에 등록된 건축물대장이 없습니다<br><small>나대지이거나 미등재 건축물일 수 있습니다</small></div></div>'; }
     if(recaps.length){ var c=recaps[0];
@@ -980,7 +984,7 @@ document.addEventListener("click",function(e){
   if(t.dataset.sample){ $("exMenu").hidden=true; $("addrInput").value=t.dataset.sample; doSearch(t.dataset.sample); return; }
   if(t.dataset.near){ nearDetail(+t.dataset.near); return; }
   if(t.dataset.r){ nearRadius=+t.dataset.r; nearSel=-1; drawNear(nearData||[]); return; }
-  if(t.parentElement&&t.parentElement.id==="actChips"){ plan.act=t.dataset.v; plan.sub=$("inUse").value; renderReviewFormKeep(); return; }
+  if(t.parentElement&&t.parentElement.id==="actChips"){ plan.act=t.dataset.v; plan.sub=$("inUse").value; renderReviewFormKeep(); if(window.GY3D) GY3D.refresh(); return; }
   var a=t.dataset.act;
   if(a==="judge") judge();
   else if(a==="toggle") t.closest(".chk").classList.toggle("open");
@@ -989,7 +993,9 @@ document.addEventListener("click",function(e){
   else if(a==="zoneTable"){ e.preventDefault(); zoneTable(); }
   else if(a==="copyPnu"){ try{ navigator.clipboard.writeText(S.pnu); toast("PNU를 복사했습니다"); }catch(_){ } }
   else if(a==="share") shareModal();
-  else if(a==="fillMax"){ $("inBa").value=Math.floor(S.area*S.zm.b/100); $("inTa").value=Math.floor(S.area*S.zm.f/100); }
+  else if(a==="fillMax"){ // 증축은 남은 여유(최대 − 기존)만
+    var eb=plan.act==="증축"&&S.bld||null, exB=eb&&+eb.archArea||0, exT=eb&&+(eb.vlRatEstmTotArea||eb.totArea)||0;
+    $("inBa").value=Math.max(0,Math.floor(S.area*S.zm.b/100-exB)); $("inTa").value=Math.max(0,Math.floor(S.area*S.zm.f/100-exT)); }
 });
 document.addEventListener("change",function(e){
   if(e.target.id==="inPar"){ plan.use=e.target.value; plan.sub=""; renderReviewFormKeep(); }
