@@ -20,7 +20,7 @@ var FLOOR_H=3.3;     // 매스 층고(m) — 근생·업무 기준 개략값
 var WINTER=new Date(Date.UTC(2026,11,22,3,0)); // 동지 12월 22일 정오(KST)
 
 var M=null, view3d=null, mode="2d", massLayer=null, bldgGroup=null, bldgKind="lod1";
-var bldgLayers={};
+var bldgLayers={}, m3min=false; // m3min: 3D 규모 패널을 제목만 남겨 접음
 
 function $(id){ return document.getElementById(id); }
 function n0(v){ return Math.round(v).toLocaleString("ko-KR"); }
@@ -144,7 +144,8 @@ function renderPanel(ms){
   if(mode!=="3d"){ el.hidden=true; return; }
   el.hidden=false;
   ms=ms||masses();
-  var h='<div class="m3-h">3D 규모 검토</div>';
+  el.classList.toggle("min",m3min);
+  var h='<button class="m3-h" data-a3="min" aria-expanded="'+!m3min+'" title="패널 접기·펴기">3D 규모 검토<i class="m3-chev"></i></button>';
   if(!S){ h+='<div class="m3-empty">필지를 선택하면 최대 건축 가능 규모를 3D로 세워 보여 줍니다.</div>'; }
   else if(!ms){ h+='<div class="m3-empty">용도지역을 확인하는 중입니다…</div>'; }
   else{
@@ -212,6 +213,11 @@ document.addEventListener("click",function(e){
   var t=e.target.closest("[data-mode],[data-a3]"); if(!t) return;
   if(t.dataset.mode){ setMode(t.dataset.mode); return; }
   var a=t.dataset.a3;
+  if(a==="min"){
+    if(document.body.classList.contains("tool-open")&&window.GY_TOOLS) GY_TOOLS.close(); // 도구 때문에 접혀 있으면 도구를 닫고 펼침
+    else m3min=!m3min;
+    renderPanel(); return;
+  }
   if(a==="fly") flyToParcel(false);
   else if(a==="top") flyToParcel(true);
   else if(a==="winter"&&window.GY_TOOLS) GY_TOOLS.run("sun",{date:WINTER,title:"일조권 분석 (동지 12월 22일)",hint:"일조권 검토 기준일인 동지 정오의 해와 그림자를 보여 줍니다. 시각 막대를 끌거나 ▶ 를 눌러 9시~15시 그림자를 확인하세요 (건축법 시행령 제86조 일조 기준 참고)."});

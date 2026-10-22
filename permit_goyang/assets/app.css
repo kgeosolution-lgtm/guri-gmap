@@ -468,5 +468,11 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stro
   .tp-grid button:hover,.tp-grid button:hover svg,.map-tools button:hover svg,.esri-ui .esri-widget--button:hover>*{transform:none}
 }
 body.tp-wide .m3-panel{display:none}
+/* 3D 규모 패널 접기: 손으로 접거나(min), 분석 도구 창이 열려 있으면(tool-open) 제목만 */
+button.m3-h{width:100%;text-align:left;color:var(--ink)}
+.m3-chev{margin-left:auto;width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);margin-top:-4px;transition:transform .2s}
+.m3-panel.min,body.tool-open .m3-panel{padding-bottom:4px;overflow:hidden}
+.m3-panel.min>:not(.m3-h),body.tool-open .m3-panel>:not(.m3-h){display:none}
+.m3-panel.min .m3-chev,body.tool-open .m3-panel .m3-chev{transform:rotate(-135deg);margin-top:4px}
 .m3-act+.m3-act{margin-top:6px}
 .m3-sub+.m3-act{margin-top:0}

@@ -136,6 +136,7 @@
     T.attach(c.view2d);
   };
   T.busy = function () { return busy; };
+  T.close = function () { endTool(); };
   T.view = function () { return view; };  // 지금 뷰 (점검용)
   // 3D 패널의 바로가기(일조권 분석 등)에서 도구를 바로 엶
   T.run = function (a, opts) {
@@ -225,6 +226,7 @@
     const body = p.querySelector(".tp-body");
     body.innerHTML = "";
     p.hidden = false;
+    document.body.classList.add("tool-open");  // 3D 규모 패널은 제목만 남겨 도구 창을 가리지 않게
     return body;
   }
   function endTool() {
@@ -234,6 +236,7 @@
       try { a.end(); } catch (e) { /* 이미 정리됨 */ }
     }
     busy = false;
+    document.body.classList.remove("tool-open");
     if (ui.panel) {
       ui.panel.hidden = true;
       if (ui.panel.classList.contains("wide")) { ui.panel.classList.remove("wide"); placePanel(false); }
@@ -450,11 +453,12 @@
 
   async function viewshed(X, v, obs) {
     const body = openPanel("가시권 보기", "viewshed");
-    const vs = new X.Viewshed({ observer: obs || undefined, farDistance: 250, heading: v.camera.heading, tilt: 90,
+    let placing = null;  // 놓는 중인 작업 (도구를 끄면 멈춤)
+    const vs =new X.Viewshed({ observer: obs || undefined, farDistance: 250, heading: v.camera.heading, tilt: 90,
       horizontalFieldOfView: 120, verticalFieldOfView: 90 });
     const an = new X.ViewshedAnalysis({ viewsheds: obs ? [vs] : [] });
     v.analyses.add(an);
-    setActive("viewshed", function () { v.analyses.remove(an); });
+    setActive("viewshed", function () { if (placing) placing.abort(); v.analyses.remove(an); });
     const av = await v.whenAnalysisView(an);
     av.interactive = true;
     hint(body, "보이는 곳은 초록, 가려진 곳은 빨강입니다. 지도 위 손잡이를 끌어 방향·거리를 바꿀 수도 있습니다.");
@@ -488,10 +492,27 @@
         inp.nextElementSibling.textContent = inp.value + unitOf[inp.dataset.k];
       };
     });
+    // 한 개 놓기: 4.34 는 place(), 이 앱이 쓰는 4.31 은 createViewsheds()(취소할 때까지 계속 놓음)
+    //   → 관측점이 생긴 뒤 다음 클릭(방향 끝)에서 멈춤. 멈춰도 놓은 가시권은 남음 (2026-10-23 확인)
+    function placeOne() {
+      if (typeof av.place === "function") return av.place();
+      const ac = placing = new AbortController(), n0 = an.viewsheds.length;
+      let added = false;
+      const h = v.on("immediate-click", function () {
+        setTimeout(function () {
+          if (!added) added = an.viewsheds.length > n0;
+          else ac.abort();
+        }, 60);
+      });
+      return av.createViewsheds({ signal: ac.signal })
+        .catch(function (e) { if (!e || e.name !== "AbortError") throw e; })
+        .finally(function () { h.remove(); if (placing === ac) placing = null; });
+    }
     async function place() {
+      if (placing) placing.abort();
       busy = true;
       note("관측할 자리를 누른 뒤, 볼 방향의 끝을 누르세요", 6000);
-      try { await av.place(); } catch (e) { /* 취소 */ }
+      try { await placeOne(); } catch (e) { /* 취소 */ }
       busy = false;
       sync();
     }
