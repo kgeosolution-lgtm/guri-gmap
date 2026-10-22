@@ -9,7 +9,8 @@ var API = "/app/regulation/api.py";
 var ZONE_PROXY = "/app/regulation/zone_proxy.py";
 var PORTAL = "https://kgeodata.com/portal";
 var HOST = "https://kgeodata.com/server/rest/services/Hosted/";
-var BM = { satellite:"d6e738240ab2402095b4bb11c28ef320", general:"a177f5017b52486b930463f900da4d71" };
+// 배경지도 = 포털 웹 지도: 일반(바로e맵 Std) · 수치지형도(1:5,000 전국 주제별 레이어 + 바로e맵) · 위성
+var BM = { general:"a177f5017b52486b930463f900da4d71", ngii:"cffd232c6fdd4ce5be34d38868fcb282", satellite:"d6e738240ab2402095b4bb11c28ef320" };
 var URL_ = {
   boundary: HOST+encodeURIComponent("고양시경계")+"/FeatureServer/0",
   gu: HOST+encodeURIComponent("센서스용행정구역경계_시군구_2024년")+"/FeatureServer/4",
@@ -64,7 +65,7 @@ function $(id){ return document.getElementById(id); }
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];}); }
 function n0(v){ return Math.round(v).toLocaleString("ko-KR"); }
 function n1(v){ return (Math.round(v*10)/10).toLocaleString("ko-KR"); }
-function toast(m){ var t=$("toast"); t.textContent=m; t.classList.add("on"); clearTimeout(toast._t); toast._t=setTimeout(function(){t.classList.remove("on");},2800); }
+function toast(m,ms){ var t=$("toast"); t.textContent=m; t.classList.add("on"); clearTimeout(toast._t); toast._t=setTimeout(function(){t.classList.remove("on");},ms||2800); }
 function loading(on,msg){ $("loading").classList.toggle("on",!!on); if(msg) $("loading").querySelector("span").textContent=msg; }
 function jimokFull(j){ return JIMOK[j]||j||"-"; }
 function guOf(pnu){ return GU[(pnu||"").substring(0,5)]||""; }
@@ -92,8 +93,8 @@ require([
   E={Graphic:Graphic,Polygon:Polygon,Polyline:Polyline,Point:Point,ge:geometryEngine,FeatureLayer:FeatureLayer};
   esriConfig.portalUrl=PORTAL;
 
-  map=new Map({basemap:"satellite"});
-  setBasemap("satellite");
+  map=new Map({basemap:"gray-vector"});
+  setBasemap("general");
 
   // ── 용도지역 (용도지역_VW: 도시/관리/농림/자연환경보전) ──
   var zuv=[]; Object.keys(ZONE_CODE).forEach(function(c){ zuv.push({value:c,symbol:{type:"simple-fill",color:ZONE_COLOR[ZONE_CODE[c]],outline:{color:[60,60,60,0.35],width:0.4}}}); });
@@ -183,7 +184,7 @@ require([
     });
   }).catch(function(e){ console.warn("고양시 경계 로드 실패",e); });
 
-  view.on("click",function(e){ selectAtPoint(e.mapPoint,true); });
+  view.on("click",function(e){ if(e.button===2||(window.GY_TOOLS&&GY_TOOLS.busy())) return; selectAtPoint(e.mapPoint,true); }); // 오른쪽 버튼은 메뉴, 재기·그리기 중에는 필지 선택 안 함
   // 안내 문구: 필지 선택 전에만, 축척에 맞춰
   view.watch("scale",updateHint);
   view.when(updateHint);
@@ -192,6 +193,11 @@ require([
   window.__gy={view:view,map:map,layers:layers};
   // scene3d.js(3D 규모 검토)에 넘겨줄 것
   window.GYAPP={map:map,view:view,S:function(){return S;},selectAtPoint:selectAtPoint,toast:toast,loading:loading};
+  // 지도 도구(tools.js): 내 위치·거리·면적·오른쪽 버튼 메뉴, 3D 분석
+  if(window.GY_TOOLS) GY_TOOLS.init({map:map,view2d:view,
+    setMode:function(m){ return window.GY3D?GY3D.setMode(m):Promise.resolve(); },
+    select:function(pt){ selectAtPoint(pt,true); },
+    note:function(t,ms){ if(t) toast(t,ms); }});
   view.when(function(){ setTimeout(openFromUrl,300); });
 });
 var homeExtent=null;
@@ -217,20 +223,37 @@ function styleForBasemap(t){
     else if(s.type==="text"){ s.color=dark?[2,61,55]:[255,255,255]; s.haloColor=dark?[255,255,255,0.95]:[0,60,70,0.9]; }
     g.symbol=s; });
 }
+// 웹 지도 한 번만 읽어 둠: 배경(basemap)과, 수치지형도는 주제 레이어 묶음(토지이용·지형·수계·건물·교통·행정경계·시설·지명·도곽)
+var bmCache={}, bmSeq=0, ngiiGroup=null;
+function loadBm(t){
+  if(!bmCache[t]) bmCache[t]=new Promise(function(res,rej){
+    require(["esri/WebMap"],function(WebMap){
+      var wm=new WebMap({portalItem:{id:BM[t]}});
+      wm.load().then(function(){
+        var grp=t==="ngii"?wm.layers.getItemAt(0):null;
+        if(grp){ wm.layers.remove(grp); grp.listMode="hide"; }
+        res({basemap:wm.basemap,group:grp});
+      }).catch(function(e){ bmCache[t]=null; rej(e); });
+    },rej);
+  });
+  return bmCache[t];
+}
 function setBasemap(t){
+  var my=++bmSeq;
   document.querySelectorAll("#bmSeg button").forEach(function(b){ b.classList.toggle("active",b.dataset.bm===t); });
   styleForBasemap(t);
-  if(t==="topo"){ // 국토지리정보원 회색 지형도 (포털 벡터타일)
-    require(["esri/Basemap","esri/layers/VectorTileLayer"],function(Basemap,VectorTileLayer){
-      map.basemap=new Basemap({baseLayers:[new VectorTileLayer({url:HOST+"NGII_GRAY_2026/VectorTileServer"})],title:"지형도"});
-    });
-    return;
-  }
-  require(["esri/WebMap"],function(WebMap){
-    var wm=new WebMap({portalItem:{id:BM[t]}});
-    wm.load().then(function(){ map.basemap=wm.basemap; }).catch(function(){ map.basemap=t==="satellite"?"satellite":"gray-vector"; });
+  loadBm(t).then(function(r){
+    if(my!==bmSeq) return; // 그사이 다른 배경을 누름
+    map.basemap=r.basemap;
+    if(ngiiGroup&&ngiiGroup!==r.group) map.remove(ngiiGroup);
+    ngiiGroup=r.group;
+    if(ngiiGroup&&!map.layers.includes(ngiiGroup)) map.add(ngiiGroup,0); // 수치지형도 주제 레이어는 규제·지적 레이어 아래
+  }).catch(function(){
+    if(my!==bmSeq) return;
+    if(ngiiGroup){ map.remove(ngiiGroup); ngiiGroup=null; }
+    if(t==="ngii"){ toast("수치지형도를 불러오지 못해 일반 지도로 보여 드립니다"); setBasemap("general"); return; }
+    map.basemap=t==="satellite"?"satellite":"gray-vector";
   });
-  document.querySelectorAll("#bmSeg button").forEach(function(b){ b.classList.toggle("active",b.dataset.bm===t); });
 }
 
 // ═══ 레이어 패널 ═══

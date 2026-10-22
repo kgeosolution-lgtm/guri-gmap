@@ -250,7 +250,8 @@ table.tb{width:100%;border-collapse:collapse;font-size:12.5px}
 #viewDiv{position:absolute;inset:0}
 .esri-view .esri-view-surface--inset-outline:focus::after{outline:none!important}
 .esri-ui-corner .esri-component{box-shadow:var(--sh-2)!important;border-radius:10px;overflow:hidden}
-.map-top{position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:4;display:flex;gap:8px}
+.map-top{position:absolute;top:14px;left:258px;right:58px;z-index:4;display:flex;flex-wrap:wrap;justify-content:center;gap:8px;pointer-events:none} /* 왼쪽 레이어 카드와 오른쪽 확대·도구 버튼 사이 */
+.map-top>*{pointer-events:auto}
 .seg-mode button{min-width:40px}
 .seg-mode button.active{background:var(--brand)}
 .seg button.na{opacity:.4}
@@ -357,3 +358,106 @@ body.is3d .map-hint{display:none}
   .print-only{display:block!important}
 }
 .print-only{display:none}
+
+/* ── 지도 도구 (tools.js) — ngii5000 과 같은 도구 버튼 · 떠 있는 도구 창 · 오른쪽 버튼 메뉴 · 말풍선 ── */
+:root{--accent:var(--brand);--accent-ink:var(--brand-700);--accent-weak:var(--brand-50);--text:var(--ink);--hover:#F1F4F6;--panel:#fff;--faint:#98A2B3;
+  --shadow:var(--sh-1);--shadow-float:var(--sh-2);--ease-spring:cubic-bezier(.34,1.56,.64,1);--ease-out:cubic-bezier(.22,1,.36,1);--tip-bg:rgba(15,26,36,.92)}
+svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.map-tools{display:grid;background:rgba(255,255,255,.97);border-radius:10px;overflow:hidden;box-shadow:var(--shadow-float)}
+.map-tools button{width:32px;height:32px;border:0;background:none;display:grid;place-items:center;color:#323232;cursor:pointer;padding:0}
+.map-tools button+button{border-top:1px solid var(--line-2)}
+.map-tools button[hidden]{display:none}
+.map-tools button.busy svg{animation:ngii-spin 1s linear infinite}
+@keyframes ngii-spin{to{transform:rotate(360deg)}}
+.map-tools button:focus-visible,.tool-panel button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.tool-panel{width:316px;max-width:calc(100vw - 32px);background:rgba(255,255,255,.98);border-radius:14px;box-shadow:var(--shadow-float);overflow:hidden}
+.tool-panel[hidden]{display:none}
+.tool-panel.wide{width:min(640px,calc(100vw - 32px))}
+.tool-panel header{display:flex;align-items:center;gap:8px;padding:9px 8px 9px 14px;border-bottom:1px solid var(--line-2)}
+.tool-panel .tp-ico{display:grid;place-items:center;width:26px;height:26px;border-radius:8px;background:var(--accent-weak);color:var(--accent-ink)}
+.tool-panel h3{flex:1;margin:0;font-size:14px;font-weight:700;color:var(--text)}
+.tool-panel .tp-x{border:0;background:none;width:30px;height:30px;border-radius:8px;display:grid;place-items:center;color:var(--muted);cursor:pointer}
+.tool-panel .tp-x:hover{background:var(--hover);color:var(--text)}
+.tool-panel .tp-body{padding:12px 14px 14px;max-height:min(64vh,560px);overflow:auto;font-size:13px;color:var(--text)}
+.tool-panel .tp-hint{margin:0 0 10px;padding:8px 10px;font-size:12px;line-height:1.55;color:#344054;background:var(--bg);border-radius:10px}
+.tool-panel .esri-widget{font-family:inherit;background:transparent;box-shadow:none}
+.tool-panel .esri-widget--panel,.tool-panel .esri-widget__content--empty{padding:0;width:auto;max-width:none}
+.tool-panel .esri-button{border-radius:9px;font-weight:600;font-size:13px}
+.tool-panel .esri-button:not(.esri-button--secondary):not(.esri-button--tertiary){background:var(--accent);border-color:var(--accent)}
+.tool-panel .esri-button:not(.esri-button--secondary):not(.esri-button--tertiary):hover{background:var(--accent-ink);border-color:var(--accent-ink)}
+.tool-panel .esri-select,.tool-panel select{border-radius:8px}
+.tool-panel .tp-profile{height:260px}
+.tool-panel .tp-profile .esri-elevation-profile{height:100%}
+.tp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.tp-grid button{display:grid;justify-items:center;gap:5px;padding:10px 4px;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:12px;font-weight:600;color:var(--text);cursor:pointer;text-align:center;line-height:1.3}
+.tp-grid button:hover{border-color:var(--accent);color:var(--accent-ink);background:var(--accent-weak)}
+.tp-grid svg.i{width:20px;height:20px}
+.tp-form{display:grid;gap:8px}
+.tp-row{display:grid;grid-template-columns:64px minmax(0,1fr) 76px;align-items:center;gap:8px;font-size:12.5px;color:var(--muted)}
+.tp-row input[type=range]{width:100%;accent-color:var(--accent)}
+.tp-row output{text-align:right;font-variant-numeric:tabular-nums;color:var(--text);font-weight:600}
+.tp-btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
+.tp-b{display:inline-flex;align-items:center;justify-content:center;gap:6px;flex:1;border:1px solid var(--line);border-radius:9px;background:#fff;padding:8px 10px;font-size:12.5px;font-weight:600;color:var(--text);cursor:pointer;white-space:nowrap}
+.tp-b:hover{border-color:#d0d5dd;background:var(--hover)}
+.tp-b.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+.tp-b.pri:hover{background:var(--accent-ink)}
+.tp-seg{display:grid;grid-template-columns:1fr 1fr;gap:2px;padding:3px;background:var(--bg);border-radius:10px}
+.tp-seg button{border:0;background:none;border-radius:7px;padding:6px 0;font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer}
+.tp-seg button[aria-pressed="true"]{background:var(--panel);color:var(--accent-ink);box-shadow:var(--shadow)}
+.tp-sub{margin-top:4px;font-size:12px;color:var(--muted)}
+.tp-list{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.tp-list li{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 6px 6px 10px;border:1px solid var(--line-2);border-radius:9px;font-size:12.5px}
+.tp-list li.none{color:var(--muted);border-style:dashed;padding:8px 10px}
+.tp-del{border:0;background:none;width:26px;height:26px;border-radius:7px;display:grid;place-items:center;color:var(--muted);cursor:pointer}
+.tp-del:hover{background:#fef3f2;color:#b42318}
+.ctx-menu{position:fixed;z-index:60;min-width:220px;max-width:290px;padding:6px;background:#fff;border-radius:12px;box-shadow:var(--shadow-float);border:1px solid var(--line-2)}
+.ctx-menu[hidden]{display:none}
+.ctx-menu .cm-h{display:flex;align-items:center;gap:6px;padding:6px 8px 8px;margin-bottom:4px;border-bottom:1px solid var(--line-2);font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.ctx-menu .cm-h svg.i{width:14px;height:14px;color:var(--accent)}
+.ctx-menu button{display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;padding:7px 8px;border-radius:8px;font-size:13.5px;color:var(--text);cursor:pointer;text-align:left}
+.ctx-menu button svg.i{color:var(--muted)}
+.ctx-menu button:hover,.ctx-menu button:focus-visible{background:var(--accent-weak);color:var(--accent-ink);outline:0}
+.ctx-menu button:hover svg.i,.ctx-menu button:focus-visible svg.i{color:var(--accent-ink)}
+.ctx-menu .cm-t{display:grid}
+.ctx-menu .cm-d{font-size:11px;color:var(--muted);font-weight:400}
+.ctx-menu hr{border:0;border-top:1px solid var(--line-2);margin:4px 2px}
+.ngii-tip{position:fixed;left:0;top:0;z-index:90;pointer-events:none;padding:6px 12px;border-radius:999px;background:var(--tip-bg);color:#fff;font-size:12.5px;font-weight:600;letter-spacing:-.01em;line-height:1.35;white-space:nowrap;box-shadow:0 6px 16px rgba(16,24,40,.18);opacity:0;transform:var(--tip-from,none) scale(.9);transition:opacity .2s var(--ease-out),transform .3s var(--ease-spring)}
+.ngii-tip.on{opacity:1;transform:none}
+.ngii-tip::after{content:"";position:absolute;border:5px solid transparent}
+.ngii-tip[data-side=right]{--tip-from:translateX(-8px);transform-origin:left center}
+.ngii-tip[data-side=right]::after{right:100%;top:50%;margin-top:-5px;border-right-color:var(--tip-bg)}
+.ngii-tip[data-side=left]{--tip-from:translateX(8px);transform-origin:right center}
+.ngii-tip[data-side=left]::after{left:100%;top:50%;margin-top:-5px;border-left-color:var(--tip-bg)}
+.ngii-tip[data-side=bottom]{--tip-from:translateY(-6px);transform-origin:center top}
+.ngii-tip[data-side=bottom]::after{bottom:100%;left:50%;margin-left:-5px;border-bottom-color:var(--tip-bg)}
+.ngii-tip[data-side=top]{--tip-from:translateY(6px);transform-origin:center bottom}
+.ngii-tip[data-side=top]::after{top:100%;left:50%;margin-left:-5px;border-top-color:var(--tip-bg)}
+.map-tools button,.esri-ui .esri-widget--button,.tool-panel .tp-x{transition:background-color .2s,color .2s,box-shadow .2s,transform .18s var(--ease-spring)}
+.map-tools button svg,.esri-ui .esri-widget--button>*,.tool-panel .tp-x svg{transition:transform .3s var(--ease-spring)}
+.map-tools button:hover,.esri-ui .esri-widget--button:hover{background:var(--accent-weak);color:var(--accent)}
+.map-tools button:hover svg,.esri-ui .esri-widget--button:hover>*,.tool-panel .tp-x:hover svg{transform:scale(1.14)}
+.map-tools button:active,.esri-ui .esri-widget--button:active,.tp-b:active,.tool-panel .tp-x:active{transform:scale(.92)}
+.map-tools button[aria-pressed="true"],.map-tools button[aria-pressed="true"]:hover{background:linear-gradient(135deg,#0B7A6E,var(--accent));color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
+.map-tools button[aria-pressed="true"] svg{transform:none}
+.tp-b{transition:background-color .2s,border-color .2s,color .2s,transform .18s var(--ease-spring)}
+.tp-grid button{transition:border-color .2s,background-color .2s,color .2s,box-shadow .25s,transform .3s var(--ease-spring)}
+.tp-grid button svg{transition:transform .3s var(--ease-spring)}
+.tp-grid button:hover{transform:translateY(-2px);box-shadow:0 6px 14px rgba(2,87,79,.14)}
+.tp-grid button:hover svg{transform:scale(1.15)}
+.tp-grid button:active{transform:translateY(0) scale(.96)}
+.ctx-menu button{transition:background-color .15s,color .15s}
+.ctx-menu button svg{transition:transform .3s var(--ease-spring),color .15s}
+.ctx-menu button:hover svg,.ctx-menu button:focus-visible svg{transform:translateX(2px) scale(1.1)}
+.tool-panel:not([hidden]){animation:ngii-pop .3s var(--ease-out);transform-origin:top right}
+.tool-panel.wide:not([hidden]){transform-origin:bottom left}
+.ctx-menu:not([hidden]){animation:ngii-pop .22s var(--ease-out);transform-origin:top left}
+@keyframes ngii-pop{from{opacity:0;transform:translateY(-4px) scale(.96)}}
+@media (prefers-reduced-motion:reduce){
+  .ngii-tip{transition:opacity .12s;transform:none!important}
+  .tool-panel:not([hidden]),.ctx-menu:not([hidden]){animation:none}
+  .map-tools button,.esri-ui .esri-widget--button,.tp-grid button,.tp-b,.tool-panel .tp-x,.map-tools button svg,.esri-ui .esri-widget--button>*,.tp-grid button svg,.ctx-menu button svg{transition:none}
+  .tp-grid button:hover,.tp-grid button:hover svg,.map-tools button:hover svg,.esri-ui .esri-widget--button:hover>*{transform:none}
+}
+body.tp-wide .m3-panel{display:none}
+.m3-act+.m3-act{margin-top:6px}
+.m3-sub+.m3-act{margin-top:0}
