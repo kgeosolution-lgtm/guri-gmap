@@ -239,6 +239,8 @@ svg{display:block}
 .src.ord{background:var(--brand-50);color:var(--brand-700)}
 .src.law{background:#F3EEFC;color:#6B3FC4}
 a.src:hover{text-decoration:underline}
+a.src.law::after,a.src.ord::after{content:" 원문";font-size:.85em;opacity:.65}
+.law-text{margin:10px 0;padding:12px 14px;background:var(--bg);border-radius:10px;font-family:inherit;font-size:13px;line-height:1.75;color:var(--ink);white-space:pre-wrap;max-height:55vh;overflow:auto;border:1px solid var(--line-2)}
 .bar{height:6px;border-radius:6px;background:var(--line-2);overflow:hidden;margin:6px 0 2px}
 .bar i{display:block;height:100%;border-radius:6px}
 

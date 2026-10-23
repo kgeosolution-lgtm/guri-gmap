@@ -820,6 +820,43 @@ function copyOpinion(){
   (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).then(function(){ toast("검토 의견을 복사했습니다"); })
     .catch(function(){ var r=document.createRange(); r.selectNodeContents(t); var s=getSelection(); s.removeAllRanges(); s.addRange(r); toast("Ctrl+C로 복사하세요"); });
 }
+// ═══ 근거 조문 원문 (법제처 OPEN API → law_texts.js, 근거를 처음 누를 때 불러옴) ═══
+var LAW_ALIAS={"국토계획법":"국토의계획및이용에관한법률","군사기지법":"군사기지및군사시설보호법","소방시설법":"소방시설설치및관리에관한법률","장애인등편의법":"장애인노인임산부등의편의증진보장에관한법률",
+  "녹색건축법":"녹색건축물조성지원법","개발제한구역법":"개발제한구역의지정및관리에관한특별조치법","학교용지법":"학교용지확보등에관한특례법","부동산거래신고법":"부동산거래신고등에관한법률",
+  "문화유산법":"문화유산의보존및활용에관한법률","건축물설비기준규칙":"건축물의설비기준등에관한규칙","도시교통정비법":"도시교통정비촉진법"};
+var lawLoad=null;
+function needLaw(){
+  if(window.GY_LAW) return Promise.resolve(window.GY_LAW);
+  if(!lawLoad) lawLoad=new Promise(function(res,rej){
+    var l=document.querySelector("link[data-law]"), s=document.createElement("script");
+    s.src=l?l.getAttribute("href"):"assets/law_texts.js"; s.onload=function(){ window.GY_LAW?res(window.GY_LAW):rej(); }; s.onerror=function(){ lawLoad=null; rej(); };
+    document.head.appendChild(s);
+  });
+  return lawLoad;
+}
+var lawNorm=function(s){ return String(s||"").replace(/[\sㆍ·]/g,""); };
+// 근거 링크(주소·글자) → {kind, key, art}
+function lawRef(href,label){
+  var h=""; try{ h=decodeURIComponent(href||""); }catch(e){ h=href||""; }
+  var m=h.match(/법령\/([^\/?#]+)\/제(\d+)조(?:의(\d+))?/);
+  if(m) return {kind:"laws",key:lawNorm(m[1]),art:m[2]+(m[3]?"의"+m[3]:"")};
+  var a=String(label||"").match(/^(.+?)\s*(시행령|시행규칙)?\s*제(\d+)조(?:의(\d+))?/); if(!a) return null;
+  var base=lawNorm(a[1]), art=a[3]+(a[4]?"의"+a[4]:"");
+  if(/조례$/.test(base)) return {kind:"ordins",key:base.replace(/^고양특례시/,"고양시"),art:art};
+  return {kind:"laws",key:(LAW_ALIAS[base]||base)+(a[2]||""),art:art};
+}
+function fmtYmd(s){ s=String(s||""); return s.length===8?s.slice(0,4)+"."+(+s.slice(4,6))+"."+(+s.slice(6))+".":s; }
+function openLaw(ref,href){
+  return needLaw().then(function(G){
+    var doc=G[ref.kind]&&G[ref.kind][ref.key], txt=doc&&doc.arts[ref.art];
+    if(!txt) return false;
+    var h='<h3>'+esc(doc.name)+' 제'+esc(ref.art.replace("의","조의"))+(ref.art.indexOf("의")<0?'조':'')+'</h3>';
+    h+='<div class="sub">'+(doc.pub?'공포 '+fmtYmd(doc.pub)+' · ':'')+'시행 '+fmtYmd(doc.eff)+(doc.no?' · 제'+esc(doc.no)+'호':'')+(doc.dept?' · '+esc(doc.dept)+(doc.tel?' ☎ '+esc(doc.tel):''):'')+'</div>';
+    h+='<pre class="law-text">'+esc(txt)+'</pre>';
+    h+='<p class="hint">국가법령정보 OPEN API(법제처) 원문 · '+esc(G.synced)+' 확인 · 개정 연혁 표시는 생략했습니다. <a href="'+esc(href||doc.url)+'" target="_blank" rel="noopener">법제처에서 전체 보기 ›</a></p>';
+    openModal(h); return true;
+  }).catch(function(){ return false; });
+}
 function chkHtml(c){
   var sym={ok:"✓",warn:"!",fail:"✕",info:"i",na:"–"}[c.st]||"–";
   var h='<div class="chk '+c.st+'"><button class="chk-h" data-act="toggle"><span class="st '+c.st+'">'+sym+'</span><span class="chk-n">'+esc(c.n)+'</span><span class="chk-v '+c.st+'">'+esc(c.v)+'</span><i class="chev"></i></button><div class="chk-d">';
@@ -1082,6 +1119,10 @@ function help(){
 // ═══ 이벤트 ═══
 document.addEventListener("click",function(e){
   var rb=e.target.closest("[data-role]"); if(rb){ applyRole(rb.dataset.role); return; }
+  // 근거 법령·조례 → 앱 안에서 조문 원문 (원문이 없으면 법제처 링크 안내)
+  var sl=e.target.closest("a.src.law, a.src.ord");
+  if(sl){ var ref=lawRef(sl.getAttribute("href"),sl.textContent); if(ref){ e.preventDefault(); var href=sl.href, lab=sl.textContent;
+    openLaw(ref,href).then(function(ok){ if(!ok) openModal('<h3>'+esc(lab)+'</h3><p class="hint">이 조문은 앱에 원문이 없습니다.</p><p><a class="btn-primary sm" href="'+esc(href)+'" target="_blank" rel="noopener">법제처에서 보기 ›</a></p>'); }); return; } }
   var t=e.target.closest("[data-act],[data-tab],[data-gu],[data-bm],[data-close],.chip,[data-near],[data-near-close],[data-sample],[data-dup]");
   if(t&&t.hasAttribute("data-near-close")){ nearSel=-1; $("nearPick").innerHTML=""; document.querySelectorAll("#tab-near tr.clk.on").forEach(function(tr){ tr.classList.remove("on"); }); drawNearMap(S.near||[]); return; }
   if(!t) return;
@@ -1135,7 +1176,7 @@ applyRole(role);
 (function(){
   var el=$("zoneMini"); if(!el||!GY.zones) return;
   var keys=["제1종일반주거","제2종일반주거","제3종일반주거","준주거","일반상업","근린상업","자연녹지","계획관리"].filter(function(k){ return GY.zones[k]; });
-  var topF=Math.max.apply(null,keys.map(function(k){ return GY.zones[k].f; })), topB=Math.max.apply(null,keys.map(function(k){ return GY.zones[k].b; }));
+  var topF=Math.max.apply(null,keys.map(function(k){ return GY.zones[k].f; })), topB=100; // 건폐율은 100% 만점, 용적률은 표의 최댓값 기준
   var bar=function(v,top,cls){ return '<span class="zf '+cls+'">'+v+'%<em style="--w:'+Math.max(4,Math.round(v/top*100))+'%"></em></span>'; };
   el.innerHTML='<div class="zm-row zm-head"><span>용도지역</span><span>건폐율</span><span>용적률</span></div>'+keys.map(function(k){ var z=GY.zones[k];
     return '<div class="zm-row"><span class="zn"><i style="background:'+ZONE_COLOR[k]+'"></i>'+k+'</span>'+bar(z.b,topB,"zb")+bar(z.f,topF,"")+'</div>'; }).join("");
