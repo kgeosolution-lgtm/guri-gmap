@@ -1,0 +1,49 @@
+name: KGEO Studio content deployment 07920fabafa5
+on:
+  push:
+    branches: [codex/kgeo-studio-07920fabafa5]
+    paths: [.github/workflows/studio-07920fabafa5.yml]
+permissions:
+  contents: read
+concurrency:
+  group: kgeo-studio-server-deploy
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 5
+    steps:
+      - name: Install the verified KGEO Studio archive in its separate IIS folder
+        shell: powershell
+        env:
+          STUDIO_ARCHIVE_URL: ${{ secrets.KGEO_STUDIO_ARCHIVE_07920FABAFA5 }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $ProgressPreference='SilentlyContinue'
+          if ($env:COMPUTERNAME -ne 'KGO-GIS') { throw 'Unexpected server' }
+          $tempRoot=[IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\')
+          $work=[IO.Path]::GetFullPath((Join-Path $tempRoot ('studio-'+[Guid]::NewGuid().ToString('N'))))
+          if (-not $work.StartsWith($tempRoot+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Temporary path boundary failed' }
+          New-Item -ItemType Directory -Path $work | Out-Null
+          try {
+            $zip=Join-Path $work 'source.zip'
+            try { Invoke-WebRequest -UseBasicParsing -Uri $env:STUDIO_ARCHIVE_URL -OutFile $zip -TimeoutSec 60 } catch { throw 'Private archive download failed; no address logged' }
+            $env:STUDIO_ARCHIVE_URL=$null
+            if ((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne '091b2700971ab053c1e3dd11fdd349ca2f197645c67bda30ef432a939011f519') { throw 'Source archive checksum mismatch' }
+            $expanded=Join-Path $work 'source'
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            $archive=[IO.Compression.ZipFile]::OpenRead($zip)
+            try {
+              foreach ($entry in $archive.Entries) {
+                $dest=[IO.Path]::GetFullPath((Join-Path $expanded $entry.FullName))
+                if (-not $dest.StartsWith($expanded+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Archive path escape' }
+              }
+            } finally { $archive.Dispose() }
+            Expand-Archive -LiteralPath $zip -DestinationPath $expanded
+            $roots=@(Get-ChildItem -LiteralPath $expanded -Directory)
+            if ($roots.Count -ne 1) { throw 'Unexpected archive layout' }
+            & (Join-Path $roots[0].FullName 'deploy\install-iis.ps1') -SourceRoot $roots[0].FullName -SourceCommit '07920fabafa5d26f87d756a8c5ca29b6863595fd' -AllowAnonymousReview -Apply
+          } finally {
+            $env:STUDIO_ARCHIVE_URL=$null
+            if ($work.StartsWith($tempRoot+'\',[StringComparison]::OrdinalIgnoreCase) -and (Test-Path -LiteralPath $work)) { Remove-Item -LiteralPath $work -Recurse -Force }
+          }
