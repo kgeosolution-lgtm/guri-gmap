@@ -1135,9 +1135,10 @@ applyRole(role);
 (function(){
   var el=$("zoneMini"); if(!el||!GY.zones) return;
   var keys=["제1종일반주거","제2종일반주거","제3종일반주거","준주거","일반상업","근린상업","자연녹지","계획관리"].filter(function(k){ return GY.zones[k]; });
-  var top=Math.max.apply(null,keys.map(function(k){ return GY.zones[k].f; }));
-  el.innerHTML='<div class="zm-row zm-head"><span>용도지역</span><span class="zb">건폐율</span><span>용적률</span></div>'+keys.map(function(k){ var z=GY.zones[k];
-    return '<div class="zm-row"><span class="zn"><i style="background:'+ZONE_COLOR[k]+'"></i>'+k+'</span><span class="zb">'+z.b+'%</span><span class="zf">'+z.f+'%<em style="--w:'+Math.max(4,Math.round(z.f/top*100))+'%"></em></span></div>'; }).join("");
+  var topF=Math.max.apply(null,keys.map(function(k){ return GY.zones[k].f; })), topB=Math.max.apply(null,keys.map(function(k){ return GY.zones[k].b; }));
+  var bar=function(v,top,cls){ return '<span class="zf '+cls+'">'+v+'%<em style="--w:'+Math.max(4,Math.round(v/top*100))+'%"></em></span>'; };
+  el.innerHTML='<div class="zm-row zm-head"><span>용도지역</span><span>건폐율</span><span>용적률</span></div>'+keys.map(function(k){ var z=GY.zones[k];
+    return '<div class="zm-row"><span class="zn"><i style="background:'+ZONE_COLOR[k]+'"></i>'+k+'</span>'+bar(z.b,topB,"zb")+bar(z.f,topF,"")+'</div>'; }).join("");
 })();
 // 브랜드 색 적용
 if(GY.brand){ var rs=document.documentElement.style; for(var k in GY.brand) rs.setProperty(k,GY.brand[k]); }
