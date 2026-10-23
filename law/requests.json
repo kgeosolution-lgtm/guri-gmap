@@ -1,50 +1,46 @@
 [
  {
-  "file": "s_분권특별법.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=30&query=%EC%A7%80%EB%B0%A9%EC%9E%90%EC%B9%98%EB%B6%84%EA%B6%8C%20%EB%B0%8F%20%EC%A7%80%EC%97%AD%EA%B7%A0%ED%98%95%EB%B0%9C%EC%A0%84%EC%97%90%20%EA%B4%80%ED%95%9C%20%ED%8A%B9%EB%B3%84%EB%B2%95"
+  "file": "L_분권특별법.json",
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=285293"
  },
  {
-  "file": "s_유통산업발전법.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=30&query=%EC%9C%A0%ED%86%B5%EC%82%B0%EC%97%85%EB%B0%9C%EC%A0%84%EB%B2%95"
+  "file": "L_유통산업발전법.json",
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=283979"
  },
  {
-  "file": "s_주택건설기준.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=30&query=%EC%A3%BC%ED%83%9D%EA%B1%B4%EC%84%A4%EA%B8%B0%EC%A4%80%20%EB%93%B1%EC%97%90%20%EA%B4%80%ED%95%9C%20%EA%B7%9C%EC%A0%95"
+  "file": "L_주택건설기준규정.json",
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=289501"
  },
  {
-  "file": "s_국토계획법시행규칙.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=30&query=%EA%B5%AD%ED%86%A0%EC%9D%98%20%EA%B3%84%ED%9A%8D%20%EB%B0%8F%20%EC%9D%B4%EC%9A%A9%EC%97%90%20%EA%B4%80%ED%95%9C%20%EB%B2%95%EB%A5%A0%20%EC%8B%9C%ED%96%89%EA%B7%9C%EC%B9%99"
+  "file": "L_국토계획법시행규칙.json",
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=289249"
  },
  {
-  "file": "o_경기도건축조례.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=ordin&type=JSON&display=30&query=%EA%B2%BD%EA%B8%B0%EB%8F%84%20%EA%B1%B4%EC%B6%95%20%EC%A1%B0%EB%A1%80"
+  "file": "O_경기도건축조례.json",
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=ordin&type=JSON&MST=2072095"
  },
  {
-  "file": "o_경기도미술작품.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=ordin&type=JSON&display=30&query=%EA%B2%BD%EA%B8%B0%EB%8F%84%20%EA%B1%B4%EC%B6%95%EB%AC%BC%20%EB%AF%B8%EC%88%A0%EC%9E%91%ED%92%88"
+  "file": "O_경기도미술작품조례.json",
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=ordin&type=JSON&MST=1838999"
  },
  {
-  "file": "o_고양개발제한.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=ordin&type=JSON&display=30&query=%EA%B3%A0%EC%96%91%EC%8B%9C%20%EA%B0%9C%EB%B0%9C%EC%A0%9C%ED%95%9C%EA%B5%AC%EC%97%AD"
+  "file": "O_경기도도시계획조례.json",
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=ordin&type=JSON&MST=2136213"
  },
  {
-  "file": "o_고양교통유발.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=ordin&type=JSON&display=30&query=%EA%B3%A0%EC%96%91%EC%8B%9C%20%EA%B5%90%ED%86%B5%EC%9C%A0%EB%B0%9C%EB%B6%80%EB%8B%B4%EA%B8%88"
+  "file": "O_고양주택건설기준조례.json",
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=ordin&type=JSON&MST=1304205"
  },
  {
-  "file": "o_고양주택.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=ordin&type=JSON&display=30&query=%EA%B3%A0%EC%96%91%EC%8B%9C%20%EC%A3%BC%ED%83%9D"
+  "file": "O_고양교통유발부담금조례.json",
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=ordin&type=JSON&MST=1981801"
  },
  {
-  "file": "o_고양도시교통.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=ordin&type=JSON&display=30&query=%EA%B3%A0%EC%96%91%EC%8B%9C%20%EB%8F%84%EC%8B%9C%EA%B5%90%ED%86%B5"
+  "file": "O_고양부설주차장관리조례.json",
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=ordin&type=JSON&MST=2119599"
  },
  {
-  "file": "o_고양주차.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=ordin&type=JSON&display=30&query=%EA%B3%A0%EC%96%91%EC%8B%9C%20%EC%A3%BC%EC%B0%A8"
- },
- {
-  "file": "o_경기도도시계획.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=ordin&type=JSON&display=30&query=%EA%B2%BD%EA%B8%B0%EB%8F%84%20%EB%8F%84%EC%8B%9C%EA%B3%84%ED%9A%8D%20%EC%A1%B0%EB%A1%80"
+  "file": "O_고양사무위임조례.json",
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=ordin&type=JSON&MST=2109925"
  }
 ]
