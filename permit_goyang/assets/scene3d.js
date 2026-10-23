@@ -100,17 +100,27 @@ function insetTo(geom,targetArea,minInset,k){
 // ── 기존 건물: 바닥 = 수치지형도 1:1,000 건물(고양, 필지 안), 높이 = 건축물대장 높이 → 대장 지상층수×층고 → 수치지형도 층수×층고 ──
 //   행위 구분마다 3D 표현이 다름: 신축은 기존 건물 철거 가정, 증축은 기존 건물 위·옆에 덧붙임,
 //   개축·재축은 종전 규모 안에서 다시 지음, 대수선·용도변경은 기존 건물 그대로(대상 건물 강조)
+// 기존 건물 바닥: GIS건물통합정보(고양, 2025.10) — 건물관리번호 앞 19자리가 PNU라 그 필지 건물만 정확히 가져옴.
+//   없으면(누락·신축 직후) 수치지형도 1:1,000 건물을 필지 안에서 찾음
+var BLDG_INTG=HOST+encodeURIComponent("GIS건물통합_AL_D010_Goyang_2510")+"/FeatureServer/1";
 var NGII_BLDG=HOST+"goyang_N1A_B0010000_building/FeatureServer/0";
 var exFoot={pnu:null,st:"",fs:[]};
 function loadFootprints(S){
   if(!M||exFoot.pnu===S.pnu) return;
-  var cur=exFoot={pnu:S.pnu,st:"loading",fs:[]};
-  var k=Math.cos(S.lat*Math.PI/180), inner=M.ge.buffer(S.geom,-0.5/k,"meters")||S.geom;
-  new M.FeatureLayer({url:NGII_BLDG}).queryFeatures({geometry:inner,spatialRelationship:"intersects",outFields:["층수"],returnGeometry:true,outSpatialReference:S.geom.spatialReference})
-    .then(function(r){
-      cur.fs=r.features.map(function(f){ var g=M.ge.intersect(f.geometry,S.geom); return g?{g:g,fl:+f.attributes["층수"]||0,a:M.ge.planarArea(g,"square-meters")*k*k}:null; })
-        .filter(function(x){ return x&&x.a>=5; }).sort(function(a,b){ return b.a-a.a; });
-    }).catch(function(){ cur.fs=[]; })
+  var cur=exFoot={pnu:S.pnu,st:"loading",fs:[],src:""};
+  var k=Math.cos(S.lat*Math.PI/180), inner=M.ge.buffer(S.geom,-0.5/k,"meters")||S.geom, sr=S.geom.spatialReference;
+  var parts=function(r,flField,clip){
+    return r.features.map(function(f){ var g=clip?M.ge.intersect(f.geometry,S.geom):f.geometry; return g?{g:g,fl:+f.attributes[flField]||0,a:M.ge.planarArea(g,"square-meters")*k*k}:null; })
+      .filter(function(x){ return x&&x.a>=5; }).sort(function(a,b){ return b.a-a.a; });
+  };
+  new M.FeatureLayer({url:BLDG_INTG}).queryFeatures({where:"bd_mgt_sn LIKE '"+S.pnu+"%'",outFields:["gro_flo_co"],returnGeometry:true,outSpatialReference:sr})
+    .then(function(r){ cur.fs=parts(r,"gro_flo_co",false); cur.src="건물통합정보"; })
+    .catch(function(){ cur.fs=[]; })
+    .then(function(){
+      if(cur.fs.length) return;
+      return new M.FeatureLayer({url:NGII_BLDG}).queryFeatures({geometry:inner,spatialRelationship:"intersects",outFields:["층수"],returnGeometry:true,outSpatialReference:sr})
+        .then(function(r){ cur.fs=parts(r,"층수",true); cur.src="수치지형도 건물"; }).catch(function(){ cur.fs=[]; });
+    })
     .then(function(){ cur.st="done"; if(exFoot===cur&&mode==="3d") drawMasses(); });
 }
 function existing(S,k){
@@ -120,7 +130,7 @@ function existing(S,k){
   var main=fs[0], fl=bFl||(main&&main.fl)||1, h=bH>2?bH:fl*FLOOR_H;
   var foot=fs.length? (fs.length>1?M.ge.union(fs.map(function(x){return x.g;})):main.g) : insetTo(S.geom,Math.min(bA,+S.area||bA),0.5,k);
   return {foot:foot,main:main?main.g:foot,parts:fs.length?fs:[{g:foot,fl:fl,a:bA}],fl:fl,h:h,area:M.ge.planarArea(foot,"square-meters")*k*k,
-    hSrc:bH>2?"대장 높이":bFl?"대장 "+bFl+"층×"+FLOOR_H+"m":"수치지형도 층수",fSrc:fs.length?"수치지형도 건물 "+fs.length+"동":"대장 건축면적으로 추정"};
+    hSrc:bH>2?"대장 높이":bFl?"대장 "+bFl+"층×"+FLOOR_H+"m":exFoot.src+" 층수",fSrc:fs.length?exFoot.src+" "+fs.length+"동":"대장 건축면적으로 추정"};
 }
 function curAct(){ var a=A(); return a.act?a.act():"신축"; }
 function masses(){

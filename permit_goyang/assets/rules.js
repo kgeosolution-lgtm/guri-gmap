@@ -249,7 +249,7 @@ function judge(S,P,fx){
     }
     if(P.fl>0&&zm.h){
       var ok3=P.fl<=zm.h;
-      C.push({g:"scale",n:"층수 제한",st:ok3?"ok":"fail",v:P.fl+"층 / "+zm.h+"층 이하",calc:z+"지역 → "+zm.h+"층 이하"+(zm.hNote?" ("+zm.hNote+")":""),d:ok3?"":"층수 제한을 초과합니다.",src:[L("input","층수: 입력값"),ordSrc("urban",src.urban.name+(zm.hArt?" "+zm.hArt:""))]});
+      C.push({g:"scale",n:"층수 제한",st:ok3?"ok":"fail",v:P.fl+"층 / "+zm.h+"층 이하",calc:z+"지역 → "+zm.h+"층 이하"+(zm.hNote?" ("+zm.hNote+")":""),d:ok3?"":"층수 제한을 초과합니다.",src:[L("input","층수: 입력값"),ordSrc("urban",src.urban.name+(zm.hArt?" "+String(zm.hArt).replace(/^조례\s*/,""):""))]});
     }
     if(isAdd&&!bldEx) C.push({g:"scale",n:"기존 건축물 확인",st:"warn",v:"대장 미확인",d:"증축은 기존 건축물과 합산하여 건폐율·용적률을 산정합니다. 건축물대장 조회 결과가 없어 신청 면적만으로 계산했습니다.",src:[L("auto","건축물대장(건축HUB)")]});
   }
@@ -934,7 +934,7 @@ departments["개발제한"]="도시계획정책관 개발제한구역관리팀 (
 return {
   brand:null, src:src, national:national, zones:zones, useZone:useZone, ord:ord, parking:parking, departments:departments,
   lawFor:lawFor, regNote:regNote, judge:judge, effective:effective,
-  sub:SUB, subByKey:subByKey, subParents:subParents, dupDistricts:dupDistricts, dup:DUPD, authorityHtml:authorityHtml, consults:consults, flow:flow, deemed:deemed, sources:sources, X:GYX,
+  sub:SUB, subByKey:subByKey, subParents:subParents, dupDistricts:dupDistricts, dup:DUPD, authorityHtml:authorityHtml, consults:consults, guTel:GU_TEL, flow:flow, deemed:deemed, sources:sources, X:GYX,
   // 시연용 필지 — 용도지역·규제 유형별 (2026-10-21 토지이용규제 조회 기준)
   samples:[
     {label:"킨텍스 · 일반상업",addr:"일산서구 대화동 2600"},

@@ -725,7 +725,8 @@ function renderVerdict(C,P,silent){
     '<div id="printMap" style="margin-top:8px"></div></div>';
   h+='<div class="verdict '+ov+'"><div class="verdict-k">'+esc(S.zone?S.zone+"지역":"")+' · '+esc(P.act)+' · '+esc(P.use)+'</div><div class="verdict-v">'+title+'</div><div class="verdict-d">'+desc+'</div>';
   h+='<div class="verdict-cnt"><span>부적합 '+cnt.fail+'</span><span>확인 '+cnt.warn+'</span><span>적합 '+cnt.ok+'</span>'+(permit?'<span>'+esc(permit.v)+'</span>':'')+'</div>';
-  h+='<div class="verdict-act"><button data-act="print">🖨 검토서 인쇄·PDF</button><button data-act="openAll">전체 펼치기</button></div></div>';
+  h+='<div class="verdict-act"><button data-act="print">🖨 검토서 인쇄·PDF</button><button data-act="openAll">전체 펼치기</button><button data-act="onlyIssues">확인 필요 항목만</button></div></div>';
+  h+=role==="officer"?officerCard(C,P,permit,cnt,title):citizenCard(C,P,permit);
   GROUPS.forEach(function(g){
     var items=C.filter(function(c){return c.g===g[0];}); if(!items.length) return;
     h+='<div class="grp"><div class="grp-t"><b>'+g[1]+'</b>'+items.length+'</div>';
@@ -735,6 +736,89 @@ function renderVerdict(C,P,silent){
   h+='<p class="hint" style="padding:0 4px 12px">본 결과는 공간정보·조례 기준에 따른 <b>참고용 사전검토</b>이며 법적 효력이 없습니다. 실제 허가 여부는 관할 구청 건축부서의 검토로 결정됩니다.</p>';
   $("reviewOut").innerHTML=h;
   if(!silent) $("reviewOut").scrollIntoView({behavior:"smooth",block:"start"});
+}
+// ═══ 사용자 구분: 민원인(신청 준비) / 담당 공무원(접수·검토) ═══
+var role=(function(){ try{ return localStorage.getItem("gy_role")==="officer"?"officer":"citizen"; }catch(e){ return "citizen"; } })();
+var HERO={citizen:'필지 하나만 고르면<br><em>고양시 조례 기준</em>으로 바로 검토합니다',
+  officer:'신청 필지의 규제·기준을 한 번에 확인하고<br><em>검토 의견 초안</em>까지 만듭니다'};
+function applyRole(r){
+  role=r; try{ localStorage.setItem("gy_role",r); }catch(e){}
+  document.body.classList.toggle("role-officer",r==="officer");
+  document.querySelectorAll("#roleSeg button").forEach(function(b){ b.classList.toggle("active",b.dataset.role===r); });
+  var h2=document.querySelector(".intro-hero h2"); if(h2) h2.innerHTML=HERO[r];
+  if(S&&S.lastP) judge(true);
+}
+var ST_WORD={ok:"적합",warn:"확인 필요",fail:"부적합",info:"참고",na:"-"};
+// 민원인: 인허가 종류·접수처·준비 서류 (이 필지의 협의 항목에서 의제 서류를 더함)
+function docList(P,pv){
+  var docs=[], act=P.act;
+  if(act==="용도변경"){
+    if(/기재변경/.test(pv)) docs.push(["건축물대장 기재내용 변경 신청서","같은 시설군 안의 변경 (건축법 제19조④)"]);
+    else docs.push([/허가/.test(pv)?"건축·대수선·용도변경 허가신청서":"건축·대수선·용도변경 신고서","건축법 시행규칙 제12조의2"]);
+    docs.push(["변경하려는 층의 변경 전·후 평면도",""],["용도변경에 따른 내화·방화·피난·건축설비 관련 도서","해당 시"]);
+  }else if(/신고/.test(pv)){
+    docs.push(["건축·대수선·용도변경 신고서 (별지 제6호서식)","건축법 시행규칙 제12조"],["배치도·평면도·입면도·단면도",""]);
+  }else{
+    docs.push(["건축·대수선·용도변경 허가신청서 (별지 제1호의4서식)","건축법 시행규칙 제6조"],["설계도서 — 건축계획서·배치도·평면도·입면도·단면도·구조도·소방설비도 등","시행규칙 별표2 · 건축사 작성"]);
+  }
+  docs.push(["대지 소유·사용 권한 증명 (토지 등기사항증명서 또는 토지사용승낙서)",""]);
+  GY.consults(S).filter(function(c){ return c.q==="필수"&&!/용도지역/.test(c.r); }).forEach(function(c){ docs.push([c.r+" 관련 서류",c.d+" 협의 · 건축허가와 함께 의제 처리"]); });
+  return docs;
+}
+function citizenCard(C,P,permit){
+  var pv=permit?permit.v:"", gu=S.gu||"관할 구", tel=GY.guTel&&GY.guTel[gu], gb=S.flags&&S.flags.gb;
+  var h='<div class="card role-card"><div class="card-t">신청 준비 안내<small>민원인</small></div><ol class="rc-steps">';
+  h+='<li><b>인허가 종류</b><span>'+esc(pv||"확인 필요")+(P.act==="용도변경"?" (용도변경)":"")+'</span></li>';
+  h+='<li><b>접수처</b><span>'+(gb?'고양특례시 건축정책과 (개발제한구역 · 본청) ☎ 031-8075-3130':esc(gu)+'청 건축과'+(tel?' ☎ '+tel:''))+'</span></li>';
+  h+='<li><b>설계·접수</b><span>'+(/허가/.test(pv)?'건축사가 설계하고 세움터(eais.go.kr)로 전자 접수합니다 (건축법 제23조).':'규모에 따라 건축사 설계가 필요할 수 있습니다. 세움터로 접수합니다.')+'</span></li></ol>';
+  h+='<div class="rc-sub">준비 서류 <small>체크하며 준비하세요 · 개략 목록</small></div><ul class="doc-list">';
+  docList(P,pv).forEach(function(d){ h+='<li><label><input type="checkbox"><span>'+esc(d[0])+(d[1]?'<small>'+esc(d[1])+'</small>':'')+'</span></label></li>'; });
+  h+='</ul><div class="rc-foot">상담 갈 때 이 검토서를 인쇄하거나 링크를 보여 주면 빠릅니다.<span><button data-act="print">인쇄</button><button data-act="share">공유 링크</button></span></div></div>';
+  return h;
+}
+// 담당 공무원: 검토 의견 초안(복사) · 협의 요청 대상 · 신청서 대조 포인트
+function opinionText(C,P,cnt,title){
+  var L=[], b=S.bld;
+  L.push("[건축 인허가 사전검토 의견(초안)]");
+  L.push("○ 대지위치: "+S.addr+" (PNU "+S.pnu+")");
+  L.push("○ 지역·지구: "+(S.zone?S.zone+"지역":"확인 필요")+(S.flags&&S.flags.dup.length?" / 지구단위계획구역":"")+(S.flags&&S.flags.gb?" / 개발제한구역":"")+" · 지목 "+jimokFull(S.jimok)+" · 대지면적 "+n1(S.area)+"㎡");
+  L.push("○ 신청 내용: "+P.act+" / "+(P.sub||P.use)+(P.ba?" / 건축면적 "+n1(P.ba)+"㎡":"")+(P.ta?" / 연면적 "+n1(P.ta)+"㎡":"")+(P.fl?" / 지상 "+P.fl+"층":""));
+  if(b&&P.act!=="신축") L.push("○ 기존 건축물(대장): "+(b.mainPurpsCdNm||"-")+" · 지상 "+(b.grndFlrCnt||"-")+"층 · 건축면적 "+(b.archArea||"-")+"㎡ · 연면적 "+(b.totArea||"-")+"㎡");
+  L.push("○ 검토 결과: "+title+" (부적합 "+cnt.fail+" · 확인 "+cnt.warn+" · 적합 "+cnt.ok+")");
+  var i=0;
+  GROUPS.forEach(function(g){ C.filter(function(c){ return c.g===g[0]; }).forEach(function(c){
+    var law=(c.src||[]).filter(function(s){ return s.t!=="auto"&&s.t!=="input"; }).map(function(s){ return s.l; }).slice(0,2).join(", ");
+    L.push("  "+(++i)+". "+c.n+": "+c.v+" → "+ST_WORD[c.st]+(law?" ("+law+")":""));
+  }); });
+  var cs=GY.consults(S).filter(function(c){ return c.q==="필수"; }).map(function(c){ return c.d; });
+  if(cs.length) L.push("○ 협의 필요: "+cs.filter(function(x,j){ return cs.indexOf(x)===j; }).join(", "));
+  L.push("○ 비고: 공간정보·조례 기반 자동 사전검토 결과임. 현장 확인 및 관계 부서 협의 후 확정.");
+  L.push("  ("+new Date().toLocaleDateString("ko-KR")+" · 고양특례시 건축 인허가 사전검토)");
+  return L.join("\n");
+}
+function officerCard(C,P,permit,cnt,title){
+  var b=S.bld, ri=S.roadInfo, pts=[];
+  pts.push(["대지면적","지적 "+n1(S.area)+"㎡ — 신청서 대지면적·측량성과와 일치하는지"]);
+  if(S.jimok!=="대") pts.push(["지목","'"+jimokFull(S.jimok)+"' — 대지가 아니면 형질변경(개발행위) 의제 서류 확인"]);
+  if(b) pts.push(["건축물대장","기존 "+(b.mainPurpsCdNm||"-")+" · 지상 "+(b.grndFlrCnt||"-")+"층 · 건축면적 "+(b.archArea||"-")+"㎡"+(P.act==="신축"?" — 신축이면 멸실신고 여부":" — 신청서의 기존 규모와 대조")]);
+  else pts.push(["건축물대장","등재 건축물 없음 — "+(P.act==="신축"?"나대지 신축":"기존 건축물이 필요한 행위인지 확인")]);
+  if(P.act==="용도변경"&&b) pts.push(["용도","대장 주용도 '"+(b.mainPurpsCdNm||"-")+"' → 신청 '"+(P.sub||P.use)+"'"]);
+  pts.push(["접도",ri?(ri.contact?"도로에 접함"+(ri.maxW?" · 최대 폭 "+n1(ri.maxW)+"m":"")+" — 배치도의 진입로·도로 폭과 대조":"지도상 접도 미확인 — 현황측량·사도 여부 확인"):"분석 중"]);
+  if(S.flood&&S.flood.n) pts.push(["침수 이력",S.flood.years.join("·")+"년 — 지하층 거실·설비 배치 확인"]);
+  var h='<div class="card role-card officer"><div class="card-t">검토 의견 초안<small>담당 공무원</small></div>';
+  h+='<pre class="opinion" id="opinionTxt">'+esc(opinionText(C,P,cnt,title))+'</pre>';
+  h+='<div class="rc-btns"><button class="pri" data-act="copyOpinion">📋 의견 복사</button><button data-act="print">🖨 검토서 인쇄</button></div>';
+  h+='<div class="rc-sub">신청서 대조 포인트</div><ul class="pt-list">';
+  pts.forEach(function(p){ h+='<li><b>'+esc(p[0])+'</b><span>'+esc(p[1])+'</span></li>'; });
+  h+='</ul><div class="rc-sub">협의 요청 대상 <small>필수는 미리 체크됨</small></div><ul class="doc-list">';
+  GY.consults(S).forEach(function(c){ h+='<li><label><input type="checkbox"'+(c.q==="필수"?" checked":"")+'><span>'+esc(c.d)+' <em class="tag '+(c.q==="필수"?"fail":"warn")+'">'+esc(c.q)+'</em><small>'+esc(c.r)+'</small></span></label></li>'; });
+  return h+'</ul></div>';
+}
+function copyOpinion(){
+  var t=$("opinionTxt"); if(!t) return;
+  var txt=t.textContent;
+  (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).then(function(){ toast("검토 의견을 복사했습니다"); })
+    .catch(function(){ var r=document.createRange(); r.selectNodeContents(t); var s=getSelection(); s.removeAllRanges(); s.addRange(r); toast("Ctrl+C로 복사하세요"); });
 }
 function chkHtml(c){
   var sym={ok:"✓",warn:"!",fail:"✕",info:"i",na:"–"}[c.st]||"–";
@@ -997,6 +1081,7 @@ function help(){
 
 // ═══ 이벤트 ═══
 document.addEventListener("click",function(e){
+  var rb=e.target.closest("[data-role]"); if(rb){ applyRole(rb.dataset.role); return; }
   var t=e.target.closest("[data-act],[data-tab],[data-gu],[data-bm],[data-close],.chip,[data-near],[data-near-close],[data-sample],[data-dup]");
   if(t&&t.hasAttribute("data-near-close")){ nearSel=-1; $("nearPick").innerHTML=""; document.querySelectorAll("#tab-near tr.clk.on").forEach(function(tr){ tr.classList.remove("on"); }); drawNearMap(S.near||[]); return; }
   if(!t) return;
@@ -1014,6 +1099,8 @@ document.addEventListener("click",function(e){
   else if(a==="toggle") t.closest(".chk").classList.toggle("open");
   else if(a==="openAll") document.querySelectorAll("#reviewOut .chk").forEach(function(c){c.classList.add("open");});
   else if(a==="print") printReport();
+  else if(a==="copyOpinion") copyOpinion();
+  else if(a==="onlyIssues"){ var ro=$("reviewOut"), on=ro.classList.toggle("only-issues"); t.textContent=on?"전체 항목 보기":"확인 필요 항목만"; }
   else if(a==="zoneTable"){ e.preventDefault(); zoneTable(); }
   else if(a==="copyPnu"){ try{ navigator.clipboard.writeText(S.pnu); toast("PNU를 복사했습니다"); }catch(_){ } }
   else if(a==="share") shareModal();
@@ -1043,6 +1130,7 @@ $("exMenu").innerHTML=GY.samples.map(sampleBtn).join("");
 $("exBtn").onclick=function(e){ e.stopPropagation(); var m=$("exMenu"); m.hidden=!m.hidden; this.setAttribute("aria-expanded",String(!m.hidden)); };
 document.addEventListener("click",function(e){ if(!e.target.closest("#exMenu,#exBtn")) $("exMenu").hidden=true; });
 $("introStats").innerHTML=GY.introStats.map(function(s){ return '<div class="stat"><b>'+esc(s.v)+'</b><span>'+esc(s.k)+'</span></div>'; }).join("");
+applyRole(role);
 // 시작 화면 용도지역 미니 표: 시민이 자주 묻는 지역만 (건폐율 · 용적률 막대는 일반상업 기준 비율)
 (function(){
   var el=$("zoneMini"); if(!el||!GY.zones) return;
