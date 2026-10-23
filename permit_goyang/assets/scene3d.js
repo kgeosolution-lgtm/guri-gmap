@@ -157,12 +157,12 @@ function masses(){
   }
   return out;
 }
-// 선택 필지 안의 기존 LOD 건물은 감춰 매스가 보이게 (필지를 0.5m 안쪽으로 줄여 경계 옆 건물은 남김)
+// 선택 필지 안 기존 건물: LOD(불투명)는 감추고, 같은 자리에 기존 건물을 반투명 '유리'로 다시 그려
+//   새 매스와 겹쳐도 둘 다 보이게 함 (drawMasses). 필지를 0.5m 안쪽으로 줄여 경계 옆 이웃 건물은 그대로
 function hideExistingOnParcel(){
   var S=A().S(), l=bldgLayers[bldgKind]; if(!view3d||!l) return;
-  Object.keys(bldgLayers).forEach(function(k){ if(k!==bldgKind) view3d.whenLayerView(bldgLayers[k]).then(function(lv){ lv.filter=null; }).catch(function(){}); });
   view3d.whenLayerView(l).then(function(lv){
-    if(!S||!S.geom||!masses()){ lv.filter=null; return; }
+    if(!S||!S.geom){ lv.filter=null; return; }
     var k=Math.cos(S.lat*Math.PI/180), inner=M.ge.buffer(S.geom,-0.5/k,"meters")||S.geom;
     lv.filter={geometry:inner,spatialRelationship:"disjoint"};
   }).catch(function(e){ console.warn("기존 건물 숨김 실패",e&&e.message); });
@@ -174,25 +174,23 @@ function syncChecks(act){
   if(act!==chkAct){ chk={}; chkAct=act; return; }
   ["m3Max","m3Plan","m3Ex"].forEach(function(id){ var e=$(id); if(e) chk[id]=e.checked; });
 }
-var C_EX=[218,213,204,1], C_PLAN=[2,87,79,0.88], C_MAX=[174,182,27,0.55];
+var C_PLAN=[2,87,79,0.62], C_MAX=[174,182,27,0.45]; // 기존 건물과 겹쳐도 서로 보이게 반투명
 function drawMasses(){
   if(!massLayer) return;
   massLayer.removeAll(); upLayer.removeAll();
-  hideExistingOnParcel();
-  var ms=masses(); if(!ms) { renderPanel(); return; }
+  var ms=masses(); if(!ms) { hideExistingOnParcel(); renderPanel(); return; }
   syncChecks(ms.act);
+  hideExistingOnParcel();
   var ext=function(geom,h,color,edge,lyr,dash){
     if(!geom||!(h>0)) return;
     (lyr||massLayer).add(new M.Graphic({geometry:geom,symbol:{type:"polygon-3d",symbolLayers:[{type:"extrude",size:h,material:{color:color},edges:{type:"solid",color:edge,size:dash?1.5:1}}]}}));
   };
   var ex=ms.ex&&!ms.ex.none?ms.ex:null, act=ms.act;
-  if(isOn("m3Max",act==="신축")) ext(ms.max.geom,ms.max.h,[C_MAX[0],C_MAX[1],C_MAX[2],ms.plan||ms.up||ms.side?0.22:0.55],[120,126,10,0.9]);
-  if(ex&&act!=="신축"&&isOn("m3Ex",true)){
-    if(act==="개축"||act==="재축") ext(ex.foot,ex.h,[110,120,130,0.16],[40,50,60,0.9],null,true); // 종전 규모(유리처럼 비침)
-    else{
-      var hl=act==="대수선"||act==="용도변경"; // 대상 건물은 강조 색
-      ex.parts.forEach(function(p,i){ ext(p.g,i===0?ex.h:Math.max(1,p.fl||1)*FLOOR_H,hl?C_PLAN:C_EX,hl?[255,255,255,0.9]:[90,84,74,0.7]); });
-    }
+  if(isOn("m3Max",act==="신축")) ext(ms.max.geom,ms.max.h,[C_MAX[0],C_MAX[1],C_MAX[2],ms.plan||ms.up||ms.side?0.2:C_MAX[3]],[120,126,10,0.9]);
+  // 기존 건물 (반투명 유리): 대수선·용도변경은 대상 건물이라 라임색으로 강조
+  if(ex&&isOn("m3Ex",true)){
+    var hl=act==="대수선"||act==="용도변경";
+    ex.parts.forEach(function(p,i){ ext(p.g,i===0?ex.h:Math.max(1,p.fl||1)*FLOOR_H,hl?[174,182,27,0.5]:[205,200,190,0.38],hl?[110,116,8,1]:[70,64,55,0.95]); });
   }
   if(isOn("m3Plan",true)){
     if(ms.plan) ext(ms.plan.geom,ms.plan.h,C_PLAN,[255,255,255,0.9]);
@@ -218,25 +216,27 @@ function renderPanel(ms){
   else{
     var act=ms.act, ex=ms.ex, P=S.lastP&&S.lastP.act===act;
     var row=function(id,def,sw,title,sub){ return '<label class="m3-row"><input type="checkbox" id="'+id+'"'+(isOn(id,def)?" checked":"")+'><i class="m3-sw" style="'+sw+'"></i><span><b>'+title+'</b><small>'+sub+'</small></span></label>'; };
-    var SW_PLAN="background:#02574F;border-color:#fff", SW_EX="background:#dad5cc;border-color:#5a544a", SW_GHOST="background:rgba(110,120,130,.16);border-color:#28323c;border-style:dashed";
+    var SW_PLAN="background:#02574F;border-color:#fff", SW_EX="background:rgba(205,200,190,.5);border-color:#46403a";
     var exTxt=ex&&!ex.none?ex.fl+'층 · 높이 약 '+Math.round(ex.h)+'m ('+ex.hSrc+') · 바닥 약 '+n0(ex.area)+'㎡ ('+ex.fSrc+')':'';
     h+='<div class="m3-act-k">행위 구분 <b>'+act+'</b><span>사전검토 탭에서 바꿀 수 있습니다</span></div>';
     if(act!=="신축"&&!ex) h+='<div class="m3-empty">필지 안 기존 건물을 찾는 중입니다…</div>';
     else if(act!=="신축"&&ex.none) h+='<div class="m3-note">이 필지에서 기존 건물(수치지형도 건물·건축물대장)을 찾지 못했습니다. '+act+'은 기존 건물이 있어야 하는 행위입니다.</div>';
+    // 기존 건물: 그대로 두고 매스와 겹쳐 보여 줌 (끄면 감춤)
+    var exRow=function(title){ return row("m3Ex",true,act==="대수선"||act==="용도변경"?"background:rgba(174,182,27,.5);border-color:#6e7408":SW_EX,title,exTxt); };
     if(act==="신축"){
+      if(ex&&!ex.none) h+=exRow("기존 건물 (겹쳐 보기)");
       if(ms.plan) h+=row("m3Plan",true,SW_PLAN,"신축 계획",'건축면적 '+n0(ms.plan.ba)+'㎡ · '+ms.plan.floors+'층 · 높이 약 '+Math.round(ms.plan.h)+'m');
       else h+='<div class="m3-note">사전검토 탭에서 계획(건축면적·층수)을 입력·실행하면 계획 매스도 함께 세웁니다.</div>';
-      if(ex&&!ex.none) h+='<div class="m3-note">기존 건물('+ex.fSrc+')은 철거 후 신축하는 것으로 보고 감췄습니다.</div>';
     }else if(act==="증축"&&ex&&!ex.none){
-      h+=row("m3Ex",true,SW_EX,"기존 건물 (유지)",exTxt);
+      h+=exRow("기존 건물 (유지)");
       if(ms.up||ms.side) h+=row("m3Plan",true,SW_PLAN,"증축 부분",[ms.up?'수직 +'+ms.up.floors+'층 (높이 약 '+Math.round(ms.up.base+ms.up.h)+'m까지)':'',ms.side?'수평 +'+n0(ms.side.ba)+'㎡':''].filter(Boolean).join(' · '));
       else h+='<div class="m3-note">'+(P?'증축 층수가 기존('+ex.fl+'층) 이하이고 증축 건축면적이 없어 덧붙일 부분이 없습니다.':'사전검토 탭에 <b>증축 건축면적</b>(옆으로 넓힘)이나 <b>증축 후 지상 층수</b>(위로 올림)를 넣고 실행하면 기존 건물에 덧붙여 보여 줍니다.')+'</div>';
     }else if((act==="개축"||act==="재축")&&ex&&!ex.none){
-      h+=row("m3Ex",true,SW_GHOST,"종전 규모 (철거 전)",exTxt);
+      h+=exRow("종전 건물 (겹쳐 보기)");
       if(ms.plan) h+=row("m3Plan",true,SW_PLAN,act+" 계획",'건축면적 '+n0(ms.plan.ba)+'㎡ · '+ms.plan.floors+'층 · 높이 약 '+Math.round(ms.plan.h)+'m'+(ms.plan.h>ex.h+0.5||ms.plan.ba>ex.area*1.02?' · <span class="m3-warn">종전 규모 초과 → 증축·신축 검토</span>':''));
       else h+='<div class="m3-note">'+act+'은 종전 규모 범위 안에서 다시 짓는 행위입니다. 계획(건축면적·층수)을 입력·실행하면 종전 규모와 비교해 세웁니다.</div>';
     }else if(ex&&!ex.none){ // 대수선·용도변경
-      h+=row("m3Ex",true,SW_PLAN,act+" 대상 건물",exTxt);
+      h+=exRow(act+" 대상 건물 (강조)");
       h+='<div class="m3-note">'+(act==="대수선"?'대수선은 기존 건물의 주요구조부를 고치는 행위로 규모(바닥·층수·높이)는 바뀌지 않습니다.':'용도변경은 건물 규모는 그대로 두고 쓰임만 바꿉니다. 바뀐 용도 기준의 주차·소방·피난 기준은 사전검토 탭을 확인하세요.')+'</div>';
     }
     h+=row("m3Max",act==="신축",'background:rgba(174,182,27,.55);border-color:#7e8610',"최대 건축 가능 규모",'건폐율 '+S.zm.b+'% · '+ms.max.floors+'층 · 높이 약 '+Math.round(ms.max.h)+'m · 연면적 약 '+n0(ms.max.ta)+'㎡');
