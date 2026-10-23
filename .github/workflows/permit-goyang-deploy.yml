@@ -29,14 +29,14 @@ jobs:
 
           $src = Join-Path $env:GITHUB_WORKSPACE 'permit_goyang'
           $expected = [ordered]@{
-            'assets/app.css' = 'c9c058bbeb1bc6e0da08f23753ed43f891654e237d65876bfc24c47e7cef2658'
-            'assets/app.js' = '6f8c1c41ce47bad17f2e0915b31ce617bd6e37da2061323548c265b413d3ab1e'
+            'assets/app.css' = '064e8120a8e7f332f075461290605d6a44c8f6962999e395b9b73ab96e8ceaf3'
+            'assets/app.js' = '5e6c4e612c6794206b950d053d3663635a12d80197f4c6720e5f5ffab927e140'
             'assets/gy_bounds.js' = '8b56c92e5fd10f4c9f2125ab19728122b69cf57e408ad677526dd552a05f6340'
             'assets/gy_data.js' = 'ee3bc2c6a297580257f8ae24300d0d17abf5d75dee167f4eaca0fd6b79d98d81'
-            'assets/rules.js' = 'd10ae708c1c157f885f5cf4798e0964415eecd4bbd369c12779aa8034af8f37b'
-            'assets/scene3d.js' = 'a2f38b8f5b8290417f64bfb07b476cfc5b8faabfd4aaa52497713c20ea19bf46'
+            'assets/rules.js' = '408a53e341deea084e53149ba866ba02a29a6cadc88a00bcd78ad2a36c18c52f'
+            'assets/scene3d.js' = '78106b85324ea75b7906899b94d745a08bb76656e1f16df82728c979b3f6fd23'
             'assets/tools.js' = '5c9fb045d7b9d7781a11a59dc5008f60ecc5b464df640e2a47fd559c95bef3f4'
-            'index.html' = 'd362ca2e530baef9097ddcd6f6264d975122981671b2ca663293693bad20a95f'
+            'index.html' = '36c64f39f7768109aebf01839f5dfb67688f6385432a870a507b29a26cfe1895'
             'web.config' = '216e727d9ae34fdf499be4fa06b962ef68f91cd3e8a1a7c1003c6f840e9af398'
           }
           function Test-Tree($root, $label) {

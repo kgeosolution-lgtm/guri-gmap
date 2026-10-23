@@ -80,7 +80,23 @@ svg{display:block}
 .sample small{display:block;font-size:11.5px;font-weight:500;color:var(--muted);margin-top:1px}
 .sample-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .intro-sec{margin:14px 0}
-.intro-sec-t{font-size:12px;font-weight:800;color:var(--muted);letter-spacing:.02em;margin:0 2px 8px}
+.intro-sec-t{font-size:12px;font-weight:800;color:var(--muted);letter-spacing:.02em;margin:0 2px 8px;display:flex;align-items:baseline}
+.intro-sec-t a{margin-left:auto;font-size:11.5px;font-weight:700;color:var(--brand);text-decoration:none}
+/* 시작 화면: 용도지역 기준 미니 표 · 확인 항목 · 자료 */
+.zone-mini{background:#fff;border-radius:var(--r);box-shadow:var(--sh-1);padding:4px 12px}
+.zm-row{display:grid;grid-template-columns:minmax(0,1fr) 46px 1.3fr;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line-2);font-size:12.5px}
+.zm-row:first-child{border-top:none}
+.zm-row .zn{display:flex;align-items:center;gap:6px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.zm-row .zn i{width:9px;height:9px;border-radius:2px;flex-shrink:0;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
+.zm-row .zb{color:var(--muted);font-variant-numeric:tabular-nums;text-align:right}
+.zm-row .zf{display:flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums;font-weight:700;color:var(--brand-700)}
+.zm-row .zf em{flex:1;height:6px;border-radius:3px;background:var(--line-2);overflow:hidden;position:relative}
+.zm-row .zf em::after{content:"";position:absolute;inset:0 auto 0 0;width:var(--w);background:linear-gradient(90deg,var(--brand),var(--brand-accent));border-radius:3px}
+.zm-head{font-size:10.5px;font-weight:700;color:var(--muted)}
+.check-chips{display:flex;flex-wrap:wrap;gap:5px}
+.check-chips span{font-size:11.5px;font-weight:600;color:var(--brand-700);background:var(--brand-50);border-radius:999px;padding:4px 10px}
+.check-chips span::before{content:"✓ ";color:var(--brand-accent);font-weight:800}
+.intro-src{font-size:10.5px;color:var(--muted);line-height:1.6;margin:4px 2px 18px}
 .flow-line{display:flex;align-items:center;gap:6px;margin-top:12px;font-size:12px;font-weight:700;position:relative;z-index:1;flex-wrap:wrap}
 .flow-line span{background:rgba(255,255,255,.14);padding:4px 9px;border-radius:999px}
 .flow-line i{width:10px;height:1.5px;background:rgba(255,255,255,.5)}
@@ -116,6 +132,12 @@ svg{display:block}
 .pc-sub{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-top:4px;font-variant-numeric:tabular-nums}
 .pc-sub button{font-size:11px;color:var(--brand-700);font-weight:700}
 .pc-facts{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line-2)}
+/* 입지 요약 (역·침수·접도) */
+.pc-loc{display:flex;flex-wrap:wrap;gap:6px;padding:9px 12px;border-top:1px solid var(--line-2)}
+.pc-loc span{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:var(--ink-2);background:var(--bg);border-radius:999px;padding:4px 10px}
+.pc-loc span i{font-style:normal;font-size:12px}
+.pc-loc span.ok{background:var(--ok-bg);color:#0B7A55}
+.pc-loc span.warn{background:var(--warn-bg);color:#A35800}
 .pc-fact small{display:block;font-size:10.5px;color:var(--muted);font-weight:500;margin-top:1px}
 .pc-sub{flex-wrap:wrap}
 .pc-actions{display:flex;gap:5px;margin-left:auto}
@@ -351,6 +373,7 @@ body.is3d .map-hint{display:none}
   .map-hint{white-space:nowrap;font-size:12px}
   .pc-addr{font-size:17px}
   .map-top{left:auto;right:62px;transform:none;flex-direction:column;align-items:flex-end;gap:6px}
+  .esri-ui .esri-zoom{display:none} /* 휴대폰은 두 손가락으로 확대 — 버튼을 줄여 지도를 넓게 */
   .legend-card{display:none}
 }
 

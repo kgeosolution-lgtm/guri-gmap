@@ -21,7 +21,8 @@ var URL_ = {
   farm: HOST+encodeURIComponent("용도지역지구_FS")+"/FeatureServer/1",
   livestock: HOST+encodeURIComponent("용도지역지구_FS")+"/FeatureServer/5",
   dup: HOST+encodeURIComponent("지구단위계획")+"/FeatureServer/4",
-  permits: HOST+"kgeodata_permit/FeatureServer/4"
+  permits: HOST+"kgeodata_permit/FeatureServer/4",
+  flood: HOST+encodeURIComponent("침수흔적도_2025")+"/FeatureServer/0"
 };
 var GOYANG_SGG = "41280";
 var GU = { "41281":"덕양구", "41285":"일산동구", "41287":"일산서구" };
@@ -113,6 +114,7 @@ require([
   layers.culture=regLayer(URL_.culture,[224,123,0,0.25],[201,106,0],"dash","문화유산 보호구역");
   layers.farm=regLayer(URL_.farm,[46,160,90,0.25],[30,120,60],"solid","농업진흥지역","col_adm_se='"+GOYANG_SGG+"'");
   layers.livestock=regLayer(URL_.livestock,[245,180,0,0.2],[210,140,0],"dash","가축사육제한구역","col_adm_se='"+GOYANG_SGG+"'");
+  layers.flood=regLayer(URL_.flood,[47,111,222,0.35],[30,80,190],"solid","침수흔적","adm_cd_w LIKE '4128%'");
 
   // ── 연속지적도 (고양시만) ──
   cadastral=new FeatureLayer({
@@ -151,7 +153,7 @@ require([
   var gfxMask=new GraphicsLayer({title:"고양시 외곽"}), gfxBnd=new GraphicsLayer({title:"고양시 경계"});
   gfxSel=new GraphicsLayer({title:"선택 필지"}); gfxNear=new GraphicsLayer({title:"주변사례"});
   var ngiiList=NGII_UI.map(function(n){return layers.ngii[n.id];});
-  map.addMany([layers.hill].concat(layers.zone,[layers.farm,layers.livestock,layers.gb,layers.culture,layers.dup],ngiiList,[cadastral,gfxMask,guLayer,gfxBnd,gfxNear,gfxSel]));
+  map.addMany([layers.hill].concat(layers.zone,[layers.farm,layers.livestock,layers.gb,layers.culture,layers.dup,layers.flood],ngiiList,[cadastral,gfxMask,guLayer,gfxBnd,gfxNear,gfxSel]));
 
   view=new MapView({container:"viewDiv",map:map,center:[126.835,37.66],zoom:12,
     constraints:{minZoom:10,maxZoom:20,rotationEnabled:false},
@@ -291,7 +293,9 @@ var LAYER_UI=[
   {id:"gb",n:"개발제한구역",c:"#E5383B"},
   {id:"culture",n:"문화유산 보호구역",c:"#E07B00"},
   {id:"farm",n:"농업진흥지역",c:"#2EA05A"},
-  {id:"livestock",n:"가축사육제한구역",c:"#F5B400"}
+  {id:"livestock",n:"가축사육제한구역",c:"#F5B400"},
+  {g:"재해"},
+  {id:"flood",n:"침수흔적 (2006~2024)",c:"#2F6FDE"}
 ]);
 function layerObj(id){ return id==="cadastral"?cadastral:id==="gu"?guLayer:/^ng_/.test(id)?layers.ngii[id]:layers[id]; }
 function buildLayerPanel(){
@@ -312,7 +316,7 @@ function buildLayerPanel(){
   $("opaRange").addEventListener("input",function(e){
     var o=e.target.value/100;
     layers.zone.forEach(function(z){z.opacity=o;});
-    ["gb","culture","farm","livestock","dup"].forEach(function(k){ layers[k].opacity=Math.min(1,o+0.15); });
+    ["gb","culture","farm","livestock","dup","flood"].forEach(function(k){ layers[k].opacity=Math.min(1,o+0.15); });
   });
   $("layerHead").onclick=function(){ $("layerCard").classList.toggle("collapsed"); };
   if(window.innerWidth<820) $("layerCard").classList.add("collapsed");
@@ -396,7 +400,7 @@ function loadParcel(feat,lon,lat,zoomTo){
     $("intro").hidden=true; $("result").hidden=false; switchTab("review"); $("panelScroll").scrollTop=0;
     if(!S.zone||!S.price) zoneFallback();
     if(S.flags.dup.length) resolveDup();
-    updateHint(); setShareUrl(); analyzeTerrain(); analyzeRoads();
+    updateHint(); setShareUrl(); analyzeTerrain(); analyzeRoads(); analyzeFlood();
     if(window.GY3D) GY3D.parcelChanged();
   }).catch(function(e){ loading(false); console.error(e); toast("필지 정보 조회에 실패했습니다"); });
 }
@@ -473,6 +477,19 @@ function analyzeTerrain(){
     renderParcel(); judge(true);
   }).catch(function(e){ console.warn("지형 분석 실패",e&&e.message); });
 }
+// ═══ 침수 이력: 침수흔적도(2006~2024 기록) 중 필지와 겹치는 것 — 연도·최대 침수심 ═══
+function analyzeFlood(){
+  if(!S||!S.geom||!layers.flood) return;
+  var pnu=S.pnu;
+  layers.flood.queryFeatures({geometry:S.geom,spatialRelationship:"intersects",outFields:["flud_year_","flud_year1","indd_s"],returnGeometry:false})
+  .then(function(fs){
+    if(!S||S.pnu!==pnu) return;
+    var ys={}, d=0;
+    fs.features.forEach(function(f){ var a=f.attributes; [a.flud_year_,a.flud_year1].forEach(function(y){ y=String(y||"").trim(); if(/^\d{4}$/.test(y)) ys[y]=1; }); d=Math.max(d,+a.indd_s||0); });
+    S.flood={n:fs.features.length,years:Object.keys(ys).sort(),depth:Math.round(d*100)/100};
+    renderParcel(); judge(true);
+  }).catch(function(e){ console.warn("침수 이력 조회 실패",e&&e.message); if(S&&S.pnu===pnu){ S.flood={err:true}; renderParcel(); } });
+}
 // ═══ 접도 분석: 수치지형도 1:1,000 도로경계(면)·도로중심선(폭) ═══
 //   접도 길이 = 필지 경계 중 도로경계면에서 1m 이내인 부분, 도로 폭 = 필지에서 (폭/2+2m) 안에 있는 중심선의 도로폭
 var roadBndLayer=null, roadClLayer=null;
@@ -506,6 +523,7 @@ function analyzeRoads(){
     adj.sort(function(a,b){return b.w-a.w;});
     var seen={}, list=adj.filter(function(x){ var key=(x.name||"-")+x.w; if(seen[key]) return false; seen[key]=1; return true; }).slice(0,4);
     S.roadInfo={contact:contact,contactLegal:contactLegal,contactPhys:contactPhys,roads:list,maxW:list.length?list[0].w:0,roadParcels:roadParcels.map(function(f){return (f.attributes.a5||"").trim();}).slice(0,4)};
+    renderParcel(); // 입지 요약의 접도
     if(S.lastP) judge(true);
   }).catch(function(e){ console.warn("접도 분석 실패",e&&e.message); });
 }
@@ -575,6 +593,12 @@ function renderParcel(){
   h+='<div class="pc-fact"><span>공시지가</span><b>'+(p.price?n0(p.price/10000)+'만원':'-')+'</b><small>'+(p.price?'㎡당'+(p.priceYear&&/^\d+$/.test(p.priceYear)?' · '+esc(p.priceYear):''):'')+'</small></div>';
   h+='<div class="pc-fact"><span>표고</span><b>'+esc(tt.elev)+'</b><small>등고선 추정</small></div>';
   h+='<div class="pc-fact"><span>평균경사</span><b>'+esc(tt.slope)+'</b><small>'+(p.terrain&&p.terrain.flat?'높이차 5m 미만':p.terrain&&p.terrain.slope>=15?'<span style="color:var(--fail)">15° 이상</span>':'개발행위 기준 15°')+'</small></div></div>';
+  // 입지 요약: 가까운 역(규제 API) · 침수 이력(침수흔적도) · 접도(수치지형도)
+  var loc=[], st=p.station&&p.station.closest, ri=p.roadInfo;
+  if(st) loc.push(["","🚇",esc(st.name)+"역 "+(st.line?esc(st.line)+(/^\d+$/.test(st.line)?"호선":"")+" ":"")+n0(st.distance)+"m"+(p.station.grade?" · "+esc(p.station.grade):"")]);
+  if(p.flood) loc.push(p.flood.err?["","💧","침수 이력 확인 불가"]:p.flood.n?["warn","💧",esc(p.flood.years.join("·"))+"년 침수 이력"]:["ok","💧","침수 이력 없음"]);
+  if(ri) loc.push(ri.contact?["ok","🛣",(ri.maxW?"폭 "+n1(ri.maxW)+"m 도로":"도로")+"에 접함"]:["warn","🛣","접도 확인 필요"]);
+  if(loc.length) h+='<div class="pc-loc">'+loc.map(function(x){ return '<span class="'+x[0]+'"><i>'+x[1]+'</i>'+x[2]+'</span>'; }).join("")+'</div>';
 
   h+='<div class="zone-band">';
   if(p.zone){
@@ -1019,6 +1043,14 @@ $("exMenu").innerHTML=GY.samples.map(sampleBtn).join("");
 $("exBtn").onclick=function(e){ e.stopPropagation(); var m=$("exMenu"); m.hidden=!m.hidden; this.setAttribute("aria-expanded",String(!m.hidden)); };
 document.addEventListener("click",function(e){ if(!e.target.closest("#exMenu,#exBtn")) $("exMenu").hidden=true; });
 $("introStats").innerHTML=GY.introStats.map(function(s){ return '<div class="stat"><b>'+esc(s.v)+'</b><span>'+esc(s.k)+'</span></div>'; }).join("");
+// 시작 화면 용도지역 미니 표: 시민이 자주 묻는 지역만 (건폐율 · 용적률 막대는 일반상업 기준 비율)
+(function(){
+  var el=$("zoneMini"); if(!el||!GY.zones) return;
+  var keys=["제1종일반주거","제2종일반주거","제3종일반주거","준주거","일반상업","근린상업","자연녹지","계획관리"].filter(function(k){ return GY.zones[k]; });
+  var top=Math.max.apply(null,keys.map(function(k){ return GY.zones[k].f; }));
+  el.innerHTML='<div class="zm-row zm-head"><span>용도지역</span><span class="zb">건폐율</span><span>용적률</span></div>'+keys.map(function(k){ var z=GY.zones[k];
+    return '<div class="zm-row"><span class="zn"><i style="background:'+ZONE_COLOR[k]+'"></i>'+k+'</span><span class="zb">'+z.b+'%</span><span class="zf">'+z.f+'%<em style="--w:'+Math.max(4,Math.round(z.f/top*100))+'%"></em></span></div>'; }).join("");
+})();
 // 브랜드 색 적용
 if(GY.brand){ var rs=document.documentElement.style; for(var k in GY.brand) rs.setProperty(k,GY.brand[k]); }
 

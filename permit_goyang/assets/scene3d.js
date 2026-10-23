@@ -257,6 +257,10 @@ function flyToParcel(top){
   view3d.goTo(top?{target:ext,tilt:0}:{target:ext,tilt:58,heading:200},{duration:1200}).catch(function(){});
 }
 
+function cadLabels(on){
+  var c=A().map.layers.find(function(l){ return l.title==="연속지적도"; });
+  if(c) c.labelsVisible=on;
+}
 async function setMode(m){
   if(m===mode) return;
   var app=A(), b2=$("mode2d"), b3=$("mode3d");
@@ -270,6 +274,7 @@ async function setMode(m){
     if(!app.map.layers.includes(massLayer)) app.map.layers.add(massLayer);
     if(!app.map.layers.includes(upLayer)) app.map.layers.add(upLayer);
     setBldg(bldgKind);
+    cadLabels(false); // 3D에서는 지번 글자가 땅에 깔려 건물·매스를 가림 → 지적선만
     app.view.container=null;
     view3d.container="viewDiv";
     mode="3d";
@@ -286,6 +291,7 @@ async function setMode(m){
     var vp3=view3d&&view3d.viewpoint?view3d.viewpoint.clone():null;
     if(view3d) view3d.container=null;
     app.map.layers.removeMany([bldgGroup,massLayer,upLayer]); // 3D 건물·매스는 2D 지도에 그릴 수 없음
+    cadLabels(true);
     app.view.container="viewDiv";
     if(vp3&&vp3.targetGeometry){ app.view.goTo({target:vp3.targetGeometry,scale:Math.max(vp3.scale,500)},{animate:false}).catch(function(){}); }
     mode="2d";

@@ -152,6 +152,14 @@ function judge(S,P,fx){
       src:[L("auto","토지이용규제정보"),L("law","국토계획법 제52조·제54조",LAW.plan+"/제54조")]});
   }
   if(F.river&&F.river.length) C.push({g:"site",n:"하천 관련 구역",st:"warn",v:"점용허가 검토",calc:F.river.join(", "),d:"하천구역 내 건축은 하천점용허가 대상이며 원칙적으로 제한됩니다(하천법 제33조·제38조).",src:[L("auto","토지이용규제정보"),L("law","하천법 제38조","https://www.law.go.kr/법령/하천법/제38조")]});
+  // 침수 이력 (침수흔적도) — 지정 구역은 아니지만 지하층·저층부 계획에 영향
+  if(S.flood&&S.flood.n>0){
+    var fy=S.flood.years.join("·");
+    C.push({g:"site",n:"침수 이력",st:"warn",v:fy+"년 침수"+(S.flood.depth>0?" · 최대 "+S.flood.depth+"m":""),
+      calc:"침수흔적도 "+S.flood.n+"건이 필지와 겹침\n침수 연도: "+fy+(S.flood.depth>0?"\n기록된 최대 침수심: "+S.flood.depth+"m":""),
+      d:"상습 침수·침수 우려 지역에서는 허가권자가 건축위원회 심의를 거쳐 지하층 등에 거실을 두는 건축허가를 하지 않을 수 있습니다(건축법 제11조④).\n지하층·기계실·전기실은 침수 높이 위로 배치하거나 차수판·역류방지 설비를 계획하세요. 방재지구·자연재해위험개선지구의 연면적 1만㎡ 이상 건축물은 물막이설비 설치 대상입니다(건축물의 설비기준 등에 관한 규칙 제17조의2).",
+      src:[L("auto","침수흔적도 (행정안전부·고양시)"),L("law","건축법 제11조",LAW.bld+"/제11조"),L("law","건축물설비기준규칙 제17조의2","https://www.law.go.kr/법령/건축물의설비기준등에관한규칙/제17조의2")]});
+  }
   districtChecks(S,P).forEach(function(c){ C.push(c); });
   if(F.landDeal) C.push({g:"site",n:"토지거래허가구역",st:"info",v:"거래 시 허가",d:"토지 매매 시 사전 허가가 필요합니다. 건축 행위 자체를 제한하지는 않습니다.",src:[L("law","부동산거래신고법 제11조","https://www.law.go.kr/법령/부동산거래신고등에관한법률/제11조")]});
 
