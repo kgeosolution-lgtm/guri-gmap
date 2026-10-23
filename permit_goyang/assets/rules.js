@@ -342,7 +342,7 @@ function judge(S,P,fx){
   // 주차
   if(P.ta>0){
     var pk=parkingCalc(P);
-    if(pk) C.push({g:"duty",n:"부설주차장",st:"info",v:pk.cnt+"대 이상",calc:pk.calc,d:pk.detail,src:[L("input","용도·면적: 입력값"),L("law","주차장법 제19조",LAW.park+"/제19조"),ordSrc("parking",src.parking.name+" "+(pk.art||""))]});
+    if(pk) C.push({g:"duty",n:"부설주차장",st:"info",v:typeof pk.cnt==="number"?pk.cnt+"대 이상":pk.cnt,calc:pk.calc,d:pk.detail,src:[L("input","용도·면적: 입력값"),L("law","주차장법 제19조",LAW.park+"/제19조"),ordSrc("parking",src.parking.name+" "+(pk.art||""))]});
   }
   // 소방 — 소방시설법 시행령 제7조(건축허가 동의)·별표4 (research/07)
   if(P.ta>0||P.fl>0){
@@ -847,6 +847,9 @@ function roundPk(x){ return Math.floor(x+0.5); } // 소수점 이하 0.5 이상�
 parkingCalc=function(P){
   var r=parking.rules[P.use]||parking.rules["기타"], cnt, calc;
   var su=P.sub&&subByKey[P.sub];
+  // 별표7 비고1 다목 — 원본 HWP 확인(2026-10-23): 동물 및 식물관련시설(도축장·도계장 제외)은 설치하지 않을 수 있음
+  if(su&&su.p==="동물및식물관련시설")
+    return {cnt:"설치 면제 가능",calc:"고양시 주차장 조례 별표7 비고1 다목: 동물 및 식물관련시설(도축장·도계장은 제외)은 부설주차장을 설치하지 아니할 수 있습니다.\n도축장·도계장이면 그 밖의 건축물 200㎡당 1대.",detail:parking.note,art:"별표7 비고1"};
   if(su&&/다가구주택|오피스텔|생활숙박/.test(su.k)){
     var base=su.pr?roundPk(P.ta/su.pr):0;
     if(!P.hh) return {cnt:"호실 수 입력",calc:su.pn,detail:"세대(호실) 수를 입력하면 산정합니다.",art:"별표7"};
