@@ -1,0 +1,45 @@
+name: Permit Goyang law sync
+on:
+  push:
+    branches: [codex/permit-goyang-law]
+    paths: [.github/workflows/permit-goyang-law.yml, law/requests.json]
+permissions:
+  contents: read
+concurrency:
+  group: permit-goyang-law
+  cancel-in-progress: false
+jobs:
+  fetch:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          sparse-checkout: law
+      - name: Fetch law.go.kr (registered server IP)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ProgressPreference = 'SilentlyContinue'
+          if ($env:COMPUTERNAME -ne 'KGO-GIS') { throw 'Unexpected server' }
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+          $out = Join-Path $env:GITHUB_WORKSPACE 'out'
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          $reqs = Get-Content -Raw -Encoding UTF8 (Join-Path $env:GITHUB_WORKSPACE 'law\requests.json') | ConvertFrom-Json
+          $ok = 0; $bad = 0
+          foreach ($q in $reqs) {
+            try {
+              $r = Invoke-WebRequest -Uri $q.url -UseBasicParsing -TimeoutSec 60
+              [IO.File]::WriteAllBytes((Join-Path $out $q.file), $r.RawContentStream.ToArray())
+              $ok++
+            } catch { "FAIL $($q.file): $($_.Exception.Message)"; $bad++ }
+            Start-Sleep -Milliseconds 300
+          }
+          "FETCHED ok=$ok fail=$bad"
+          exit 0
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: law-results
+          path: out
+          retention-days: 3
