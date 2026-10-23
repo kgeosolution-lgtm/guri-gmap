@@ -1,130 +1,130 @@
 [
  {
   "file": "law_건축법.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=20&query=%EA%B1%B4%EC%B6%95%EB%B2%95"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=273437"
  },
  {
   "file": "law_건축법시행령.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=20&query=%EA%B1%B4%EC%B6%95%EB%B2%95%20%EC%8B%9C%ED%96%89%EB%A0%B9"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=290833"
  },
  {
   "file": "law_건축법시행규칙.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=20&query=%EA%B1%B4%EC%B6%95%EB%B2%95%20%EC%8B%9C%ED%96%89%EA%B7%9C%EC%B9%99"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=283727"
  },
  {
   "file": "law_국토의계획및이용에관한법률.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=20&query=%EA%B5%AD%ED%86%A0%EC%9D%98%20%EA%B3%84%ED%9A%8D%20%EB%B0%8F%20%EC%9D%B4%EC%9A%A9%EC%97%90%20%EA%B4%80%ED%95%9C%20%EB%B2%95%EB%A5%A0"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=284013"
  },
  {
   "file": "law_국토의계획및이용에관한법률시행령.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=20&query=%EA%B5%AD%ED%86%A0%EC%9D%98%20%EA%B3%84%ED%9A%8D%20%EB%B0%8F%20%EC%9D%B4%EC%9A%A9%EC%97%90%20%EA%B4%80%ED%95%9C%20%EB%B2%95%EB%A5%A0%20%EC%8B%9C%ED%96%89%EB%A0%B9"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=288857"
  },
  {
   "file": "law_주차장법.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=20&query=%EC%A3%BC%EC%B0%A8%EC%9E%A5%EB%B2%95"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=283743"
  },
  {
   "file": "law_농지법.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=20&query=%EB%86%8D%EC%A7%80%EB%B2%95"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=284301"
  },
  {
   "file": "law_산지관리법.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=20&query=%EC%82%B0%EC%A7%80%EA%B4%80%EB%A6%AC%EB%B2%95"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=289913"
  },
  {
   "file": "law_개발제한구역의지정및관리에관한특별조치법.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=20&query=%EA%B0%9C%EB%B0%9C%EC%A0%9C%ED%95%9C%EA%B5%AC%EC%97%AD%EC%9D%98%20%EC%A7%80%EC%A0%95%20%EB%B0%8F%20%EA%B4%80%EB%A6%AC%EC%97%90%20%EA%B4%80%ED%95%9C%20%ED%8A%B9%EB%B3%84%EC%A1%B0%EC%B9%98%EB%B2%95"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=286509"
  },
  {
   "file": "law_개발제한구역의지정및관리에관한특별조치법시행령.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=20&query=%EA%B0%9C%EB%B0%9C%EC%A0%9C%ED%95%9C%EA%B5%AC%EC%97%AD%EC%9D%98%20%EC%A7%80%EC%A0%95%20%EB%B0%8F%20%EA%B4%80%EB%A6%AC%EC%97%90%20%EA%B4%80%ED%95%9C%20%ED%8A%B9%EB%B3%84%EC%A1%B0%EC%B9%98%EB%B2%95%20%EC%8B%9C%ED%96%89%EB%A0%B9"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=288845"
  },
  {
   "file": "law_소방시설설치및관리에관한법률.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=20&query=%EC%86%8C%EB%B0%A9%EC%8B%9C%EC%84%A4%20%EC%84%A4%EC%B9%98%20%EB%B0%8F%20%EA%B4%80%EB%A6%AC%EC%97%90%20%EA%B4%80%ED%95%9C%20%EB%B2%95%EB%A5%A0"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=236977"
  },
  {
   "file": "law_소방시설설치및관리에관한법률시행령.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=20&query=%EC%86%8C%EB%B0%A9%EC%8B%9C%EC%84%A4%20%EC%84%A4%EC%B9%98%20%EB%B0%8F%20%EA%B4%80%EB%A6%AC%EC%97%90%20%EA%B4%80%ED%95%9C%20%EB%B2%95%EB%A5%A0%20%EC%8B%9C%ED%96%89%EB%A0%B9"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=290451"
  },
  {
   "file": "law_장애인노인임산부등의편의증진보장에관한법률시행령.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=20&query=%EC%9E%A5%EC%95%A0%EC%9D%B8%E3%86%8D%EB%85%B8%EC%9D%B8%E3%86%8D%EC%9E%84%EC%82%B0%EB%B6%80%20%EB%93%B1%EC%9D%98%20%ED%8E%B8%EC%9D%98%EC%A6%9D%EC%A7%84%20%EB%B3%B4%EC%9E%A5%EC%97%90%20%EA%B4%80%ED%95%9C%20%EB%B2%95%EB%A5%A0%20%EC%8B%9C%ED%96%89%EB%A0%B9"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=281167"
  },
  {
   "file": "law_녹색건축물조성지원법시행령.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=20&query=%EB%85%B9%EC%83%89%EA%B1%B4%EC%B6%95%EB%AC%BC%20%EC%A1%B0%EC%84%B1%20%EC%A7%80%EC%9B%90%EB%B2%95%20%EC%8B%9C%ED%96%89%EB%A0%B9"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=285225"
  },
  {
   "file": "law_문화예술진흥법.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=20&query=%EB%AC%B8%ED%99%94%EC%98%88%EC%88%A0%EC%A7%84%ED%9D%A5%EB%B2%95"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=279667"
  },
  {
   "file": "law_도시교통정비촉진법.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=20&query=%EB%8F%84%EC%8B%9C%EA%B5%90%ED%86%B5%EC%A0%95%EB%B9%84%20%EC%B4%89%EC%A7%84%EB%B2%95"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=284063"
  },
  {
   "file": "law_도시교통정비촉진법시행령.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=20&query=%EB%8F%84%EC%8B%9C%EA%B5%90%ED%86%B5%EC%A0%95%EB%B9%84%20%EC%B4%89%EC%A7%84%EB%B2%95%20%EC%8B%9C%ED%96%89%EB%A0%B9"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=289713"
  },
  {
   "file": "law_군사기지및군사시설보호법.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=20&query=%EA%B5%B0%EC%82%AC%EA%B8%B0%EC%A7%80%20%EB%B0%8F%20%EA%B5%B0%EC%82%AC%EC%8B%9C%EC%84%A4%20%EB%B3%B4%ED%98%B8%EB%B2%95"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=258703"
  },
  {
   "file": "law_군사기지및군사시설보호법시행령.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=20&query=%EA%B5%B0%EC%82%AC%EA%B8%B0%EC%A7%80%20%EB%B0%8F%20%EA%B5%B0%EC%82%AC%EC%8B%9C%EC%84%A4%20%EB%B3%B4%ED%98%B8%EB%B2%95%20%EC%8B%9C%ED%96%89%EB%A0%B9"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=290159"
  },
  {
   "file": "law_학교용지확보등에관한특례법.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=20&query=%ED%95%99%EA%B5%90%EC%9A%A9%EC%A7%80%20%ED%99%95%EB%B3%B4%20%EB%93%B1%EC%97%90%20%EA%B4%80%ED%95%9C%20%ED%8A%B9%EB%A1%80%EB%B2%95"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=267343"
  },
  {
   "file": "law_하천법.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=20&query=%ED%95%98%EC%B2%9C%EB%B2%95"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=284435"
  },
  {
   "file": "law_도로법.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=20&query=%EB%8F%84%EB%A1%9C%EB%B2%95"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=284465"
  },
  {
   "file": "law_하수도법.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=20&query=%ED%95%98%EC%88%98%EB%8F%84%EB%B2%95"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=276803"
  },
  {
   "file": "law_부동산거래신고등에관한법률.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=20&query=%EB%B6%80%EB%8F%99%EC%82%B0%20%EA%B1%B0%EB%9E%98%EC%8B%A0%EA%B3%A0%20%EB%93%B1%EC%97%90%20%EA%B4%80%ED%95%9C%20%EB%B2%95%EB%A5%A0"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=259641"
  },
  {
   "file": "law_문화유산의보존및활용에관한법률.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=20&query=%EB%AC%B8%ED%99%94%EC%9C%A0%EC%82%B0%EC%9D%98%20%EB%B3%B4%EC%A1%B4%20%EB%B0%8F%20%ED%99%9C%EC%9A%A9%EC%97%90%20%EA%B4%80%ED%95%9C%20%EB%B2%95%EB%A5%A0"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=283305"
  },
  {
   "file": "law_노후계획도시정비및지원에관한특별법.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=20&query=%EB%85%B8%ED%9B%84%EA%B3%84%ED%9A%8D%EB%8F%84%EC%8B%9C%20%EC%A0%95%EB%B9%84%20%EB%B0%8F%20%EC%A7%80%EC%9B%90%EC%97%90%20%EA%B4%80%ED%95%9C%20%ED%8A%B9%EB%B3%84%EB%B2%95"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=283189"
  },
  {
   "file": "law_경관법.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=20&query=%EA%B2%BD%EA%B4%80%EB%B2%95"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=276931"
  },
  {
   "file": "law_건축물의설비기준등에관한규칙.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=law&type=JSON&display=20&query=%EA%B1%B4%EC%B6%95%EB%AC%BC%EC%9D%98%20%EC%84%A4%EB%B9%84%EA%B8%B0%EC%A4%80%20%EB%93%B1%EC%97%90%20%EA%B4%80%ED%95%9C%20%EA%B7%9C%EC%B9%99"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=law&type=JSON&MST=289011"
  },
  {
   "file": "ordin_고양시도시계획조례.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=ordin&type=JSON&display=20&query=%EA%B3%A0%EC%96%91%EC%8B%9C%20%EB%8F%84%EC%8B%9C%EA%B3%84%ED%9A%8D%20%EC%A1%B0%EB%A1%80"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=ordin&type=JSON&MST=2169855"
  },
  {
   "file": "ordin_고양시건축조례.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=ordin&type=JSON&display=20&query=%EA%B3%A0%EC%96%91%EC%8B%9C%20%EA%B1%B4%EC%B6%95%20%EC%A1%B0%EB%A1%80"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=ordin&type=JSON&MST=2011341"
  },
  {
   "file": "ordin_고양시주차장설치및관리조례.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=ordin&type=JSON&display=20&query=%EA%B3%A0%EC%96%91%EC%8B%9C%20%EC%A3%BC%EC%B0%A8%EC%9E%A5%20%EC%84%A4%EC%B9%98%20%EB%B0%8F%20%EA%B4%80%EB%A6%AC%20%EC%A1%B0%EB%A1%80"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=ordin&type=JSON&MST=2148065"
  },
  {
   "file": "ordin_고양시하수도사용조례.json",
-  "url": "https://www.law.go.kr/DRF/lawSearch.do?OC=kgeodata&target=ordin&type=JSON&display=20&query=%EA%B3%A0%EC%96%91%EC%8B%9C%20%ED%95%98%EC%88%98%EB%8F%84%20%EC%82%AC%EC%9A%A9%20%EC%A1%B0%EB%A1%80"
+  "url": "https://www.law.go.kr/DRF/lawService.do?OC=kgeodata&target=ordin&type=JSON&MST=2100507"
  }
 ]
