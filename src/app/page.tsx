@@ -51,22 +51,7 @@ export default function Home() {
             fetchPriority="high"
           />
           <div className="season-shade" aria-hidden="true" />
-          <div className="season-badge">
-            <span className="season-place">{season.place}</span>
-            <span className="season-dots" role="group" aria-label="계절 바꿔 보기">
-              {(['spring', 'summer', 'autumn', 'winter'] as const).map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  title={seasonConfig[key].label}
-                  aria-label={`${seasonConfig[key].label} 보기`}
-                  aria-pressed={season.key === key}
-                  style={{ '--c': seasonConfig[key].accentColor } as React.CSSProperties}
-                  onClick={() => setSelection(key)}
-                />
-              ))}
-            </span>
-          </div>
+          <span className="season-place">{season.place}</span>
           <div className="home-wrap hero-layout">
             <div className="hero-copy">
               <p className="eyebrow">
@@ -88,6 +73,21 @@ export default function Home() {
               <a className="hero-text-link" href="#search">
                 어떤 지도가 있나요? <ArrowRight size={16} />
               </a>
+            </div>
+          </div>
+          <div className="home-wrap season-controls">
+            <span>구리의 사계절</span>
+            <div role="group" aria-label="계절 선택">
+              {(['spring', 'summer', 'autumn', 'winter'] as const).map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={season.key === key}
+                  onClick={() => setSelection(key)}
+                >
+                  {seasonConfig[key].label}
+                </button>
+              ))}
             </div>
           </div>
         </section>
