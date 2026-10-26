@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f7f6f0"><meta name="description" content="보내둔 레시피, 가고 싶은 곳, 기억할 만한 아이디어. 콩의 보관함에서 다시 꺼내보세요.">
+  <title>콩의 보관함 — 좋은 발견을 모아두는 곳</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<a class="skip" href="#collection">보관한 정보로 이동</a>
+<header class="site-header"><a class="brand" href="#" aria-label="콩의 보관함 처음으로"><span class="brand-mark" aria-hidden="true">콩</span><span>콩의 보관함<small>KONG'S COLLECTION</small></span></a><nav><a class="nav-current" href="#collection">모아보기</a><button class="nav-button" id="nav-favorites">즐겨찾기 <span id="nav-fav-count">0</span></button><a class="send-link" href="https://t.me/HY_instaBot" target="_blank" rel="noopener noreferrer"><span>텔레그램으로 보내기</span><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m7 17 10-10M7 7h10v10"/></svg></a></nav></header>
+<main id="home-view">
+  <section class="intro"><div class="intro-copy"><span class="eyebrow"><i></i> A LITTLE SPACE FOR GOOD FINDS</span><h1>좋은 발견은,<br>여기에 <span>모아두기.</span></h1><p>만들어 보고 싶은 한 끼부터 기억하고 싶은 작은 팁까지.<br class="desktop-break"> 보내둔 정보들을 읽기 좋게 정리했어요.</p><div class="intro-meta"><span class="tiny-stack" aria-hidden="true">↗</span><span>텔레그램에 보내고, 여기서 꺼내보세요.</span></div></div><div class="featured-wrap" id="featured"><div class="feature-placeholder" aria-hidden="true"><span>오늘의 발견을<br>내일의 영감으로.</span><i>✳</i></div></div></section>
+  <section class="collection" id="collection" aria-labelledby="collection-heading"><div class="collection-top"><div><span class="eyebrow">THE COLLECTION</span><h2 id="collection-heading">차곡차곡 모아둔 것들 <span id="total-count">—</span></h2></div><div class="search-wrap"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg><input id="search" type="search" placeholder="제목, 재료, 키워드로 찾아보세요" aria-label="보관함 검색" autocomplete="off"><kbd>/</kbd></div></div>
+    <div class="filter-bar"><div class="filters" role="group" aria-label="정보 분류" id="filters"></div><label class="sort-label"><span class="sr-only">정렬</span><select id="sort"><option value="newest">최근 담은 순</option><option value="oldest">먼저 담은 순</option><option value="title">이름순</option></select></label></div>
+    <div class="result-line"><span id="result-label" role="status" aria-live="polite">보관함을 불러오는 중이에요.</span><button id="clear-filter" hidden>필터 초기화 ↺</button></div>
+    <div class="card-grid" id="cards" aria-busy="true"></div>
+    <div class="empty-state" id="empty-state" hidden><span class="empty-symbol">✳</span><h3>아직 이곳은 비어 있어요.</h3><p>새로운 발견을 텔레그램에 보내보세요.<br>정리가 끝나면 이곳에 차곡차곡 쌓입니다.</p><a href="https://t.me/HY_instaBot" target="_blank" rel="noopener noreferrer">텔레그램 열기 ↗</a></div>
+    <div class="error-state" id="error-state" hidden><h3>보관함을 불러오지 못했어요.</h3><p>잠시 후 다시 확인해 주세요. 이미 저장한 정보는 그대로 있어요.</p><button id="retry">다시 불러오기</button></div>
+  </section>
+  <aside class="collection-note"><span aria-hidden="true">✳</span><div><strong>스크롤 속 좋은 정보, 그냥 지나치지 마세요.</strong><p>인스타 링크·본문·사진·짧은 영상을 봇에 보내면, 내용에 맞춰 정리해 이곳에 담아둘게요.</p></div><a href="https://t.me/HY_instaBot" target="_blank" rel="noopener noreferrer">새로운 발견 보내기 ↗</a></aside>
+</main>
+<main id="detail-view" hidden tabindex="-1"></main>
+<footer><a class="footer-brand" href="#">콩의 보관함 <span>✳</span></a><p>좋아하는 것을 발견하고, 나의 것으로 기록하는 일.</p><div><span>링크로 함께 보는 보관함</span><span id="sync-time"></span></div></footer>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="./app.js" defer></script>
+</body></html>

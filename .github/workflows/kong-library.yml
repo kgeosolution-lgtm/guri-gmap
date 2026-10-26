@@ -1,0 +1,26 @@
+name: Kong library publication
+on:
+  push:
+    branches: [codex/kong-library-publish]
+    paths: ['kong-library-release/**', '.github/workflows/kong-library.yml']
+permissions:
+  contents: read
+concurrency:
+  group: kong-library-publication
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 6
+    steps:
+      - name: Check out only the public library release
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: kong-library-checkout
+          sparse-checkout: kong-library-release
+          persist-credentials: false
+      - name: Install the isolated library and verify its public URL
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          & "$env:GITHUB_WORKSPACE\kong-library-checkout\kong-library-release\deploy\install-iis.ps1" -SourceRoot "$env:GITHUB_WORKSPACE\kong-library-checkout\kong-library-release" -SourceCommit "$env:GITHUB_SHA"
