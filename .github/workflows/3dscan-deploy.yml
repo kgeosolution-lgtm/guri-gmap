@@ -35,9 +35,10 @@ jobs:
             '3dupload/upload.py' = 'eb60d0e8632b1c3d720012afafb2f49e7496c9bcbc6a80e19c7477ed9aa54f7e'
             '3dupload/status.py' = '01a80fd3d6627ad59c9201ae6fbaa8156f444991852db031c92ba3735bcb9675'
             '3dupload/check_title.py' = 'a27fc6fdd49535cffc57ce4fbd917220406f28c68b247edc5cf5076b88181c3c'
+            '3dupload/retry.py' = '867ee3d6b5cdfa37ee6db144249e966f667a8e4c97e728fe97a1ea2c0e8ed442'
             '3dupload/web.config' = 'c5562814cdca943748b6cc46205e29a2392ae99362e99ace4ac14b621dd81783'
             'tools/queue_runner.py' = '2f0391007ee7522f97f23a797433b9149e89df4b1b473123cb43e17c2995eff8'
-            'tools/pipeline.py' = '35717b61704f33c494a635f7aa09683df6c3858a0e68defe4c20082b4b2b1f93'
+            'tools/pipeline.py' = '02c63e1bb8a7515f9a96c6855f96fa6f7251bae3516f8eb716423b6d83f68a90'
             'tools/slpk_step.py' = 'ca736064b0d4675570b9a30e11af7f6c4b49f67704a5e7c31ce779480482678e'
             'tools/register_task.ps1' = 'f715092ec71960880a80d5aa18ebad602786209b229a194d22095e40e0c394ae'
             'worker/process_scan.py' = '31edc44eba6a9d1f888df20dde4a8d5f4e6b3ac9922a599d195e8ea919ab9d53'
@@ -130,12 +131,19 @@ jobs:
           } else { "CONFIG EXISTS=$cfgPath (kept)" }
           # Portal 비밀번호: GitHub secret KGEOSCAN_PORTAL_PASSWORD 가 있으면 자리표시자를 채운다 (이미 채워져 있으면 그대로)
           $cfgNow = Get-Content -LiteralPath $cfgPath -Raw -Encoding UTF8
-          if ($cfgNow -match '<PORTAL_PASSWORD>') {
-            if ($env:KGEOSCAN_PORTAL_PASSWORD) {
-              [System.IO.File]::WriteAllText($cfgPath, $cfgNow.Replace('<PORTAL_PASSWORD>', $env:KGEOSCAN_PORTAL_PASSWORD), (New-Object System.Text.UTF8Encoding($false)))
-              "CONFIG: portal password applied from secret"
-            } else { "CONFIG: portal password STILL PLACEHOLDER (set GitHub secret KGEOSCAN_PORTAL_PASSWORD: node deploy.mjs secret KGEOSCAN_PORTAL_PASSWORD)" }
-          } else { "CONFIG: portal password set" }
+          if ($env:KGEOSCAN_PORTAL_PASSWORD) {
+            # secret 이 있으면 항상 덮어쓴다 (틀린 비밀번호를 secret 재등록으로 고칠 수 있게). JSON 문자열 이스케이프.
+            $pwJson = $env:KGEOSCAN_PORTAL_PASSWORD.Replace('\', '\\').Replace('"', '\"')
+            $cfgNew = [regex]::Replace($cfgNow, '"portal_password":\s*"[^"]*"', ('"portal_password": "' + $pwJson.Replace('$', '$$') + '"'))
+            [System.IO.File]::WriteAllText($cfgPath, $cfgNew, (New-Object System.Text.UTF8Encoding($false)))
+            "CONFIG: portal password applied from secret (len $($env:KGEOSCAN_PORTAL_PASSWORD.Length))"
+          } elseif ($cfgNow -match '<PORTAL_PASSWORD>') { "CONFIG: portal password STILL PLACEHOLDER (set GitHub secret KGEOSCAN_PORTAL_PASSWORD)" } else { "CONFIG: portal password kept" }
+          # 토큰 발급 테스트 (비밀번호 검증)
+          try {
+            $c = Get-Content -LiteralPath $cfgPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            $tok = Invoke-RestMethod -Method Post -Uri ($c.portal_url + '/sharing/rest/generateToken') -Body @{ username = $c.portal_user; password = $c.portal_password; referer = $c.portal_url; expiration = 5; f = 'json' } -TimeoutSec 30
+            if ($tok.token) { "PORTAL LOGIN: OK ($($c.portal_user))" } else { "PORTAL LOGIN: FAILED - $($tok.error.message) $($tok.error.details)" }
+          } catch { "PORTAL LOGIN: test error - $($_.Exception.Message)" }
           # ArcGIS Pro python 경로 보정 (C:/D: 어느 쪽에 설치돼 있든)
           $proCands = @('D:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe', 'C:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe')
           $proFound = $proCands | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1

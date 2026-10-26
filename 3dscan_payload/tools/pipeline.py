@@ -1,4 +1,4 @@
-"""
+r"""
 kgeoScan pipeline v2:  python -I pipeline.py <job_dir>\job.json <jobs>\<id>.json
 
 단계 (status.py 의 STEP_NAMES 와 같은 번호)
@@ -84,6 +84,10 @@ def wgs84_from_utm(x, y, epsg):
 # ── 단계 구현 ────────────────────────────────────────────────────────────────
 def step_prepare(meta, out_dir):
     if meta["mode"] == "stray":
+        done_las, done_glb = os.path.join(out_dir, "scan.las"), os.path.join(out_dir, "mesh_tex.glb")
+        if os.path.exists(done_las) and os.path.exists(done_glb) and os.path.exists(os.path.join(out_dir, "result.json")):
+            log("워커 결과가 이미 있어 재사용 (재시도)")
+            return done_las, done_glb
         g = meta["georef"]
         fu, tx = CFG.get("fusion", {}), CFG.get("texture", {})
         cmd = [CFG["worker_python"], "-I", os.path.join(CFG["worker_dir"], "process_scan.py"),
@@ -130,6 +134,11 @@ def step_slpk(glb_path, out_dir, las_info, service_name, heading=0.0):
     if not CFG.get("slpk_enabled", True) or not py or not os.path.exists(py):
         log("SLPK 건너뜀 (slpk_enabled=false 또는 ArcGIS Python 없음)")
         return None
+    prev = [f for f in os.listdir(out_dir) if f.endswith(".slpk") and os.path.getsize(os.path.join(out_dir, f)) > 100_000]
+    if prev:
+        slpk = os.path.join(out_dir, sorted(prev)[-1])
+        log(f"SLPK 가 이미 있어 재사용 (재시도): {os.path.basename(slpk)}")
+        return slpk
     obj_dir = os.path.join(out_dir, "obj")
     conv = [CFG["worker_python"], "-I", os.path.join(CFG["worker_dir"], "glb_to_obj.py"), "--glb", glb_path,
             "--out", obj_dir, "--heading", str(heading), "--jpeg-quality", str(CFG.get("texture", {}).get("jpeg_quality", 85))]
@@ -219,6 +228,9 @@ def main():
     job_id, out_dir = meta["job_id"], os.path.join(meta["job_dir"], "out")
     os.makedirs(out_dir, exist_ok=True)
     service_name = "kgeoscan_" + time.strftime("%Y%m%d_%H%M%S")
+    prev_slpk = [f for f in os.listdir(out_dir) if f.endswith(".slpk")]
+    if prev_slpk:
+        service_name = os.path.splitext(sorted(prev_slpk)[-1])[0]   # 재시도: 이전 SLPK 이름 유지
 
     q.update(step=1, message="입력 준비" + (" (융합·텍스처 처리 중, 몇 분 걸립니다)" if meta["mode"] == "stray" else ""))
     las_path, glb_path = step_prepare(meta, out_dir)
