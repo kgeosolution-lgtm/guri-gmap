@@ -23,15 +23,11 @@
 .sparkle-ribbon{text-align:center;font:500 8px/28px "Pretendard Variable",sans-serif;letter-spacing:2px;color:#c28dae;background:#f8eaf4;border-bottom:1px solid #f2dfed}.card-save svg{stroke-width:1.4}@media(max-width:720px){.sparkle-ribbon{font-size:6px;line-height:24px;letter-spacing:1px}.filter-bar{position:relative}.filters{mask-image:linear-gradient(to right,#000 95%,transparent)}}
 .intro-copy>p{color:#8b6988}.card-summary{color:#866b86}.card-bottom time{color:#977b91}.tag{color:#94668b}.result-line{color:#9c7d98}.filter-chip:not(.active){color:#8b6a89}.detail-title>p,.ingredient>strong{color:#94738f}.step p,.content-section p,.content-section li{color:#795e80}.reading-note{color:#a1849b}.source-panel p{color:#987892}.empty-state p,.error-state p{color:#947c98}
 
-/* On phones, the collection is a reading list. Media is requested on expansion. */
+/* On phones, the collection is a reading list. Detail media loads when the item opens. */
 .card-kind{display:none}
-.mobile-image{margin-top:22px;border:1px solid #e8d8e8;border-radius:14px;background:#fff9fe;overflow:hidden}
-.mobile-image summary{min-height:48px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;font-size:14px;color:#805c85;list-style:none}
-.mobile-image summary::-webkit-details-marker{display:none}
-.mobile-image summary:focus-visible{outline:3px solid #b06ba8;outline-offset:-4px}
-.mobile-image[open] summary span{transform:rotate(180deg)}
-.mobile-image .detail-cover{height:auto;min-height:160px;max-height:420px;border-radius:0;background:#f3e9f1}
-.mobile-image img{display:block;width:100%;height:auto;max-height:420px;object-fit:contain}
+.mobile-image{margin:0 0 24px;border:1px solid #e8d8e8;border-radius:16px;background:#fff9fe;overflow:hidden}
+.mobile-image .detail-cover{height:auto;min-height:160px;max-height:360px;border-radius:0;background:#f3e9f1}
+.mobile-image img{display:block;width:100%;height:auto;max-height:360px;object-fit:contain}
 @media(max-width:720px){
  body{background:#fcf8fc}
  .sparkle-ribbon,.intro{display:none}
