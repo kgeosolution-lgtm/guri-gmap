@@ -18,7 +18,7 @@
   --brand:var(--krds-color-light-primary-50); --brand-hover:var(--krds-color-light-primary-60); --brand-soft:var(--krds-color-light-primary-5);
   /* 그룹별 강조색 — setGroup() 이 GROUPS[g].accent 로 덮어쓴다. 기본은 primary-50 */
   --accent:var(--krds-color-light-primary-50); --accent-soft:var(--krds-color-light-primary-5);
-  --bg:var(--krds-color-light-gray-5); --surface:#FFFFFF; --ink:var(--krds-color-light-gray-90); --sub:var(--krds-color-light-gray-60); --faint:var(--krds-color-light-gray-40); --line:var(--krds-color-light-gray-10);
+  --bg:var(--krds-color-light-gray-5); --surface:#FFFFFF; --ink:var(--krds-color-light-gray-90); --sub:var(--krds-color-light-gray-60); --faint:var(--ui-faint,#667570); --line:var(--krds-color-light-gray-10);
   --danger:#E5533C;
   --radius:var(--ui-radius-sm,6px); --shadow:var(--ui-shadow,0 2px 10px rgba(30,50,41,.07)); --shadow-lg:var(--ui-shadow-lg,0 10px 26px rgba(30,50,41,.14));   /* 공통 규격(site-shell.css --ui-*) */
 }
@@ -93,16 +93,16 @@ a{color:inherit}
 /* 검색 */
 .searchbox{position:relative;display:flex;align-items:center;height:40px;margin:12px 0 10px;border:1px solid var(--krds-color-light-gray-20);border-radius:6px;background:#fff;transition:border-color .13s,box-shadow .13s}
 .searchbox:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
-.searchbox .sch-ic{position:absolute;left:11px;display:flex;color:var(--krds-color-light-gray-40);pointer-events:none}
+.searchbox .sch-ic{position:absolute;left:11px;display:flex;color:var(--faint);pointer-events:none}
 .searchbox input{border:none;outline:none;background:none;width:100%;height:100%;padding:0 34px 0 34px;font-size:13.5px;font-family:inherit;color:var(--ink)}
-.searchbox input::placeholder{color:var(--krds-color-light-gray-40)}
+.searchbox input::placeholder{color:var(--faint)}
 .searchbox .sch-clear{position:absolute;right:6px;width:26px;height:26px;display:none;place-items:center;border-radius:4px;color:var(--krds-color-light-gray-50)}
 .searchbox .sch-clear:hover{background:var(--krds-color-light-gray-5);color:var(--accent)}
 .searchbox.has .sch-clear{display:grid}
 /* 도구 줄 */
 .sort-row{display:flex;align-items:center;gap:6px;padding:0 16px 10px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
 .sort-row::-webkit-scrollbar{display:none}
-.sort-row .n{margin-left:auto;flex:none;font-size:12px;font-weight:600;color:var(--krds-color-light-gray-40);white-space:nowrap;padding-left:6px}
+.sort-row .n{margin-left:auto;flex:none;font-size:12px;font-weight:600;color:var(--faint);white-space:nowrap;padding-left:6px}
 .tool-btn,.tool-sel{flex:none;height:32px;border:1px solid var(--krds-color-light-gray-20);border-radius:6px;background:#fff;color:var(--krds-color-light-gray-60);
   font-size:12px;font-weight:700;font-family:inherit;line-height:1;white-space:nowrap;cursor:pointer;transition:all .13s}
 .tool-btn{display:inline-flex;align-items:center;gap:5px;padding:0 10px 0 8px}
@@ -129,14 +129,14 @@ a{color:inherit}
 .row.sel .nm{color:var(--accent)}
 .row .ad{font-size:12.5px;color:var(--krds-color-light-gray-60);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px;line-height:1.35}
 .row .dist{font-size:13px;font-weight:700;color:var(--krds-color-light-gray-90);font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right;min-width:0}
-.row .dist small{font-size:11px;font-weight:600;color:var(--krds-color-light-gray-40);margin-left:1px}
+.row .dist small{font-size:11px;font-weight:600;color:var(--faint);margin-left:1px}
 /* 상태 배지 — 알약 모양 */
 .st{display:inline-flex;align-items:center;flex:none;height:20px;padding:0 8px;border-radius:999px;font-size:10.5px;font-weight:800;white-space:nowrap}
 .st.on{background:#e3f4ea;color:#0c7a45}
-.st.pre{background:#FCF1DC;color:#B77410}
+.st.pre{background:#FCF1DC;color:#8C5A0A}
 .st.off{background:var(--krds-color-light-gray-10);color:var(--krds-color-light-gray-60)}
 .st.closed,.st.dead,.st.x,.st.err,.st.stop{background:#fdecea;color:#b3261e}
-.st.live{background:#fde8ec;color:#b3234a}.st.soon{background:#FCF1DC;color:#B77410}.st.plan{background:#EEF1F4;color:#5b6770}.st.done{background:var(--krds-color-light-gray-10);color:var(--krds-color-light-gray-60)}
+.st.live{background:#fde8ec;color:#b3234a}.st.soon{background:#FCF1DC;color:#8C5A0A}.st.plan{background:#EEF1F4;color:#5b6770}.st.done{background:var(--krds-color-light-gray-10);color:var(--krds-color-light-gray-60)}
 /* 선택 행 행동 줄 */
 .row .acts{grid-column:1/-1;display:flex;gap:6px;margin-top:11px;flex-wrap:wrap}
 .row .act{display:inline-flex;align-items:center;gap:5px;height:34px;padding:0 13px;border:1px solid var(--accent);border-radius:var(--ui-radius-sm,6px);background:#fff;color:var(--accent);
@@ -152,7 +152,8 @@ a{color:inherit}
 .opcard.sel .nm{color:var(--accent)}
 .opcard .meta{font-size:12.5px;color:var(--krds-color-light-gray-60);margin-top:6px;line-height:1.6}
 .opcard .meta b{font-weight:700;color:var(--krds-color-light-gray-70)}
-.empty{text-align:center;color:var(--krds-color-light-gray-40);font-size:12.5px;padding:36px 14px;line-height:1.7;word-break:keep-all}
+/* .empty 는 공통 .gm-empty(site-shell.css)와 함께 쓴다 */
+.empty{text-align:center;color:var(--faint);font-size:13px;padding:36px 14px;line-height:1.7;word-break:keep-all}
 .list::-webkit-scrollbar{width:6px}
 .list::-webkit-scrollbar-thumb{background:var(--krds-color-light-gray-20);border-radius:6px}
 .list::-webkit-scrollbar-thumb:hover{background:var(--accent)}
@@ -952,7 +953,7 @@ const GROUPS={
        if(e.slowN>0) add('🔌 완속 '+e.slowA+'/'+e.slowN+'대 가능','#EDE7FB','#5A3FC0');
        const hs=String(pv(r,['이용시간','이용가능시간','운영시간'])||'').trim();
        if(hs.indexOf('24시간')>-1) add('🕐 24시간','#E4F7EF','#0F6E56');
-       else if(hs&&/\d/.test(hs)) add('🕐 '+esc(hs),'#FFF4E0','#B26A00');   /* 시간처럼 보일 때만 */
+       else if(hs&&/\d/.test(hs)) add('🕐 '+esc(hs),'#FFF4E0','#8A5200');   /* 시간처럼 보일 때만 */
        const pf=String(pv(r,['주차료무료'])||'');
        if(pf==='예') add('🅿️ 주차 무료','#E4F7EF','#0F6E56');
        else if(pf==='아니오') add('🅿️ 주차 유료','#F1F1F1','#5B6472');
@@ -966,7 +967,7 @@ const GROUPS={
        let out='';
        e.list.forEach(c=>{
          let tail='';   /* 충전중이면 지금까지 충전한 시간(언제쯤 빌지 가늠). 충전가능은 '며칠 전 종료' 같은 꼬리를 붙이지 않는다 */
-         if(c.st==='충전중'&&c.nowT){ const d=sinceTxt(c.nowT); if(d) tail=` <span style="color:#B26A00">${esc(d)}</span>`; }
+         if(c.st==='충전중'&&c.nowT){ const d=sinceTxt(c.nowT); if(d) tail=` <span style="color:#8A5200">${esc(d)}</span>`; }
          out+=`<div class="kv"><span class="k">${esc(String(c.id||'-'))}번</span>`
             +`<span class="v">${c.fast?'⚡ 급속':'🔌 완속'} ${c.kw||0}kW &nbsp; ${evChipSt(c.st)}${tail}</span></div>`; });
        const sync=evSyncTime(t), ago=agoTxt(sync);
@@ -1335,7 +1336,7 @@ const GROUPS={
        const n=busLines(r,pv).length;
        if(n) out+=`<span class="pchip" style="background:#E8F0FD;color:#1E4FB0">🚌 ${n}개 노선 경유</span>`;
        if(String(pv(r,['중앙차로'])||'')==='예')
-         out+=`<span class="pchip" style="background:#FFF4E0;color:#B26A00">🛣️ 중앙차로 정류장</span>`;
+         out+=`<span class="pchip" style="background:#FFF4E0;color:#8A5200">🛣️ 중앙차로 정류장</span>`;
        return out; },
      cardTitle:'🚌 이 정류장을 지나는 버스',
      cardFn:(r,pv,t)=>{ const lines=busLines(r,pv); if(!lines.length) return '';
@@ -1343,10 +1344,10 @@ const GROUPS={
        lines.forEach(n=>{
          const info=idx[n]||null;
          const c=busTypeColor(info?info.typ:'');
-         let right='<span style="color:#9AA6A0">노선 정보 확인 필요</span>';
+         let right='<span style="color:var(--faint)">노선 정보 확인 필요</span>';
          if(info&&valOK(info.from)){
            const route = (String(info.from)===String(info.to))? info.from+' 순환' : info.from+' ↔ '+info.to;
-           right=esc(route)+(valOK(info.typ)?`<span style="color:#9AA6A0"> · ${esc(String(info.typ))}</span>`:'');
+           right=esc(route)+(valOK(info.typ)?`<span style="color:var(--faint)"> · ${esc(String(info.typ))}</span>`:'');
          }
          out+=`<div class="kv"><span class="k" style="min-width:46px"><span style="display:inline-block;min-width:34px;text-align:center;background:${c[0]};color:${c[1]};font-weight:800;padding:2px 8px;border-radius:12px">${esc(n)}</span></span><span class="v">${right}</span></div>`;
        });
@@ -1392,7 +1393,7 @@ const GROUPS={
      chipsFn:(r,pv)=>{ let out='';
        const add=(t,bg,fg)=>{ out+=`<span class="pchip" style="background:${bg};color:${fg}">${t}</span>`; };
        const im=pv(r,['incidentetraffic','교통영향']);
-       if(valOK(im)) add('🚗 '+esc(String(im)),'#FFF4E0','#B26A00');
+       if(valOK(im)) add('🚗 '+esc(String(im)),'#FFF4E0','#8A5200');
        const ln=pv(r,['lane','차로']);
        if(valOK(ln)&&String(ln)!=='없음') add('🛣️ '+esc(String(ln))+'차로','#E8F0FD','#1E4FB0');
        const ct=pv(r,['controltypename','통제유형']);
@@ -2312,7 +2313,7 @@ function refresh_(){
 function renderList(){
   try{ renderList_(); scrollToSel(); }
   catch(e){ console.warn('[목록 오류]',e);
-    $('list').innerHTML='<div class="empty">목록을 그리는 중 문제가 있었어요.<br><span style="font-size:11px">'
+    $('list').innerHTML='<div class="empty gm-empty"><span class="gm-empty-ic"></span><b>목록을 그리는 중 문제가 있었어요</b><span style="font-size:11px">'
       +esc(String((e&&e.message)||e))+'</span></div>'; }
 }
 function renderList_(){
@@ -2324,7 +2325,7 @@ function renderList_(){
     /* 자료를 못 받은 레이어가 있으면(망·서버 문제) '다시 시도' 단추만 조용히 붙인다 */
     const failed=Object.values(groupThemes(curGroup)).some(x=>x.src&&dataCache[x.src.url]&&dataCache[x.src.url].__failed);
     const retry=failed? `<br><button type="button" class="copy-btn" style="margin:12px 0 0;padding:6px 14px;font-size:12.5px" onclick="retryGroup()">다시 시도</button>` : '';
-    $('list').innerHTML=`<div class="empty">${anyReady?'조건에 맞는 시설이 없어요.<br>검색어나 동 선택을 바꿔보세요.':'이 분류의 지도는 데이터를 준비하고 있어요.<br>곧 만나보실 수 있습니다.'}${retry}</div>`;
+    $('list').innerHTML=`<div class="empty gm-empty"><span class="gm-empty-ic"></span>${anyReady?'<b>조건에 맞는 시설이 없어요</b>검색어나 동 선택을 바꿔보세요.':'<b>지도 자료를 준비하고 있어요</b>곧 만나보실 수 있어요.'}${retry}</div>`;
     return;
   }
   if(t&&t.type==='cards'){
@@ -3107,7 +3108,7 @@ function weekChips(r,pv){
 function weekTable(r,pv,c){
   const wd=new Date().getDay();
   const line=(lbl,txt,hl)=>`<div class="kv"><span class="k" style="${hl?`color:${c};font-weight:800`:''}">${lbl}</span>`
-    +`<span class="v" style="${txt==='휴무'?'color:#9AA6A0':''}${hl?`;color:${c};font-weight:800`:''}">${txt}</span></div>`;
+    +`<span class="v" style="${txt==='휴무'?'color:var(--faint)':''}${hl?`;color:${c};font-weight:800`:''}">${txt}</span></div>`;
   const wk=tRange(r,pv,'월');
   const same=['화','수','목','금'].every(d=>tRange(r,pv,d)===wk);
   let out='';
@@ -3176,9 +3177,9 @@ function agoTxt(d){
 }
 function evChipSt(st){
   if(st==='충전대기') return '<span style="color:#0F6E56;font-weight:800">🟢 충전가능</span>';
-  if(st==='충전중')   return '<span style="color:#B26A00;font-weight:800">🟡 충전중</span>';
+  if(st==='충전중')   return '<span style="color:#8A5200;font-weight:800">🟡 충전중</span>';
   if(st==='운영중지'||st==='점검중') return '<span style="color:#B3261E;font-weight:800">🔴 '+esc(st)+'</span>';
-  return '<span style="color:#8A968F">⚪ '+esc(st||'상태미확인')+'</span>';
+  return '<span style="color:var(--faint)">⚪ '+esc(st||'상태미확인')+'</span>';
 }
 /* ── 날짜 도우미 (epoch ms · 문자열 모두) ── */
 function toDate(v){

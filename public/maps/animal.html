@@ -10,7 +10,7 @@
 <style>
 :root{
   /* 공용 토큰(gmap-shared.css) 별칭 */
-  --bg:var(--krds-color-light-gray-5); --surface:#FFFFFF; --ink:var(--krds-color-light-gray-90); --sub:var(--krds-color-light-gray-60); --faint:var(--krds-color-light-gray-40); --line:var(--krds-color-light-gray-20); --hair:var(--krds-color-light-gray-10);
+  --bg:var(--krds-color-light-gray-5); --surface:#FFFFFF; --ink:var(--krds-color-light-gray-90); --sub:var(--krds-color-light-gray-60); --faint:var(--ui-faint,#667570); --line:var(--krds-color-light-gray-20); --hair:var(--krds-color-light-gray-10);
   --blue:var(--krds-color-light-primary-50); --blue-soft:var(--krds-color-light-primary-5); --navy:var(--krds-color-light-primary-60);
   /* 페이지 강조색 = 홈 반려동물 색 */
   --accent:#C8456A; --accent-soft:#C8456A1A;
@@ -119,8 +119,8 @@ svg.ti{width:16px;height:16px;flex:none}
 .more-wrap{grid-column:1/-1;text-align:center;padding:8px 0 4px}
 .more-btn{border:1px solid var(--line);border-radius:6px;padding:10px 26px;font-size:13.5px;font-weight:700;color:var(--ink);background:#fff;transition:border-color .13s,color .13s}
 .more-btn:hover{border-color:var(--accent);color:var(--accent)}
-.empty{grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--sub)}
-.empty .big{display:flex;justify-content:center;margin-bottom:12px;color:var(--krds-color-light-gray-30)}
+.empty{grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--faint);font-size:13px;line-height:1.7}   /* 공통 .gm-empty 와 같은 톤 */
+.empty .big{display:flex;justify-content:center;margin-bottom:12px;color:var(--faint)}
 .empty .big svg{width:40px;height:40px}
 /* 스켈레톤 */
 .skel{background:#fff;border:1px solid var(--hair);border-radius:6px;overflow:hidden}
@@ -483,7 +483,7 @@ const isCare = a => a['상태']==='보호중';
     console.error(e);
     document.querySelector('.main').insertAdjacentHTML('beforebegin',
       `<div class="errbox"><div class="errbox-in">데이터를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.<br>
-      <span style="font-size:12px;color:#B08A80">(${esc(e.message)})</span></div></div>`);
+      <span style="font-size:12px;color:var(--faint)">(${esc(e.message)})</span></div></div>`);
     $('cards').innerHTML=''; $('dataDate').textContent='연결 실패';
   }
 })();
