@@ -165,15 +165,29 @@ def step_publish(slpk, service_name, title):
     token = get_token(portal)
     folder = CFG.get("portal_folder_id", "")
     base = f"{portal}/sharing/rest/content/users/{user}" + (f"/{folder}" if folder else "")
-    with open(slpk, "rb") as f:
-        blob = f.read()
-    item = http_json(base + "/addItem", {"title": title, "type": "Scene Package", "typeKeywords": "slpk,Scene Package",
-                                         "tags": "kgeoScan,LiDAR", "f": "json", "token": token},
-                     files={"file": (os.path.basename(slpk), blob)})
-    slpk_item_id = item["id"]
-    log(f"SLPK 아이템: {slpk_item_id}")
+    # 재시도 때 같은 SLPK 아이템이 이미 올라가 있으면 재사용 (중복 아이템 방지)
+    slpk_item_id = None
+    try:
+        found = http_json(f"{portal}/sharing/rest/search",
+                          {"q": f'owner:{user} AND type:"Scene Package"', "num": 100, "sortField": "modified",
+                           "sortOrder": "desc", "f": "json", "token": token})
+        match = next((r for r in found.get("results", []) if r.get("name") == os.path.basename(slpk)), None)
+        if match:
+            slpk_item_id = match["id"]
+            log(f"SLPK 아이템 재사용: {slpk_item_id}")
+    except Exception as e:
+        log(f"아이템 검색 생략: {e}")
+    if not slpk_item_id:
+        with open(slpk, "rb") as f:
+            blob = f.read()
+        item = http_json(base + "/addItem", {"title": title, "type": "Scene Package", "typeKeywords": "slpk,Scene Package",
+                                             "tags": "kgeoScan,LiDAR", "f": "json", "token": token},
+                         files={"file": (os.path.basename(slpk), blob)})
+        slpk_item_id = item["id"]
+        log(f"SLPK 아이템: {slpk_item_id}")
+    # fileType 은 소문자 'scenepackage' (대소문자가 다르면 'Unable to determine Service Type')
     pub = http_json(f"{portal}/sharing/rest/content/users/{user}/publish",
-                    {"itemID": slpk_item_id, "fileType": "scenePackage", "f": "json", "token": token,
+                    {"itemID": slpk_item_id, "fileType": "scenepackage", "f": "json", "token": token,
                      "publishParameters": json.dumps({"name": service_name})})
     svc = pub["services"][0]
     scene_item_id, job_id = svc.get("serviceItemId"), svc.get("jobId")
