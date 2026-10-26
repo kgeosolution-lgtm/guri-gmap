@@ -947,3 +947,9 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 
 - 담당자 지시로 #107 의 계절 점 대신 사진 아래 '구리의 사계절 | 봄·여름·가을·겨울' 버튼 줄을 되돌림. '자동' 버튼과 "현재 계절을 보여드려요" 글은 뺌. 보이는 계절(기본 겨울)에 `aria-pressed`, 다른 계절을 누르면 그 계절 사진·추천(`setSelection`). `.season-controls{position:relative;z-index:1}` 로 사진 음영 위에 올려 눌림 보장. 장소명 배지는 전처럼.
 - 검증: `npx tsc --noEmit`, prettier, `npm run build:deploy`, `git diff --check`; Playwright — 초기 겨울 선택·겨울 사진, 가을 클릭 시 가을 선택·한강시민공원 사진 확인. 브랜치 `work/kangmina-season-row`.
+
+## 2026-10-26 작은 마무리: 연한 글자 대비 4.5:1, 빈 상태·로딩 톤 통일 (추가 다듬기 7번) (담당: 강민아)
+
+- `site-shell.css` 토큰 `--ui-faint: #667570`(흰 바탕 4.6:1). 지도 4쪽의 `--faint`(옛 KRDS gray-40 ≈3.1:1)와 theme 의 gray-40 직접 사용(거리 단위·건수·팝업 라벨·빈 목록), 인라인 `#9AA6A0`·`#8A968F`, 공용 손잡이/공유창 안내 `#7c8a82`, 홈의 `#8eaa97·#96a397·#76847a·#708075·#758078`을 모두 이 토큰으로. 홈 일러스트 캡션 4색과 운영 배지 주황(`#B77410→#8C5A0A`, `#B26A00→#8A5200`)도 한 단계 진하게(연한 배경 기준 4.5:1 이상). 흰 글자·짙은 배경 위 글자는 그대로.
+- 빈 상태·로딩 공통 모양 `.gm-empty`(둥근 돋보기 아이콘 `.gm-empty-ic` + 굵은 한 줄 + 설명) / `.gm-spin`(site-shell.css). 적용: 우리동네 찾기 빈 목록·오류 문구, 홈 테마 검색 결과 없음, 3D 로딩 상자(제목 15px·설명 faint·스피너 색 통일), 유기동물 빈 목록 색.
+- 검증: 남은 4.5:1 미만 글자색은 짙은 배경 위(항공 로드뷰 패널) 뿐. `npx tsc --noEmit`, prettier, 지도 4쪽 `node --check`, 치안안심 하네스, `npm run build:deploy`, `git diff --check` 통과. 캡처 `empty-shot.png`(우리동네 찾기 빈 목록·3D 로딩·홈 검색 결과 없음). 브랜치 `work/kangmina-contrast-empty`.

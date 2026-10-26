@@ -10,6 +10,47 @@
   --ui-shadow-lg: 0 12px 32px rgba(23, 62, 48, 0.16);
   --ui-pad: 16px; /* 카드·팝업 안쪽 가로 여백 */
   --ui-title: 17px; /* 카드·팝업 제목 */
+  --ui-faint: #667570; /* 부제·안내 글자(흰 바탕 대비 4.6:1). 더 연한 회색은 쓰지 않는다 */
+}
+/* ── 빈 상태·로딩 공통 모양(홈·지도 4쪽): 둥근 아이콘 + 굵은 한 줄 + 설명 한 줄 ── */
+.gm-empty {
+  text-align: center;
+  padding: 36px 16px;
+  color: var(--ui-faint);
+  font-size: 13px;
+  line-height: 1.7;
+  word-break: keep-all;
+}
+.gm-empty b {
+  display: block;
+  color: #1e2124;
+  font-size: 14.5px;
+  font-weight: 800;
+  margin-bottom: 2px;
+}
+.gm-empty-ic {
+  display: block;
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 12px;
+  border-radius: 50%;
+  background: #eef3f0
+    url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23667570' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3Cpath d='M8.5 11h5'/%3E%3C/svg%3E")
+    center / 22px no-repeat;
+}
+.gm-spin {
+  width: 36px;
+  height: 36px;
+  margin: 0 auto 12px;
+  border-radius: 50%;
+  border: 3px solid #e3eae6;
+  border-top-color: #018058;
+  animation: gm-spin 0.9s linear infinite;
+}
+@keyframes gm-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 .service-header {
   position: sticky;

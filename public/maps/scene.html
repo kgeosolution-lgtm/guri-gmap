@@ -16,7 +16,7 @@
 :root{
   --brand:var(--krds-color-light-primary-50,#018058); --brand-hover:var(--krds-color-light-primary-60,#01573C); --brand-soft:var(--krds-color-light-primary-5,#edf4f0);
   --accent:var(--krds-color-light-primary-50,#018058);
-  --ink:var(--krds-color-light-gray-90,#1e2124); --sub:var(--krds-color-light-gray-60,#58616a); --faint:var(--krds-color-light-gray-40,#8a949e); --line:var(--krds-color-light-gray-10,#e6e8ea);
+  --ink:var(--krds-color-light-gray-90,#1e2124); --sub:var(--krds-color-light-gray-60,#58616a); --faint:var(--ui-faint,#667570); --line:var(--krds-color-light-gray-10,#e6e8ea);
   --gray20:var(--krds-color-light-gray-20,#cdd1d5); --gray70:var(--krds-color-light-gray-70,#464c53);
   --shadow:var(--ui-shadow,0 2px 10px rgba(30,50,41,.12));   /* 공통 규격(site-shell.css --ui-*) */
 }
@@ -67,12 +67,12 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .cover{position:absolute;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,#e9f0f7,#dfe8f2);transition:opacity .35s}
 .cover.hide{opacity:0;pointer-events:none}
 .cover .box{background:#fff;border:1px solid var(--gray20);border-radius:var(--ui-radius-lg,16px);box-shadow:var(--shadow);padding:22px 26px;max-width:min(420px,calc(100% - 32px));text-align:center}
-.cover .box b{display:block;font-size:16px;margin-bottom:6px}
-.cover .box p{font-size:13px;color:var(--sub);line-height:1.6}
+.cover .box b{display:block;font-size:15px;font-weight:800;margin-bottom:4px}
+.cover .box p{font-size:13px;color:var(--faint);line-height:1.7;word-break:keep-all}   /* 공통 .gm-empty 와 같은 톤 */
 .cover .box a,.cover .box button{display:inline-flex;align-items:center;justify-content:center;gap:6px;margin:12px 4px 0;padding:9px 14px;border-radius:6px;font-size:13px;font-weight:700;text-decoration:none}
 .cover .box .go{background:var(--brand);color:#fff}
 .cover .box .alt{border:1px solid var(--gray20);color:var(--gray70)}
-.spin{width:36px;height:36px;border-radius:50%;border:3px solid #dbe4ee;border-top-color:var(--brand);margin:0 auto 12px;animation:sp .9s linear infinite}
+.spin{width:36px;height:36px;border-radius:50%;border:3px solid #E3EAE6;border-top-color:var(--brand);margin:0 auto 12px;animation:sp .9s linear infinite}   /* = 공통 .gm-spin 과 같은 값 */
 @keyframes sp{to{transform:rotate(360deg)}}
 .cover.err .spin{display:none}
 
@@ -95,7 +95,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .infocard .chips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:9px}
 .infocard .pchip{font-size:11px;font-weight:700;border-radius:6px;padding:3px 9px;background:#EEF2F0;color:#4A5A53}
 .infocard .st{display:inline-flex;align-items:center;height:auto;padding:4px 11px;border-radius:4px;font-size:10.5px;font-weight:800;white-space:nowrap}
-.st.live{background:#fde8ec;color:#b3234a}.st.soon{background:#FCF1DC;color:#B77410}.st.plan{background:#EEF1F4;color:#5b6770}.st.done,.st.off{background:var(--line);color:var(--sub)}
+.st.live{background:#fde8ec;color:#b3234a}.st.soon{background:#FCF1DC;color:#8C5A0A}.st.plan{background:#EEF1F4;color:#5b6770}.st.done,.st.off{background:var(--line);color:var(--sub)}
 .infocard .pgal{display:flex;gap:7px;overflow-x:auto;margin-bottom:9px;padding-bottom:3px;scrollbar-width:thin}
 .infocard .pgal img{height:170px;border-radius:12px;object-fit:cover;flex:0 0 auto;background:#EEF2F0}
 .infocard .pgal img:only-child{width:100%}

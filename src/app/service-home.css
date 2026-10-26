@@ -164,7 +164,7 @@
 .theme-search > span {
   white-space: nowrap;
   font-size: 11px;
-  color: #708075;
+  color: var(--ui-faint, #667570);
   padding-left: 14px;
   border-left: 1px solid #dce5de;
 }
@@ -216,18 +216,13 @@
 .group-catalog small {
   display: block;
   font-size: 11px;
-  color: #758078;
+  color: var(--ui-faint, #667570);
   margin-top: 7px;
 }
 .group-catalog > a > svg {
   margin-left: auto;
-  color: #96a397;
+  color: var(--ui-faint, #667570);
   flex-shrink: 0;
-}
-.search-empty {
-  padding: 35px;
-  text-align: center;
-  color: #69776f;
 }
 .search-empty button {
   display: block;
@@ -283,7 +278,7 @@
 .pet-illustration svg {
   width: 150px;
   height: 150px;
-  color: #c5798a;
+  color: #a85b70;
 }
 .pet-illustration span {
   font-size: 9px;
@@ -338,7 +333,7 @@
   font-size: 9px;
   letter-spacing: 0.42em;
   padding-left: 0.42em;
-  color: #6b83a8;
+  color: #4f6a92;
   margin-top: 12px;
 }
 .aerial-section {
@@ -384,7 +379,7 @@
   font-size: 9px;
   letter-spacing: 0.42em;
   padding-left: 0.42em;
-  color: #6f9482;
+  color: #4f7461;
   margin-top: 12px;
 }
 .about-section {
@@ -400,7 +395,7 @@
 .about-section > div > p:not(.eyebrow) {
   font-size: 14px;
   line-height: 1.9;
-  color: #758078;
+  color: var(--ui-faint, #667570);
   margin-top: 20px;
 }
 .usage-guide > div {
@@ -415,7 +410,7 @@
 }
 .guide-number {
   font-size: 11px;
-  color: #8eaa97;
+  color: var(--ui-faint, #667570);
   padding-top: 3px;
 }
 .usage-guide svg {
@@ -429,7 +424,7 @@
 }
 .usage-guide p {
   font-size: 12px;
-  color: #76847a;
+  color: var(--ui-faint, #667570);
   line-height: 1.7;
 }
 /* ── 푸터: 밝은 안내 영역(브랜드·바로가기·문의) + 짙은 초록 띠(저작권). 푸터는 .service-home 밖이라 변수 대신 색 값을 직접 쓴다 ── */
@@ -600,7 +595,7 @@
   font-size: 9px;
   letter-spacing: 0.42em;
   padding-left: 0.42em;
-  color: #c08a5a;
+  color: #9a6436;
   margin-top: 12px;
 }
 .news-layout .home-button {

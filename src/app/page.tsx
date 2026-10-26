@@ -135,8 +135,10 @@ export default function Home() {
             ))}
           </div>
           {!groups.length && (
-            <div className="search-empty">
-              일치하는 테마가 없어요. 다른 시설 종류로 찾아보세요.
+            <div className="search-empty gm-empty">
+              <span className="gm-empty-ic" aria-hidden="true" />
+              <b>일치하는 테마가 없어요</b>
+              다른 시설 종류로 찾아보세요.
               <button onClick={() => setQuery('')}>전체 테마 보기</button>
             </div>
           )}
