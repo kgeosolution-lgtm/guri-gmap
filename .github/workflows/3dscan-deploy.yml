@@ -28,7 +28,7 @@ jobs:
 
           $src = Join-Path $env:GITHUB_WORKSPACE '3dscan_payload'
           $expected = [ordered]@{
-            'site/3dscan/index.html' = '390c49f57cc29e6dbae15e41233dc54547460ff895ca10554ddc6df4ecf37d20'
+            'site/3dscan/index.html' = '226304e5eb52d20a7db9bf1ec871a34722c451a87d515c310444c1c15e5b7a59'
             'site/3dscan/viewer.js' = 'e22219af9e5bf1306c3467bcab1cfffe7c412606a454a522c2154b1a1a969639'
             'site/3dscan/viewer.css' = 'd8b7d7ac548581aa38ce8d655a827812e8bacd4dd40de7435fce1050ac59a914'
             '3dupload/common.py' = 'af4551445364ecec4e645a1c63fca0e6d9aea3e86154031664ebba037b34846f'
