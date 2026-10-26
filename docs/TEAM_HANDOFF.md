@@ -986,3 +986,9 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 원인: 전화·길찾기 단추 묶음(`.btnstack`)을 카드 아래에 붙이면서(#106, `position:sticky`) 그 뒤에 오던 안내 한 줄(`.foot`, "운영시간은 등록 정보 기준…")이 단추 묶음에 가려짐.
 - 조치: 안내 한 줄을 단추 묶음 안 맨 아래로 옮김(우리동네 찾기·3D 팝업). 단추와 함께 붙어 따라오며 항상 보임.
 - 검증: 지도 2쪽 `node --check`, Playwright 견본 팝업(끝까지 스크롤) 캡처, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-popup-foot`.
+
+## 2026-10-26 팝업 아래 단추 띠: 구분선 추가(잘린 듯 보이던 것) (담당: 강민아)
+
+- 담당자 지적: 팝업 내용이 길어 스크롤될 때 아래에 붙는 단추 띠가 회색 정보 상자를 중간에서 덮어, 상자가 잘린 듯 보임. 의도한 모양이 아니라 붙박이 띠의 겹침.
+- 조치: 단추 띠(`.btnstack` 등)에 위 구분선(1px)과 조금 더 또렷한 그림자를 주어 '아래에 붙은 띠'로 읽히게(우리동네 찾기·3D 공통).
+- 검증: 지도 2쪽 `node --check`, Playwright 견본 팝업(스크롤 위쪽 상태) 캡처, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-popup-footbar`.
