@@ -116,10 +116,12 @@ def delete_scan(objectid=None, title=None):
             delete_item(ptoken, iid)
     glb = feat.get("glb_url") or ""
     if glb:
-        p = os.path.join(CFG["glb_serve_dir"], os.path.basename(glb))
-        if os.path.exists(p):
-            os.remove(p)
-            print(f"  삭제: {p}")
+        base = os.path.splitext(os.path.basename(glb))[0]
+        for name in (os.path.basename(glb), base + ".jpg"):          # 서빙 GLB + 썸네일
+            p = os.path.join(CFG["glb_serve_dir"], name)
+            if os.path.exists(p):
+                os.remove(p)
+                print(f"  삭제: {p}")
     out = http_json(CFG["points_layer_url"] + "/deleteFeatures", {"objectIds": str(objectid), "f": "json", "token": stoken})
     print("  점 삭제:", out.get("deleteResults"))
 

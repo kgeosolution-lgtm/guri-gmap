@@ -1,9 +1,7 @@
 {
-  "once_id": "2026-10-26-fields-thumbs",
+  "once_id": "2026-10-27-delete-survey-test",
   "actions": [
-    {"op": "add-fields"},
-    {"op": "set-scan-type", "value": "home"},
-    {"op": "backfill-thumbs"},
+    {"op": "delete-scan", "title": "현장조사 테스트 1026"},
     {"op": "list"}
   ]
 }
