@@ -3,10 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>우리동네 찾기 · 구리생활지도</title>
-<meta property="og:title" content="구리생활지도 우리동네 찾기">
+<title>우리동네 찾기 · 구리시 G-MAP</title>
+<meta name="description" content="무더위쉼터부터 공영주차장까지, 우리 동네 생활 시설을 지도에서 찾아보세요.">
+<meta property="og:title" content="구리시 G-MAP 우리동네 찾기">
 <meta property="og:description" content="무더위쉼터부터 공영주차장까지, 우리 동네 생활 시설을 지도에서 찾아보세요.">
 <meta property="og:type" content="website">
+<meta property="og:image" content="/images/og-cover.jpg">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="gmap-shared.css">
 <script src="gmap-share.js" defer></script>
@@ -3747,6 +3749,6 @@ function setSheet(state){ /* 'min'(손잡이만)|'peek'(목록 살짝)|'half'|'f
     setSheet(p.classList.contains('min')? 'peek' : 'min'); });
 })();
 </script>
-<script src="/review/review.js" defer></script>   <!-- 오픈 전 검토용 "수정 요청" 위젯 — 오픈할 때 이 한 줄만 지운다 -->
+<!-- shell:review --><script src="/review/review.js" defer></script><!-- /shell:review -->   <!-- 오픈 전 검토용 "수정 요청" 위젯 — site.config features.reviewWidget 으로 켜고 끈다(sync-shell.mjs 가 반영) -->
 </body>
 </html>

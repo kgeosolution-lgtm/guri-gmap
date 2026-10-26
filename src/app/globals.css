@@ -1023,3 +1023,59 @@ main.v1-home > section:nth-of-type(9) {
     min-height: 210px;
   }
 }
+
+/* ── 404(없는 주소) 페이지 ── */
+.not-found {
+  min-height: calc(100vh - var(--shell-h, 64px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 48px 16px 64px;
+  background: var(--krds-color-light-gray-5, #f4f5f6);
+  color: var(--krds-color-light-gray-90, #1e2124);
+}
+.not-found-ic {
+  font-size: 48px;
+  line-height: 1;
+  margin: 0 0 16px;
+}
+.not-found h1 {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 12px;
+}
+.not-found p {
+  margin: 0;
+  line-height: 1.6;
+  color: var(--krds-color-light-gray-70, #464c53);
+}
+.not-found-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin: 24px 0 32px;
+}
+.not-found-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 20px;
+  border-radius: var(--ui-radius, 12px);
+  border: 1px solid var(--ui-line, #d8dde2);
+  background: #fff;
+  color: inherit;
+  font-weight: 600;
+  text-decoration: none;
+}
+.not-found-btn.primary {
+  background: var(--krds-color-light-primary-50, #018058);
+  border-color: transparent;
+  color: #fff;
+}
+.not-found-foot {
+  font-size: 14px;
+  color: var(--ui-faint, #667570) !important;
+}

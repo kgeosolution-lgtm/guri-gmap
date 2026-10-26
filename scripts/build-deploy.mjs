@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
 const base = '/app/guri';
+const origin = 'https://kgeodata.com'; // og:image 등 절대 주소가 필요한 곳에만
 // 지도 4쪽의 정적 헤더를 메뉴 설정(shell-nav.json)과 맞춘다
 const sync = spawnSync(process.execPath, ['scripts/sync-shell.mjs'], { stdio: 'inherit' });
 if (sync.status !== 0) process.exit(sync.status || 1);
@@ -14,6 +15,7 @@ const result = spawnSync(process.execPath, ['node_modules/next/dist/bin/next', '
     GMAP_EXPORT: '1',
     NEXT_PUBLIC_BASE_PATH: base,
     NEXT_PUBLIC_MAPS_BASE: `${base}/maps`,
+    NEXT_PUBLIC_SITE_ORIGIN: origin,
   },
 });
 if (result.status !== 0) process.exit(result.status || 1);
@@ -26,6 +28,8 @@ function walk(dir) {
 for (const file of walk('out')) {
   if (!/\.(html|css|js|json|txt|svg)$/.test(file)) continue;
   let text = readFileSync(file, 'utf8');
+  // 링크 미리보기 그림은 절대 주소여야 한다(지도 4쪽 정적 HTML)(아래 /images/ 치환보다 먼저)
+  text = text.replace(/(property="og:image" content=")\/images\//g, `$1${origin}${base}/images/`);
   text = text.replace(/(["'(=])\/(images|fonts|maps|styles|review)\//g, `$1${base}/$2/`);
   text = text.replace(/(["'(=])\/icon\.svg/g, `$1${base}/icon.svg`);
   if (file.endsWith('.html'))

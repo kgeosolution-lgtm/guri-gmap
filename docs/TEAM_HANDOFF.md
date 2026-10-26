@@ -998,3 +998,12 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 팝업의 전화·길찾기 단추를 붙박이 띠(#106·#115)에서 되돌려 흐름대로 맨 아래에 둠(우리동네 찾기·3D). 담당자 요청: 띠처럼 보이는 게 싫음.
 - 칩·'전체' 건수를 목록과 같은 기준으로: `countFor(t)` — `dedupeBy` 가 있는 테마는 대표 한 건씩만 센다. 전기차 칩이 충전기 1822대가 아니라 충전소 321곳으로 목록과 일치. 전체 합계도 같이 줄어듦.
 - 검증: Playwright(가짜 자료: 충전소 2곳·충전기 6대) → 칩 '전기차 2', 목록 '2곳'; 지도 2쪽 `node --check`, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-ev-count`.
+
+## 2026-10-26 오픈 준비 ①: 검토 위젯 스위치, 탭 제목 통일, 404 한글 페이지, robots·링크 미리보기 그림 (담당: 강민아)
+
+- **검토용 "수정 요청" 위젯 스위치**: `src/config/site.config.ts` `features.reviewWidget` 한 곳. 오픈할 때 `false` 로 바꾸면 홈(`layout.tsx`)과 지도 4쪽(`<!-- shell:review -->` 표식, `scripts/sync-shell.mjs` 가 build:deploy 때 반영)에서 모두 빠진다. 지금은 `true`(검토 계속).
+- **탭 제목 통일**: 지도 4쪽 모두 `<페이지> · 구리시 G-MAP`(우리동네 찾기만 "· 구리생활지도"였음). og:title 도 `구리시 G-MAP <페이지>` 로 통일, `<meta name="description">` 추가(유기동물 찾기에도).
+- **404 페이지**(`src/app/not-found.tsx`, 정적 배포 `404.html`): 한글 안내 + 메인·우리동네 찾기 단추 + 문의 전화. ★ IIS 는 404 를 이 파일로 보내 주도록 서버 쪽 설정이 필요(web.config `httpErrors` 는 서버에서 잠겨 있으면 사이트 전체가 500 이 나므로 코드에 넣지 않음). 서버 관리자에게: `/app/guri` 사이트(또는 최종 도메인)의 오류 페이지 404 → `…/404.html` 실행 URL 로 지정.
+- **robots.txt**(`public/robots.txt`): 전체 허용, `/review/` 만 제외.
+- **링크 미리보기 그림**(og:image): 카톡·문자·SNS 에 링크를 보낼 때 뜨는 그림이 없었음 → 겨울 대표사진을 1200×630 `public/images/og-cover.jpg`(약 210KB)로 만들어 홈·지도 4쪽에 절대 주소로 넣음. 배포 origin 은 `scripts/build-deploy.mjs` 의 `origin`(→ `NEXT_PUBLIC_SITE_ORIGIN`, `src/config/paths.ts` `absUrl()`), 지도 4쪽은 빌드 때 치환. 도메인이 바뀌면 origin 만 바꾸면 된다(오픈 준비 ② 에서 한 곳으로 모음). 카톡은 미리보기를 캐시하므로 바뀐 그림이 바로 안 보일 수 있음.
+- 검증: 위젯 스위치 on/off 둘 다 sync-shell 로 확인(off 면 script 가 주석으로), `npx tsc --noEmit`, prettier, `npm run build:deploy`(out 의 og:image 절대 주소·robots·404 확인), Playwright 404 페이지 데스크톱·모바일 캡처, `git diff --check` 통과. 브랜치 `work/kangmina-launch-prep`.

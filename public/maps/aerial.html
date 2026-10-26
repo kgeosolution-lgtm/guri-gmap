@@ -4,9 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>항공사진 비교 · 구리시 G-MAP</title>
+<meta name="description" content="2011년부터 지금까지, 우리 동네가 어떻게 달라졌는지 항공사진으로 비교해 보세요.">
 <meta property="og:title" content="구리시 G-MAP 항공사진 비교">
 <meta property="og:description" content="2011년부터 지금까지, 우리 동네가 어떻게 달라졌는지 항공사진으로 비교해 보세요.">
 <meta property="og:type" content="website">
+<meta property="og:image" content="/images/og-cover.jpg">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="gmap-shared.css">
 <script src="gmap-share.js" defer></script>
@@ -1080,6 +1082,6 @@ async function shareUrl(){
   catch(e){ toast('주소 복사가 안 됐어요. 주소창에서 복사해 주세요'); }
 }
 </script>
-<script src="/review/review.js" defer></script>   <!-- 오픈 전 검토용 "수정 요청" 위젯 — 오픈할 때 이 한 줄만 지운다 -->
+<!-- shell:review --><script src="/review/review.js" defer></script><!-- /shell:review -->   <!-- 오픈 전 검토용 "수정 요청" 위젯 — site.config features.reviewWidget 으로 켜고 끈다(sync-shell.mjs 가 반영) -->
 </body>
 </html>
