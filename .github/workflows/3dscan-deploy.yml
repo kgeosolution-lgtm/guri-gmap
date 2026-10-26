@@ -35,7 +35,7 @@ jobs:
             '3dupload/upload.py' = 'eb60d0e8632b1c3d720012afafb2f49e7496c9bcbc6a80e19c7477ed9aa54f7e'
             '3dupload/status.py' = '9c0fc45640fb8ebaec13c9512636abf26ff5b9ad69a47f52a0e0c2c1c126b3da'
             '3dupload/check_title.py' = 'a27fc6fdd49535cffc57ce4fbd917220406f28c68b247edc5cf5076b88181c3c'
-            '3dupload/web.config' = '122fe49e8a63e7734f1e2dfc398f0ee444e804022f3c13815f5bfa196ee0b95c'
+            '3dupload/web.config' = '681934f6f50a1f4295c20d1ffd9d4a3fee1c22d1b9f3d42852fae2d30acfa984'
             'tools/queue_runner.py' = '81fae752421d6863d2e99fa04a5d75e08d5c47e7fff93d50dfc13eddf51657f6'
             'tools/pipeline.py' = 'c2ebe59d28a16662138e0025b11e82500ec1e0257f6700aa84e4d92070396327'
             'tools/slpk_step.py' = 'ca736064b0d4675570b9a30e11af7f6c4b49f67704a5e7c31ce779480482678e'
