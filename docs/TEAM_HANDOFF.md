@@ -935,3 +935,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 컨트롤 순서 통일: 확대·축소 ┃(칸 띄움 `.sep`)┃ (페이지 도구) → 내 위치 → **처음 화면** → 공유. 우리동네 찾기에 '처음 화면' 단추 추가(`resetView`), 항공의 '구리시 전체 보기'는 '처음 화면'으로 이름 통일.
 - 모바일 컨트롤 위치는 페이지 구조상 다름(우리동네 찾기 오른쪽 위, 3D·항공 시트 위 오른쪽 아래) — 크기·순서만 같음.
 - 검증: 지도 3쪽 `node --check`, Playwright(팝업 머리를 견본 내용으로 렌더: 데스크톱 테마·3D, 모바일 테마 — `pw/popup-shot.js`), `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-popup-head`.
+
+## 2026-10-26 메인: 계절 버튼 줄 → 사진 구석 계절 점, 그룹 목록 → 카드 (추가 다듬기 5·6번) (담당: 강민아)
+
+- 히어로 아래 '구리의 사계절 | 자동·봄·여름·가을·겨울' 버튼 줄 제거. 대신 사진 오른쪽 아래 장소명 옆에 **계절 점 네 개**(`.season-badge > .season-place + .season-dots`, 각 계절 accentColor, 현재 계절은 흰 테두리). 누르면 그 계절 사진·추천으로 바뀜(`setSelection`). 기본은 전처럼 `SEASON_OVERRIDE`(겨울). 옛 `.season-controls` CSS 전부 제거.
+- "어떤 곳을 찾고 계세요?" 그룹 8개를 가는 줄 목록에서 **카드 3열**로: 연한 그룹 색 바탕(5%)·테두리, 아이콘 타일 48px(그룹 색 13%), 이름 15px·요약, 오른쪽 화살표(hover 시 그룹 색). 모서리 `--ui-radius-lg`, hover 시 살짝 떠오름. ≤900px 2열, ≤620px 1열(모서리 10px).
+- 전후: 스크래치 `hero-compare.png`, `disc-compare.png`, `disc-after-m.png`.
+- 검증: `npx tsc --noEmit`, prettier, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-home-cards`.
