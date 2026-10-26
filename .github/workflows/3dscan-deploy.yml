@@ -125,11 +125,17 @@ jobs:
           # ── 설정 파일 (없을 때만 생성). 비밀번호: GitHub secret KGEOSCAN_PORTAL_PASSWORD 가 있으면 넣음
           $cfgPath = Join-Path $cfgDir 'kgeoscan.json'
           if (-not (Test-Path -LiteralPath $cfgPath)) {
-            $cfg = Get-Content -LiteralPath (Join-Path $src 'config\kgeoscan.example.json') -Raw -Encoding UTF8
-            if ($env:KGEOSCAN_PORTAL_PASSWORD) { $cfg = $cfg.Replace('<PORTAL_PASSWORD>', $env:KGEOSCAN_PORTAL_PASSWORD); "CONFIG: secret applied" } else { "CONFIG: password placeholder - edit on server" }
-            [System.IO.File]::WriteAllText($cfgPath, $cfg, (New-Object System.Text.UTF8Encoding($false)))
+            Copy-Item -LiteralPath (Join-Path $src 'config\kgeoscan.example.json') -Destination $cfgPath -Force
             "CONFIG CREATED=$cfgPath"
-          } else { "CONFIG EXISTS=$cfgPath (유지)" }
+          } else { "CONFIG EXISTS=$cfgPath (kept)" }
+          # Portal 비밀번호: GitHub secret KGEOSCAN_PORTAL_PASSWORD 가 있으면 자리표시자를 채운다 (이미 채워져 있으면 그대로)
+          $cfgNow = Get-Content -LiteralPath $cfgPath -Raw -Encoding UTF8
+          if ($cfgNow -match '<PORTAL_PASSWORD>') {
+            if ($env:KGEOSCAN_PORTAL_PASSWORD) {
+              [System.IO.File]::WriteAllText($cfgPath, $cfgNow.Replace('<PORTAL_PASSWORD>', $env:KGEOSCAN_PORTAL_PASSWORD), (New-Object System.Text.UTF8Encoding($false)))
+              "CONFIG: portal password applied from secret"
+            } else { "CONFIG: portal password STILL PLACEHOLDER (set GitHub secret KGEOSCAN_PORTAL_PASSWORD: node deploy.mjs secret KGEOSCAN_PORTAL_PASSWORD)" }
+          } else { "CONFIG: portal password set" }
           # ArcGIS Pro python 경로 보정 (C:/D: 어느 쪽에 설치돼 있든)
           $proCands = @('D:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe', 'C:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe')
           $proFound = $proCands | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
@@ -166,9 +172,24 @@ jobs:
             }
           }
           "INSTALL VERIFIED"
-          $task = $null
-          try { $task = cmd /c 'schtasks /query /tn kgeoScanQueueRunner /fo LIST 2>nul' } catch {}
-          if ($LASTEXITCODE -eq 0 -and $task) { "TASK: kgeoScanQueueRunner 등록됨 — " + (($task | Select-String 'Task To Run') -join ' ') } else { "TASK: 미등록 — 서버에서 register_task.ps1 실행 필요 (kgo 계정)" }
+
+          # ── 큐 러너 작업 등록 (kgo 계정, '로그온한 동안 실행' 방식이라 비밀번호 불필요). 기존 작업은 교체.
+          try {
+            $action    = New-ScheduledTaskAction -Execute $venvPy -Argument ('-I "' + (Join-Path $tools 'queue_runner.py') + '"') -WorkingDirectory $tools
+            $trigger   = New-ScheduledTaskTrigger -AtLogOn -User 'kgo'
+            $principal = New-ScheduledTaskPrincipal -UserId 'kgo' -LogonType Interactive -RunLevel Highest
+            $settings  = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew
+            Register-ScheduledTask -TaskName 'kgeoScanQueueRunner' -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
+            "TASK: registered (kgo, at logon, interactive)"
+            try { Start-ScheduledTask -TaskName 'kgeoScanQueueRunner' } catch { "TASK START: $($_.Exception.Message)" }
+            Start-Sleep -Seconds 4
+            $st = Get-ScheduledTask -TaskName 'kgeoScanQueueRunner'
+            "TASK STATE: $($st.State)"
+            $rl = Join-Path $dataRoot 'logs\queue_runner.log'
+            if (Test-Path -LiteralPath $rl) { "RUNNER LOG: " + ((Get-Content -LiteralPath $rl -Tail 2 -Encoding UTF8) -join ' | ') }
+          } catch { "TASK: registration failed - $($_.Exception.Message) (run register_task.ps1 on the server)" }
+          try { $who = cmd /c 'whoami 2>nul'; "RUNNER ACCOUNT: $who" } catch {}
+          try { $t = cmd /c ('"' + $proFound + '" -c "import arcpy; print(arcpy.GetInstallInfo()[''Version''])" 2>&1'); "ARCPY UNDER RUNNER ACCOUNT: $($t -join ' ' | Select-Object -First 1)" } catch { "ARCPY UNDER RUNNER ACCOUNT: test failed" }
           if ($proFound) { "ARCGIS PYTHON: $proFound" } else { "ARCGIS PYTHON: NOT FOUND (C:/D: Program Files\ArcGIS\Pro) -> SLPK step will be skipped" }
           try { $cgiTest = (Invoke-WebRequest -Uri 'https://kgeodata.com/app/3dupload/check_title.py?title=zz_deploy_probe' -UseBasicParsing -TimeoutSec 30).Content; "CGI TEST: $cgiTest" } catch { "CGI TEST FAILED: $($_.Exception.Message)" }
           exit 0
