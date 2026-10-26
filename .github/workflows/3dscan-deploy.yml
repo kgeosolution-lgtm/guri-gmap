@@ -35,7 +35,7 @@ jobs:
             '3dupload/upload.py' = 'eb60d0e8632b1c3d720012afafb2f49e7496c9bcbc6a80e19c7477ed9aa54f7e'
             '3dupload/status.py' = '9c0fc45640fb8ebaec13c9512636abf26ff5b9ad69a47f52a0e0c2c1c126b3da'
             '3dupload/check_title.py' = 'a27fc6fdd49535cffc57ce4fbd917220406f28c68b247edc5cf5076b88181c3c'
-            '3dupload/web.config' = '681934f6f50a1f4295c20d1ffd9d4a3fee1c22d1b9f3d42852fae2d30acfa984'
+            '3dupload/web.config' = 'b8868e919d55e64c92ed94b5bcb5faf6b87bd23b36a33a04a21e7c1506e7c837'
             'tools/queue_runner.py' = '81fae752421d6863d2e99fa04a5d75e08d5c47e7fff93d50dfc13eddf51657f6'
             'tools/pipeline.py' = 'c2ebe59d28a16662138e0025b11e82500ec1e0257f6700aa84e4d92070396327'
             'tools/slpk_step.py' = 'ca736064b0d4675570b9a30e11af7f6c4b49f67704a5e7c31ce779480482678e'
@@ -192,4 +192,12 @@ jobs:
           try { $t = cmd /c ('"' + $proFound + '" -c "import arcpy; print(arcpy.GetInstallInfo()[''Version''])" 2>&1'); "ARCPY UNDER RUNNER ACCOUNT: $($t -join ' ' | Select-Object -First 1)" } catch { "ARCPY UNDER RUNNER ACCOUNT: test failed" }
           if ($proFound) { "ARCGIS PYTHON: $proFound" } else { "ARCGIS PYTHON: NOT FOUND (C:/D: Program Files\ArcGIS\Pro) -> SLPK step will be skipped" }
           try { $cgiTest = (Invoke-WebRequest -Uri 'https://kgeodata.com/app/3dupload/check_title.py?title=zz_deploy_probe' -UseBasicParsing -TimeoutSec 30).Content; "CGI TEST: $cgiTest" } catch { "CGI TEST FAILED: $($_.Exception.Message)" }
+          # 진단: 사이트의 .py 핸들러 정의와 CGI 허용 목록 (다음 배포에서 핸들러를 맞추기 위함)
+          try {
+            $appcmd = Join-Path $env:windir 'system32\inetsrv\appcmd.exe'
+            $sites = & $appcmd list sites /text:name
+            foreach ($s in $sites) { $h = & $appcmd list config "$s/app" -section:system.webServer/handlers /text:* 2>$null; foreach ($line in ($h | Select-String -Pattern '\.py|python' )) { "HANDLER[$s/app]: $($line.Line.Trim())" } }
+            foreach ($line in ((& $appcmd list config -section:system.webServer/security/isapiCgiRestriction /text:*) | Select-String -Pattern 'python')) { "CGI ALLOWED: $($line.Line.Trim())" }
+          } catch { "HANDLER DIAG FAILED: $($_.Exception.Message)" }
+          try { $r = Invoke-WebRequest -Uri 'https://kgeodata.com/app/3dupload/upload.py' -Method POST -Body 'x=1' -UseBasicParsing -TimeoutSec 30; "UPLOAD POST TEST: $($r.StatusCode) $($r.Content)" } catch { $resp = $_.Exception.Response; $code = if ($resp) { [int]$resp.StatusCode } else { '?' }; "UPLOAD POST TEST: HTTP $code (400 = CGI reached, 405/404 = handler problem)" }
           exit 0
