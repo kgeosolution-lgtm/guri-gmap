@@ -1,7 +1,7 @@
 """
 POST /app/3dupload/upload.py  (multipart/form-data)
 
-  공통 필드 : title (필수), note
+  공통 필드 : title (필수), note, scan_type (home=홈스캔 | survey=현장조사, 기본 home)
   mode=stray: scan_zip (Stray Scanner 녹화 폴더 zip), lon, lat (필수), elev, heading
   mode=legacy (기본): las_file, glb_file (Scaniverse 등에서 내보낸 LAS + GLB)
 
@@ -88,6 +88,9 @@ def main():
     mode = (fields.get("mode") or "legacy").lower()
     if mode not in ("stray", "legacy"):
         return respond({"error": "mode는 stray 또는 legacy"}, "400 Bad Request")
+    scan_type = (fields.get("scan_type") or "home").lower()
+    if scan_type not in ("home", "survey"):
+        return respond({"error": "scan_type은 home 또는 survey"}, "400 Bad Request")
 
     job_id = uuid.uuid4().hex[:8]
     job_dir = os.path.join(cfg["data_root"], job_id)
@@ -95,7 +98,7 @@ def main():
     os.makedirs(cfg["jobs_dir"], exist_ok=True)
 
     meta = {
-        "job_id": job_id, "title": title, "note": note, "mode": mode, "job_dir": job_dir,
+        "job_id": job_id, "title": title, "note": note, "mode": mode, "scan_type": scan_type, "job_dir": job_dir,
         "author": cfg.get("portal_user", ""), "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
     try:
@@ -121,11 +124,11 @@ def main():
 
     with open(os.path.join(job_dir, "job.json"), "w", encoding="utf-8") as f:
         json.dump(meta, f, ensure_ascii=False, indent=2)
-    queue = {"job_id": job_id, "title": title, "job_dir": job_dir, "mode": mode,
+    queue = {"job_id": job_id, "title": title, "job_dir": job_dir, "mode": mode, "scan_type": scan_type,
              "status": "pending", "step": 0, "message": "대기 중", "created_at": meta["created_at"]}
     with open(os.path.join(cfg["jobs_dir"], job_id + ".json"), "w", encoding="utf-8") as f:
         json.dump(queue, f, ensure_ascii=False, indent=2)
-    respond({"job_id": job_id, "mode": mode})
+    respond({"job_id": job_id, "mode": mode, "scan_type": scan_type})
 
 
 if __name__ == "__main__":

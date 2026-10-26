@@ -1,4 +1,4 @@
-"""GET /app/3dupload/status.py?job_id=xxxxxxxx -> 큐 파일 내용 (status, step, step_name, message, scene_item_id, glb_url)"""
+"""GET /app/3dupload/status.py?job_id=xxxxxxxx -> 큐 파일 내용 (status, step, step_name, message, title, scan_type, scene_item_id, glb_url, thumb_url)"""
 import json
 import os
 import sys
@@ -21,6 +21,7 @@ def main():
     step = int(q.get("step", 0))
     respond({
         "job_id": job_id, "status": q.get("status", "pending"), "step": step,
+        "title": q.get("title"), "mode": q.get("mode"), "scan_type": q.get("scan_type"), "thumb_url": q.get("thumb_url"),
         "step_name": STEP_NAMES[min(step, len(STEP_NAMES) - 1)], "message": q.get("message", ""),
         "scene_item_id": q.get("scene_item_id"), "glb_url": q.get("glb_url"),
         "updated_at": q.get("updated_at"), "error_detail": q.get("error_detail"),

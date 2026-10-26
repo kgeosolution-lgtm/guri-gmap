@@ -135,6 +135,13 @@ def main():
          "--jpeg-quality", str(args.jpeg_quality)], t0, log_path)
     t_tex = time.time() - t2
 
+    # 2b) thumbnail (optional: failure must not stop the job)
+    thumb = os.path.join(args.out, "thumb.jpg")
+    try:
+        run([PY, "-I", os.path.join(HERE, "thumbnail.py"), "--data", data, "--out", thumb], t0, log_path)
+    except SystemExit as e:
+        log(f"thumbnail skipped: {e}", t0)
+
     # 3) georeferenced LAS
     t3 = time.time()
     las_info = write_las(ply, os.path.join(args.out, "scan.las"), args.lon, args.lat, args.elev, args.heading,
@@ -146,7 +153,7 @@ def main():
     result = dict(
         input_zip=os.path.abspath(args.zip), frames=n_frames, fusion=fuse_stats, texture=tex_stats, las=las_info,
         georef=dict(lon=args.lon, lat=args.lat, elev=args.elev, heading_deg=args.heading, crs="EPSG:32652"),
-        outputs=dict(glb="mesh_tex.glb", las="scan.las", ply="mesh.ply"),
+        outputs=dict(glb="mesh_tex.glb", las="scan.las", ply="mesh.ply", thumb="thumb.jpg" if os.path.exists(thumb) else None),
         seconds=dict(fusion=round(t_fuse, 1), texture=round(t_tex, 1), las=round(t_las, 1), total=round(time.time() - t0, 1)))
     with open(os.path.join(args.out, "result.json"), "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2, ensure_ascii=False)

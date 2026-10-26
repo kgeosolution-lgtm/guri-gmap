@@ -4,7 +4,7 @@ kgeoScan pipeline v2:  python -I pipeline.py <job_dir>\job.json <jobs>\<id>.json
 단계 (status.py 의 STEP_NAMES 와 같은 번호)
   1 입력 준비   : stray → 워커(process_scan.py)로 GLB·LAS 생성 / legacy → 올라온 LAS·GLB 사용
   2 좌표·LAS   : LAS에서 중심·범위(UTM 52N) 읽기
-  3 GLB 준비   : 서빙 폴더로 복사 → glb_url
+  3 GLB 준비   : 서빙 폴더로 복사 → glb_url, 썸네일(thumb.jpg) 복사 → thumb_url (없으면 zip 에서 생성, 실패해도 계속)
   4 SLPK 생성  : arcpy (선택: slpk_enabled 이고 arcgis_python 이 있을 때만, 실패해도 계속)
   5 Portal 발행: SLPK 아이템 추가 → Scene 서비스 발행 → 공개 (SLPK 가 있을 때만)
   6 scan_points 등록
@@ -125,6 +125,27 @@ def step_glb(glb_path, job_id):
     shutil.copy2(glb_path, dest)
     url = f"{CFG['glb_serve_url']}/{job_id}.glb"
     log(f"GLB 서빙: {url} ({os.path.getsize(dest) / 1e6:.1f} MB)")
+    return url
+
+
+def step_thumb(meta, out_dir, job_id):
+    """워커가 만든 out	humb.jpg 를 서빙 폴더로 복사 → thumb_url. 없으면(재시도·옛 결과) zip 에서 바로 만든다. 실패하면 ''"""
+    src = os.path.join(out_dir, "thumb.jpg")
+    if not os.path.exists(src) and meta.get("mode") == "stray" and meta.get("scan_zip") and os.path.exists(meta["scan_zip"]):
+        cmd = [CFG["worker_python"], "-I", os.path.join(CFG["worker_dir"], "thumbnail.py"), "--zip", meta["scan_zip"], "--out", src]
+        try:
+            with open(os.path.join(out_dir, "worker_stdout.log"), "a", encoding="utf-8") as lf:
+                subprocess.run(cmd, stdout=lf, stderr=subprocess.STDOUT, text=True, timeout=300)
+        except Exception as e:
+            log(f"썸네일 생성 생략: {e}")
+    if not os.path.exists(src):
+        log("썸네일 없음 (legacy 업로드이거나 생성 실패)")
+        return ""
+    os.makedirs(CFG["glb_serve_dir"], exist_ok=True)
+    dest = os.path.join(CFG["glb_serve_dir"], f"{job_id}.jpg")
+    shutil.copy2(src, dest)
+    url = f"{CFG['glb_serve_url']}/{job_id}.jpg"
+    log(f"썸네일: {url} ({os.path.getsize(dest) / 1e3:.0f} KB)")
     return url
 
 
@@ -267,10 +288,11 @@ def step_publish_rest(slpk, service_name, title):
     return slpk_item_id, scene_item_id, scene_url
 
 
-def step_register(meta, las_info, glb_url, slpk_item_id, scene_item_id, scene_url):
+def step_register(meta, las_info, glb_url, slpk_item_id, scene_item_id, scene_url, thumb_url=""):
     layer = CFG["points_layer_url"]
     token = get_token(CFG["server_url"])
     info = http_json(layer, {"f": "json", "token": token})
+    layer_fields = {f.get("name", "").lower() for f in info.get("fields", [])}   # 새 필드(scan_type, thumb_url)가 아직 없어도 등록되게
     wkid = (info.get("extent", {}).get("spatialReference") or info.get("spatialReference") or {}).get("latestWkid") \
         or (info.get("extent", {}).get("spatialReference") or {}).get("wkid", 4326)
     lon, lat = wgs84_from_utm(las_info["coord_x"], las_info["coord_y"], CFG.get("utm_epsg", 32652))
@@ -285,6 +307,10 @@ def step_register(meta, las_info, glb_url, slpk_item_id, scene_item_id, scene_ur
                               "coord_x": las_info["coord_x"], "coord_y": las_info["coord_y"], "coord_z": las_info["coord_z"],
                               "scene_item_id": scene_item_id, "scene_url": scene_url,
                               "slpk_item_id": slpk_item_id, "glb_url": glb_url}}
+    if "scan_type" in layer_fields:
+        feature["attributes"]["scan_type"] = meta.get("scan_type") or "home"
+    if "thumb_url" in layer_fields:
+        feature["attributes"]["thumb_url"] = thumb_url or None
     out = http_json(layer + "/addFeatures", {"features": json.dumps([feature]), "f": "json", "token": token})
     res = out["addResults"][0]
     if not res.get("success"):
@@ -310,7 +336,8 @@ def main():
     las_info = step_las(las_path)
     q.update(step=3, message="GLB 준비")
     glb_url = step_glb(glb_path, job_id)
-    q.update(step=4, message="SLPK 생성 중", glb_url=glb_url)
+    thumb_url = step_thumb(meta, out_dir, job_id)
+    q.update(step=4, message="SLPK 생성 중", glb_url=glb_url, thumb_url=thumb_url or None)
     heading = float(meta.get("georef", {}).get("heading", 0.0)) if meta["mode"] == "stray" else 0.0
     slpk = step_slpk(glb_path, out_dir, las_info, service_name, heading)
     slpk_item_id = scene_item_id = scene_url = ""
@@ -320,15 +347,15 @@ def main():
     oid = None
     if CFG.get("portal_enabled", True):
         q.update(step=6, message="지도에 등록 중")
-        oid = step_register(meta, las_info, glb_url, slpk_item_id, scene_item_id, scene_url)
+        oid = step_register(meta, las_info, glb_url, slpk_item_id, scene_item_id, scene_url, thumb_url)
     else:
         log("portal_enabled=false: 발행·등록 건너뜀 (로컬 테스트)")
-    result = dict(job_id=job_id, las=las_info, glb_url=glb_url, slpk=slpk, slpk_item_id=slpk_item_id,
+    result = dict(job_id=job_id, las=las_info, glb_url=glb_url, thumb_url=thumb_url, slpk=slpk, slpk_item_id=slpk_item_id,
                   scene_item_id=scene_item_id, scene_url=scene_url, objectid=oid, seconds=round(time.time() - T0, 1))
     with open(os.path.join(out_dir, "pipeline_result.json"), "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
     q.update(step=7, status="done", message="처리 완료" + ("" if slpk else " (SLPK 없이)"),
-             scene_item_id=scene_item_id or None, glb_url=glb_url)
+             scene_item_id=scene_item_id or None, glb_url=glb_url, thumb_url=thumb_url or None)
     log(f"완료 {result['seconds']}s")
 
 

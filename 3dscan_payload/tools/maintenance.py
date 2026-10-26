@@ -4,6 +4,9 @@ kgeoScan 유지보수 (서버에서 워커 venv 파이썬으로 실행; 설정�
   python -I maintenance.py cleanup-orphans             scan_points 가 참조하지 않는 REST 업로드 흔적(Scene Package) 삭제
   python -I maintenance.py delete-scan <objectid>      점 + Scene 서비스 + SLPK 아이템 + 서빙 GLB 삭제
   python -I maintenance.py list                         현재 스캔 목록
+  python -I maintenance.py add-fields                   scan_points 에 scan_type, thumb_url 필드 추가 (없을 때만)
+  python -I maintenance.py backfill-thumbs              썸네일 없는 스캔에 zip 에서 썸네일 생성·등록
+  python -I maintenance.py set-scan-type [home]         scan_type 이 비어 있는 스캔을 채움
 
 actions.json 예:  {"actions": [{"op": "cleanup-orphans"}, {"op": "delete-scan", "objectid": 41}], "once_id": "2026-10-26-1"}
   once_id 가 같은 파일은 다시 실행하지 않는다 (<data_root>\\maintenance_done.txt 에 기록).
@@ -121,9 +124,92 @@ def delete_scan(objectid=None, title=None):
     print("  점 삭제:", out.get("deleteResults"))
 
 
+NEW_FIELDS = [
+    {"name": "scan_type", "type": "esriFieldTypeString", "alias": "스캔 유형", "length": 20, "nullable": True, "editable": True},
+    {"name": "thumb_url", "type": "esriFieldTypeString", "alias": "썸네일 URL", "length": 300, "nullable": True, "editable": True},
+]
+
+
+def layer_fields(stoken):
+    info = http_json(CFG["points_layer_url"], {"f": "json", "token": stoken})
+    return {f.get("name", "").lower() for f in info.get("fields", [])}
+
+
+def add_fields():
+    """호스티드 피처 레이어 관리자 REST(addToDefinition)로 새 필드를 추가한다. 이미 있으면 건너뜀."""
+    stoken = token(CFG["server_url"])
+    have = layer_fields(stoken)
+    missing = [f for f in NEW_FIELDS if f["name"].lower() not in have]
+    if not missing:
+        print("add-fields: scan_type, thumb_url 모두 있음")
+        return
+    admin = CFG["points_layer_url"].replace("/rest/services/", "/rest/admin/services/")
+    out = http_json(admin + "/addToDefinition", {"addToDefinition": json.dumps({"fields": missing}), "f": "json", "token": stoken})
+    print(f"add-fields: {[f['name'] for f in missing]} → {out}")
+
+
+def update_attrs(stoken, objectid, attrs):
+    upd = http_json(CFG["points_layer_url"] + "/updateFeatures",
+                    {"features": json.dumps([{"attributes": dict(attrs, objectid=objectid)}]), "f": "json", "token": stoken})
+    return upd.get("updateResults")
+
+
+def backfill_thumbs():
+    """thumb_url 이 비어 있고 작업 폴더에 Stray zip 이 남아 있는 스캔: 썸네일을 만들어 서빙 폴더에 두고 필드를 채운다."""
+    import subprocess
+    stoken = token(CFG["server_url"])
+    if "thumb_url" not in layer_fields(stoken):
+        print("backfill-thumbs: thumb_url 필드가 없음 (add-fields 먼저)")
+        return
+    done = 0
+    for a in features(stoken):
+        if a.get("thumb_url") or not a.get("glb_url"):
+            continue
+        job_id = os.path.splitext(os.path.basename(a["glb_url"]))[0]
+        job_dir = os.path.join(CFG["data_root"], job_id)
+        meta_path = os.path.join(job_dir, "job.json")
+        if not os.path.exists(meta_path):
+            print(f"  OID {a.get('objectid')}: 작업 폴더 없음 ({job_id}) → 건너뜀")
+            continue
+        meta = json.load(open(meta_path, "r", encoding="utf-8"))
+        zip_path = meta.get("scan_zip") or ""
+        thumb = os.path.join(job_dir, "out", "thumb.jpg")
+        if not os.path.exists(thumb):
+            if not (zip_path and os.path.exists(zip_path)):
+                print(f"  OID {a.get('objectid')}: zip 없음 (legacy) → 건너뜀")
+                continue
+            os.makedirs(os.path.dirname(thumb), exist_ok=True)
+            cmd = [CFG["worker_python"], "-I", os.path.join(CFG["worker_dir"], "thumbnail.py"), "--zip", zip_path, "--out", thumb]
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+            if proc.returncode != 0 or not os.path.exists(thumb):
+                print(f"  OID {a.get('objectid')}: 썸네일 생성 실패: {(proc.stderr or proc.stdout)[-300:]}")
+                continue
+        os.makedirs(CFG["glb_serve_dir"], exist_ok=True)
+        import shutil
+        shutil.copy2(thumb, os.path.join(CFG["glb_serve_dir"], job_id + ".jpg"))
+        url = f"{CFG['glb_serve_url']}/{job_id}.jpg"
+        print(f"  OID {a.get('objectid')} '{a.get('scan_title')}' thumb_url → {url}: {update_attrs(stoken, a['objectid'], {'thumb_url': url})}")
+        done += 1
+    print(f"backfill-thumbs: {done}개 등록")
+
+
+def set_scan_type(value="home"):
+    stoken = token(CFG["server_url"])
+    if "scan_type" not in layer_fields(stoken):
+        print("set-scan-type: scan_type 필드가 없음 (add-fields 먼저)")
+        return
+    n = 0
+    for a in features(stoken):
+        if not a.get("scan_type"):
+            update_attrs(stoken, a["objectid"], {"scan_type": value})
+            n += 1
+    print(f"set-scan-type: {n}개 → {value}")
+
+
 def list_scans():
     for a in sorted(features(token(CFG["server_url"])), key=lambda a: a.get("objectid", 0)):
-        print(f"  OID {a.get('objectid'):>4}  {a.get('scan_title')}  scene={a.get('scene_item_id')}  slpk={a.get('slpk_item_id')}  glb={a.get('glb_url')}")
+        print(f"  OID {a.get('objectid'):>4}  [{a.get('scan_type') or '-'}] {a.get('scan_title')}  scene={a.get('scene_item_id')}  "
+              f"slpk={a.get('slpk_item_id')}  glb={a.get('glb_url')}  thumb={'O' if a.get('thumb_url') else '-'}")
 
 
 def main():
@@ -146,6 +232,12 @@ def main():
                     delete_scan(act.get("objectid"), act.get("title"))
                 elif op == "list":
                     list_scans()
+                elif op == "add-fields":
+                    add_fields()
+                elif op == "backfill-thumbs":
+                    backfill_thumbs()
+                elif op == "set-scan-type":
+                    set_scan_type(act.get("value", "home"))
                 else:
                     print(f"알 수 없는 작업: {op}")
             except Exception as e:
@@ -161,6 +253,12 @@ def main():
         fix_slpk_refs()
     elif cmd == "delete-scan":
         delete_scan(sys.argv[2])
+    elif cmd == "add-fields":
+        add_fields()
+    elif cmd == "backfill-thumbs":
+        backfill_thumbs()
+    elif cmd == "set-scan-type":
+        set_scan_type(sys.argv[2] if len(sys.argv) > 2 else "home")
     else:
         list_scans()
 

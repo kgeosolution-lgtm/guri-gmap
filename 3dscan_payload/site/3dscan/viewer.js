@@ -1,12 +1,20 @@
 /* ============================================================
    kgeoScan Viewer - Main Script (Three.js GLB Viewer)
    ============================================================ */
+function isMobile() { return window.matchMedia("(max-width: 768px)").matches; }
+const TYPE_INFO = {
+  home:   { label: "홈스캔",  icon: "🏠", color: [56, 189, 248] },
+  survey: { label: "현장조사", icon: "📋", color: [251, 146, 60] },
+};
+function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
 require([
   "esri/config",
   "esri/WebMap",
   "esri/views/MapView",
   "esri/layers/FeatureLayer",
   "esri/renderers/SimpleRenderer",
+  "esri/renderers/UniqueValueRenderer",
   "esri/symbols/SimpleMarkerSymbol",
   "esri/widgets/Home",
   "esri/widgets/Zoom",
@@ -19,7 +27,7 @@ require([
   "esri/layers/VectorTileLayer",
   "esri/layers/WebTileLayer",
 ], function(
-  esriConfig, WebMap, MapView, FeatureLayer, SimpleRenderer, SimpleMarkerSymbol,
+  esriConfig, WebMap, MapView, FeatureLayer, SimpleRenderer, UniqueValueRenderer, SimpleMarkerSymbol,
   Home, Zoom, BasemapToggle, Search, ScaleBar, Graphic,
   Basemap, TileLayer, VectorTileLayer, WebTileLayer
 ) {
@@ -58,6 +66,10 @@ require([
   let glbCamera     = null;
   let glbControls   = null;
   let glbAnimFrame  = null;
+  let _glbModel     = null;        // 측정·평면 보기용
+  let _glbMaxDim    = 1;
+  let _glbDist      = 3;
+  const _ms = { on: false, pts: [], objs: [], text: "" };   // 거리 측정 상태
 
   /* ── MapView ── */
   const webmap = new WebMap({ portalItem: { id: WEBMAP_ID } });
@@ -125,6 +137,24 @@ require([
   window._pointLayer = pointLayer;      // 완료 팝업 → 확대 (require 밖에서 접근)
   window._mapView    = mapView;
 
+  // 스캔 유형별 색 (scan_type 필드가 레이어에 있을 때만; 없으면 기존 단일 심볼 유지)
+  function typeRenderer() {
+    const mk = c => new SimpleMarkerSymbol({ style: "circle", color: [c[0], c[1], c[2], 0.9], size: "14px", outline: { color: c, width: 2 } });
+    return new UniqueValueRenderer({
+      field: "scan_type",
+      defaultSymbol: mk([148, 163, 184]),
+      uniqueValueInfos: Object.entries(TYPE_INFO).map(([v, t]) => ({ value: v, symbol: mk(t.color), label: t.label }))
+    });
+  }
+  let _hasTypeField = false;
+  pointLayer.load().then(() => {
+    const names = new Set((pointLayer.fields || []).map(f => f.name.toLowerCase()));
+    _hasTypeField = names.has("scan_type");
+    if (_hasTypeField) pointLayer.renderer = typeRenderer();
+    const lf = document.getElementById("lpFilters");
+    if (lf) lf.style.display = _hasTypeField ? "" : "none";
+  }).catch(() => {});
+
 
   mapView.when(async () => {
     document.getElementById("mapLoading").classList.add("done");
@@ -133,6 +163,9 @@ require([
       .catch(() => {});
 
     loadListPanel();
+    if (isMobile() && _lpOpen) toggleListPanel();      // 폰: 지도 먼저, 목록은 왼쪽 탭으로
+    const typeParam = new URLSearchParams(window.location.search).get("type");
+    if (typeParam && TYPE_INFO[typeParam]) setTypeFilter(typeParam);
 
     // ── 레이어뷰 등록
     mapView.whenLayerView(pointLayer).then(lv => { _layerView = lv; });
@@ -224,6 +257,11 @@ require([
     document.getElementById("aDate").textContent      = fmt(attrs.pub_date);
     document.getElementById("aNote").textContent      = attrs.note       || "—";
     document.getElementById("aSceneId").textContent   = attrs.scene_item_id || "—";
+    const tinfo = TYPE_INFO[attrs.scan_type] || null;
+    const tag = document.getElementById("sbTypeTag");
+    tag.textContent = tinfo ? `${tinfo.icon} ${tinfo.label}` : "3D SCAN";
+    tag.className   = "sb-tag" + (tinfo ? " type-" + attrs.scan_type : "");
+    document.getElementById("aType").textContent = tinfo ? `${tinfo.icon} ${tinfo.label}` : "—";
 
     const sceneLink = document.getElementById("aSceneUrl");
     if (attrs.scene_item_id) {
@@ -233,7 +271,7 @@ require([
       sceneLink.style.display = "none";
     }
 
-    setWidth("40vw");
+    setWidth(isMobile() ? "100vw" : "40vw");
     isExpanded = false;
     document.getElementById("btnExpand").classList.add("active");
     document.getElementById("sidebar").classList.add("open", "expanded");
@@ -265,6 +303,7 @@ require([
 
   /* ── 50:50 토글 ── */
   window.toggleExpand = function() {
+    if (isMobile()) return;                 // 폰은 항상 전체 폭
     isExpanded = !isExpanded;
     const btn = document.getElementById("btnExpand");
     if (isExpanded) {
@@ -303,9 +342,9 @@ require([
     if (typeof mapView !== "undefined" && mapView && !mapView.destroyed) {
       const px = closed ? 0 : parseFloat(w) || parseInt(w) || 0;
       // vw 단위면 픽셀로 변환
-      const pxVal = w.endsWith("vw")
+      const pxVal = isMobile() ? 0 : (w.endsWith("vw")
         ? Math.round(window.innerWidth * parseFloat(w) / 100)
-        : px;
+        : px);
       mapView.padding = { top: 0, right: pxVal, bottom: 0, left: 0 };
       // transition 완료 후 resize
       setTimeout(() => {
@@ -316,6 +355,8 @@ require([
 
   /* ════ Three.js GLB 뷰어 ════ */
   function destroyGLB() {
+    clearMeasure(true);
+    _glbModel = null;
     if (glbAnimFrame) { cancelAnimationFrame(glbAnimFrame); glbAnimFrame = null; }
     if (glbRenderer)  { glbRenderer.dispose(); glbRenderer = null; }
     if (glbControls)  { glbControls.dispose(); glbControls = null; }
@@ -423,6 +464,7 @@ require([
         glbScene.add(model);
 
         const dist = maxDim * 1.6;
+        _glbModel = model; _glbMaxDim = maxDim; _glbDist = dist;
         glbCamera.position.set(dist * 0.6, dist * 0.5, dist);
         glbCamera.near = maxDim * 0.001;
         glbCamera.far  = maxDim * 100;
@@ -449,6 +491,8 @@ require([
             glbControls.target.set(0, 0, 0);
             glbControls.update();
           }
+          // M키: 측정 토글
+          if (e.code === 'KeyM') window.toggleMeasure();
           // F키: 전체화면
           if (e.code === 'KeyF') {
             const el = document.getElementById("sceneDiv");
@@ -492,6 +536,26 @@ require([
           }
         });
 
+        // ── 측정: 드래그가 아닌 클릭으로 모델 위 두 점을 찍는다 (마우스·터치 공통)
+        let _pd = null;
+        _cnv.addEventListener('pointerdown', e => { _pd = { x: e.clientX, y: e.clientY }; });
+        _cnv.addEventListener('pointerup', e => {
+          if (!_ms.on || !_pd) { _pd = null; return; }
+          const moved = Math.hypot(e.clientX - _pd.x, e.clientY - _pd.y);
+          _pd = null;
+          if (moved > 6) return;
+          const rect  = _cnv.getBoundingClientRect();
+          const mouse = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+          const rc = new THREE.Raycaster();
+          rc.setFromCamera(mouse, glbCamera);
+          const hits = rc.intersectObject(model, true);
+          if (hits.length) addMeasurePoint(hits[0].point.clone());
+        });
+        const lblEl = document.createElement('div');
+        lblEl.id = 'measureLabel';
+        lblEl.className = 'measure-label';
+        container.appendChild(lblEl);
+
         // ── 조작 도움말 표시
         const helpEl = document.createElement('div');
         helpEl.id = 'glbHelp';
@@ -501,7 +565,9 @@ require([
           padding:5px 12px; border-radius:20px; pointer-events:none;
           white-space:nowrap; letter-spacing:0.3px;
         `;
-        helpEl.innerHTML = '좌클릭: 회전 &nbsp;|&nbsp; 우클릭: 이동 &nbsp;|&nbsp; 휠: 줌 &nbsp;|&nbsp; WASD/방향키: 이동 &nbsp;|&nbsp; R: 리셋 &nbsp;|&nbsp; 더블클릭: 포커스';
+        helpEl.innerHTML = isMobile()
+          ? '한 손가락: 회전 &nbsp;|&nbsp; 두 손가락: 이동·줌 &nbsp;|&nbsp; 📏 측정: 두 점 터치'
+          : '좌클릭: 회전 &nbsp;|&nbsp; 우클릭: 이동 &nbsp;|&nbsp; 휠: 줌 &nbsp;|&nbsp; WASD: 이동 &nbsp;|&nbsp; R: 리셋 &nbsp;|&nbsp; M: 측정 &nbsp;|&nbsp; 더블클릭: 포커스';
         container.style.position = 'relative';
         container.appendChild(helpEl);
 
@@ -528,6 +594,7 @@ require([
 
           glbControls.update();
           glbRenderer.render(glbScene, glbCamera);
+          updateMeasureLabel();
         }
         animate();
       },
@@ -546,6 +613,75 @@ require([
 
     window.addEventListener("resize", resizeGLB);
   }
+
+  /* ════ 거리 측정 · 평면 보기 ════ */
+  function fmtLen(m) { return m >= 1 ? m.toFixed(2) + " m" : (m * 100).toFixed(1) + " cm"; }
+  function setMeasureBox(html, hasResult) {
+    const box = document.getElementById("measureBox");
+    if (!box) return;
+    box.innerHTML = html ? html + (hasResult ? ' <button type="button" class="mbtn" onclick="clearMeasure(false)">새로 재기</button>' : "") : "";
+    box.style.display = html ? "flex" : "none";
+  }
+  function addMeasurePoint(p) {
+    if (_ms.pts.length >= 2) clearMeasure(false);
+    _ms.pts.push(p);
+    const r = Math.max(_glbMaxDim * 0.006, 0.004);
+    const marker = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 14), new THREE.MeshBasicMaterial({ color: 0xfacc15, depthTest: false }));
+    marker.position.copy(p); marker.renderOrder = 999;
+    glbScene.add(marker); _ms.objs.push(marker);
+    if (_ms.pts.length === 2) {
+      const [a, b] = _ms.pts;
+      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), new THREE.LineBasicMaterial({ color: 0xfacc15, depthTest: false }));
+      line.renderOrder = 998;
+      glbScene.add(line); _ms.objs.push(line);
+      const d = a.distanceTo(b), dh = Math.hypot(b.x - a.x, b.z - a.z), dv = Math.abs(b.y - a.y);
+      _ms.text = fmtLen(d);
+      setMeasureBox(`<b>${fmtLen(d)}</b><span>수평 ${fmtLen(dh)} · 높이차 ${fmtLen(dv)}</span>`, true);
+    } else {
+      setMeasureBox("두 번째 점을 클릭하세요", false);
+    }
+  }
+  function clearMeasure(all) {
+    _ms.objs.forEach(o => { if (glbScene) glbScene.remove(o); if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+    _ms.objs = []; _ms.pts = []; _ms.text = "";
+    const lbl = document.getElementById("measureLabel"); if (lbl) lbl.style.display = "none";
+    const btn = document.getElementById("btnMeasure");
+    if (all) {
+      _ms.on = false;
+      if (btn) btn.classList.remove("active");
+      if (glbRenderer) glbRenderer.domElement.style.cursor = "";
+      setMeasureBox("", false);
+    } else if (_ms.on) {
+      setMeasureBox("첫 번째 점을 클릭하세요", false);
+    }
+  }
+  function updateMeasureLabel() {
+    const lbl = document.getElementById("measureLabel");
+    if (!lbl || _ms.pts.length < 2 || !glbCamera) return;
+    const c   = document.getElementById("sceneDiv");
+    const mid = _ms.pts[0].clone().add(_ms.pts[1]).multiplyScalar(0.5).project(glbCamera);
+    if (mid.z > 1) { lbl.style.display = "none"; return; }
+    lbl.style.display = "block";
+    lbl.textContent   = _ms.text;
+    lbl.style.left    = ((mid.x + 1) / 2 * c.clientWidth) + "px";
+    lbl.style.top     = ((1 - mid.y) / 2 * c.clientHeight) + "px";
+  }
+  window.clearMeasure = clearMeasure;
+  window._glbRefs = () => ({ scene: glbScene, camera: glbCamera, model: _glbModel, controls: glbControls, ms: _ms });   // 콘솔 디버그용
+  window.toggleMeasure = function() {
+    if (!_glbModel) return;
+    _ms.on = !_ms.on;
+    document.getElementById("btnMeasure").classList.toggle("active", _ms.on);
+    if (glbRenderer) glbRenderer.domElement.style.cursor = _ms.on ? "crosshair" : "";
+    if (_ms.on) setMeasureBox("첫 번째 점을 클릭하세요", false);
+    else clearMeasure(true);
+  };
+  window.viewTop = function() {
+    if (!glbCamera || !glbControls) return;
+    glbCamera.position.set(0.001, _glbDist * 1.25, 0.001);
+    glbControls.target.set(0, 0, 0);
+    glbControls.update();
+  };
 
   /* ── Portal Scene Viewer로 열기 (새 탭) ── */
   window.openSceneViewer = function() {
@@ -588,9 +724,8 @@ require([
       const fs = await pointLayer.queryFeatures(q);
       _allFeatures = fs.features;
 
-      document.getElementById("lpCount").textContent = _allFeatures.length;
       document.getElementById("ptCount").textContent = _allFeatures.length + "개";
-      renderList(_allFeatures);
+      applyListFilter();
     } catch(e) {
       console.warn("목록 로드 실패:", e);
       document.getElementById("lpList").innerHTML =
@@ -606,7 +741,8 @@ require([
     }
     const now = Date.now();
     const DAY = 86400000;
-    el.innerHTML = features.map((feat, i) => {
+    el.innerHTML = features.map((feat) => {
+      const i   = _allFeatures.indexOf(feat);          // 필터된 목록에서도 원본 인덱스로 연결
       const a   = feat.attributes;
       const dt  = a.pub_date ? new Date(a.pub_date) : null;
       const dtStr = dt ? (
@@ -617,11 +753,19 @@ require([
       ) : '—';
       const isNew = dt && (now - dt.getTime()) < DAY * 3;
       const sid = a.scene_item_id || '';
-      return `<div class="lp-item" data-sid="${sid}" data-idx="${i}" onclick="onListItemClick(${i})">
-        <div class="lp-item-title">${a.scan_title || '—'}</div>
-        <div class="lp-item-meta">
-          <span class="lp-item-date">${dtStr}</span>
-          ${isNew ? '<span class="lp-item-new">NEW</span>' : ''}
+      const t   = TYPE_INFO[a.scan_type] || null;
+      const thumb = a.thumb_url
+        ? `<img class="lp-thumb" src="${esc(a.thumb_url)}" loading="lazy" alt="" onerror="this.outerHTML='<div class=&quot;lp-thumb lp-thumb-none&quot;>◈</div>'">`
+        : `<div class="lp-thumb lp-thumb-none">${t ? t.icon : '◈'}</div>`;
+      return `<div class="lp-item" data-sid="${esc(sid)}" data-idx="${i}" onclick="onListItemClick(${i})">
+        ${thumb}
+        <div class="lp-item-body">
+          <div class="lp-item-title">${esc(a.scan_title || '—')}</div>
+          <div class="lp-item-meta">
+            ${t ? `<span class="lp-item-type ${esc(a.scan_type)}">${t.icon} ${t.label}</span>` : ''}
+            <span class="lp-item-date">${dtStr}</span>
+            ${isNew ? '<span class="lp-item-new">NEW</span>' : ''}
+          </div>
         </div>
       </div>`;
     }).join('');
@@ -630,6 +774,7 @@ require([
   window.onListItemClick = async function(idx) {
     const feat = _allFeatures[idx];
     if (!feat) return;
+    if (isMobile() && _lpOpen) toggleListPanel();       // 폰: 목록 오버레이 닫고 지도·사이드바로
     const oid = feat.attributes.OBJECTID || feat.attributes.objectid;
     try {
       await mapView.goTo({ target: feat.geometry, zoom: 17 },
@@ -663,13 +808,22 @@ require([
     });
   }
 
-  window.filterList = function(val) {
-    const kw = val.trim().toLowerCase();
-    if (!kw) { renderList(_allFeatures); return; }
-    const filtered = _allFeatures.filter(f =>
-      (f.attributes.scan_title || '').toLowerCase().includes(kw)
-    );
-    renderList(filtered);
+  let _typeFilter = "";
+  let _kw = "";
+  function applyListFilter() {
+    let fs = _allFeatures;
+    if (_typeFilter) fs = fs.filter(f => (f.attributes.scan_type || '') === _typeFilter);
+    if (_kw) fs = fs.filter(f => (f.attributes.scan_title || '').toLowerCase().includes(_kw) ||
+                                 (f.attributes.note || '').toLowerCase().includes(_kw));
+    document.getElementById("lpCount").textContent =
+      (fs.length !== _allFeatures.length ? fs.length + "/" : "") + _allFeatures.length;
+    renderList(fs);
+  }
+  window.filterList = function(val) { _kw = val.trim().toLowerCase(); applyListFilter(); };
+  window.setTypeFilter = function(t) {
+    _typeFilter = TYPE_INFO[t] ? t : "";
+    document.querySelectorAll("#lpFilters .lp-chip").forEach(el => el.classList.toggle("active", el.dataset.type === _typeFilter));
+    applyListFilter();
   };
 
   let _lpOpen = true;
@@ -694,7 +848,14 @@ require([
 /* ── 업로드 모달 ── */
 const _files = { las: null, glb: null, zip: null };
 let _mode = "stray";                 // "stray" | "legacy"
+let _scanType = "home";              // "home" (홈스캔) | "survey" (현장조사)
 let _loc  = { lon: null, lat: null };
+
+function setScanType(t) {
+  _scanType = TYPE_INFO[t] ? t : "home";
+  document.getElementById("typeHome").classList.toggle("active", _scanType === "home");
+  document.getElementById("typeSurvey").classList.toggle("active", _scanType === "survey");
+}
 
 function openModal()  {
   document.getElementById("modal").classList.add("show");
@@ -713,6 +874,7 @@ function openModal()  {
   setLocationFields(null, null);
   if (window.clearPickMarker) window.clearPickMarker();
   setUploadMode(_mode);
+  setScanType(_scanType);
 }
 function closeModal() {
   endMapPick();
@@ -868,8 +1030,9 @@ function updateProgressPopup(step, title, pct, msg) {
     const dot = el.querySelector(".pp-dot");
     if (dot) dot.className = "pp-dot";
   }
-  // 진행 중이면 팝업 자동 표시
-  if (pct > 0 && pct < 100) {
+  // 진행 중이면 팝업을 작업마다 한 번만 자동 표시 (닫으면 헤더의 진행 표시를 눌러 다시 연다)
+  if (pct > 0 && pct < 100 && !window._ppAutoShown) {
+    window._ppAutoShown = true;
     pp.style.display = "block";
     _progressPopupOpen = true;
   }
@@ -962,6 +1125,7 @@ async function startUpload() {
   fd.append("title", title);
   fd.append("note",  document.getElementById("mNote").value);
   fd.append("mode",  _mode);
+  fd.append("scan_type", _scanType);
   if (_mode === "stray") {
     if (!_files.zip)                     { alert("Stray Scanner 녹화 zip 파일을 선택해주세요."); return; }
     if (_loc.lon == null || _loc.lat == null) { alert("스캔 위치를 지도에서 찍거나 현재 위치로 지정해주세요."); return; }
@@ -990,55 +1154,77 @@ async function startUpload() {
                      `업로드 중 ${pct}%  (${(loaded / 1048576).toFixed(0)} / ${(total / 1048576).toFixed(0)} MB)`);
     });
     if (!data.job_id) throw new Error(data.error || "업로드 실패");
-
-    const jobId = data.job_id;
-    setUploadState("processing", title, 0, STEP_PCTS[0], "처리 대기 중...");
-
-    let pollCount = 0;
-    const MAX_POLLS = 600;   // 3초 × 600 = 30분 (Stray 처리 + SLPK + 발행)
-
-    const poll = setInterval(async () => {
-      pollCount++;
-      if (pollCount > MAX_POLLS) {
-        clearInterval(poll);
-        setUploadState("error", title, 0, 0, "시간 초과");
-        return;
-      }
-      try {
-        const sr = await fetch(`/app/3dupload/status.py?job_id=${jobId}`, { cache: "no-store" });
-        const sd = await sr.json();
-        const step = Math.min(sd.step || 0, LAST_STEP);
-        window._lastStatusMsg = sd.message || "";
-        setUploadState("processing", title, step, STEP_PCTS[step], (sd.step_name || STEP_NAMES[step]) + "...");
-
-        if (sd.status === "done") {
-          clearInterval(poll);
-          window._lastStatusMsg = "";
-          setUploadState("done", title, LAST_STEP, 100, "");
-          _doneSceneId = sd.scene_item_id || null;
-          _doneGlbUrl  = sd.glb_url || null;
-          setTimeout(() => {
-            const dm = document.getElementById("doneModal");
-            if (dm) {
-              document.getElementById("doneModalTitle").textContent = "✓ 처리 완료!";
-              document.getElementById("doneModalMsg").innerHTML =
-                `<strong style="color:var(--text)">${title}</strong> 스캔이 처리되어 지도에 등록되었습니다.` +
-                (sd.scene_item_id ? "" : "<br><span style='color:var(--text3)'>Scene 레이어(SLPK)는 생성되지 않아 GLB 뷰어로만 볼 수 있습니다.</span>") +
-                (sd.message && sd.message !== "처리 완료" ? `<br><span style='color:var(--text3)'>${sd.message}</span>` : "");
-              dm.classList.add("show");
-            } else {
-              if (sd.scene_item_id) location.href = `/app/3dscan/?select=${sd.scene_item_id}`;
-              else location.reload();
-            }
-          }, 1200);
-        } else if (sd.status === "failed") {
-          clearInterval(poll);
-          setUploadState("error", title, 0, 0, sd.message || "처리 실패");
-        }
-      } catch(e) {}
-    }, 3000);
-
+    trackJob(data.job_id, title);
   } catch(err) {
     setUploadState("error", title, 0, 0, err.message);
   }
 }
+
+/* ── 작업 추적: 업로드 직후, ?job=<id> (아이폰 단축어·앱), 새로고침 뒤 이어서 ── */
+const JOBS_KEY = "kgeoscan_jobs";
+function loadJobs()  { try { return JSON.parse(localStorage.getItem(JOBS_KEY) || "[]"); } catch (e) { return []; } }
+function saveJobs(l) { try { localStorage.setItem(JOBS_KEY, JSON.stringify(l.slice(-5))); } catch (e) {} }
+function rememberJob(jobId, title) { saveJobs(loadJobs().filter(j => j.job_id !== jobId).concat([{ job_id: jobId, title: title || "", t: Date.now() }])); }
+function forgetJob(jobId) { saveJobs(loadJobs().filter(j => j.job_id !== jobId)); }
+
+let _tracking = null;
+async function trackJob(jobId, title) {
+  if (!/^[0-9a-f]{8}$/.test(jobId || "") || _tracking === jobId) return;
+  _tracking = jobId;
+  title = title || "";
+  rememberJob(jobId, title);
+  setUploadState("processing", title, 0, STEP_PCTS[0], "처리 대기 중...");
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const finish = () => { _tracking = null; forgetJob(jobId); window._lastStatusMsg = ""; };
+  window._ppAutoShown = false;
+  for (let i = 0; i < 600; i++) {                 // 3초 × 600 = 30분 (Stray 처리 + SLPK + 발행)
+    try {
+      const sr = await fetch(`/app/3dupload/status.py?job_id=${jobId}`, { cache: "no-store" });
+      if (sr.status === 404) { finish(); setUploadState("error", title, 0, 0, "없는 작업입니다 (" + jobId + ")"); return; }
+      const sd = await sr.json();
+      if (!title && sd.title) { title = sd.title; rememberJob(jobId, title); }
+      const step = Math.min(sd.step || 0, LAST_STEP);
+      window._lastStatusMsg = sd.message || "";
+      setUploadState("processing", title, step, STEP_PCTS[step], (sd.step_name || STEP_NAMES[step]) + "...");
+
+      if (sd.status === "done") {
+        finish();
+        setUploadState("done", title, LAST_STEP, 100, "");
+        _doneSceneId = sd.scene_item_id || null;
+        _doneGlbUrl  = sd.glb_url || null;
+        setTimeout(() => {
+          const dm = document.getElementById("doneModal");
+          if (dm) {
+            document.getElementById("doneModalTitle").textContent = "✓ 처리 완료!";
+            document.getElementById("doneModalMsg").innerHTML =
+              `<strong style="color:var(--text)">${esc(title)}</strong> 스캔이 처리되어 지도에 등록되었습니다.` +
+              (sd.scene_item_id ? "" : "<br><span style='color:var(--text3)'>Scene 레이어(SLPK)는 생성되지 않아 GLB 뷰어로만 볼 수 있습니다.</span>") +
+              (sd.message && sd.message !== "처리 완료" ? `<br><span style='color:var(--text3)'>${esc(sd.message)}</span>` : "");
+            dm.classList.add("show");
+          } else {
+            if (sd.scene_item_id) location.href = `/app/3dscan/?select=${sd.scene_item_id}`;
+            else location.reload();
+          }
+        }, 1200);
+        return;
+      }
+      if (sd.status === "failed") {
+        finish();
+        setUploadState("error", title, 0, 0, sd.message || "처리 실패");
+        return;
+      }
+    } catch(e) {}
+    await sleep(3000);
+  }
+  finish();
+  setUploadState("error", title, 0, 0, "시간 초과");
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+  const p   = new URLSearchParams(window.location.search);
+  const job = (p.get("job") || "").trim().toLowerCase();
+  if (/^[0-9a-f]{8}$/.test(job)) { trackJob(job, ""); return; }
+  // 새로고침·재방문: 24시간 안에 시작했고 아직 끝나지 않은 최근 작업을 이어서 보여 준다
+  const recent = loadJobs().filter(j => Date.now() - j.t < 86400000).pop();
+  if (recent) trackJob(recent.job_id, recent.title);
+});

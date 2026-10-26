@@ -975,3 +975,77 @@ header {
 .esri-ui-bottom-left { bottom: 28px !important; left: 10px !important; }
 
 
+
+
+/* ════════════════════════════════
+   v3 — 스캔 유형 · 썸네일 · 측정 · 모바일
+════════════════════════════════ */
+.lp-filters { display:flex; gap:5px; padding:0 10px 8px; border-bottom:1px solid var(--border); flex-shrink:0; }
+.lp-chip {
+  flex:1; height:24px; border:1px solid var(--border2); border-radius:12px; background:transparent;
+  color:var(--text3); font-size:10px; font-family:'Pretendard',sans-serif; cursor:pointer; white-space:nowrap; transition:all .18s;
+}
+.lp-chip:hover { border-color:var(--accent); color:var(--accent); }
+.lp-chip.active { border-color:var(--accent); color:var(--accent); background:rgba(56,189,248,.1); font-weight:600; }
+.lp-chip.survey.active { border-color:var(--acc-o); color:var(--acc-o); background:rgba(251,146,60,.1); }
+
+.lp-item { display:flex; gap:10px; align-items:center; }
+.lp-item-body { flex:1; min-width:0; }
+.lp-thumb {
+  width:56px; height:42px; border-radius:4px; flex-shrink:0; object-fit:cover; background:var(--s3);
+  border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--text3);
+}
+.lp-thumb-none { font-size:15px; }
+.lp-item-type {
+  padding:1px 5px; border-radius:2px; font-size:9px; letter-spacing:.2px;
+  background:rgba(56,189,248,.1); border:1px solid rgba(56,189,248,.25); color:var(--accent);
+}
+.lp-item-type.survey { background:rgba(251,146,60,.1); border-color:rgba(251,146,60,.3); color:var(--acc-o); }
+.sb-tag.type-survey { background:rgba(251,146,60,.12); color:var(--acc-o); border-color:rgba(251,146,60,.3); }
+
+.vctrl.active { border-color:#facc15; color:#facc15; background:rgba(250,204,21,.12); }
+.measure-box {
+  position:absolute; left:9px; top:40px; z-index:11; display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  background:rgba(13,17,23,.9); border:1px solid rgba(250,204,21,.4); border-radius:3px; padding:6px 10px;
+  font-family:'IBM Plex Mono',monospace; font-size:11px; color:#facc15; backdrop-filter:blur(6px); max-width:calc(100% - 70px);
+}
+.measure-box b { font-size:14px; }
+.measure-box span { color:var(--text2); font-size:10px; }
+.measure-box .mbtn {
+  height:22px; padding:0 8px; border:1px solid var(--border2); border-radius:3px; background:transparent;
+  color:var(--text2); font-size:10px; cursor:pointer; font-family:'Pretendard',sans-serif;
+}
+.measure-box .mbtn:hover { border-color:#facc15; color:#facc15; }
+#glbHelp { max-width:calc(100% - 16px); overflow:hidden; text-overflow:ellipsis; }
+.measure-label {
+  position:absolute; transform:translate(-50%,-130%); pointer-events:none; display:none; z-index:12;
+  background:rgba(250,204,21,.95); color:#1a1a1a; font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600;
+  padding:3px 8px; border-radius:3px; white-space:nowrap; box-shadow:0 2px 8px rgba(0,0,0,.4);
+}
+
+/* ── 모바일 (폰에서 업로드·결과 확인) ── */
+body { height:100vh; height:100dvh; }
+@media (max-width: 768px) {
+  header { padding:0 10px; gap:8px; }
+  .header-sub, .sep { display:none; }
+  #uploadProgress { min-width:0; max-width:62vw; padding:4px 10px; }
+  #listPanel {
+    position:absolute; left:0; top:0; bottom:0; width:min(82vw, 320px); z-index:60;
+    box-shadow:8px 0 30px rgba(0,0,0,.5);
+  }
+  #listPanel.collapsed { width:0; box-shadow:none; }
+  #sidebar { width:100vw !important; border-left:none; }
+  .sb-viewer { height:46vh; }
+  #sidebar.expanded .sb-viewer { height:50%; }
+  #btnExpand { display:none; }
+  #coordBar { display:none; }
+  .modal { width:100vw; max-width:100vw; height:100%; max-height:100dvh; border-radius:0; display:flex; flex-direction:column; }
+  .modal-body { overflow-y:auto; flex:1; }
+  .form-grid2, .upload-grid { grid-template-columns:1fr !important; }
+  .loc-row { flex-wrap:wrap; }
+  .loc-val { flex-basis:100%; }
+  .loc-btn { flex:1; justify-content:center; }
+  #progressPopup { left:8px; right:8px; min-width:0; top:56px; }
+  .pick-banner { width:calc(100vw - 16px); justify-content:space-between; }
+  .esri-ui-bottom-left { bottom:10px !important; }
+}
