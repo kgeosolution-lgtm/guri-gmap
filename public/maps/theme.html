@@ -1840,8 +1840,9 @@ function setCat(name){
   }
   curCat=name; selectedRow=null; hideInfo();
   renderChips(); refresh(); updateUrl();
-  /* 칩을 고르면 그 자료 범위로(수도권 자료인 공사·통제는 시 밖까지). 일반 객체는 goTo 가 무시하므로 Extent 도형으로 */
-  if(view&&catExtent()){ let ext=catExtent(); try{ ext=asExtent(ext); }catch(e){} view.goTo(ext,{duration:500}).catch(()=>{}); }
+  /* 칩을 바꿔도 축척은 고정 — 자료 범위로 맞추지 않는다(담당자 요청 2026-10-26: 전기차 자료에 시 밖 좌표가 섞여 지도가
+     천안까지 빠지고, 주차장은 너무 확대됐음). 동을 고른 상태면 그 동 화면을 두고, 아니면 구리시 전체 화면으로 돌아온다 */
+  if(view&&!curDong) resetView('칩 변경: '+name);
 }
 
 /* 서비스 루트에서 실제 레이어 번호를 찾는다.
@@ -2489,13 +2490,6 @@ function toast(msg){ const t=$('mapToast'); t.textContent=msg; t.style.display='
 var WebMapCls=null, RendererJU=null, baseMapObj=null, myOverlays=[], INIT_VIEW=null, ExtentCls=null;
 var view=null,gLayer=null,labelLayer=null,meLayer=null,pulseLayer=null,dongLayer=null,GraphicCls=null,FLCls=null,mapObj=null,pulseRAF=null,dongRAF=null,zoomMode='norm';
 const lineLayers={};   /* 테마명 → FeatureLayer */
-function catExtent(){
-  const L=activeRows().filter(o=>!o.r.__line); if(!L.length) return L.length!==activeRows().length? CITY.extent : (activeRows().length?CITY.extent:CITY.extent);
-  let xmin=180,xmax=-180,ymin=90,ymax=-90;
-  L.forEach(({r})=>{xmin=Math.min(xmin,r.__x);xmax=Math.max(xmax,r.__x);ymin=Math.min(ymin,r.__y);ymax=Math.max(ymax,r.__y);});
-  const px=(xmax-xmin)*.12+.002, py=(ymax-ymin)*.12+.002;
-  return {xmin:xmin-px,xmax:xmax+px,ymin:ymin-py,ymax:ymax+py,spatialReference:{wkid:4326}};
-}
 require(["esri/config","esri/Map","esri/Basemap","esri/WebMap","esri/views/MapView","esri/layers/GraphicsLayer",
          "esri/layers/VectorTileLayer","esri/layers/WebTileLayer","esri/layers/FeatureLayer","esri/Graphic",
          "esri/renderers/support/jsonUtils","esri/core/reactiveUtils","esri/geometry/geometryEngine",
