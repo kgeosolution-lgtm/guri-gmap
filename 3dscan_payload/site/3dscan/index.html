@@ -18,6 +18,7 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.min.js"></script>
 <script src="https://js.arcgis.com/4.30/"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <link rel="stylesheet" href="viewer.css?v=d8b7d7ac54">
 <style>
 /* 포커스 outline 제거 - ArcGIS 포함 */
@@ -293,6 +294,14 @@ canvas { display: block; }
             <div class="dz-fname" id="zipName"></div>
           </div>
         </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:11px;color:var(--text3)">
+          <span>PC 에서는 압축 없이</span>
+          <label class="hbtn loc-btn" style="cursor:pointer;margin:0">
+            📁 녹화 폴더 선택
+            <input type="file" webkitdirectory directory multiple style="display:none" onchange="onFolder(this)">
+          </label>
+          <span>을 눌러 폴더를 고르면 브라우저가 묶어서 올립니다</span>
+        </div>
         <div class="form-row" style="margin-top:12px">
           <div class="form-label">스캔 위치 * <span style="color:var(--text3);letter-spacing:0">녹화를 시작한 지점</span></div>
           <div class="loc-row">
@@ -405,6 +414,6 @@ canvas { display: block; }
   <div class="toast-step" id="tStep"></div>
 </div>
 
-<script src="viewer.js?v=e22219af9e"></script>
+<script src="viewer.js?v=9687c55f96"></script>
 </body>
 </html>

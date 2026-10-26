@@ -14,10 +14,36 @@ require([
   "esri/widgets/Search",
   "esri/widgets/ScaleBar",
   "esri/Graphic",
+  "esri/Basemap",
+  "esri/layers/TileLayer",
+  "esri/layers/VectorTileLayer",
+  "esri/layers/WebTileLayer",
 ], function(
   esriConfig, WebMap, MapView, FeatureLayer, SimpleRenderer, SimpleMarkerSymbol,
-  Home, Zoom, BasemapToggle, Search, ScaleBar, Graphic
+  Home, Zoom, BasemapToggle, Search, ScaleBar, Graphic,
+  Basemap, TileLayer, VectorTileLayer, WebTileLayer
 ) {
+  /* ── 배경지도: WebMap 에 저장된 네이버 타일은 CORS 로 막혀 안 보이므로
+        다른 kgeodata 앱(goyang1000_page/basemaps.js)과 같은 구성을 코드에서 만든다 ── */
+  function makeBasemap(kind) {
+    if (kind === "imagery") {
+      return new Basemap({
+        title: "영상", id: "kgeo-imagery",
+        baseLayers: [
+          new TileLayer({ url: "https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer", maxScale: 25000000 }),
+          new WebTileLayer({ urlTemplate: "https://cdn.vworld.kr/2d/Satellite/service/{level}/{col}/{row}.jpeg", copyright: "VWORLD" })
+        ]
+      });
+    }
+    return new Basemap({
+      title: "지형", id: "kgeo-gray",
+      baseLayers: [
+        new TileLayer({ url: "https://services.arcgisonline.com/arcgis/rest/services/Elevation/World_Hillshade/MapServer", opacity: 0.65 }),
+        new VectorTileLayer({ url: "https://cdn.arcgis.com/sharing/rest/content/items/d9b6f47909c74f1fb5c7cefd14470e68/resources/styles/root.json", maxScale: 3000000 }),
+        new VectorTileLayer({ url: "https://kgeodata.com/server/rest/services/Hosted/NGII_GRAY_2026/VectorTileServer/resources/styles/root.json", minScale: 12000000, blendMode: "multiply" })
+      ]
+    });
+  }
   esriConfig.portalUrl = "https://kgeodata.com/portal";
   const WEBMAP_ID  = "c61a12cd31684312b5be93863e7a1a07";
   const PT_ITEM_ID = "1058978572fd43e799f7068330ff90d8";
@@ -35,6 +61,7 @@ require([
 
   /* ── MapView ── */
   const webmap = new WebMap({ portalItem: { id: WEBMAP_ID } });
+  webmap.load().then(() => { webmap.basemap = makeBasemap("gray"); }).catch(() => {});
   const mapView = new MapView({
     container: "viewDiv",
     map: webmap,
@@ -114,7 +141,7 @@ require([
     mapView.ui.add(new Zoom({ view: mapView }), "top-left");
     mapView.ui.add(new Home({ view: mapView }), "top-left");
     mapView.ui.add(new ScaleBar({ view: mapView, style: "line", unit: "metric" }), "bottom-left");
-    mapView.ui.add(new BasemapToggle({ view: mapView, nextBasemap: "hybrid" }), "bottom-left");
+    mapView.ui.add(new BasemapToggle({ view: mapView, nextBasemap: makeBasemap("imagery") }), "bottom-left");
 
     // URL 파라미터로 피처 자동 선택 (?select=<scene_item_id>)
     const urlParams    = new URLSearchParams(window.location.search);
@@ -708,6 +735,51 @@ function onFile(input, type) {
   document.getElementById(type + "Zone").classList.add("selected");
 }
 
+/* ── PC 에서 Stray 녹화 폴더를 그대로 고르면 브라우저가 zip 으로 묶는다 (압축 없이 담기만 해서 빠름) ── */
+async function onFolder(input) {
+  const files = Array.from(input.files || []);
+  if (!files.length) return;
+  const need = ["odometry.csv", "rgb.mp4"];
+  const names = new Set(files.map(f => f.name));
+  if (!need.every(n => names.has(n))) { alert("Stray Scanner 녹화 폴더가 아닙니다 (odometry.csv, rgb.mp4 필요)"); return; }
+  if (typeof JSZip === "undefined") { alert("zip 라이브러리를 불러오지 못했습니다. 폴더를 직접 압축해 올려 주세요."); return; }
+  const nameEl = document.getElementById("zipName");
+  const root = (files[0].webkitRelativePath || files[0].name).split("/")[0] || "scan";
+  const zip = new JSZip();
+  let total = 0;
+  for (const f of files) { zip.file(f.webkitRelativePath || f.name, f); total += f.size; }
+  nameEl.textContent = `폴더 ${root}: ${files.length}개 파일 (${(total / 1048576).toFixed(0)} MB) 묶는 중...`;
+  try {
+    const blob = await zip.generateAsync({ type: "blob", compression: "STORE" },
+      meta => { nameEl.textContent = `폴더 ${root} 묶는 중... ${meta.percent.toFixed(0)}%`; });
+    _files.zip = new File([blob], root + ".zip", { type: "application/zip" });
+    nameEl.textContent = root + ".zip  (" + (blob.size / 1048576).toFixed(1) + " MB, 폴더에서 생성)";
+    document.getElementById("zipZone").classList.add("selected");
+  } catch (e) {
+    nameEl.textContent = "";
+    alert("폴더를 zip 으로 묶지 못했습니다: " + e.message);
+  }
+  input.value = "";
+}
+
+/* ── 업로드 (진행률 표시) ── */
+function uploadWithProgress(url, fd, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+    xhr.upload.onprogress = e => { if (e.lengthComputable) onProgress(e.loaded, e.total); };
+    xhr.onload = () => {
+      let data = null;
+      try { data = JSON.parse(xhr.responseText); } catch (e) { data = { error: "서버 응답 오류 (HTTP " + xhr.status + ")" }; }
+      resolve(data);
+    };
+    xhr.onerror = () => reject(new Error("네트워크 오류로 업로드에 실패했습니다"));
+    xhr.ontimeout = () => reject(new Error("업로드 시간 초과"));
+    xhr.timeout = 30 * 60 * 1000;
+    xhr.send(fd);
+  });
+}
+
 /* ── 위치 지정 ── */
 function setLocationFields(lon, lat) {
   _loc = { lon, lat };
@@ -912,8 +984,11 @@ async function startUpload() {
   setUploadState("processing", title, 0, 5, `파일 업로드 중... (${totalMB} MB)`);
 
   try {
-    const res  = await fetch("/app/3dupload/upload.py", { method: "POST", body: fd });
-    const data = await res.json();
+    const data = await uploadWithProgress("/app/3dupload/upload.py", fd, (loaded, total) => {
+      const pct = Math.round(loaded / total * 100);
+      setUploadState("processing", title, 0, Math.max(1, Math.round(pct * 0.1)),
+                     `업로드 중 ${pct}%  (${(loaded / 1048576).toFixed(0)} / ${(total / 1048576).toFixed(0)} MB)`);
+    });
     if (!data.job_id) throw new Error(data.error || "업로드 실패");
 
     const jobId = data.job_id;

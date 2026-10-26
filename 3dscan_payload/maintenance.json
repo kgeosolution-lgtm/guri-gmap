@@ -1,0 +1,7 @@
+{
+  "once_id": "2026-10-26-orphans-1",
+  "actions": [
+    {"op": "cleanup-orphans"},
+    {"op": "list"}
+  ]
+}

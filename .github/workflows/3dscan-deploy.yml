@@ -28,8 +28,8 @@ jobs:
 
           $src = Join-Path $env:GITHUB_WORKSPACE '3dscan_payload'
           $expected = [ordered]@{
-            'site/3dscan/index.html' = '226304e5eb52d20a7db9bf1ec871a34722c451a87d515c310444c1c15e5b7a59'
-            'site/3dscan/viewer.js' = 'e22219af9e5bf1306c3467bcab1cfffe7c412606a454a522c2154b1a1a969639'
+            'site/3dscan/index.html' = '64888dedb538b5f75bd6bb8742b66c94c693f61fdf05720aead26821db81c00c'
+            'site/3dscan/viewer.js' = '9687c55f96220a2cd329b4689f912da02971280f0b791efb73a1bd29a2c9ac35'
             'site/3dscan/viewer.css' = 'd8b7d7ac548581aa38ce8d655a827812e8bacd4dd40de7435fce1050ac59a914'
             '3dupload/common.py' = 'af4551445364ecec4e645a1c63fca0e6d9aea3e86154031664ebba037b34846f'
             '3dupload/upload.py' = 'eb60d0e8632b1c3d720012afafb2f49e7496c9bcbc6a80e19c7477ed9aa54f7e'
@@ -41,6 +41,8 @@ jobs:
             'tools/pipeline.py' = '3a7d9155e082a47b9ba83d791bc057c493b1d1dc9c425bad5ff199f4e7afb1a0'
             'tools/slpk_step.py' = 'a76ee0bc029538ce8b9d93904ce06cd9294842f0a119d5f3565294b2a0e30b95'
             'tools/register_task.ps1' = 'f715092ec71960880a80d5aa18ebad602786209b229a194d22095e40e0c394ae'
+            'tools/maintenance.py' = '81065bfba05fd13eec43ca566da175cf89288cc6c27977618488aac039f67763'
+            'maintenance.json' = '5cb21357cde2fe7a7fcb4d9899a620186717a977d28513457ba980ab1088a9f2'
             'worker/process_scan.py' = '31edc44eba6a9d1f888df20dde4a8d5f4e6b3ac9922a599d195e8ea919ab9d53'
             'worker/stray_to_mesh.py' = '2c4dc1d2ce92586c7e7e7cafb59ea5143f4775ed16275ece8e513c4a61182ea9'
             'worker/texture_fast.py' = 'fde627b7c0bdf9736e8e0d863984cc4032c7ce569d8ccb610777d85699bad17b'
@@ -208,4 +210,9 @@ jobs:
             foreach ($line in ((& $appcmd list config -section:system.webServer/security/isapiCgiRestriction /text:*) | Select-String -Pattern 'python')) { "CGI ALLOWED: $($line.Line.Trim())" }
           } catch { "HANDLER DIAG FAILED: $($_.Exception.Message)" }
           try { $r = Invoke-WebRequest -Uri 'https://kgeodata.com/app/3dupload/upload.py' -Method POST -Body 'x=1' -UseBasicParsing -TimeoutSec 30; "UPLOAD POST TEST: $($r.StatusCode) $($r.Content)" } catch { $resp = $_.Exception.Response; $code = if ($resp) { [int]$resp.StatusCode } else { '?' }; "UPLOAD POST TEST: HTTP $code (400 = CGI reached, 405/404 = handler problem)" }
+          # 유지보수 작업 (maintenance.json 의 once_id 가 새것일 때만 실행됨)
+          try {
+            $mout = cmd /c ('"' + $venvPy + '" -I "' + (Join-Path $tools 'maintenance.py') + '" --actions "' + (Join-Path $src 'maintenance.json') + '" 2>&1')
+            foreach ($l in $mout) { "MAINT: $l" }
+          } catch { "MAINT: failed - $($_.Exception.Message)" }
           exit 0
