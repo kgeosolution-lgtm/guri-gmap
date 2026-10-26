@@ -1689,6 +1689,7 @@ const joinCache={};   /* 팝업 보조 레이어 rows */
 const _resolved={};   /* 서비스 루트 → 탐색 결과 캐시 */
 const dataCache={};   /* url → rows */
 const loadWhy={};     /* url → 불러오기 실패 이유(화면 안내용) */
+const EV_SYNC_EVERY_MIN=10;   /* 구리시 포털 노트북 스케줄(전기차 상태 갱신) 주기(분). 문구·지연 기준·배경 갱신이 모두 이 값을 쓴다. 아래 setInterval 보다 먼저 선언해야 한다 */
 const FETCH_MS=25000;  /* 자료 요청 한 건의 최대 대기(ms). 서버가 응답을 안 주면(망·VPN 문제) 이 시간 뒤 실패로 처리해 목록이 '불러오는 중…'에 머물지 않게 */
 function fetchT(url,ms){
   const ctl=new AbortController(); const tm=setTimeout(()=>ctl.abort(),ms||FETCH_MS);
@@ -3152,7 +3153,6 @@ function evStat(r,pv,t){
 /* 전기차 자료를 '확인한' 시각: 스케줄 작업이 넣어 주는 수집일시 항목이 있으면 그 최댓값, 없으면 전체 충전기의 상태갱신일시 최댓값
    (322곳 중 어디선가 15분 안에 상태가 바뀌므로 수집 시각과 거의 같다). 자료 묶음마다 한 번만 계산해 둔다 */
 const EV_SYNC_FIELDS=['수집일시','수집시각','데이터수집일시','데이터갱신일시','갱신일시','sync_dt','collected_at'];
-const EV_SYNC_EVERY_MIN=10;   /* 구리시 포털 노트북 스케줄(전기차 상태 갱신) 주기(분). 스케줄을 바꾸면 여기만 */
 const _evSync=new WeakMap(), _evSyncKind=new WeakMap();
 /* 자료의 시각: 레이어에 수집 시각 항목(EV_SYNC_FIELDS)이 있으면 그것(= 스케줄이 확인한 시각, kind 'sync'),
    없으면 충전기 '상태갱신일시'의 최댓값(= 가장 최근에 상태가 바뀐 시각, kind 'status' — 스케줄이 돌아도 상태가 안 바뀌면 그대로라 '확인'이 아니다) */
