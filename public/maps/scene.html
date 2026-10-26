@@ -884,8 +884,7 @@ function showCard(kind,row){
         ${tel?`<div class="ttl" style="margin-top:${addr?'10px':'0'}">📞 전화</div><a class="row-tel" href="tel:${telClean}">${esc(String(tel))}</a>`:''}
         ${kv?`<div style="margin-top:${(addr||tel)?'10px':'0'}">${kv}</div>`:''}
       </div>`:''}
-      ${(telClean||links)?`<div class="btnstack">${telClean?`<a class="btn-tel" href="tel:${telClean}">📞 ${esc(t.telLabel)}</a>`:''}${links}</div>`:''}
-      ${t.foot?`<div class="foot">${esc(t.foot)}</div>`:''}
+      ${(telClean||links||t.foot)?`<div class="btnstack">${telClean?`<a class="btn-tel" href="tel:${telClean}">📞 ${esc(t.telLabel)}</a>`:''}${links}${t.foot?`<div class="foot">${esc(t.foot)}</div>`:''}</div>`:''}
     </div>`;
     el.classList.add('open'); $('main').classList.add('card-open'); el.scrollTop=0;
   }catch(err){ console.warn('[3D 팝업 오류]',err); el.innerHTML=`<div class="hd"><div class="hd-tx"><div class="nm">${esc(String((t.title? t.title(row) : pv(row,t.name))||'-'))}</div></div><button class="close" onclick="hideCard()" aria-label="닫기">✕</button></div><div class="bd">정보를 표시하는 중 문제가 있었어요.</div>`; el.classList.add('open'); }

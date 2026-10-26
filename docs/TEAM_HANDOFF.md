@@ -980,3 +980,9 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 팝업의 "마지막 상태 변경 n분 전 · …"을 빼고 **"상태는 10분마다 새로 받아요"**만 표시(목록의 "상태 변경 n분 전"도 제거). 레이어에 수집 시각 항목이 생기면 전처럼 "n분 전 확인 · 10분마다 갱신돼요"로 자동 전환(`evWhenTxt`).
 - '충전중 n시간째'가 갈수록 "며칠째"로 늘던 원인: 환경부 자료의 `충전중시작`/`마지막충전시작`이 세션이 바뀔 때 번갈아 갱신되지 않아 지난 세션 값이 남고, 화면은 그 값을 그대로 썼음. `evNowStart()` 규칙을 보강: ① 미래 값 버림 ② `마지막충전종료`보다 앞(지난 세션) 버림 ③ `상태갱신일시`보다 10분 넘게 뒤(그 상태와 무관) 버림 ④ 24시간 넘게 '충전중'(`EV_NOW_MAX_H`)이면 숨김 ⑤ 둘 다 맞으면 더 늦은 쪽. 못 믿을 값이면 '몇 분째'를 붙이지 않음 → "며칠째"는 더 안 나옴.
 - 검증: 하네스 `ev-nowt-test.js`(캡처 줄 꼴 포함 9경우), `ev-when-test.js`, 치안안심 하네스, theme `node --check`, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-ev-wording`.
+
+## 2026-10-26 팝업 맨 아래 안내 한 줄이 잘리던 것 수정 (담당: 강민아)
+
+- 원인: 전화·길찾기 단추 묶음(`.btnstack`)을 카드 아래에 붙이면서(#106, `position:sticky`) 그 뒤에 오던 안내 한 줄(`.foot`, "운영시간은 등록 정보 기준…")이 단추 묶음에 가려짐.
+- 조치: 안내 한 줄을 단추 묶음 안 맨 아래로 옮김(우리동네 찾기·3D 팝업). 단추와 함께 붙어 따라오며 항상 보임.
+- 검증: 지도 2쪽 `node --check`, Playwright 견본 팝업(끝까지 스크롤) 캡처, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-popup-foot`.
