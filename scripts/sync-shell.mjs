@@ -5,7 +5,10 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 const nav = JSON.parse(readFileSync('src/config/shell-nav.json', 'utf8'));
 const site = readFileSync('src/config/site.config.ts', 'utf8');
-const features = { animalMap: /animalMap:\s*true/.test(site) };
+const features = {
+  animalMap: /animalMap:\s*true/.test(site),
+  reviewWidget: /reviewWidget:\s*true/.test(site),
+};
 const PAGES = {
   'public/maps/theme.html': { name: '우리동네 찾기', active: '우리동네 찾기' },
   'public/maps/animal.html': { name: '유기동물 찾기', active: '유기동물 찾기' },
@@ -46,13 +49,27 @@ function header({ name, active }) {
     `</div></header><!-- /shell:header -->`
   );
 }
+function review() {
+  const tag = '<script src="/review/review.js" defer></script>';
+  return (
+    '<!-- shell:review -->' +
+    (features.reviewWidget
+      ? tag
+      : `<!-- 수정 요청 위젯(features.reviewWidget=false 로 끔): ${tag.replace(/</g, '&lt;')} -->`) +
+    '<!-- /shell:review -->'
+  );
+}
 let changed = 0;
 for (const [file, cfg] of Object.entries(PAGES)) {
   const src = readFileSync(file, 'utf8');
   const re =
     /<!-- shell:header[\s\S]*?<!-- \/shell:header -->|<header class="service-header[\s\S]*?<\/header>/;
   if (!re.test(src)) throw new Error(`헤더를 못 찾음: ${file}`);
-  const out = src.replace(re, header(cfg));
+  let out = src.replace(re, header(cfg));
+  /* 검토용 "수정 요청" 위젯(site.config features.reviewWidget) — 끄면 script 한 줄이 주석으로 바뀐다 */
+  const rw = /<!-- shell:review -->[\s\S]*?<!-- \/shell:review -->/;
+  if (!rw.test(out)) throw new Error(`검토 위젯 표식을 못 찾음: ${file}`);
+  out = out.replace(rw, review());
   if (out !== src) {
     writeFileSync(file, out);
     changed++;
