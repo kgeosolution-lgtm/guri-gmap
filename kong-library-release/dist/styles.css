@@ -119,3 +119,25 @@
  .toast{width:max-content;max-width:calc(100% - 32px);font-size:12px;line-height:1.6;text-align:center;bottom:max(22px,env(safe-area-inset-bottom));padding:12px 18px}
 }
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important}}
+
+.result-line{align-items:center;gap:12px}
+#result-label{min-width:0;overflow-wrap:anywhere}
+.result-tools{display:flex;align-items:center;gap:14px;flex-shrink:0}
+#trash-view{min-height:44px;padding:8px 0;color:#92728c;font-size:12px;text-decoration:none}
+#trash-view[aria-pressed=true]{color:#62406e;font-weight:700}
+.card-restore{font-size:23px;color:#805588}
+.item-management{display:flex;align-items:center;justify-content:space-between;gap:22px;border-top:1px solid #e9dfea;margin-top:38px;padding-top:24px}
+.item-management strong{font-size:14px;color:#876c8b}
+.item-management p{font-size:12px;line-height:1.8;color:#a38a9f;margin-top:5px}
+.delete-button,.restore-button{min-height:44px;padding:12px 16px;border:1px solid #e8cdd5;border-radius:12px;background:#fff9fb;color:#a56176;font-size:12px;white-space:nowrap}
+.restore-button{border-color:#ddcde4;color:#805588;background:#f9f0fc}
+#delete-dialog{width:calc(100% - 32px);max-width:390px;padding:27px 24px 20px;border:1px solid #ead8e8;border-radius:22px;background:#fffafd;color:#614768;box-shadow:0 20px 80px #42223d33}
+#delete-dialog::backdrop{background:#37253f66;backdrop-filter:blur(3px)}
+#delete-dialog h2{font-size:22px;letter-spacing:-.6px;line-height:1.5}
+.delete-item-title{font-size:15px;font-weight:650;line-height:1.7;margin-top:16px;word-break:keep-all;overflow-wrap:anywhere}
+#delete-dialog-description{font-size:13px;line-height:1.9;color:#977b93;margin-top:12px}
+.dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:24px}
+.dialog-actions button{min-width:76px;min-height:44px;border-radius:12px;padding:12px 18px;font-size:14px;border:1px solid #e9ddea;background:#fff}
+.dialog-actions .confirm-delete{background:#a75d7d;border-color:#a75d7d;color:white}
+@media(max-width:720px){.result-tools{gap:12px}.result-line button{font-size:11px}.item-management{display:block;margin-top:30px;padding-top:22px}.delete-button,.restore-button{margin-top:14px;width:100%;font-size:14px;min-height:48px}.item-management p{font-size:12px}}
+@media print{.item-management,#delete-dialog,.result-tools{display:none!important}}
