@@ -252,9 +252,18 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
         try:
-            Queue(sys.argv[2]).update(status="failed", message=str(e)[:300])
+            meta_dir = os.path.dirname(os.path.abspath(sys.argv[1]))
+            with open(os.path.join(meta_dir, "out", "pipeline_error.log"), "a", encoding="utf-8") as f:
+                f.write(time.strftime("%Y-%m-%d %H:%M:%S") + "\n" + tb + "\n")
+        except Exception:
+            pass
+        try:
+            Queue(sys.argv[2]).update(status="failed", message=("실패: " + str(e))[:300], error_detail=tb[-1500:])
         except Exception:
             pass
         log("실패: " + str(e))
+        print(tb, flush=True)
         sys.exit(1)

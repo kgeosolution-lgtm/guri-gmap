@@ -83,9 +83,15 @@ def run_pipeline(queue_path, data):
             if json.load(f).get("status") != "done":
                 set_status(queue_path, status="done", message="처리 완료")
     else:
-        err = (proc.stderr or proc.stdout or "알 수 없는 오류").strip()[-600:]
-        log.error(f"[{job_id}] 실패: {err}")
-        set_status(queue_path, status="failed", message=err.splitlines()[-1] if err else "처리 실패")
+        err = ((proc.stderr or "") + "\n" + (proc.stdout or "")).strip()[-1200:]
+        log.error(f"[{job_id}] 실패:\n{err}")
+        # pipeline.py 가 이미 자기 오류 메시지를 큐 파일에 적었으면 그대로 둔다
+        with open(queue_path, "r", encoding="utf-8") as f:
+            cur = json.load(f)
+        if cur.get("status") == "failed" and str(cur.get("message", "")).startswith("실패:"):
+            return
+        fail_line = next((l for l in reversed(err.splitlines()) if l.strip() and ("실패" in l or "Error" in l or "error" in l)), None)
+        set_status(queue_path, status="failed", message=(fail_line or "처리 실패")[:300], error_detail=err)
 
 
 def main():

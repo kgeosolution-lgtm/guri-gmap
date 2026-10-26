@@ -23,7 +23,7 @@ def main():
         "job_id": job_id, "status": q.get("status", "pending"), "step": step,
         "step_name": STEP_NAMES[min(step, len(STEP_NAMES) - 1)], "message": q.get("message", ""),
         "scene_item_id": q.get("scene_item_id"), "glb_url": q.get("glb_url"),
-        "updated_at": q.get("updated_at"),
+        "updated_at": q.get("updated_at"), "error_detail": q.get("error_detail"),
     })
 
 
