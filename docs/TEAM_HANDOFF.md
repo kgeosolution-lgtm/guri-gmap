@@ -1007,3 +1007,18 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - **robots.txt**(`public/robots.txt`): 전체 허용, `/review/` 만 제외.
 - **링크 미리보기 그림**(og:image): 카톡·문자·SNS 에 링크를 보낼 때 뜨는 그림이 없었음 → 겨울 대표사진을 1200×630 `public/images/og-cover.jpg`(약 210KB)로 만들어 홈·지도 4쪽에 절대 주소로 넣음. 배포 origin 은 `scripts/build-deploy.mjs` 의 `origin`(→ `NEXT_PUBLIC_SITE_ORIGIN`, `src/config/paths.ts` `absUrl()`), 지도 4쪽은 빌드 때 치환. 도메인이 바뀌면 origin 만 바꾸면 된다(오픈 준비 ② 에서 한 곳으로 모음). 카톡은 미리보기를 캐시하므로 바뀐 그림이 바로 안 보일 수 있음.
 - 검증: 위젯 스위치 on/off 둘 다 sync-shell 로 확인(off 면 script 가 주석으로), `npx tsc --noEmit`, prettier, `npm run build:deploy`(out 의 og:image 절대 주소·robots·404 확인), Playwright 404 페이지 데스크톱·모바일 캡처, `git diff --check` 통과. 브랜치 `work/kangmina-launch-prep`.
+
+## 2026-10-26 오픈 준비 ②: 배포 주소 한 곳(deploy.config.json), 최종 도메인 전환 체크리스트 (담당: 강민아)
+
+- **배포 주소 한 곳**: 루트의 `deploy.config.json` — `origin`(https://kgeodata.com)·`base`(/app/guri). `scripts/build-deploy.mjs` 가 읽어 홈 basePath, 지도 4쪽 경로 치환, og:image 절대 주소, `deployment.json` 의 `url` 까지 모두 맞춘다. 한 번만 다르게 빌드하려면 환경변수 `DEPLOY_ORIGIN` / `DEPLOY_BASE`. 사이트 루트에 두면 `base` 를 `""` 로(확인: `DEPLOY_ORIGIN=https://예시.go.kr DEPLOY_BASE= npm run build:deploy` → 모든 링크가 `/maps/…`, og:image 가 `https://예시.go.kr/images/…`).
+- `scripts/deploy-iis.ps1`: 확인 URL 을 `deployment.json` 의 `url` 에서 읽고, 웹 폴더는 `-Target` 매개변수(기본값은 미리보기 서버 폴더). 최종 서버에선 워크플로의 호출만 `-Target 'D:\…'` 로 바꾸면 된다.
+- **11월 최종 도메인 전환 체크리스트**(도메인 정해지면 순서대로):
+  1. `deploy.config.json` 의 `origin`·`base` 수정 → 빌드 후 `out/deployment.json` 의 `url` 확인.
+  2. 도메인 등록형 API 키 재등록(등록 안 된 도메인에서는 타일·로드뷰가 안 나옴):
+     - 국토정보플랫폼 항공사진 `public/maps/aerial.html` `NGII.apiKey` — 오픈API 신청 도메인에 최종 도메인 추가(또는 새 키).
+     - 브이월드 `public/maps/aerial.html` `VW.key` — 브이월드 인증키 관리에서 도메인 추가. (우리동네 찾기 `theme.html` 의 `vworldKey` 는 비어 있어 기본 지도를 쓰므로 해당 없음.)
+     - 카카오 로드뷰 `public/maps/aerial.html` `KAKAO.jsKey` — 카카오 개발자 콘솔 > 플랫폼 > Web 사이트 도메인에 추가. (카톡 공유 `gmap-share.js` `KAKAO_JS_KEY` 는 비워 두기로 함 — 단추 숨김.)
+  3. 서버: IIS 사이트(또는 가상 디렉터리)에 `out` 배포, 404 오류 페이지를 `404.html` 로 지정(오픈 준비 ① 참고), 워크플로 `guri-preview.yml` 의 러너·`-Target` 조정.
+  4. 오픈 직전: `src/config/site.config.ts` `features.reviewWidget: false`(검토 위젯 제거), `npm run build:deploy` 후 지도 4쪽에 `review.js` 가 주석으로 바뀌었는지 확인.
+  5. 카톡 미리보기(og:image)는 캐시가 남을 수 있음 — 카카오 공유 디버거에서 새로고침.
+- 검증: 기본 빌드와 루트 도메인 덮어쓰기 빌드 둘 다 `npm run build:deploy` 통과(링크·og:image·deployment.json 확인), prettier, `git diff --check` 통과. 브랜치 `work/kangmina-deploy-config`.

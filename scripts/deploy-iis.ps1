@@ -1,6 +1,7 @@
-param([Parameter(Mandatory=$true)][string]$Source)
+param([Parameter(Mandatory=$true)][string]$Source, [string]$Target = 'D:\codesolution\kgeodata\guri')
 $ErrorActionPreference = 'Stop'
-$target = 'D:\codesolution\kgeodata\guri'
+# 서버의 웹 폴더(미리보기 서버 기준). 최종 서버에선 -Target 으로 바꿔 부른다. 확인 URL 은 deployment.json 의 url(= deploy.config.json origin+base)을 쓴다.
+$target = $Target
 $backupRoot = 'D:\guri-deploy-backups'
 $sourcePath = (Resolve-Path -LiteralPath $Source).Path
 $targetPath = (Resolve-Path -LiteralPath $target).Path
@@ -23,10 +24,11 @@ try {
     Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $targetPath $relative) -Force
   }
   Copy-Item -LiteralPath (Join-Path $sourcePath 'deployment.json') -Destination $targetPath -Force
-  $live = Invoke-RestMethod -Uri ('https://kgeodata.com/app/guri/deployment.json?check=' + [DateTimeOffset]::UtcNow.ToUnixTimeSeconds())
   $expected = Get-Content -LiteralPath (Join-Path $sourcePath 'deployment.json') -Raw | ConvertFrom-Json
+  $siteUrl = if ($expected.url) { $expected.url } else { 'https://kgeodata.com/app/guri/' }
+  $live = Invoke-RestMethod -Uri ($siteUrl + 'deployment.json?check=' + [DateTimeOffset]::UtcNow.ToUnixTimeSeconds())
   if ($live.commit -ne $expected.commit) { throw 'Published commit does not match' }
-  foreach ($url in @('https://kgeodata.com/app/guri/','https://kgeodata.com/app/guri/maps/theme.html','https://kgeodata.com/app/guri/maps/animal.html')) {
+  foreach ($url in @($siteUrl, ($siteUrl + 'maps/theme.html'), ($siteUrl + 'maps/animal.html'))) {
     $response = Invoke-WebRequest -Uri $url -UseBasicParsing
     if ($response.StatusCode -ne 200) { throw "HTTP check failed: $url" }
   }

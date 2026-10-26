@@ -1,8 +1,13 @@
 import { spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
-const base = '/app/guri';
-const origin = 'https://kgeodata.com'; // og:image 등 절대 주소가 필요한 곳에만
+// 배포 주소는 deploy.config.json 한 곳(환경변수 DEPLOY_ORIGIN / DEPLOY_BASE 로 한 번만 덮어쓸 수 있음)
+const cfg = JSON.parse(readFileSync('deploy.config.json', 'utf8'));
+const origin = (process.env.DEPLOY_ORIGIN ?? cfg.origin).replace(/\/+$/, '');
+const base = (process.env.DEPLOY_BASE ?? cfg.base).replace(/\/+$/, '');
+if (!/^https?:\/\/[^/]+$/.test(origin))
+  throw new Error(`origin 형식: https://도메인 (지금: ${origin})`);
+if (base && !base.startsWith('/')) throw new Error(`base 는 / 로 시작(지금: ${base})`);
 // 지도 4쪽의 정적 헤더를 메뉴 설정(shell-nav.json)과 맞춘다
 const sync = spawnSync(process.execPath, ['scripts/sync-shell.mjs'], { stdio: 'inherit' });
 if (sync.status !== 0) process.exit(sync.status || 1);
@@ -73,9 +78,10 @@ writeFileSync(
       commit: process.env.GITHUB_SHA || 'local-verification',
       branch: process.env.GITHUB_REF_NAME || 'local',
       builtAt: new Date().toISOString(),
+      url: `${origin}${base}/`,
     },
     null,
     2,
   ),
 );
-console.log(`Static deployment ready: out -> https://kgeodata.com${base}/`);
+console.log(`Static deployment ready: out -> ${origin}${base}/`);
