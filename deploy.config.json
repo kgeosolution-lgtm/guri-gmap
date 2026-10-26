@@ -1,0 +1,5 @@
+{
+  "_comment": "배포 주소 한 곳(담당: 강민아). 11월 최종 도메인으로 옮길 때 origin·base 만 바꾸면 홈·지도 4쪽·og:image·deployment.json 이 모두 따라온다. 사이트 루트에 두면 base 를 \"\" 로. 한 번만 다르게 빌드하려면 환경변수 DEPLOY_ORIGIN / DEPLOY_BASE 가 이 값을 덮어쓴다. 도메인 등록형 API 키(국토정보플랫폼·브이월드·카카오)는 별도 재등록 — docs/TEAM_HANDOFF.md '오픈 준비 ②' 참고.",
+  "origin": "https://kgeodata.com",
+  "base": "/app/guri"
+}
