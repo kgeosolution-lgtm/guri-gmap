@@ -3145,10 +3145,24 @@ function evStat(r,pv,t){
     const upd=toDate(pv(b,['상태갱신일시']));
     if(upd&&(!newest||upd>newest)) newest=upd;
     list.push({id:pv(b,['충전기id','충전기ID','충전기번호']),fast,kw,st,
-               upd:upd, endT:toDate(pv(b,['마지막충전종료'])), nowT:toDate(pv(b,['충전중시작']))});
+               upd:upd, endT:toDate(pv(b,['마지막충전종료'])), nowT:evNowStart(b,pv,st)});
   });
   list.sort((a,b)=>String(a.id).localeCompare(String(b.id),'ko',{numeric:true}));
   return {total,avail,fastN,fastA,slowN,slowA,list,newest};
+}
+/* 충전중인 충전기의 '언제부터' 시각. 환경부 자료의 '충전중시작'(nowTsdt)은 이전 세션 값이 남거나 9시간 앞선(미래) 값이 섞여 믿기 어려워,
+   '마지막충전시작'(lastTsdt — 상태갱신일시와 맞아떨어짐)을 먼저 쓰고 없을 때만 '충전중시작'. 미래이거나 '마지막충전종료'보다 앞이면(이미 끝난 세션) 버린다 */
+function evNowStart(b,pv,st){
+  if(st!=='충전중') return null;
+  const end=toDate(pv(b,['마지막충전종료']));
+  const cands=[toDate(pv(b,['마지막충전시작'])), toDate(pv(b,['충전중시작']))];
+  for(const d of cands){
+    if(!d) continue;
+    if(d.getTime()>Date.now()+5*60000) continue;          /* 미래 값(시간대 중복 변환 등) */
+    if(end&&d.getTime()<end.getTime()) continue;          /* 종료 시각보다 앞 = 지난 세션 */
+    return d;
+  }
+  return null;
 }
 /* 전기차 자료를 '확인한' 시각: 스케줄 작업이 넣어 주는 수집일시 항목이 있으면 그 최댓값, 없으면 전체 충전기의 상태갱신일시 최댓값
    (322곳 중 어디선가 15분 안에 상태가 바뀌므로 수집 시각과 거의 같다). 자료 묶음마다 한 번만 계산해 둔다 */
