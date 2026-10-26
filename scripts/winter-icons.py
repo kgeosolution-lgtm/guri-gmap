@@ -1,5 +1,5 @@
 """우리동네 찾기 '시즌·겨울' 심볼(72×72, 색 원 + 흰 그림): safety-icons.py 의 도형 도구를 그대로 써서 같은 결로 그린다.
-   python3 scripts/winter-icons.py <출력폴더>  → winter_shelter·saltbox·icyroad·icyroad_p.png (theme.html SYM 에 base64 로 넣는다)"""
+   python3 scripts/winter-icons.py <출력폴더>  → winter_shelter·saltbox·icyroad·icyroad_p.png (public/maps/sym/theme/ 에 넣고 theme.html SYM_FILES 에 키 추가)"""
 import os, sys, math, importlib.util
 HERE=os.path.dirname(os.path.abspath(__file__))
 def load(name):

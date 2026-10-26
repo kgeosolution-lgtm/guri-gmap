@@ -1022,3 +1022,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
   4. 오픈 직전: `src/config/site.config.ts` `features.reviewWidget: false`(검토 위젯 제거), `npm run build:deploy` 후 지도 4쪽에 `review.js` 가 주석으로 바뀌었는지 확인.
   5. 카톡 미리보기(og:image)는 캐시가 남을 수 있음 — 카카오 공유 디버거에서 새로고침.
 - 검증: 기본 빌드와 루트 도메인 덮어쓰기 빌드 둘 다 `npm run build:deploy` 통과(링크·og:image·deployment.json 확인), prettier, `git diff --check` 통과. 브랜치 `work/kangmina-deploy-config`.
+
+## 2026-10-26 오픈 준비 ③: 우리동네 찾기 용량 718KB → 290KB (아이콘을 파일로) (담당: 강민아)
+
+- `theme.html` 에 테마 아이콘 75개가 base64 로 내장돼(449KB) 모바일 첫 로딩이 무거웠음 → `public/maps/sym/theme/<키>.png`(72×72, 총 약 330KB, 브라우저가 캐시) 로 빼고, 페이지는 `SYM_FILES` 키 목록으로 주소만 만든다(`sym/theme/<키>.png`, 상대 경로라 배포 base 와 무관).
+- 예외: `culture_dulle_fac`(둘레길 시설물)만 base64 유지 — 코스별 색을 입히는 `tintSym()` 이 SVG `<image>` 안에 그림을 넣는데, data URL 로 만든 SVG 는 외부 파일을 못 불러오기 때문.
+- 새 아이콘 추가: png 를 저 폴더에 넣고 `SYM_FILES` 에 키만 추가(`scripts/winter-icons.py` 설명도 맞춤).
+- 검증: theme `node --check`, Playwright(생활편의 가짜 자료: 칩 9개 아이콘 모두 로드, sym 요청 27건 전부 200, 목록·범례 아이콘 표시), 기존 하네스(칩 건수·치안안심·전기차 문구), `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-theme-size`.
