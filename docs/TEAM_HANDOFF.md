@@ -1035,3 +1035,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 지운 것(홈·`/v1`·404 어디서도 import 하지 않음): `src/components/ComingSoon.tsx`, `HeroKrds.tsx`, `MapsNow.tsx`, `krds/KrdsFooter.tsx`.
 - 그대로 둔 것: `/v1`(보존 원칙 — README·이 문서 앞부분)과 `/v1` 이 쓰는 컴포넌트·설정(`Layout`, `SeasonalHero`, `NowGuri`, `QuickFinder`, `RecommendedMaps`, `SpatialInfo`, `UrbanStats`, `ContentSections`, `DevSeasonToolbar`, `ui`, `categories/external-links/featured/layers.config`). `/v1` 을 없애기로 하면 그때 이 묶음을 한꺼번에 지우면 된다(`build-deploy.mjs` 의 `v1/index.html` 필수 목록도 함께).
 - 검증: `npx tsc --noEmit`, prettier, `npm run build:deploy`(`/v1` 포함), `git diff --check` 통과. 브랜치 `work/kangmina-dead-code`.
+
+## 2026-10-26 칩을 바꿔도 축척 고정(구리시 전체 화면으로) (담당: 강민아)
+
+- 담당자 지적: 생활편의에서 전기차 칩을 고르면 천안시까지 보이고, 주차장 칩은 너무 확대됨. 원인: 칩을 고를 때 그 자료의 범위로 지도를 맞추는 코드(`setCat` 의 `catExtent`) — 전기차 자료에 시 밖 좌표(천안 부근) 한 건이 섞여 범위가 거기까지 늘어났고, 자료가 좁게 모인 테마는 반대로 확대됐음.
+- 조치(`theme.html`): 칩을 바꿀 때 자료 범위로 맞추지 않고 **구리시 전체 화면**(`resetView`, 시작 화면·'처음 화면' 단추와 같은 범위)으로 돌아온다. 동을 고른 상태면 그 동 화면을 그대로 둔다. `catExtent()` 는 더 안 써서 삭제. 교통 '공사·통제'(수도권 자료)도 같은 규칙 — 시 밖 항목은 목록에서 누르면 그 자리로 간다.
+- 자료 쪽 확인 권장: `life_evcharge_new` 에 구리시 밖 좌표(천안 부근) 충전소가 한 건 이상 있음 → 노트북 갱신 때 구리시 범위 밖 좌표는 걸러 주면 좋다.
+- 검증: Playwright(가짜 자료: 전기차에 천안 좌표 1건 포함) 에서 전기차·주차장 칩 모두 구리시 중심·같은 배율로 이동, 동 선택 중엔 이동 없음; 기존 하네스(칩 건수·치안안심·전기차 문구), theme `node --check`, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-fixed-extent`.
