@@ -35,9 +35,9 @@ jobs:
             'assets/gy_data.js' = 'ee3bc2c6a297580257f8ae24300d0d17abf5d75dee167f4eaca0fd6b79d98d81'
             'assets/law_texts.js' = 'f707c5a3516b64916d06676b4c0cfcc623ca49c12de45ccec0c78ef65e7526ee'
             'assets/rules.js' = '7154e320f4a028ab5803b8c838e47f218a173ecca71910dfffa9d5a9b53f4206'
-            'assets/scene3d.js' = 'dc5236185f30a5d14db6808631d54bd8f9a9fd947a4a1b6874b3809a14d03808'
+            'assets/scene3d.js' = 'cf7dee5acaeaf10f15abde2c6a9b36b2378ee4dd7c8ce83bb2d866085a0753ea'
             'assets/tools.js' = '5c9fb045d7b9d7781a11a59dc5008f60ecc5b464df640e2a47fd559c95bef3f4'
-            'index.html' = 'a68b5f71574a0b81078deeb9a6eafc9d0a887a68f542140a739fbe89cb5765aa'
+            'index.html' = '779711aac3b0540113dff39a710a2fa2dcc3a27d7703aa2c819ba10d6eb952fe'
             'web.config' = '216e727d9ae34fdf499be4fa06b962ef68f91cd3e8a1a7c1003c6f840e9af398'
           }
           function Test-Tree($root, $label) {

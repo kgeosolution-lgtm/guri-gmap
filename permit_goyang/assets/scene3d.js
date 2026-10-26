@@ -11,10 +11,12 @@
 var A=function(){ return window.GYAPP; };
 var HOST="https://kgeodata.com/server/rest/services/Hosted/";
 var ELEV=["https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer",HOST+"NGII_DEM_5m/ImageServer"];
-// 경기도 3D 건물 (포털 씬 레이어, 2025-08-12 자료): LOD1(전 건물)만 씀
+// 경기도 3D 건물 LOD1 (포털, 2025-08-12 자료) — 같은 자료의 피처 서비스(바닥 모양 + 건물높이 bldg_hgt)를 지면 위로 세움.
+//   씬 레이어(3D 모형)는 바닥 높이가 건물마다 섞여 있어(0 기준 / 해발 기준) 어떤 배치로도 일부가 뜨거나 묻힘 (2026-10-26 확인)
+//   → 바닥 모양 × 높이로 세우면 모든 건물이 지형에 붙음. 고양 106,922동 중 99.2%가 높이 있음, 없으면 지상층수×층고
 //   LOD2는 일부 건물만 있어(노드 46개, 고양 일대 수십 동 — 2026-10-22 nodepages 확인) 넣지 않음
 var LOD={
-  lod1:{url:HOST+"LOD1_GGD_3D_Buildings_250812_2/SceneServer/layers/0",label:"LOD1",pnu:"pnu"}
+  lod1:{url:HOST+"LOD1_GGD_3D_Buildings_250812_2/FeatureServer/0",label:"LOD1",pnu:"pnu"}
 };
 var FLOOR_H=3.3;     // 매스 층고(m) — 근생·업무 기준 개략값
 var WINTER=new Date(Date.UTC(2026,11,22,3,0)); // 동지 12월 22일 정오(KST)
@@ -61,18 +63,69 @@ async function init(){
   view3d.ui.move(["zoom","navigation-toggle","compass"],"top-right"); // 왼쪽 위는 레이어 카드 자리 (2D와 같은 쪽)
   try{ view3d.highlightOptions={color:[174,182,27,1],haloOpacity:0.9,fillOpacity:0.2}; }catch(e){}
   view3d.on("click",function(e){ if(e.button===2||(window.GY_TOOLS&&GY_TOOLS.busy())) return; if(e.mapPoint) app.selectAtPoint(e.mapPoint,true); });
+  view3d.watch("stationary",function(s){ if(s) refreshLod(); }); // 카메라가 멈출 때마다 둘레 건물 받기
 }
 
-// 경기도 LOD 건물: 고른 것 하나만 세움
+// 경기도 LOD1 건물: 서비스는 3D(멀티패치)라 API가 그대로 그리면 같은 z 문제가 생김 → REST로 바닥 모양만(z 없이) 받아
+//   클라이언트 레이어에 넣고 높이만큼 지면에서 세움. 카메라 둘레 400m 칸 단위로 받아 두고, 멀어진 칸은 지움 (ngii5000 건물과 같은 방식)
+var TILE=400, LOD_MAX=25000, lodTiles=new Map(), lodBusy=Promise.resolve();
 function lodLayer(k){
   if(!bldgLayers[k]){
-    // 건물 높이(z)가 지면 0 기준이라 그대로(절대 높이) 두면 지형 아래 묻힘 → 지형 위에 얹음 (2026-10-22 확인)
-    var l=new M.SceneLayer({url:LOD[k].url,title:"경기도 3D 건물 ("+LOD[k].label+")",popupEnabled:false,elevationInfo:{mode:"relative-to-ground"},
-      renderer:{type:"simple",symbol:{type:"mesh-3d",symbolLayers:[{type:"fill",material:{color:[236,231,222,1],colorMixMode:"replace"},
-        edges:{type:"solid",color:[90,84,74,0.45],size:0.6}}]}}});
+    var l=new M.FeatureLayer({title:"경기도 3D 건물 ("+LOD[k].label+")",popupEnabled:false,source:[],objectIdField:"oid",geometryType:"polygon",
+      spatialReference:{wkid:102100},fields:[{name:"oid",type:"oid"},{name:"sid",type:"integer"},{name:"hgt",type:"double"}],outFields:["*"],
+      elevationInfo:{mode:"on-the-ground"},
+      renderer:{type:"simple",symbol:{type:"polygon-3d",symbolLayers:[{type:"extrude",material:{color:[236,231,222,1]},edges:{type:"solid",color:[90,84,74,0.45],size:0.6}}]},
+        visualVariables:[{type:"size",field:"hgt",valueUnit:"meters"}]}});
     l._k=k; bldgLayers[k]=l; bldgGroup.add(l);
   }
   return bldgLayers[k];
+}
+function refreshLod(){ lodBusy=lodBusy.then(syncLod).catch(function(e){ console.warn("3D 건물 불러오기 실패",e&&e.message); }); return lodBusy; }
+async function syncLod(){
+  var l=bldgLayers.lod1; if(!l||!view3d||mode!=="3d"||!view3d.ready) return;
+  var sc=view3d.scale, want=new Set();
+  if(sc<=25000){
+    var c=view3d.center, x=c.x, y=c.y;
+    if(c.spatialReference&&c.spatialReference.isGeographic){ x=c.longitude*20037508.34/180; y=Math.log(Math.tan((90+c.latitude)*Math.PI/360))*20037508.34/Math.PI; }
+    var r=sc<=6000?800:1400, tx=Math.floor(x/TILE), ty=Math.floor(y/TILE), n=Math.ceil(r/TILE);
+    for(var dx=-n;dx<=n;dx++) for(var dy=-n;dy<=n;dy++) want.add((tx+dx)+"/"+(ty+dy));
+  }
+  var del=[], count=0;
+  lodTiles.forEach(function(oids,key){ if(!want.has(key)){ oids.forEach(function(o){ del.push({objectId:o}); }); lodTiles.delete(key); } else count+=oids.length; });
+  if(del.length) await l.applyEdits({deleteFeatures:del});
+  // 가까운 칸부터 8개씩 동시에 받아 바로바로 세움
+  var cx0=Math.floor(x/TILE), cy0=Math.floor(y/TILE);
+  var todo=[...want].filter(function(k){ return !lodTiles.has(k); }).sort(function(a,b){
+    var p=a.split("/"), q=b.split("/"); return Math.hypot(p[0]-cx0,p[1]-cy0)-Math.hypot(q[0]-cx0,q[1]-cy0); });
+  for(var i=0;i<todo.length&&count<LOD_MAX;i+=8){
+    var batch=todo.slice(i,i+8); batch.forEach(function(k){ lodTiles.set(k,[]); });
+    var got=await Promise.all(batch.map(loadLodTile));
+    var adds=[], keys=[];
+    got.forEach(function(gs,j){ gs.forEach(function(g){ adds.push(g); keys.push(batch[j]); }); });
+    if(!adds.length) continue;
+    var res=await l.applyEdits({addFeatures:adds});
+    (res.addFeatureResults||[]).forEach(function(a,j){ if(!a.error){ var t=lodTiles.get(keys[j]); if(t){ t.push(a.objectId); count++; } } });
+    hideExistingOnParcel();
+    if(mode!=="3d") return;
+  }
+}
+// 한 칸(400m)의 건물 바닥 → 높이 붙인 그래픽. 칸 경계에 걸친 건물이 두 번 들어가지 않게 중심이 이 칸에 있는 것만
+function loadLodTile(key){
+  var p=key.split("/").map(Number), env=[p[0]*TILE,p[1]*TILE,(p[0]+1)*TILE,(p[1]+1)*TILE].join(",");
+  return fetch(LOD.lod1.url+"/query?"+new URLSearchParams({geometry:env,geometryType:"esriGeometryEnvelope",inSR:"102100",spatialRel:"esriSpatialRelEnvelopeIntersects",
+    outFields:"objectid,bldg_hgt,grnd_nofl",returnGeometry:"true",returnZ:"false",outSR:"102100",maxAllowableOffset:"0.3",resultRecordCount:"4000",f:"json"}))
+  .then(function(r){ return r.json(); }).then(function(d){
+    var out=[];
+    (d.features||[]).forEach(function(f){
+      var g=f.geometry; if(!g||!g.rings||!g.rings.length) return;
+      var rg=g.rings.map(function(ring){ return ring.map(function(v){ return [v[0],v[1]]; }); }), r0=rg[0], cx=0, cy=0;
+      r0.forEach(function(v){ cx+=v[0]; cy+=v[1]; }); cx/=r0.length; cy/=r0.length;
+      if(Math.floor(cx/TILE)!==p[0]||Math.floor(cy/TILE)!==p[1]) return;
+      var a=f.attributes, h=a.bldg_hgt>0?a.bldg_hgt:(a.grnd_nofl>0?a.grnd_nofl*FLOOR_H:3);
+      out.push(new M.Graphic({geometry:{type:"polygon",rings:rg,spatialReference:{wkid:102100}},attributes:{sid:a.objectid,hgt:h}}));
+    });
+    return out;
+  }).catch(function(){ lodTiles.delete(key); return []; }); // 실패한 칸은 다음에 다시
 }
 function setBldg(kind){
   bldgKind=kind;
@@ -174,7 +227,13 @@ function hideExistingOnParcel(){
   view3d.whenLayerView(l).then(function(lv){
     if(!S||!S.geom){ lv.filter=null; return; }
     var k=Math.cos(S.lat*Math.PI/180), inner=M.ge.buffer(S.geom,-0.5/k,"meters")||S.geom;
-    lv.filter={geometry:inner,spatialRelationship:"disjoint"};
+    // 3D 피처 레이어뷰는 공간 필터가 전체를 가리는 경우가 있어, 서버에서 필지 안 건물 objectid(sid)를 찾아 속성 필터로 제외
+    return fetch(LOD.lod1.url+"/query",{method:"POST",body:new URLSearchParams({geometry:JSON.stringify(inner.toJSON()),geometryType:"esriGeometryPolygon",spatialRel:"esriSpatialRelIntersects",returnIdsOnly:"true",f:"json"})})
+      .then(function(r){ return r.json(); }).then(function(d){
+        if(A().S()!==S) return;
+        var ids=d.objectIds||[];
+        lv.filter=ids.length?{where:"sid NOT IN ("+ids.join(",")+")"}:null;
+      });
   }).catch(function(e){ console.warn("기존 건물 숨김 실패",e&&e.message); });
 }
 // 체크 상태: 행위 구분이 바뀌면 그 행위의 기본값으로 (최대 규모는 신축에서만 처음부터 켬)
@@ -296,6 +355,7 @@ async function setMode(m){
     await view3d.goTo({target:vp.targetGeometry,scale:vp.scale,tilt:0},{animate:false}).catch(function(){});
     if(S&&S.geom){ drawMasses(); flyToParcel(false); }
     app.loading(false); b3.disabled=false;
+    refreshLod();
     app.toast(matchMedia("(pointer: coarse)").matches?"두 손가락으로 끌면 기울이거나 돌려 볼 수 있습니다":"마우스 오른쪽 버튼으로 끌면 기울이거나 돌려 볼 수 있습니다 · 오른쪽 클릭: 3D 분석 메뉴",5000);
   }else{
     var vp3=view3d&&view3d.viewpoint?view3d.viewpoint.clone():null;
