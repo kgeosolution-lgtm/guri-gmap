@@ -160,7 +160,62 @@ def step_slpk(glb_path, out_dir, las_info, service_name, heading=0.0):
     return slpk
 
 
+def find_items(token, service_name, slpk_name):
+    """발행 뒤 Portal 에서 SLPK 아이템과 Scene 서비스 아이템을 찾는다 → (slpk_item_id, scene_item_id, scene_url)"""
+    user, portal = CFG["portal_user"], CFG["portal_url"]
+    found = http_json(f"{portal}/sharing/rest/search",
+                      {"q": f'owner:{user} AND (type:"Scene Package" OR type:"Scene Service")', "num": 100,
+                       "sortField": "modified", "sortOrder": "desc", "f": "json", "token": token})
+    slpk_id = scene_id = scene_url = ""
+    for r in found.get("results", []):
+        if r.get("type") == "Scene Package" and r.get("name") == slpk_name and not slpk_id:
+            slpk_id = r["id"]
+        if r.get("type") == "Scene Service" and (r.get("title") == service_name or service_name in (r.get("url") or "")) and not scene_id:
+            scene_id, scene_url = r["id"], r.get("url", "")
+    return slpk_id, scene_id, scene_url
+
+
 def step_publish(slpk, service_name, title):
+    user, portal = CFG["portal_user"], CFG["portal_url"]
+    token = get_token(portal)
+    slpk_name = os.path.basename(slpk)
+    # 이미 발행돼 있으면(재시도) 재사용
+    slpk_item_id, scene_item_id, scene_url = find_items(token, service_name, slpk_name)
+    if scene_item_id:
+        log(f"Scene 아이템 재사용: {scene_item_id}")
+    else:
+        py = CFG.get("arcgis_python", "")
+        if not py or not os.path.exists(py):
+            raise RuntimeError("ArcGIS Python 이 없어 발행할 수 없습니다")
+        env = dict(os.environ, PYTHONIOENCODING="utf-8", KGEOSCAN_PORTAL_URL=portal, KGEOSCAN_PORTAL_USER=user,
+                   KGEOSCAN_PORTAL_PASSWORD=CFG["portal_password"])
+        out_dir = os.path.dirname(slpk)
+        with open(os.path.join(out_dir, "publish.log"), "a", encoding="utf-8") as lf:
+            proc = subprocess.run([py, os.path.join(HERE, "slpk_step.py"), "--publish", slpk, title],
+                                  stdout=lf, stderr=subprocess.STDOUT, text=True, timeout=1500, env=env)
+        if proc.returncode != 0:
+            tail = open(os.path.join(out_dir, "publish.log"), encoding="utf-8", errors="replace").read()[-800:]
+            raise RuntimeError("SharePackage 발행 실패: " + tail.strip().splitlines()[-1] if tail.strip() else "SharePackage 발행 실패")
+        log(f"SharePackage 발행 완료 ({service_name})")
+        for _ in range(12):   # 색인 반영 대기
+            slpk_item_id, scene_item_id, scene_url = find_items(token, service_name, slpk_name)
+            if scene_item_id:
+                break
+            time.sleep(10)
+        if not scene_item_id:
+            raise RuntimeError("발행은 됐지만 Portal 에서 Scene 아이템을 찾지 못함: " + service_name)
+    for iid in [i for i in (slpk_item_id, scene_item_id) if i]:
+        try:
+            http_json(f"{portal}/sharing/rest/content/users/{user}/items/{iid}/share",
+                      {"everyone": "true", "org": "true", "f": "json", "token": token})
+        except Exception as e:
+            log(f"공유 설정 생략 ({iid}): {e}")
+    log(f"Scene 아이템: {scene_item_id} → {scene_url}")
+    return slpk_item_id, scene_item_id, scene_url
+
+
+def step_publish_rest(slpk, service_name, title):
+    """(미사용) REST publish 는 이 Enterprise 에서 'Unable to determine Service Type' 을 내서 SharePackage 로 대체"""
     user, portal = CFG["portal_user"], CFG["portal_url"]
     token = get_token(portal)
     folder = CFG.get("portal_folder_id", "")

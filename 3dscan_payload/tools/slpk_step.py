@@ -14,7 +14,30 @@ import tempfile
 import time
 
 
+def publish(slpk, title):
+    """SLPK 를 Portal 에 올리고 Scene 서비스로 발행 (ArcGIS Pro 의 '패키지 공유'와 동일).
+    자격 증명은 환경변수 KGEOSCAN_PORTAL_URL / USER / PASSWORD 로 받는다 (명령줄에 노출하지 않음)."""
+    import json
+    import arcpy
+    url, user, pw = os.environ["KGEOSCAN_PORTAL_URL"], os.environ["KGEOSCAN_PORTAL_USER"], os.environ["KGEOSCAN_PORTAL_PASSWORD"]
+    t0 = time.time()
+    arcpy.SignInToPortal(url, user, pw)
+    print(f"signed in: {arcpy.GetActivePortalURL()}", flush=True)
+    res = arcpy.management.SharePackage(slpk, "", "", title, "kgeoScan,LiDAR,3D scan", "KgeoSolution",
+                                        "EVERYBODY", None, "EVERYBODY", "TRUE")
+    print(arcpy.GetMessages(), flush=True)
+    outs = []
+    for i in range(res.outputCount):
+        try:
+            outs.append(str(res.getOutput(i)))
+        except Exception:
+            pass
+    print("PUBLISH_RESULT " + json.dumps({"outputs": outs, "seconds": round(time.time() - t0, 1)}, ensure_ascii=False), flush=True)
+
+
 def main():
+    if sys.argv[1] == "--publish":
+        return publish(sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else os.path.basename(sys.argv[2]))
     folder, out_slpk = sys.argv[1], sys.argv[2]
     cx, cy, cz, epsg = float(sys.argv[3]), float(sys.argv[4]), float(sys.argv[5]), int(sys.argv[6])
     t0 = time.time()
