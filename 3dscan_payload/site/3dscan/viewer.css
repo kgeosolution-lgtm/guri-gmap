@@ -1029,11 +1029,13 @@ body { height:100vh; height:100dvh; }
   header { padding:0 10px; gap:8px; }
   .header-sub, .sep { display:none; }
   #uploadProgress { min-width:0; max-width:62vw; padding:4px 10px; }
+  /* 접힘은 폭 대신 transform 으로: width 전환은 폰에서 멈춰 보이지 않는 패널이 지도를 덮는 일이 있었다 */
   #listPanel {
     position:absolute; left:0; top:0; bottom:0; width:min(82vw, 320px); z-index:60;
-    box-shadow:8px 0 30px rgba(0,0,0,.5);
+    box-shadow:8px 0 30px rgba(0,0,0,.5); border-right:1px solid var(--border);
+    transition:transform var(--lp-transition);
   }
-  #listPanel.collapsed { width:0; box-shadow:none; }
+  #listPanel.collapsed { width:min(82vw, 320px); transform:translateX(-100%); box-shadow:none; visibility:hidden; pointer-events:none; }
   #sidebar { width:100vw !important; border-left:none; }
   .sb-viewer { height:46vh; }
   #sidebar.expanded .sb-viewer { height:50%; }
