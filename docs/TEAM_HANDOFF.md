@@ -942,3 +942,8 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - "어떤 곳을 찾고 계세요?" 그룹 8개를 가는 줄 목록에서 **카드 3열**로: 연한 그룹 색 바탕(5%)·테두리, 아이콘 타일 48px(그룹 색 13%), 이름 15px·요약, 오른쪽 화살표(hover 시 그룹 색). 모서리 `--ui-radius-lg`, hover 시 살짝 떠오름. ≤900px 2열, ≤620px 1열(모서리 10px).
 - 전후: 스크래치 `hero-compare.png`, `disc-compare.png`, `disc-after-m.png`.
 - 검증: `npx tsc --noEmit`, prettier, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-home-cards`.
+
+## 2026-10-26 메인 '구리의 사계절' 줄 복원(자동·안내문 없이, 겨울 선택 표시) (담당: 강민아)
+
+- 담당자 지시로 #107 의 계절 점 대신 사진 아래 '구리의 사계절 | 봄·여름·가을·겨울' 버튼 줄을 되돌림. '자동' 버튼과 "현재 계절을 보여드려요" 글은 뺌. 보이는 계절(기본 겨울)에 `aria-pressed`, 다른 계절을 누르면 그 계절 사진·추천(`setSelection`). `.season-controls{position:relative;z-index:1}` 로 사진 음영 위에 올려 눌림 보장. 장소명 배지는 전처럼.
+- 검증: `npx tsc --noEmit`, prettier, `npm run build:deploy`, `git diff --check`; Playwright — 초기 겨울 선택·겨울 사진, 가을 클릭 시 가을 선택·한강시민공원 사진 확인. 브랜치 `work/kangmina-season-row`.

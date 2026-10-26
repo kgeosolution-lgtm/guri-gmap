@@ -894,51 +894,63 @@
   );
 }
 /* 히어로 사진 장소명 — 오른쪽 아래 작은 글씨 */
-/* 사진 오른쪽 아래: 장소명 + 계절 점 네 개(누르면 그 계절 사진·추천으로). 옛 '구리의 사계절' 버튼 줄을 대신한다 */
-.season-badge {
+.season-place {
   position: absolute;
   right: 18px;
   bottom: 14px;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: rgba(0, 0, 0, 0.3);
-  padding: 4px 8px 4px 10px;
-  border-radius: 999px;
-  backdrop-filter: blur(2px);
-}
-.season-place {
+  z-index: 1;
   font-size: 11px;
   letter-spacing: 0.04em;
   color: rgba(255, 255, 255, 0.92);
+  background: rgba(0, 0, 0, 0.28);
+  padding: 4px 9px;
+  border-radius: 999px;
+  backdrop-filter: blur(2px);
+  pointer-events: none;
 }
-.season-dots {
-  display: inline-flex;
-  gap: 6px;
-  padding-left: 10px;
-  border-left: 1px solid rgba(255, 255, 255, 0.35);
+/* 사진 아래 '구리의 사계절' 줄 — 보이는 계절에 표시, 누르면 그 계절 사진·추천으로 */
+.season-controls {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding-bottom: 25px;
 }
-.season-dots button {
-  width: 12px;
-  height: 12px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: var(--c);
-  opacity: 0.6;
-  cursor: pointer;
-  transition:
-    opacity 0.15s,
-    transform 0.15s;
+.season-controls > span {
+  font-size: 11px;
+  font-weight: 700;
+  color: #455a4c;
 }
-.season-dots button:hover {
-  opacity: 1;
-  transform: scale(1.15);
+.season-controls > div {
+  display: flex;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid #ffffff;
+  border-radius: 6px;
+  padding: 3px;
+  gap: 2px;
+  backdrop-filter: blur(12px);
 }
-.season-dots button[aria-pressed='true'] {
-  opacity: 1;
-  box-shadow: 0 0 0 2px #fff;
+.season-controls button {
+  font-size: 11px;
+  padding: 7px 13px;
+  border-radius: 4px;
+  color: #647166;
+  transition: background 0.2s;
+}
+.season-controls button[aria-pressed='true'] {
+  background: #173e30;
+  color: #fff;
+}
+@media (max-width: 620px) {
+  .season-controls {
+    gap: 10px;
+    flex-wrap: wrap;
+    padding-bottom: 22px;
+  }
+  .season-controls button {
+    padding: 7px 11px;
+  }
 }
 .hero-layout {
   position: relative;
