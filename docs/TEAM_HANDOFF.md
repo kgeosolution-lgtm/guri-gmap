@@ -1029,3 +1029,9 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 예외: `culture_dulle_fac`(둘레길 시설물)만 base64 유지 — 코스별 색을 입히는 `tintSym()` 이 SVG `<image>` 안에 그림을 넣는데, data URL 로 만든 SVG 는 외부 파일을 못 불러오기 때문.
 - 새 아이콘 추가: png 를 저 폴더에 넣고 `SYM_FILES` 에 키만 추가(`scripts/winter-icons.py` 설명도 맞춤).
 - 검증: theme `node --check`, Playwright(생활편의 가짜 자료: 칩 9개 아이콘 모두 로드, sym 요청 27건 전부 200, 목록·범례 아이콘 표시), 기존 하네스(칩 건수·치안안심·전기차 문구), `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-theme-size`.
+
+## 2026-10-26 오픈 준비 ④: 어디서도 안 쓰는 컴포넌트 정리 (담당: 강민아)
+
+- 지운 것(홈·`/v1`·404 어디서도 import 하지 않음): `src/components/ComingSoon.tsx`, `HeroKrds.tsx`, `MapsNow.tsx`, `krds/KrdsFooter.tsx`.
+- 그대로 둔 것: `/v1`(보존 원칙 — README·이 문서 앞부분)과 `/v1` 이 쓰는 컴포넌트·설정(`Layout`, `SeasonalHero`, `NowGuri`, `QuickFinder`, `RecommendedMaps`, `SpatialInfo`, `UrbanStats`, `ContentSections`, `DevSeasonToolbar`, `ui`, `categories/external-links/featured/layers.config`). `/v1` 을 없애기로 하면 그때 이 묶음을 한꺼번에 지우면 된다(`build-deploy.mjs` 의 `v1/index.html` 필수 목록도 함께).
+- 검증: `npx tsc --noEmit`, prettier, `npm run build:deploy`(`/v1` 포함), `git diff --check` 통과. 브랜치 `work/kangmina-dead-code`.
