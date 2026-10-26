@@ -946,6 +946,10 @@
   .season-controls button {
     padding: 7px 11px;
   }
+  /* 좁은 화면에서는 장소명 배지를 계절 줄 위로 올려 겹치지 않게 */
+  .season-place {
+    bottom: 70px;
+  }
 }
 .hero-layout {
   position: relative;
