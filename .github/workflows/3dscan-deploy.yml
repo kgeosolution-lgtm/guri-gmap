@@ -32,10 +32,10 @@ jobs:
             'site/3dscan/viewer.js' = 'e22219af9e5bf1306c3467bcab1cfffe7c412606a454a522c2154b1a1a969639'
             'site/3dscan/viewer.css' = 'd8b7d7ac548581aa38ce8d655a827812e8bacd4dd40de7435fce1050ac59a914'
             '3dupload/common.py' = 'af4551445364ecec4e645a1c63fca0e6d9aea3e86154031664ebba037b34846f'
-            '3dupload/upload.py' = 'd9424d47934bb2820a1c8e782de1c4e9652cf4b5dcd18e2ae82d02f9f01545ea'
+            '3dupload/upload.py' = 'eb60d0e8632b1c3d720012afafb2f49e7496c9bcbc6a80e19c7477ed9aa54f7e'
             '3dupload/status.py' = '9c0fc45640fb8ebaec13c9512636abf26ff5b9ad69a47f52a0e0c2c1c126b3da'
             '3dupload/check_title.py' = 'a27fc6fdd49535cffc57ce4fbd917220406f28c68b247edc5cf5076b88181c3c'
-            '3dupload/web.config' = '09b33a17723abf910c3e6af2ec26decee8cfeb5c625b84b9a2c05aceb04548d4'
+            '3dupload/web.config' = '122fe49e8a63e7734f1e2dfc398f0ee444e804022f3c13815f5bfa196ee0b95c'
             'tools/queue_runner.py' = '81fae752421d6863d2e99fa04a5d75e08d5c47e7fff93d50dfc13eddf51657f6'
             'tools/pipeline.py' = 'c2ebe59d28a16662138e0025b11e82500ec1e0257f6700aa84e4d92070396327'
             'tools/slpk_step.py' = 'ca736064b0d4675570b9a30e11af7f6c4b49f67704a5e7c31ce779480482678e'
@@ -130,6 +130,17 @@ jobs:
             [System.IO.File]::WriteAllText($cfgPath, $cfg, (New-Object System.Text.UTF8Encoding($false)))
             "CONFIG CREATED=$cfgPath"
           } else { "CONFIG EXISTS=$cfgPath (유지)" }
+          # ArcGIS Pro python 경로 보정 (C:/D: 어느 쪽에 설치돼 있든)
+          $proCands = @('D:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe', 'C:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe')
+          $proFound = $proCands | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+          $cfgTxt = Get-Content -LiteralPath $cfgPath -Raw -Encoding UTF8
+          $m = [regex]::Match($cfgTxt, '"arcgis_python":\s*"([^"]*)"')
+          $current = if ($m.Success) { $m.Groups[1].Value.Replace('\\', '\') } else { '' }
+          if ($proFound -and ($current -ne $proFound)) {
+            $cfgTxt = [regex]::Replace($cfgTxt, '"arcgis_python":\s*"[^"]*"', ('"arcgis_python": "' + $proFound.Replace('\', '\\') + '"'))
+            [System.IO.File]::WriteAllText($cfgPath, $cfgTxt, (New-Object System.Text.UTF8Encoding($false)))
+            "ARCGIS PYTHON: config updated -> $proFound"
+          }
 
           # ── IIS: CGI 실행 허용 목록에 venv python 등록 (실패해도 계속)
           try {
@@ -158,6 +169,6 @@ jobs:
           $task = $null
           try { $task = cmd /c 'schtasks /query /tn kgeoScanQueueRunner /fo LIST 2>nul' } catch {}
           if ($LASTEXITCODE -eq 0 -and $task) { "TASK: kgeoScanQueueRunner 등록됨 — " + (($task | Select-String 'Task To Run') -join ' ') } else { "TASK: 미등록 — 서버에서 register_task.ps1 실행 필요 (kgo 계정)" }
-          $pro = 'D:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe'
-          if (Test-Path -LiteralPath $pro) { "ARCGIS PYTHON: $pro" } else { "ARCGIS PYTHON: 없음 → config slpk_enabled=false 권장" }
+          if ($proFound) { "ARCGIS PYTHON: $proFound" } else { "ARCGIS PYTHON: NOT FOUND (C:/D: Program Files\ArcGIS\Pro) -> SLPK step will be skipped" }
+          try { $cgiTest = (Invoke-WebRequest -Uri 'https://kgeodata.com/app/3dupload/check_title.py?title=zz_deploy_probe' -UseBasicParsing -TimeoutSec 30).Content; "CGI TEST: $cgiTest" } catch { "CGI TEST FAILED: $($_.Exception.Message)" }
           exit 0
