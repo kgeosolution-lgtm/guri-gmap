@@ -974,3 +974,9 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 조치(`theme.html` `evNowStart()`): 충전중일 때 `마지막충전시작` → 없으면 `충전중시작` 순으로 쓰되, 지금+5분보다 미래이거나 `마지막충전종료`보다 앞이면 버림(그러면 '몇 분째' 꼬리를 안 붙임).
 - 노트북 쪽 확인 권장: nowTsdt 를 쓸 때 KST 변환을 한 번만(환경부 값은 이미 KST). 다만 화면은 이제 lastTsdt 를 쓰므로 급하지 않음.
 - 검증: 하네스 `ev-nowt-test.js`(캡처 1·4행 꼴 등 5경우), `ev-when-test.js`, 치안안심 하네스, theme `node --check`, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-ev-nowt`.
+
+## 2026-10-26 전기차 팝업: 상태 변경 시각 문구 제거, '충전중 n시간째' 계산 검토·강화 (담당: 강민아)
+
+- 팝업의 "마지막 상태 변경 n분 전 · …"을 빼고 **"상태는 10분마다 새로 받아요"**만 표시(목록의 "상태 변경 n분 전"도 제거). 레이어에 수집 시각 항목이 생기면 전처럼 "n분 전 확인 · 10분마다 갱신돼요"로 자동 전환(`evWhenTxt`).
+- '충전중 n시간째'가 갈수록 "며칠째"로 늘던 원인: 환경부 자료의 `충전중시작`/`마지막충전시작`이 세션이 바뀔 때 번갈아 갱신되지 않아 지난 세션 값이 남고, 화면은 그 값을 그대로 썼음. `evNowStart()` 규칙을 보강: ① 미래 값 버림 ② `마지막충전종료`보다 앞(지난 세션) 버림 ③ `상태갱신일시`보다 10분 넘게 뒤(그 상태와 무관) 버림 ④ 24시간 넘게 '충전중'(`EV_NOW_MAX_H`)이면 숨김 ⑤ 둘 다 맞으면 더 늦은 쪽. 못 믿을 값이면 '몇 분째'를 붙이지 않음 → "며칠째"는 더 안 나옴.
+- 검증: 하네스 `ev-nowt-test.js`(캡처 줄 꼴 포함 9경우), `ev-when-test.js`, 치안안심 하네스, theme `node --check`, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-ev-wording`.

@@ -3152,17 +3152,23 @@ function evStat(r,pv,t){
 }
 /* 충전중인 충전기의 '언제부터' 시각. 환경부 자료의 '충전중시작'(nowTsdt)은 이전 세션 값이 남거나 9시간 앞선(미래) 값이 섞여 믿기 어려워,
    '마지막충전시작'(lastTsdt — 상태갱신일시와 맞아떨어짐)을 먼저 쓰고 없을 때만 '충전중시작'. 미래이거나 '마지막충전종료'보다 앞이면(이미 끝난 세션) 버린다 */
+const EV_NOW_MAX_H=24;   /* 이보다 오래 '충전중'이면 지난 세션 값이 남은 것으로 보고 '몇 시간째'를 숨긴다 */
 function evNowStart(b,pv,st){
   if(st!=='충전중') return null;
-  const end=toDate(pv(b,['마지막충전종료']));
+  const end=toDate(pv(b,['마지막충전종료'])), upd=toDate(pv(b,['상태갱신일시']));
   const cands=[toDate(pv(b,['마지막충전시작'])), toDate(pv(b,['충전중시작']))];
-  for(const d of cands){
-    if(!d) continue;
-    if(d.getTime()>Date.now()+5*60000) continue;          /* 미래 값(시간대 중복 변환 등) */
-    if(end&&d.getTime()<end.getTime()) continue;          /* 종료 시각보다 앞 = 지난 세션 */
-    return d;
-  }
-  return null;
+  const ok=d=>{
+    if(!d) return false;
+    const ms=d.getTime(), now=Date.now();
+    if(ms>now+5*60000) return false;                      /* 미래 값(시간대 중복 변환 등) */
+    if(end&&ms<end.getTime()) return false;               /* 종료 시각보다 앞 = 지난 세션 */
+    if(upd&&ms>upd.getTime()+10*60000) return false;      /* 상태를 받은 시각보다 뒤 = 그 상태와 무관한 값 */
+    if(now-ms>EV_NOW_MAX_H*3600000) return false;          /* 하루 넘게 '충전중'은 지난 세션 값일 가능성이 큼 */
+    return true;
+  };
+  const good=cands.filter(ok);
+  if(!good.length) return null;
+  return good.reduce((a,b)=>b>a? b : a);                  /* 둘 다 맞으면 더 늦은 쪽(현재 세션에 가까운 값) */
 }
 /* 전기차 자료를 '확인한' 시각: 스케줄 작업이 넣어 주는 수집일시 항목이 있으면 그 최댓값, 없으면 전체 충전기의 상태갱신일시 최댓값
    (322곳 중 어디선가 15분 안에 상태가 바뀌므로 수집 시각과 거의 같다). 자료 묶음마다 한 번만 계산해 둔다 */
@@ -3181,10 +3187,10 @@ function evSyncTime(t){
 function evSyncKind(t){ const rows=(t&&t.src&&dataCache[t.src.url])||null; if(!rows) return null; evSyncTime(t); return _evSyncKind.get(rows)||null; }
 /* 시각 한 줄: 수집 시각이면 "n분 전 확인", 상태 변경 시각이면 "마지막 상태 변경 n분 전" */
 function evWhenTxt(t,long){
-  const d=evSyncTime(t), ago=agoTxt(d); if(!ago) return null;
   const sync=evSyncKind(t)==='sync';
-  if(!long) return sync? `${ago} 확인` : `상태 변경 ${ago}`;
-  return sync? `${ago} 확인 · ${EV_SYNC_EVERY_MIN}분마다 갱신돼요` : `마지막 상태 변경 ${ago} · 상태는 ${EV_SYNC_EVERY_MIN}분마다 새로 받아요`;
+  if(!sync) return long? `상태는 ${EV_SYNC_EVERY_MIN}분마다 새로 받아요` : null;   /* 상태 변경 시각은 보여 주지 않는다(담당자 요청) */
+  const ago=agoTxt(evSyncTime(t)); if(!ago) return null;
+  return long? `${ago} 확인 · ${EV_SYNC_EVERY_MIN}분마다 갱신돼요` : `${ago} 확인`;
 }
 const EV_STALE_MIN=EV_SYNC_EVERY_MIN*3;   /* 스케줄이 세 번 넘게 밀리면 지연 경고(수집 시각이 있을 때만) */
 function evStale(d,t){ if(t&&evSyncKind(t)!=='sync') return false; return !!d && (Date.now()-d.getTime())/60000 > EV_STALE_MIN; }   /* 상태 변경 시각으로는 지연을 판단할 수 없다 */
