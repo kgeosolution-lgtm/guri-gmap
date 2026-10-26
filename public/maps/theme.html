@@ -288,7 +288,7 @@ a{color:inherit}
 .infocard .btnstack a{text-align:center;font-size:14px;font-weight:800;border-radius:6px;padding:12px 0;text-decoration:none}
 .infocard .foot{font-size:11px;color:var(--faint);text-align:center;margin-top:9px;line-height:1.5}
 /* 전화·길찾기 단추 줄은 카드 아래에 붙어 따라온다(긴 팝업을 내려도 바로 누르게) */
-.infocard .btnstack,.infocard .btnrow,.infocard .btns{position:sticky;bottom:-15px;background:#fff;padding:10px 0 15px;margin-bottom:-15px;border-top:1px solid var(--krds-color-light-gray-10);box-shadow:0 -8px 12px -6px rgba(20,40,32,.12)}   /* 아래에 붙는 단추 띠: 위 내용이 밑으로 지나가도 '잘린' 느낌이 없게 구분선+그림자 */
+/* 전화·길찾기 단추는 흐름대로 맨 아래(붙박이 띠는 담당자 요청으로 뺌) */
 .infocard .rows{border-top:1px solid var(--line);padding-top:9px;margin-top:2px}
 .infocard .r{display:flex;gap:8px;margin-bottom:7px;font-size:12.8px;line-height:1.5}
 .infocard .r .ic{flex:none;width:17px;text-align:center}
@@ -2224,6 +2224,11 @@ async function loadGroupData(quiet){   /* quiet: 배경 갱신 — 자리표시�
   annotateDongs();
 }
 
+/* 칩·전체 건수 — 목록과 같은 기준: dedupeBy 가 있으면 대표 한 건씩만 센다(전기차: 충전기 수가 아니라 충전소 수) */
+function countFor(t){
+  const rows=rowsFor(t); if(!t.dedupeBy) return rows.length;
+  const seen=new Set(); rows.forEach(r=>seen.add(String(pickVal(r,t.dedupeBy)||r.__oid))); return seen.size;
+}
 function rowsFor(t){
   if(!t.src||!dataCache[t.src.url]) return [];
   let rows=dataCache[t.src.url];
@@ -2245,10 +2250,10 @@ function themeOf(r){ /* 행이 속한 테마명 (현재 그룹 기준) */
 function renderChips(){
   const themes=groupThemes(curGroup);
   const readyTotal=Object.values(themes).filter(t=>t.src)
-    .reduce((s,t)=>s+rowsFor(t).length,0);
+    .reduce((s,t)=>s+countFor(t),0);
   let html=`<button class="chip all ${curCat==='전체'?'on':''}" data-k="전체"><span class="seg-nm">전체</span><span class="cnt">${readyTotal||''}</span></button>`;
   html+=Object.entries(themes).filter(([k,t])=>!t.chipHide).map(([k,t])=>{
-    const on=k===curCat, n=t.src?rowsFor(t).length:null;
+    const on=k===curCat, n=t.src?countFor(t):null;
     if(t.type==='link')
       return `<button class="chip link" data-k="${k}"><span class="dot" style="background:${t.c}"></span><span class="seg-nm">${t.short||k} ↗</span></button>`;
     if(!t.src)

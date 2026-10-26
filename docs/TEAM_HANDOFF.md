@@ -992,3 +992,9 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 담당자 지적: 팝업 내용이 길어 스크롤될 때 아래에 붙는 단추 띠가 회색 정보 상자를 중간에서 덮어, 상자가 잘린 듯 보임. 의도한 모양이 아니라 붙박이 띠의 겹침.
 - 조치: 단추 띠(`.btnstack` 등)에 위 구분선(1px)과 조금 더 또렷한 그림자를 주어 '아래에 붙은 띠'로 읽히게(우리동네 찾기·3D 공통).
 - 검증: 지도 2쪽 `node --check`, Playwright 견본 팝업(스크롤 위쪽 상태) 캡처, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-popup-footbar`.
+
+## 2026-10-26 팝업 단추 띠 제거, 전기차 칩 건수를 충전소 수로 (담당: 강민아)
+
+- 팝업의 전화·길찾기 단추를 붙박이 띠(#106·#115)에서 되돌려 흐름대로 맨 아래에 둠(우리동네 찾기·3D). 담당자 요청: 띠처럼 보이는 게 싫음.
+- 칩·'전체' 건수를 목록과 같은 기준으로: `countFor(t)` — `dedupeBy` 가 있는 테마는 대표 한 건씩만 센다. 전기차 칩이 충전기 1822대가 아니라 충전소 321곳으로 목록과 일치. 전체 합계도 같이 줄어듦.
+- 검증: Playwright(가짜 자료: 충전소 2곳·충전기 6대) → 칩 '전기차 2', 목록 '2곳'; 지도 2쪽 `node --check`, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-ev-count`.
