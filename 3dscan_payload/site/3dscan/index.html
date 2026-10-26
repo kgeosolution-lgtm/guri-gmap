@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-S3CV3WNE2P"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-S3CV3WNE2P');
+</script>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>kgeoScan Viewer</title>
+<link rel="stylesheet" href="https://js.arcgis.com/4.30/esri/themes/dark/main.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.min.js"></script>
+<script src="https://js.arcgis.com/4.30/"></script>
+<link rel="stylesheet" href="viewer.css">
+<style>
+/* 포커스 outline 제거 - ArcGIS 포함 */
+*, *:focus, *:active { outline: none !important; box-shadow: none !important; }
+.esri-view .esri-view-surface--inset-outline:focus::after { outline: none !important; }
+.esri-view-surface:focus { outline: none !important; }
+[data-node-ref] { outline: none !important; }
+
+/* 진행 단계 */
+.pp-step {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; color: var(--text3);
+  font-family: 'IBM Plex Mono', monospace;
+  padding: 3px 0;
+}
+.pp-step.active { color: var(--accent); font-weight: 600; }
+.pp-step.done   { color: var(--acc-g); }
+.pp-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--border2); flex-shrink: 0;
+}
+.pp-step.active .pp-dot { background: var(--accent); box-shadow: 0 0 6px var(--accent); animation: blink 1s infinite; }
+.pp-step.done   .pp-dot { background: var(--acc-g); }
+
+/* 포커스 outline 제거 */
+* { outline: none !important; }
+canvas { display: block; }
+
+/* 제목 체크 */
+.title-check { font-size:11px; margin-top:4px; min-height:16px; font-family:'IBM Plex Mono',monospace; }
+.title-check.ok    { color:#34d399; }
+.title-check.error { color:#f87171; }
+
+/* 업로드 진행 버튼 */
+#uploadBtnWrap { display:flex; align-items:center; gap:10px; }
+#uploadProgress {
+  display:flex; align-items:center; gap:10px;
+  background:rgba(56,189,248,0.1); border:1px solid rgba(56,189,248,0.3);
+  border-radius:20px; padding:6px 14px; min-width:220px;
+}
+.up-spinner {
+  width:16px; height:16px; border-radius:50%;
+  border:2px solid rgba(56,189,248,0.3);
+  border-top-color:#38bdf8;
+  animation:spin 0.8s linear infinite; flex-shrink:0;
+}
+.up-info { flex:1; }
+.up-title { font-size:12px; color:#e2e8f0; font-weight:500; margin-bottom:3px; }
+.up-bar-wrap { background:rgba(255,255,255,0.1); border-radius:10px; height:3px; margin-bottom:3px; }
+.up-bar { height:3px; border-radius:10px; background:#38bdf8; width:0%; transition:width 0.5s ease; }
+.up-step { font-size:10px; color:#94a3b8; }
+@keyframes spin { to { transform:rotate(360deg); } }
+</style>
+<script src="/app/protect.js"></script></head>
+<body>
+
+<!-- ════ HEADER ════ -->
+<header>
+  <div class="logo">
+    <div class="logo-pulse"></div>
+    kgeoScan
+  </div>
+  <div class="sep"></div>
+  <div class="header-sub">LiDAR · 3D Scan Viewer</div>
+  <div class="header-right">
+    <div id="uploadBtnWrap">
+      <button class="hbtn primary" id="btnUpload" onclick="openModal()">
+        <span id="btnUploadIcon">＋</span>
+        <span id="btnUploadText">스캔 업로드</span>
+      </button>
+      <div id="uploadProgress" style="display:none" onclick="toggleProgressPopup()" title="진행 상황 보기" style="cursor:pointer">
+        <div class="up-spinner"></div>
+        <div class="up-info">
+          <div class="up-title" id="upTitle">처리 중...</div>
+          <div class="up-bar-wrap"><div class="up-bar" id="upBar"></div></div>
+          <div class="up-step" id="upStep">0 / 7</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="body">
+
+  <!-- ════ LIST PANEL ════ -->
+  <div id="listPanel">
+    <div class="lp-head">
+      <div class="lp-title">
+        <span class="lp-icon">◈</span>
+        스캔 목록
+        <span class="lp-count" id="lpCount">—</span>
+      </div>
+      <button class="lp-collapse" id="btnLpCollapse" onclick="toggleListPanel()" title="목록 숨기기">◀</button>
+    </div>
+    <div class="lp-search">
+      <input class="lp-search-input" id="lpSearch" type="text"
+        placeholder="제목 검색..."
+        oninput="filterList(this.value)">
+    </div>
+    <div class="lp-list" id="lpList">
+      <div class="lp-loading">
+        <div class="spin" style="width:16px;height:16px;border-width:2px"></div>
+        <span>불러오는 중...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 목록 펼치기 버튼 (접혔을 때) -->
+  <button id="btnLpOpen" class="lp-open-btn" onclick="toggleListPanel()" title="목록 열기" style="display:none">▶</button>
+
+  <!-- 지도 -->
+  <div id="viewDiv">
+    <div id="mapLoading">
+      <div class="spin"></div>
+      <div class="load-text">WebMap 불러오는 중...</div>
+    </div>
+  </div>
+
+  <!-- 좌표바 -->
+  <div id="coordBar">
+    <div class="cval">X <span id="cx">—</span></div>
+    <div class="cval">Y <span id="cy">—</span></div>
+    <div class="cval" style="margin-left:auto">WebMap <span>c61a12cd</span></div>
+    <div class="cval">포인트 <span id="ptCount">—</span></div>
+  </div>
+
+  <!-- ════ SIDEBAR ════ -->
+  <div id="sidebar">
+
+    <!-- 헤더 -->
+    <div class="sb-head">
+      <div class="sb-head-top">
+        <div class="sb-tag">3D SCAN</div>
+        <div class="sb-tag green">● PUBLISHED</div>
+        <div class="sb-head-actions">
+          <button class="icon-btn" id="btnExpand" title="50:50 확장" onclick="toggleExpand()">⇔</button>
+          <button class="icon-btn close" title="닫기" onclick="closeSidebar()">✕</button>
+        </div>
+      </div>
+      <div class="sb-title" id="sbTitle">—</div>
+      <div class="sb-meta">
+        <span id="sbAuthor">—</span>
+        <span>·</span>
+        <span id="sbDate">—</span>
+        <span>·</span>
+        <span>UTM 52N</span>
+      </div>
+    </div>
+
+    <!-- 3D 미니 뷰어 -->
+    <div class="sb-viewer">
+      <div id="sceneDiv"></div>
+      <div id="sceneLoading">
+        <div class="spin"></div>
+        <div class="scene-load-text">3D 모델 로딩 중...</div>
+      </div>
+      <div class="viewer-overlay">
+        <div class="viewer-badge">3D Object · GLB Viewer</div>
+      </div>
+      <!-- 우상단: 씬으로 보기 -->
+      <div class="viewer-controls">
+        <button class="vctrl" title="Portal Scene Viewer 새 탭" onclick="openSceneViewer()">
+          ⧉ 씬으로 보기
+        </button>
+      </div>
+      <!-- 우하단: 전체화면 -->
+      <div class="viewer-controls-br">
+        <button class="vctrl" title="전체화면으로 보기" onclick="openFullscreen()">
+          ⤢
+        </button>
+      </div>
+    </div>
+
+    <!-- 속성 -->
+    <div class="sb-body">
+      </div>
+
+      <div class="sb-section">
+        <div class="sec-label">🗂 속성 정보</div>
+        <div class="attr-table">
+          <div class="attr-row">
+            <div class="attr-key">제목</div>
+            <div class="attr-val" id="aTitle">—</div>
+          </div>
+          <div class="attr-row">
+            <div class="attr-key">발행일시</div>
+            <div class="attr-val" id="aDate">—</div>
+          </div>
+          <div class="attr-row">
+            <div class="attr-key">비고</div>
+            <div class="attr-val" id="aNote">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sb-section">
+        <div class="sec-label">🌐 Portal 아이템</div>
+        <div class="attr-table">
+          <div class="attr-row">
+            <div class="attr-key">Scene ID</div>
+            <div class="attr-val mono" id="aSceneId">—</div>
+          </div>
+          <div class="attr-row">
+            <div class="attr-key">Scene URL</div>
+            <div class="attr-val">
+              <a id="aSceneUrl" href="#" target="_blank">Portal에서 보기 →</a>
+            </div>
+          </div>
+          <div class="attr-row">
+            <div class="attr-key">상태</div>
+            <div class="attr-val">
+              <span class="badge badge-green">✓ 발행됨</span>
+              <span class="badge badge-blue" style="margin-left:4px">전체공개</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /sb-body -->
+
+    <div class="sb-foot">
+      <button class="foot-btn primary" onclick="openSceneViewer()">⧉ 씬으로 보기</button>
+      <button class="foot-btn ghost"   onclick="openPortalItem()">Portal 아이템</button>
+    </div>
+
+  </div><!-- /sidebar -->
+</div><!-- /body -->
+
+<!-- ════ 업로드 모달 ════ -->
+<div class="modal-bg" id="modal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">
+        <div class="modal-icon">📡</div>
+        LiDAR 스캔 업로드
+      </div>
+      <button class="icon-btn close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-label">스캔 제목 *</div>
+        <input class="form-input" id="mTitle" type="text"
+               placeholder="예: 광교사무실 2층 회의실"
+               oninput="checkTitle(this.value)">
+        <div id="titleCheck" class="title-check"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-label">비고</div>
+        <input class="form-input" id="mNote" type="text" placeholder="스캔 위치 및 목적 메모">
+      </div>
+
+      <!-- 업로드 방식 -->
+      <div class="form-row">
+        <div class="form-label">업로드 방식</div>
+        <div class="mode-tabs">
+          <button type="button" class="mode-tab active" id="tabStray" onclick="setUploadMode('stray')">
+            Stray Scanner 원본<small>녹화 폴더 zip 하나 · 서버가 메시·텍스처 생성</small>
+          </button>
+          <button type="button" class="mode-tab" id="tabLegacy" onclick="setUploadMode('legacy')">
+            LAS + GLB<small>Scaniverse / Polycam 내보내기</small>
+          </button>
+        </div>
+      </div>
+
+      <!-- Stray 모드 -->
+      <div id="modeStray">
+        <div class="upload-grid" style="grid-template-columns:1fr">
+          <div class="drop-zone" id="zipZone">
+            <input type="file" accept=".zip" onchange="onFile(this,'zip')">
+            <div class="dz-icon">📦</div>
+            <div class="dz-type">.ZIP</div>
+            <div class="dz-desc">Stray Scanner 녹화 폴더를 압축한 파일<br>(rgb.mp4 · depth · odometry.csv)</div>
+            <div class="dz-fname" id="zipName"></div>
+          </div>
+        </div>
+        <div class="form-row" style="margin-top:12px">
+          <div class="form-label">스캔 위치 * <span style="color:var(--text3);letter-spacing:0">녹화를 시작한 지점</span></div>
+          <div class="loc-row">
+            <div class="loc-val empty" id="mLocText">지도에서 위치를 찍어 주세요</div>
+            <button type="button" class="hbtn loc-btn" onclick="startMapPick()">🗺 지도에서 찍기</button>
+            <button type="button" class="hbtn loc-btn" onclick="useCurrentLocation()" title="브라우저 위치 (폰에서 올릴 때)">📍 현재 위치</button>
+          </div>
+          <input type="hidden" id="mLon"><input type="hidden" id="mLat">
+        </div>
+        <div class="form-grid2" style="margin-top:12px">
+          <div class="form-row">
+            <div class="form-label">표고 (m, 선택)</div>
+            <input class="form-input" id="mElev" type="number" step="0.1" placeholder="비우면 0">
+          </div>
+          <div class="form-row">
+            <div class="form-label">방위 (°, 선택)</div>
+            <input class="form-input" id="mHeading" type="number" min="0" max="359" step="1" placeholder="녹화 시작 때 바라본 방향, 북=0">
+          </div>
+        </div>
+      </div>
+
+      <!-- LAS + GLB 모드 -->
+      <div id="modeLegacy" style="display:none">
+        <div class="upload-grid">
+          <div class="drop-zone" id="lasZone">
+            <input type="file" accept=".las,.laz" onchange="onFile(this,'las')">
+            <div class="dz-icon">☁</div>
+            <div class="dz-type">.LAS / .LAZ</div>
+            <div class="dz-desc">포인트 클라우드<br>좌표 자동 추출</div>
+            <div class="dz-fname" id="lasName"></div>
+          </div>
+          <div class="drop-zone" id="glbZone">
+            <input type="file" accept=".glb,.gltf" onchange="onFile(this,'glb')">
+            <div class="dz-icon">◈</div>
+            <div class="dz-type">.GLB / .GLTF</div>
+            <div class="dz-desc">3D 메시 모델<br>Scaniverse / Polycam</div>
+            <div class="dz-fname" id="glbName"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="hbtn" onclick="closeModal()">취소</button>
+      <button class="hbtn primary" onclick="startUpload()">처리 시작 →</button>
+    </div>
+  </div>
+</div>
+
+<!-- 지도에서 위치 찍기 안내 -->
+<div class="pick-banner" id="pickBanner">
+  <span>🗺 <b>지도를 클릭</b>해 녹화를 시작한 지점을 찍어 주세요</span>
+  <button type="button" class="hbtn" onclick="cancelMapPick()">취소</button>
+</div>
+
+<!-- 진행상황 팝업 -->
+<div id="progressPopup" style="
+  display:none; position:fixed; top:60px; right:16px;
+  background:var(--s2); border:1px solid rgba(56,189,248,0.3);
+  border-radius:8px; padding:16px 20px; z-index:250;
+  min-width:280px; box-shadow:0 8px 32px rgba(0,0,0,0.5);
+">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <div style="font-size:12px;font-weight:700;color:var(--text);font-family:'IBM Plex Mono',monospace">처리 진행 상황</div>
+    <button onclick="toggleProgressPopup()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px">✕</button>
+  </div>
+  <div id="ppTitle" style="font-size:13px;color:var(--accent);margin-bottom:10px;font-weight:600"></div>
+  <div style="display:flex;flex-direction:column;gap:6px" id="ppSteps">
+    <div class="pp-step" id="ppStep0"><span class="pp-dot"></span>대기 중</div>
+    <div class="pp-step" id="ppStep1"><span class="pp-dot"></span>입력 준비</div>
+    <div class="pp-step" id="ppStep2"><span class="pp-dot"></span>융합 · 사진 텍스처</div>
+    <div class="pp-step" id="ppStep3"><span class="pp-dot"></span>좌표 · LAS</div>
+    <div class="pp-step" id="ppStep4"><span class="pp-dot"></span>GLB 준비</div>
+    <div class="pp-step" id="ppStep5"><span class="pp-dot"></span>SLPK 생성</div>
+    <div class="pp-step" id="ppStep6"><span class="pp-dot"></span>Portal 발행</div>
+    <div class="pp-step" id="ppStep7"><span class="pp-dot"></span>완료</div>
+  </div>
+  <div id="ppMsg" style="margin-top:10px;font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;min-height:14px"></div>
+  <div style="margin-top:12px">
+    <div style="background:rgba(255,255,255,0.08);border-radius:10px;height:4px">
+      <div id="ppBar" style="height:4px;border-radius:10px;background:var(--accent);width:0%;transition:width 0.5s ease"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 완료 팝업 -->
+<div class="modal-bg" id="doneModal">
+  <div class="modal" style="width:380px">
+    <div class="modal-head">
+      <div class="modal-title">
+        <div class="modal-icon" style="background:rgba(52,211,153,.15)">✓</div>
+        <span id="doneModalTitle">처리 완료!</span>
+      </div>
+    </div>
+    <div class="modal-body" style="gap:8px">
+      <div style="font-size:13px;color:var(--text2);line-height:1.7" id="doneModalMsg">
+        스캔이 성공적으로 처리되어 Portal에 발행되었습니다.
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="hbtn" onclick="closeDoneModal()">닫기</button>
+      <button class="hbtn primary" id="btnViewScene" onclick="viewDoneScene()">🔍 확대</button>
+    </div>
+  </div>
+</div>
+
+<!-- 토스트 -->
+<div class="toast" id="toast">
+  <div class="toast-spin" id="tSpin"></div>
+  <div class="toast-text" id="tText">처리 중...</div>
+  <div class="toast-step" id="tStep"></div>
+</div>
+
+<script src="viewer.js"></script>
+</body>
+</html>

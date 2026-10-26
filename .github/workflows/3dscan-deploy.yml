@@ -1,0 +1,163 @@
+name: kgeoScan deployment
+on:
+  push:
+    branches: [codex/3dscan-deploy]
+    paths: [.github/workflows/3dscan-deploy.yml]
+permissions:
+  contents: read
+concurrency:
+  group: 3dscan-deploy
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          sparse-checkout: 3dscan_payload
+      - name: Install kgeoScan (site, upload CGI, worker, venv)
+        shell: powershell
+        env:
+          KGEOSCAN_PORTAL_PASSWORD: ${{ secrets.KGEOSCAN_PORTAL_PASSWORD }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ProgressPreference = 'SilentlyContinue'
+          if ($env:COMPUTERNAME -ne 'KGO-GIS') { throw 'Unexpected server' }
+
+          $src = Join-Path $env:GITHUB_WORKSPACE '3dscan_payload'
+          $expected = [ordered]@{
+            'site/3dscan/index.html' = '390c49f57cc29e6dbae15e41233dc54547460ff895ca10554ddc6df4ecf37d20'
+            'site/3dscan/viewer.js' = 'e22219af9e5bf1306c3467bcab1cfffe7c412606a454a522c2154b1a1a969639'
+            'site/3dscan/viewer.css' = 'd8b7d7ac548581aa38ce8d655a827812e8bacd4dd40de7435fce1050ac59a914'
+            '3dupload/common.py' = 'af4551445364ecec4e645a1c63fca0e6d9aea3e86154031664ebba037b34846f'
+            '3dupload/upload.py' = 'd9424d47934bb2820a1c8e782de1c4e9652cf4b5dcd18e2ae82d02f9f01545ea'
+            '3dupload/status.py' = '9c0fc45640fb8ebaec13c9512636abf26ff5b9ad69a47f52a0e0c2c1c126b3da'
+            '3dupload/check_title.py' = 'a27fc6fdd49535cffc57ce4fbd917220406f28c68b247edc5cf5076b88181c3c'
+            '3dupload/web.config' = '09b33a17723abf910c3e6af2ec26decee8cfeb5c625b84b9a2c05aceb04548d4'
+            'tools/queue_runner.py' = '81fae752421d6863d2e99fa04a5d75e08d5c47e7fff93d50dfc13eddf51657f6'
+            'tools/pipeline.py' = 'c2ebe59d28a16662138e0025b11e82500ec1e0257f6700aa84e4d92070396327'
+            'tools/slpk_step.py' = 'ca736064b0d4675570b9a30e11af7f6c4b49f67704a5e7c31ce779480482678e'
+            'tools/register_task.ps1' = 'f715092ec71960880a80d5aa18ebad602786209b229a194d22095e40e0c394ae'
+            'worker/process_scan.py' = '31edc44eba6a9d1f888df20dde4a8d5f4e6b3ac9922a599d195e8ea919ab9d53'
+            'worker/stray_to_mesh.py' = '2c4dc1d2ce92586c7e7e7cafb59ea5143f4775ed16275ece8e513c4a61182ea9'
+            'worker/texture_fast.py' = 'fde627b7c0bdf9736e8e0d863984cc4032c7ce569d8ccb610777d85699bad17b'
+            'worker/glb_to_obj.py' = '2e96adac2ba01e1ff4c58cf83aad853f88b5727d9d5e9e15307a5475a71c1122'
+            'config/kgeoscan.example.json' = '33d6cdf07bc46210d84c6fc6a67c7420c397d9448c1389469bf5a33750ce3f91'
+            'requirements.txt' = '93966ec7f2e088045d99a3b1705dac28cf918a525cb346dbd6fa86e7ced428a5'
+          }
+          foreach ($k in $expected.Keys) {
+            $p = Join-Path $src ($k -replace '/', '\')
+            if (-not (Test-Path -LiteralPath $p)) { throw "source missing: $k" }
+            $h = (Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($h -ne $expected[$k]) { throw "source hash mismatch: $k" }
+          }
+          "SOURCE OK ($($expected.Count) files)"
+
+          $site     = 'D:\codesolution\kgeodata\3dscan'
+          $upload   = 'D:\codesolution\kgeodata\3dupload'
+          $tools    = 'D:\kgeoHub\tools\3dscan'
+          $cfgDir   = 'D:\kgeoHub\config'
+          $dataRoot = 'D:\kgeoHub\data\3dscan'
+          $bkRoot   = 'D:\codesolution\_deploy_backup\3dscan'
+          $stamp    = Get-Date -Format 'yyyyMMdd-HHmmss'
+
+          # ── 백업 (3dscan 웹 폴더, 3dupload, tools)
+          $bk = Join-Path $bkRoot $stamp
+          New-Item -ItemType Directory -Force -Path $bk | Out-Null
+          foreach ($pair in @(@($site,'3dscan'), @($upload,'3dupload'), @($tools,'tools'))) {
+            if (Test-Path -LiteralPath $pair[0]) {
+              robocopy $pair[0] (Join-Path $bk $pair[1]) /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP | Out-Null
+              if ($LASTEXITCODE -ge 8) { throw ('backup failed: ' + $pair[0]) }
+            }
+          }
+          "BACKUP=$bk"
+          Get-ChildItem -LiteralPath $bkRoot -Directory | Sort-Object Name -Descending | Select-Object -Skip 10 | Remove-Item -Recurse -Force
+
+          # ── 웹 루트 정리: 보조 스크립트를 웹 밖으로 (IIS 가 .py 를 CGI 로 실행하므로)
+          New-Item -ItemType Directory -Force -Path (Join-Path $tools 'legacy'), (Join-Path $tools 'worker'), $cfgDir, (Join-Path $dataRoot 'jobs'), (Join-Path $dataRoot 'logs') | Out-Null
+          if (Test-Path -LiteralPath $site) {
+            $moved = 0; $stuck = @()
+            Get-ChildItem -LiteralPath $site -File | Where-Object { $_.Extension -in '.py','.bat','.ps1','.log','.pyc' } | ForEach-Object {
+              try { Move-Item -LiteralPath $_.FullName -Destination (Join-Path $tools ('legacy\' + $_.Name)) -Force; $moved++ } catch { $stuck += $_.Name }
+            }
+            "LEGACY MOVED=$moved" + $(if ($stuck) { "  (이동 실패: $($stuck -join ', '))" } else { '' })
+          }
+          try { cmd /c 'schtasks /delete /tn kgeoScanQueueRunner /f 2>nul' | Out-Null; "OLD TASK: 삭제 시도 (exit $LASTEXITCODE)" } catch { "OLD TASK: 삭제 생략" }
+
+          # ── 파일 설치
+          New-Item -ItemType Directory -Force -Path $site, $upload | Out-Null
+          foreach ($f in 'index.html','viewer.js','viewer.css') { Copy-Item -LiteralPath (Join-Path $src ('site\3dscan\' + $f)) -Destination (Join-Path $site $f) -Force }
+          robocopy (Join-Path $src '3dupload') $upload /MIR /R:2 /W:2 /NFL /NDL /NJH /NJS /NP | Out-Null
+          if ($LASTEXITCODE -ge 8) { throw 'copy 3dupload failed' }
+          foreach ($f in Get-ChildItem -LiteralPath (Join-Path $src 'tools') -File) { Copy-Item -LiteralPath $f.FullName -Destination (Join-Path $tools $f.Name) -Force }
+          foreach ($f in Get-ChildItem -LiteralPath (Join-Path $src 'worker') -File) { Copy-Item -LiteralPath $f.FullName -Destination (Join-Path $tools ('worker\' + $f.Name)) -Force }
+          Copy-Item -LiteralPath (Join-Path $src 'requirements.txt') -Destination (Join-Path $tools 'requirements.txt') -Force
+          "FILES INSTALLED"
+
+          # ── Python venv (3.10+ 필요). 후보: py -3.11, python, ArcGIS Pro python
+          $venvPy = 'D:\kgeoHub\tools\3dscan\venv\Scripts\python.exe'
+          $probe = 'import sys; print(sys.version_info[0]*100+sys.version_info[1]); print(sys.executable)'
+          if (-not (Test-Path -LiteralPath $venvPy)) {
+            $base = $null
+            $cands = @(
+              @{ exe = 'py'; args = @('-3.11') }, @{ exe = 'py'; args = @('-3.12') }, @{ exe = 'python'; args = @() },
+              @{ exe = 'D:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe'; args = @() }
+            )
+            foreach ($c in $cands) {
+              try {
+                $v = cmd /c ('"' + $c.exe + '" ' + ($c.args -join ' ') + ' -c "' + $probe + '" 2>nul')
+                if ($LASTEXITCODE -eq 0 -and $v -and [int]$v[0] -ge 310) { $base = $v[1].Trim(); break }
+              } catch {}
+            }
+            if (-not $base) { throw 'Python 3.10+ 를 찾지 못했습니다. 서버에 Python 3.11 을 설치하세요.' }
+            "VENV BASE=$base"
+            cmd /c ('"' + $base + '" -m venv "' + (Join-Path $tools 'venv') + '" 2>&1')
+            if ($LASTEXITCODE -ne 0) { throw 'venv 생성 실패' }
+          }
+          cmd /c ('"' + $venvPy + '" -m pip install --upgrade pip --quiet --disable-pip-version-check 2>&1') | Select-Object -Last 3
+          cmd /c ('"' + $venvPy + '" -m pip install -r "' + (Join-Path $tools 'requirements.txt') + '" --quiet --disable-pip-version-check 2>&1') | Select-Object -Last 5
+          if ($LASTEXITCODE -ne 0) { throw 'pip install 실패' }
+          cmd /c ('"' + $venvPy + '" -I -c "import open3d, cv2, trimesh, laspy, pyproj, numpy; print(''PY OK open3d'', open3d.__version__)" 2>&1')
+          if ($LASTEXITCODE -ne 0) { throw 'worker 패키지 import 실패' }
+
+          # ── 설정 파일 (없을 때만 생성). 비밀번호: GitHub secret KGEOSCAN_PORTAL_PASSWORD 가 있으면 넣음
+          $cfgPath = Join-Path $cfgDir 'kgeoscan.json'
+          if (-not (Test-Path -LiteralPath $cfgPath)) {
+            $cfg = Get-Content -LiteralPath (Join-Path $src 'config\kgeoscan.example.json') -Raw -Encoding UTF8
+            if ($env:KGEOSCAN_PORTAL_PASSWORD) { $cfg = $cfg.Replace('<PORTAL_PASSWORD>', $env:KGEOSCAN_PORTAL_PASSWORD); "CONFIG: secret applied" } else { "CONFIG: password placeholder - edit on server" }
+            [System.IO.File]::WriteAllText($cfgPath, $cfg, (New-Object System.Text.UTF8Encoding($false)))
+            "CONFIG CREATED=$cfgPath"
+          } else { "CONFIG EXISTS=$cfgPath (유지)" }
+
+          # ── IIS: CGI 실행 허용 목록에 venv python 등록 (실패해도 계속)
+          try {
+            $appcmd = Join-Path $env:windir 'system32\inetsrv\appcmd.exe'
+            $proc = $venvPy + ' -I %s %s'
+            $list = & $appcmd list config /section:system.webServer/security/isapiCgiRestriction /text:*
+            if ($list -match [regex]::Escape($proc)) { "CGI RESTRICTION: already allowed" }
+            else { & $appcmd set config /section:system.webServer/security/isapiCgiRestriction /+"[path='$proc',allowed='True',description='kgeoScan CGI']" /commit:apphost | Out-Null; "CGI RESTRICTION: added" }
+          } catch { "CGI RESTRICTION: 자동 등록 실패 ($($_.Exception.Message)) — SERVER_POWERSHELL.md 3번 참고" }
+
+          # ── 설치 확인
+          foreach ($k in $expected.Keys) {
+            $dest = switch -Wildcard ($k) {
+              'site/3dscan/*' { Join-Path $site ($k.Substring(12)) }
+              '3dupload/*'    { Join-Path $upload ($k.Substring(9)) }
+              'tools/*'       { Join-Path $tools ($k.Substring(6)) }
+              'worker/*'      { Join-Path $tools ('worker\' + $k.Substring(7)) }
+              default         { $null }
+            }
+            if ($dest) {
+              $h = (Get-FileHash -LiteralPath $dest -Algorithm SHA256).Hash.ToLowerInvariant()
+              if ($h -ne $expected[$k]) { throw "installed hash mismatch: $k" }
+            }
+          }
+          "INSTALL VERIFIED"
+          $task = $null
+          try { $task = cmd /c 'schtasks /query /tn kgeoScanQueueRunner /fo LIST 2>nul' } catch {}
+          if ($LASTEXITCODE -eq 0 -and $task) { "TASK: kgeoScanQueueRunner 등록됨 — " + (($task | Select-String 'Task To Run') -join ' ') } else { "TASK: 미등록 — 서버에서 register_task.ps1 실행 필요 (kgo 계정)" }
+          $pro = 'D:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe'
+          if (Test-Path -LiteralPath $pro) { "ARCGIS PYTHON: $pro" } else { "ARCGIS PYTHON: 없음 → config slpk_enabled=false 권장" }
+          exit 0

@@ -1,0 +1,23 @@
+{
+  "_comment": "복사해서 D:\\kgeoHub\\config\\kgeoscan.json 으로 저장. 웹 루트 밖에 두고 kgo 계정만 읽게 한다.",
+  "data_root": "D:\\kgeoHub\\data\\3dscan",
+  "jobs_dir": "D:\\kgeoHub\\data\\3dscan\\jobs",
+  "glb_serve_dir": "D:\\codesolution\\kgeodata\\3dscan\\glb",
+  "glb_serve_url": "https://kgeodata.com/app/3dscan/glb",
+  "worker_python": "D:\\kgeoHub\\tools\\3dscan\\venv\\Scripts\\python.exe",
+  "worker_dir": "D:\\kgeoHub\\tools\\3dscan\\worker",
+  "arcgis_python": "D:\\Program Files\\ArcGIS\\Pro\\bin\\Python\\envs\\arcgispro-py3\\python.exe",
+  "slpk_enabled": true,
+  "portal_url": "https://kgeodata.com/portal",
+  "server_url": "https://kgeodata.com/server",
+  "portal_user": "portaladmin",
+  "portal_password": "<PORTAL_PASSWORD>",
+  "portal_folder_id": "7692334157ac42d9b8f7497d0e82e709",
+  "points_layer_url": "https://kgeodata.com/server/rest/services/Hosted/scan_points/FeatureServer/0",
+  "utm_epsg": 32652,
+  "default_elev": 0.0,
+  "fusion": { "voxel": 0.006, "every": 1, "max_depth": 4.0, "fuse_tris": 600000 },
+  "texture": { "tris": 120000, "keyframes": 100, "tex_size": 4096, "jpeg_quality": 85 },
+  "poll_interval_sec": 10,
+  "pipeline_timeout_sec": 1800
+}
