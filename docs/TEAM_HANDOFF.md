@@ -953,3 +953,9 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - `site-shell.css` 토큰 `--ui-faint: #667570`(흰 바탕 4.6:1). 지도 4쪽의 `--faint`(옛 KRDS gray-40 ≈3.1:1)와 theme 의 gray-40 직접 사용(거리 단위·건수·팝업 라벨·빈 목록), 인라인 `#9AA6A0`·`#8A968F`, 공용 손잡이/공유창 안내 `#7c8a82`, 홈의 `#8eaa97·#96a397·#76847a·#708075·#758078`을 모두 이 토큰으로. 홈 일러스트 캡션 4색과 운영 배지 주황(`#B77410→#8C5A0A`, `#B26A00→#8A5200`)도 한 단계 진하게(연한 배경 기준 4.5:1 이상). 흰 글자·짙은 배경 위 글자는 그대로.
 - 빈 상태·로딩 공통 모양 `.gm-empty`(둥근 돋보기 아이콘 `.gm-empty-ic` + 굵은 한 줄 + 설명) / `.gm-spin`(site-shell.css). 적용: 우리동네 찾기 빈 목록·오류 문구, 홈 테마 검색 결과 없음, 3D 로딩 상자(제목 15px·설명 faint·스피너 색 통일), 유기동물 빈 목록 색.
 - 검증: 남은 4.5:1 미만 글자색은 짙은 배경 위(항공 로드뷰 패널) 뿐. `npx tsc --noEmit`, prettier, 지도 4쪽 `node --check`, 치안안심 하네스, `npm run build:deploy`, `git diff --check` 통과. 캡처 `empty-shot.png`(우리동네 찾기 빈 목록·3D 로딩·홈 검색 결과 없음). 브랜치 `work/kangmina-contrast-empty`.
+
+## 2026-10-26 모바일: 계절 줄과 장소명 배지 겹침 해결, 지도 위 건수 배지 숨김 (담당: 강민아)
+
+- 메인(≤620px): 사진 오른쪽 아래 장소명 배지(`.season-place`)가 '구리의 사계절' 줄의 겨울 버튼과 겹침 → 배지를 `bottom:70px` 로 계절 줄 위로. Playwright 로 겹침 없음 확인.
+- 우리동네 찾기(≤900px): 지도 오른쪽 위 '시즌·겨울 · ○○ 0곳' 배지(`.locate-hint`) 숨김 — 칩에 건수가 있으므로. 데스크톱은 그대로.
+- 검증: theme `node --check`, prettier, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-mobile-overlap`.
