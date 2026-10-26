@@ -72,12 +72,41 @@ def cleanup_orphans():
     print(f"cleanup-orphans: {removed}개 삭제")
 
 
-def delete_scan(objectid):
+def fix_slpk_refs():
+    """같은 이름의 Scene Package 가 둘이면 'ArcGIS Pro'(SharePackage 로 올린 것)를 남기고 scan_points 참조를 그쪽으로 고친 뒤 나머지 삭제"""
     ptoken, stoken = token(PORTAL), token(CFG["server_url"])
-    feat = next((a for a in features(stoken) if int(a.get("objectid", -1)) == int(objectid)), None)
+    feats = features(stoken)
+    items = my_items(ptoken, 'type:"Scene Package"')
+    by_name = {}
+    for it in items:
+        by_name.setdefault(it.get("name"), []).append(it)
+    for name, group in by_name.items():
+        if len(group) < 2:
+            continue
+        keep = next((g for g in group if "ArcGIS Pro" in (g.get("typeKeywords") or [])), group[0])
+        print(f"중복 SLPK {name}: {len(group)}개 → 유지 {keep['id']}")
+        for a in feats:
+            if a.get("slpk_item_id") in {g["id"] for g in group} and a.get("slpk_item_id") != keep["id"]:
+                upd = http_json(CFG["points_layer_url"] + "/updateFeatures",
+                                {"features": json.dumps([{"attributes": {"objectid": a["objectid"], "slpk_item_id": keep["id"]}}]),
+                                 "f": "json", "token": stoken})
+                print(f"  OID {a['objectid']} slpk_item_id → {keep['id']}: {upd.get('updateResults')}")
+        for g in group:
+            if g["id"] != keep["id"]:
+                delete_item(ptoken, g["id"])
+
+
+def delete_scan(objectid=None, title=None):
+    ptoken, stoken = token(PORTAL), token(CFG["server_url"])
+    feats = features(stoken)
+    if objectid is not None:
+        feat = next((a for a in feats if int(a.get("objectid", -1)) == int(objectid)), None)
+    else:
+        feat = next((a for a in feats if a.get("scan_title") == title), None)
     if not feat:
-        print(f"delete-scan: OID {objectid} 없음")
+        print(f"delete-scan: 대상 없음 (oid={objectid}, title={title})")
         return
+    objectid = feat["objectid"]
     print(f"delete-scan: OID {objectid} '{feat.get('scan_title')}'")
     for iid in (feat.get("scene_item_id"), feat.get("slpk_item_id")):
         if iid:
@@ -111,8 +140,10 @@ def main():
             try:
                 if op == "cleanup-orphans":
                     cleanup_orphans()
+                elif op == "fix-slpk-refs":
+                    fix_slpk_refs()
                 elif op == "delete-scan":
-                    delete_scan(act["objectid"])
+                    delete_scan(act.get("objectid"), act.get("title"))
                 elif op == "list":
                     list_scans()
                 else:
@@ -126,6 +157,8 @@ def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else "list"
     if cmd == "cleanup-orphans":
         cleanup_orphans()
+    elif cmd == "fix-slpk-refs":
+        fix_slpk_refs()
     elif cmd == "delete-scan":
         delete_scan(sys.argv[2])
     else:

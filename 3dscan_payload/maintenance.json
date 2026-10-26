@@ -1,7 +1,9 @@
 {
-  "once_id": "2026-10-26-orphans-1",
+  "once_id": "2026-10-26-cleanup-2",
   "actions": [
+    {"op": "fix-slpk-refs"},
     {"op": "cleanup-orphans"},
+    {"op": "delete-scan", "title": "기존방식 LAS+GLB 테스트"},
     {"op": "list"}
   ]
 }

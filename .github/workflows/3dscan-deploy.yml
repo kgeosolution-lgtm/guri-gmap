@@ -28,7 +28,7 @@ jobs:
 
           $src = Join-Path $env:GITHUB_WORKSPACE '3dscan_payload'
           $expected = [ordered]@{
-            'site/3dscan/index.html' = '64888dedb538b5f75bd6bb8742b66c94c693f61fdf05720aead26821db81c00c'
+            'site/3dscan/index.html' = 'e040a5f13a17e2f69998b5cf2098e13012665d60b6af929caccf19a1e9c1420f'
             'site/3dscan/viewer.js' = '9687c55f96220a2cd329b4689f912da02971280f0b791efb73a1bd29a2c9ac35'
             'site/3dscan/viewer.css' = 'd8b7d7ac548581aa38ce8d655a827812e8bacd4dd40de7435fce1050ac59a914'
             '3dupload/common.py' = 'af4551445364ecec4e645a1c63fca0e6d9aea3e86154031664ebba037b34846f'
@@ -38,11 +38,11 @@ jobs:
             '3dupload/retry.py' = '867ee3d6b5cdfa37ee6db144249e966f667a8e4c97e728fe97a1ea2c0e8ed442'
             '3dupload/web.config' = 'c5562814cdca943748b6cc46205e29a2392ae99362e99ace4ac14b621dd81783'
             'tools/queue_runner.py' = '2f0391007ee7522f97f23a797433b9149e89df4b1b473123cb43e17c2995eff8'
-            'tools/pipeline.py' = '3a7d9155e082a47b9ba83d791bc057c493b1d1dc9c425bad5ff199f4e7afb1a0'
+            'tools/pipeline.py' = 'bf5728feb4b9bc37d60fb55dab19c0500dc8490cb34dfd73ac09a52de20deade'
             'tools/slpk_step.py' = 'a76ee0bc029538ce8b9d93904ce06cd9294842f0a119d5f3565294b2a0e30b95'
             'tools/register_task.ps1' = 'f715092ec71960880a80d5aa18ebad602786209b229a194d22095e40e0c394ae'
-            'tools/maintenance.py' = '81065bfba05fd13eec43ca566da175cf89288cc6c27977618488aac039f67763'
-            'maintenance.json' = '5cb21357cde2fe7a7fcb4d9899a620186717a977d28513457ba980ab1088a9f2'
+            'tools/maintenance.py' = 'ec51e762ac17ab552e9f836663de13941f2b09eef47aa8a6e53ce704c5623e10'
+            'maintenance.json' = '26b6340ec39fe75e359f76d518241e269e712531de5edc97512265c22a6c39f4'
             'worker/process_scan.py' = '31edc44eba6a9d1f888df20dde4a8d5f4e6b3ac9922a599d195e8ea919ab9d53'
             'worker/stray_to_mesh.py' = '2c4dc1d2ce92586c7e7e7cafb59ea5143f4775ed16275ece8e513c4a61182ea9'
             'worker/texture_fast.py' = 'fde627b7c0bdf9736e8e0d863984cc4032c7ce569d8ccb610777d85699bad17b'

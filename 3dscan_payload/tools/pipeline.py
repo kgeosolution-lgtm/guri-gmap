@@ -167,9 +167,12 @@ def find_items(token, service_name, slpk_name):
                       {"q": f'owner:{user} AND (type:"Scene Package" OR type:"Scene Service")', "num": 100,
                        "sortField": "modified", "sortOrder": "desc", "f": "json", "token": token})
     slpk_id = scene_id = scene_url = ""
+    # SLPK 는 SharePackage 가 올린 것('ArcGIS Pro' 키워드)을 우선
+    pkgs = [r for r in found.get("results", []) if r.get("type") == "Scene Package" and r.get("name") == slpk_name]
+    pkgs.sort(key=lambda r: 0 if "ArcGIS Pro" in (r.get("typeKeywords") or []) else 1)
+    if pkgs:
+        slpk_id = pkgs[0]["id"]
     for r in found.get("results", []):
-        if r.get("type") == "Scene Package" and r.get("name") == slpk_name and not slpk_id:
-            slpk_id = r["id"]
         if r.get("type") == "Scene Service" and (r.get("title") == service_name or service_name in (r.get("url") or "")) and not scene_id:
             scene_id, scene_url = r["id"], r.get("url", "")
     return slpk_id, scene_id, scene_url
