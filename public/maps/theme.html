@@ -3684,8 +3684,8 @@ function showInfo(row){
         ${telClean?`<a class="btn-tel" href="tel:${telClean}">📞 ${esc(t.telLabel||(short+'에 전화하기'))}</a>`:''}
         ${links}
         ${!isShape?`<a class="btn-nv" target="_blank" rel="noopener" href="${nvRoute}">🧭 네이버 지도에서 길찾기</a>`:''}
+        ${t.foot?`<div class="foot">${esc(t.foot)}</div>`:''}
       </div>
-      ${t.foot?`<div class="foot">${esc(t.foot)}</div>`:''}
     </div>`);
   $('infocard').classList.add('open');
   }catch(err){
