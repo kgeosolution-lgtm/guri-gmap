@@ -967,3 +967,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 조치(`theme.html`): `EV_SYNC_EVERY_MIN=10`(문구·지연 기준 30분 모두 여기서), `evSyncKind()`로 시각 종류를 구분해 문구를 정확히 — 수집 시각이면 "n분 전 확인 · 10분마다 갱신돼요", 상태 변경 시각이면 "마지막 상태 변경 n분 전 · 상태는 10분마다 새로 받아요"(목록은 "상태 변경 n분 전"). 지연 경고(`evStale`)는 수집 시각이 있을 때만. 페이지를 보고 있는 동안 10분마다 전기차 자료를 조용히 다시 받음(`autoRefresh:true`, `loadGroupData(quiet)`, 자리표시 없음, 탭이 숨겨져 있으면 건너뜀).
 - 권장(노트북): 갱신할 때 모든 행에 `수집일시`(KST, ISO 문자열 또는 날짜형)를 함께 쓰면 화면이 "n분 전 확인"으로 진짜 확인 시각을 보여 주고 지연 경고도 동작함.
 - 검증: 하네스 `ev-when-test.js`(상태 시각/수집 시각 두 경우의 문구·지연 판단·상수), 치안안심 하네스(loadGroupData 서명 변경 반영), theme `node --check`, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-ev-sync`.
+
+## 2026-10-26 전기차 '충전중 n시간째' 시각: 충전중시작 대신 마지막충전시작 우선, 미래·지난 세션 값은 버림 (담당: 강민아)
+
+- 담당자 캡처(`life_evcharge_new` 데이터 탭)로 확인한 환경부 자료 특성: `마지막충전시작`(lastTsdt)은 `상태갱신일시`와 맞아떨어지는데, `충전중시작`(nowTsdt)은 ① 지난 세션 값이 남아 있거나(예: 어제 17:54, 종료 20:42보다 앞) ② 지금보다 9시간 앞선 미래 값(예: 22:25 — 시간대 변환이 두 번 적용된 꼴)이 섞여 있음. 화면의 "충전중 2일째/17시간째"는 이 값에서 나왔던 것.
+- 조치(`theme.html` `evNowStart()`): 충전중일 때 `마지막충전시작` → 없으면 `충전중시작` 순으로 쓰되, 지금+5분보다 미래이거나 `마지막충전종료`보다 앞이면 버림(그러면 '몇 분째' 꼬리를 안 붙임).
+- 노트북 쪽 확인 권장: nowTsdt 를 쓸 때 KST 변환을 한 번만(환경부 값은 이미 KST). 다만 화면은 이제 lastTsdt 를 쓰므로 급하지 않음.
+- 검증: 하네스 `ev-nowt-test.js`(캡처 1·4행 꼴 등 5경우), `ev-when-test.js`, 치안안심 하네스, theme `node --check`, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-ev-nowt`.
