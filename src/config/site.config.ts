@@ -9,6 +9,9 @@ export const siteConfig = {
    *  내년에 서비스하면 animalMap 을 true 로만 바꾸면 메뉴·메인·추천 카드가 다시 보인다(지도 파일 maps/animal.html 은 그대로 배포됨). */
   features: {
     animalMap: false,
+    /** 구리 동네소식(guri.kgeohub.com) — 구리시 요청(2026-10-27): 12월에 오픈해 달라고 할 때 공개. 그때 true 로만 바꾸면
+     *  메뉴(홈·지도 4쪽, sync-shell.mjs 가 반영)와 메인의 '함께 나누는 구리' 단락이 다시 보인다. */
+    newsHub: false,
     /** 오픈 전 검토용 "수정 요청" 위젯(public/review/review.js). 오픈할 때 false 로 바꾸면 홈·지도 4쪽에서 모두 빠진다
      *  (지도 4쪽은 scripts/sync-shell.mjs 가 build:deploy 때 반영). 켜져 있어도 주소 뒤에 ?review=1 이 있을 때만 메뉴가 보인다. */
     reviewWidget: true,

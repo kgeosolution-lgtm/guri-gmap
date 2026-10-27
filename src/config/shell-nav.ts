@@ -13,7 +13,7 @@ type Raw = {
   label: string;
   kind: 'theme' | 'animal' | 'scene' | 'aerial' | 'external' | 'home';
   group?: string;
-  feature?: 'animalMap';
+  feature?: 'animalMap' | 'newsHub';
   href?: string;
   hash?: string;
 };

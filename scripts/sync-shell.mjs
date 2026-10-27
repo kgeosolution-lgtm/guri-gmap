@@ -7,6 +7,7 @@ const nav = JSON.parse(readFileSync('src/config/shell-nav.json', 'utf8'));
 const site = readFileSync('src/config/site.config.ts', 'utf8');
 const features = {
   animalMap: /animalMap:\s*true/.test(site),
+  newsHub: /newsHub:\s*true/.test(site),
   reviewWidget: /reviewWidget:\s*true/.test(site),
 };
 const PAGES = {
