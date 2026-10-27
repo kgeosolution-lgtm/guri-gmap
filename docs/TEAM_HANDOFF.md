@@ -1042,3 +1042,9 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 조치(`theme.html`): 칩을 바꿀 때 자료 범위로 맞추지 않고 **구리시 전체 화면**(`resetView`, 시작 화면·'처음 화면' 단추와 같은 범위)으로 돌아온다. 동을 고른 상태면 그 동 화면을 그대로 둔다. `catExtent()` 는 더 안 써서 삭제. 교통 '공사·통제'(수도권 자료)도 같은 규칙 — 시 밖 항목은 목록에서 누르면 그 자리로 간다.
 - 자료 쪽 확인 권장: `life_evcharge_new` 에 구리시 밖 좌표(천안 부근) 충전소가 한 건 이상 있음 → 노트북 갱신 때 구리시 범위 밖 좌표는 걸러 주면 좋다.
 - 검증: Playwright(가짜 자료: 전기차에 천안 좌표 1건 포함) 에서 전기차·주차장 칩 모두 구리시 중심·같은 배율로 이동, 동 선택 중엔 이동 없음; 기존 하네스(칩 건수·치안안심·전기차 문구), theme `node --check`, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-fixed-extent`.
+
+## 2026-10-27 구리 동네소식 숨김(12월 오픈 요청 때 공개) (담당: 강민아)
+
+- 구리시 요청: 구리 동네소식(guri.kgeohub.com)은 12월에 오픈해 달라고 할 때 공개. 지금은 메뉴와 메인에서 안 보이게.
+- 조치: 유기동물 찾기와 같은 방식의 스위치 — `src/config/site.config.ts` `features.newsHub: false`. `shell-nav.json` 의 링크에 `"feature": "newsHub"` 를 달아 홈 헤더·푸터(`shellLinks()`)와 지도 4쪽 헤더(`sync-shell.mjs`, 주석으로 남김)에서 빠지고, 메인의 '함께 나누는 구리' 단락(`page.tsx` news-section)도 같은 플래그로 감쌈. 12월에 `true` 로만 바꾸고 배포하면 전부 다시 보인다.
+- 검증: 플래그 on/off 둘 다 sync-shell 로 확인, `npx tsc --noEmit`, prettier, `npm run build:deploy` 후 out 의 홈·지도 4쪽에 보이는 동네소식 링크 0건(주석만), `git diff --check` 통과. 브랜치 `work/kangmina-hide-news`.

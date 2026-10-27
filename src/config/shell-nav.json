@@ -5,7 +5,12 @@
     { "label": "유기동물 찾기", "kind": "animal", "feature": "animalMap" },
     { "label": "3D입체지도", "kind": "scene" },
     { "label": "항공사진 비교", "kind": "aerial" },
-    { "label": "구리 동네소식", "kind": "external", "href": "https://guri.kgeohub.com/" },
+    {
+      "label": "구리 동네소식",
+      "kind": "external",
+      "href": "https://guri.kgeohub.com/",
+      "feature": "newsHub"
+    },
     { "label": "G-MAP 소개", "kind": "home", "hash": "#about" }
   ],
   "search": { "label": "테마 찾기", "hash": "#search" }
