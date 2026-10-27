@@ -332,8 +332,8 @@ def op_queue(cfg, job_id):
     force = query_params().get("force") in ("1", "true")
     if q.get("status") != "done":
         return respond({"error": f"메시 처리가 끝난 작업만 넣을 수 있습니다 (status={q.get('status')})"}, "409 Conflict")
-    if q.get("mode") != "stray" or not (meta.get("scan_zip") and os.path.exists(meta["scan_zip"])):
-        return respond({"error": "Stray 원본 zip 이 있는 작업만 스플랫을 만들 수 있습니다"}, "409 Conflict")
+    if q.get("mode") not in ("stray", "objcap") or not (meta.get("scan_zip") and os.path.exists(meta["scan_zip"])):
+        return respond({"error": "원본 zip(Stray 녹화 또는 Object Capture) 이 있는 작업만 스플랫을 만들 수 있습니다"}, "409 Conflict")
     if q.get("splat_status") in ("pending", "processing") and not force:
         return respond(splat_summary(q, meta))
     # 물체 모드 지정: ?object=1[&center=x,y,z][&radius=r] → 큐 파일 object (upload.py 와 같은 꼴). ?object=0 이면 전체 모드로

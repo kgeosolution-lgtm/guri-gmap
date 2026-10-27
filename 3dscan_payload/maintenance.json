@@ -1,7 +1,6 @@
 {
-  "once_id": "2026-10-28-delete-objcap-test",
+  "once_id": "2026-10-28-splat-jobs-objcap",
   "actions": [
-    {"op": "delete-scan", "objectid": 56},
     {"op": "list"}
   ]
 }
