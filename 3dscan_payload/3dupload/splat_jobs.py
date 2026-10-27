@@ -29,14 +29,8 @@ import time
 import urllib.parse
 import urllib.request
 
-import msvcrt
-
-# GET 이나 HTTP/2 요청에서는 IIS 가 넘긴 stdin 이 파이프가 아니어서 setmode 가 OSError → 헤더 전에 죽어 502 가 된다
-for _fd_owner in (sys.stdin, sys.stdout):
-    try:
-        msvcrt.setmode(_fd_owner.fileno(), os.O_BINARY)
-    except (OSError, ValueError, AttributeError):
-        pass
+# msvcrt.setmode 는 쓰지 않는다: 파이썬은 Windows 에서 표준 입출력을 이미 바이너리로 연다(확인함).
+# IIS 에서 HTTP/2 요청일 때 stdin/stdout 에 setmode 를 부르면 응답이 끊기고(RST), GET 에서는 502 가 났다.
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import load_config, query_params, respond, safe_job_id  # noqa: E402

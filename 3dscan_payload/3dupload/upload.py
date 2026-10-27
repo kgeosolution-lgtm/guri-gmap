@@ -21,15 +21,8 @@ import sys
 import time
 import uuid
 
-import msvcrt
-
-# IIS CGI 에서 stdin 핸들이 없거나(GET, 일부 HTTP/2 요청) 파이프가 아니면 setmode 가 OSError 를 내고
-# 헤더를 쓰기 전에 죽어 502(HTTP/1.1) 또는 스트림 끊김(HTTP/2)이 된다 → 실패해도 계속 (파이썬은 이미 바이너리 모드)
-for _fd_owner in (sys.stdin, sys.stdout):
-    try:
-        msvcrt.setmode(_fd_owner.fileno(), os.O_BINARY)
-    except (OSError, ValueError, AttributeError):
-        pass
+# msvcrt.setmode 는 쓰지 않는다: 파이썬은 Windows 에서 표준 입출력을 이미 바이너리로 연다(확인함).
+# IIS 에서 HTTP/2 요청일 때 stdin/stdout 에 setmode 를 부르면 응답이 끊기고(RST), GET 에서는 502 가 났다.
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # python -I 에서도 common.py 를 찾도록
 from common import load_config, respond  # noqa: E402
