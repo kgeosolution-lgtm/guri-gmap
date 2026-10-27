@@ -32,7 +32,7 @@ jobs:
             'site/3dscan/viewer.js' = 'b80711622e385d24373d234e34480371dd288f95a89471082283db087be0b806'
             'site/3dscan/viewer.css' = 'ee369c639a002654ebfad3375b4b271e98242d6370be03234cfe4cfc2b9c1453'
             '3dupload/common.py' = 'af4551445364ecec4e645a1c63fca0e6d9aea3e86154031664ebba037b34846f'
-            '3dupload/upload.py' = 'b8d5b0c6d8548b2c7643ae3ca4bbffba23c3b8aae6e69f202d6e95e2c00f19dc'
+            '3dupload/upload.py' = 'e14202246df15ae1bdfa047730863a190849ce606b2666ddbac68a328bec40d0'
             '3dupload/status.py' = 'a2ad021d400ae8ec36f912ca2f20c58aee7366d7e427ae41491fc74c22d8fa9f'
             '3dupload/check_title.py' = 'a27fc6fdd49535cffc57ce4fbd917220406f28c68b247edc5cf5076b88181c3c'
             '3dupload/retry.py' = '867ee3d6b5cdfa37ee6db144249e966f667a8e4c97e728fe97a1ea2c0e8ed442'

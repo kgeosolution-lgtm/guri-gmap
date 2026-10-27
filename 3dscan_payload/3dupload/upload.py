@@ -6,6 +6,8 @@ POST /app/3dupload/upload.py  (multipart/form-data)
   mode=legacy (기본): las_file, glb_file (Scaniverse 등에서 내보낸 LAS + GLB)
 
 응답: {"job_id": "..."}  또는 {"error": "..."}
+중복 방지: 같은 제목·같은 원본 파일 이름으로 24시간 안에 만든 작업(실패 제외)이 있으면 새로 만들지 않고 그 job_id 를 돌려준다
+          (앱의 백그라운드 전송이 재시도돼 같은 녹화가 여러 번 올라오는 경우).
 작업 폴더: <data_root>\<job_id>\  (업로드 원본 + job.json)
 큐 파일  : <jobs_dir>\<job_id>.json  (status: pending → 러너가 처리)
 
@@ -57,6 +59,34 @@ def parse_multipart():
     return fields, files
 
 
+def find_recent_duplicate(cfg, title, mode, source_name, max_age_sec=86400):
+    """같은 제목·모드·원본 파일 이름으로 최근에 만든 작업이 있으면 그 큐 항목을 돌려준다 (실패한 작업은 제외)"""
+    if not source_name:
+        return None
+    jobs_dir = cfg["jobs_dir"]
+    now = time.time()
+    try:
+        names = os.listdir(jobs_dir)
+    except OSError:
+        return None
+    best = None
+    for n in names:
+        if not n.endswith(".json"):
+            continue
+        p = os.path.join(jobs_dir, n)
+        try:
+            if now - os.path.getmtime(p) > max_age_sec:
+                continue
+            with open(p, "r", encoding="utf-8") as f:
+                q = json.load(f)
+        except Exception:
+            continue
+        if q.get("title") == title and q.get("mode") == mode and q.get("source_name") == source_name                 and q.get("status") != "failed":
+            if best is None or (q.get("created_at") or "") > (best.get("created_at") or ""):
+                best = q
+    return best
+
+
 def save_upload(item, job_dir, name):
     if not item:
         return None
@@ -92,6 +122,11 @@ def main():
     if scan_type not in ("home", "survey"):
         return respond({"error": "scan_type은 home 또는 survey"}, "400 Bad Request")
 
+    source_name = (files.get("scan_zip") or files.get("las_file") or ("", b""))[0] or ""
+    dup = find_recent_duplicate(cfg, title, mode, source_name)
+    if dup:
+        return respond({"job_id": dup["job_id"], "mode": mode, "scan_type": dup.get("scan_type", scan_type), "duplicate": True})
+
     job_id = uuid.uuid4().hex[:8]
     job_dir = os.path.join(cfg["data_root"], job_id)
     os.makedirs(job_dir, exist_ok=True)
@@ -125,6 +160,7 @@ def main():
     with open(os.path.join(job_dir, "job.json"), "w", encoding="utf-8") as f:
         json.dump(meta, f, ensure_ascii=False, indent=2)
     queue = {"job_id": job_id, "title": title, "job_dir": job_dir, "mode": mode, "scan_type": scan_type,
+             "source_name": source_name, "app": (fields.get("app") or "")[:60],
              "status": "pending", "step": 0, "message": "대기 중", "created_at": meta["created_at"]}
     with open(os.path.join(cfg["jobs_dir"], job_id + ".json"), "w", encoding="utf-8") as f:
         json.dump(queue, f, ensure_ascii=False, indent=2)
