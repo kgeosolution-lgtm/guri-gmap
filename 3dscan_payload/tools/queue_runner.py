@@ -1,4 +1,4 @@
-"""
+r"""
 kgeoScan Queue Runner (v2, 2026-10)
   - 웹 루트 밖(D:\kgeoHub\tools\3dscan)에 두고 작업 스케줄러로 실행한다.
   - 설정은 D:\kgeoHub\config\kgeoscan.json (환경변수 KGEOSCAN_CONFIG 로 바꿀 수 있음)

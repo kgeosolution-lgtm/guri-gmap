@@ -1,4 +1,4 @@
-"""
+r"""
 POST /app/3dupload/upload.py  (multipart/form-data)
 
   공통 필드 : title (필수), note, scan_type (home=홈스캔 | survey=현장조사, 기본 home), splat (1 이면 유형과 무관하게 GPU 스플랫 요청)

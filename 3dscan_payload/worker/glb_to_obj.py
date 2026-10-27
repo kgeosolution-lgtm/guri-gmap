@@ -1,4 +1,4 @@
-"""
+r"""
 GLB → OBJ(+MTL+JPEG)  for arcpy Import 3D Files
 
   python -I glb_to_obj.py --glb mesh_tex.glb --out <dir> [--heading 0] [--jpeg-quality 85]

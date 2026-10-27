@@ -1,4 +1,4 @@
-"""
+r"""
 배포 때 서버 설정(D:\kgeoHub\config\kgeoscan.json)을 예제 설정에 맞춰 보강한다 (있는 값은 바꾸지 않음).
   python -I config_patch.py <kgeoscan.json> <kgeoscan.example.json>
 

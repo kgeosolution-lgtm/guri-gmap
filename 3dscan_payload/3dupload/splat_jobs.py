@@ -1,4 +1,4 @@
-"""
+r"""
 /app/3dupload/splat_jobs.py — GPU 스플랫 워커(노트북 등 외부 GPU)용 작업 API. 토큰 인증.
 
 인증: 요청 헤더 X-Worker-Token: <token>  (또는 ?token=)  — 서버 설정 kgeoscan.json 의 splat.worker_token 과 같아야 한다.
