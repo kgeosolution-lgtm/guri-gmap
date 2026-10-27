@@ -1,11 +1,7 @@
 {
-  "once_id": "2026-10-27-splat-fields",
+  "once_id": "2026-10-27-splat-token-apply",
   "actions": [
-    {
-      "op": "add-fields"
-    },
-    {
-      "op": "list"
-    }
+    {"op": "add-fields"},
+    {"op": "list"}
   ]
 }
