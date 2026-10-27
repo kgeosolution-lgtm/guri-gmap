@@ -87,6 +87,22 @@ def wgs84_from_utm(x, y, epsg):
 
 # ── 단계 구현 ────────────────────────────────────────────────────────────────
 def step_prepare(meta, out_dir):
+    if meta["mode"] == "objcap":
+        done_las, done_glb = os.path.join(out_dir, "scan.las"), os.path.join(out_dir, "mesh_tex.glb")
+        if os.path.exists(done_las) and os.path.exists(done_glb) and os.path.exists(os.path.join(out_dir, "result.json")):
+            log("워커 결과가 이미 있어 재사용 (재시도)")
+            return done_las, done_glb
+        g = meta["georef"]
+        cmd = [CFG["worker_python"], "-I", os.path.join(CFG["worker_dir"], "process_objcap.py"),
+               "--zip", meta["scan_zip"], "--out", out_dir, "--lon", str(g["lon"]), "--lat", str(g["lat"]),
+               "--elev", str(g.get("elev", 0.0)), "--heading", str(g.get("heading", 0.0)),
+               "--utm-epsg", str(CFG.get("utm_epsg", 32652))]
+        log("워커 실행: process_objcap.py (Object Capture 모델)")
+        with open(os.path.join(out_dir, "worker_stdout.log"), "a", encoding="utf-8") as lf:
+            proc = subprocess.run(cmd, stdout=lf, stderr=subprocess.STDOUT, text=True)
+        if proc.returncode != 0:
+            raise RuntimeError("Object Capture 모델 변환 실패 (worker_stdout.log 확인)")
+        return done_las, done_glb
     if meta["mode"] == "stray":
         done_las, done_glb = os.path.join(out_dir, "scan.las"), os.path.join(out_dir, "mesh_tex.glb")
         if os.path.exists(done_las) and os.path.exists(done_glb) and os.path.exists(os.path.join(out_dir, "result.json")):
@@ -333,7 +349,7 @@ def step_register(meta, las_info, glb_url, slpk_item_id, scene_item_id, scene_ur
 def splat_wanted(meta):
     """GPU 스플랫 워커에 넘길 작업인가: 설정 splat.enabled, Stray 원본, 유형이 splat.scan_types 에 있거나 업로드 때 splat=1 요청"""
     sp = CFG.get("splat") or {}
-    if not sp.get("enabled") or meta.get("mode") != "stray":
+    if not sp.get("enabled") or meta.get("mode") not in ("stray", "objcap"):
         return False
     if meta.get("splat_requested"):
         return True
@@ -361,7 +377,8 @@ def main():
     if prev_slpk:
         service_name = os.path.splitext(sorted(prev_slpk)[-1])[0]   # 재시도: 이전 SLPK 이름 유지
 
-    q.update(step=1, message="입력 준비" + (" (융합·텍스처 처리 중, 몇 분 걸립니다)" if meta["mode"] == "stray" else ""))
+    q.update(step=1, message="입력 준비" + (" (융합·텍스처 처리 중, 몇 분 걸립니다)" if meta["mode"] == "stray"
+                                          else " (고화질 모델 변환 중)" if meta["mode"] == "objcap" else ""))
     las_path, glb_path = step_prepare(meta, out_dir)
     region_path = os.path.join(out_dir, "object_region.json")
     if os.path.exists(region_path):
@@ -375,7 +392,7 @@ def main():
     glb_url = step_glb(glb_path, job_id)
     thumb_url = step_thumb(meta, out_dir, job_id)
     q.update(step=4, message="SLPK 생성 중", glb_url=glb_url, thumb_url=thumb_url or None)
-    heading = float(meta.get("georef", {}).get("heading", 0.0)) if meta["mode"] == "stray" else 0.0
+    heading = float(meta.get("georef", {}).get("heading", 0.0)) if meta["mode"] in ("stray", "objcap") else 0.0
     slpk = step_slpk(glb_path, out_dir, las_info, service_name, heading)
     slpk_item_id = scene_item_id = scene_url = ""
     if slpk and CFG.get("portal_enabled", True):

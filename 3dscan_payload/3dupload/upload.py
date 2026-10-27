@@ -141,8 +141,8 @@ def main():
         return respond({"error": "제목을 입력해 주세요"}, "400 Bad Request")
     note = (fields.get("note") or "")[:500]
     mode = (fields.get("mode") or "legacy").lower()
-    if mode not in ("stray", "legacy"):
-        return respond({"error": "mode는 stray 또는 legacy"}, "400 Bad Request")
+    if mode not in ("stray", "legacy", "objcap"):
+        return respond({"error": "mode는 stray, objcap 또는 legacy"}, "400 Bad Request")
     scan_type = (fields.get("scan_type") or "home").lower()
     if scan_type not in ("home", "survey"):
         return respond({"error": "scan_type은 home 또는 survey"}, "400 Bad Request")
@@ -166,7 +166,7 @@ def main():
         "splat_requested": splat_requested, "object": obj,
     }
     try:
-        if mode == "stray":
+        if mode in ("stray", "objcap"):      # objcap: Apple Object Capture zip (model/ OBJ + images/ + poses.json)
             lon, lat = fields.get("lon"), fields.get("lat")
             if not lon or not lat:
                 raise ValueError("스캔 위치(lon, lat)가 필요합니다. 지도에서 위치를 찍어 주세요")
@@ -177,7 +177,7 @@ def main():
             }
             meta["scan_zip"] = save_upload(files.get("scan_zip"), job_dir, "scan_zip")
             if not meta["scan_zip"]:
-                raise ValueError("Stray Scanner zip 파일을 선택해 주세요")
+                raise ValueError("녹화 zip 파일을 선택해 주세요")
         else:
             meta["las_path"] = save_upload(files.get("las_file"), job_dir, "las_file")
             meta["glb_path"] = save_upload(files.get("glb_file"), job_dir, "glb_file")
