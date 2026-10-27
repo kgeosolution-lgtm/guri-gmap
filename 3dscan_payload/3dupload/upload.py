@@ -59,9 +59,10 @@ def parse_multipart():
     return fields, files
 
 
-def find_recent_duplicate(cfg, title, mode, source_name, max_age_sec=86400):
-    """같은 제목·모드·원본 파일 이름으로 최근에 만든 작업이 있으면 그 큐 항목을 돌려준다 (실패한 작업은 제외)"""
-    if not source_name:
+def find_recent_duplicate(cfg, title, mode, source_name, client_id="", max_age_sec=86400):
+    """같은 녹화를 다시 올린 것이면 기존 큐 항목을 돌려준다 (실패한 작업은 제외).
+    판정: 앱이 보낸 client_id(녹화마다 고유)가 같거나, 같은 제목·모드·원본 파일 이름"""
+    if not source_name and not client_id:
         return None
     jobs_dir = cfg["jobs_dir"]
     now = time.time()
@@ -81,7 +82,11 @@ def find_recent_duplicate(cfg, title, mode, source_name, max_age_sec=86400):
                 q = json.load(f)
         except Exception:
             continue
-        if q.get("title") == title and q.get("mode") == mode and q.get("source_name") == source_name                 and q.get("status") != "failed":
+        if q.get("status") == "failed":
+            continue
+        same_client = bool(client_id) and q.get("client_id") == client_id
+        same_file = bool(source_name) and q.get("title") == title and q.get("mode") == mode and q.get("source_name") == source_name
+        if same_client or same_file:
             if best is None or (q.get("created_at") or "") > (best.get("created_at") or ""):
                 best = q
     return best
@@ -123,7 +128,8 @@ def main():
         return respond({"error": "scan_type은 home 또는 survey"}, "400 Bad Request")
 
     source_name = (files.get("scan_zip") or files.get("las_file") or ("", b""))[0] or ""
-    dup = find_recent_duplicate(cfg, title, mode, source_name)
+    client_id = (fields.get("client_id") or "")[:64]
+    dup = find_recent_duplicate(cfg, title, mode, source_name, client_id)
     if dup:
         return respond({"job_id": dup["job_id"], "mode": mode, "scan_type": dup.get("scan_type", scan_type), "duplicate": True})
 
@@ -160,7 +166,7 @@ def main():
     with open(os.path.join(job_dir, "job.json"), "w", encoding="utf-8") as f:
         json.dump(meta, f, ensure_ascii=False, indent=2)
     queue = {"job_id": job_id, "title": title, "job_dir": job_dir, "mode": mode, "scan_type": scan_type,
-             "source_name": source_name, "app": (fields.get("app") or "")[:60],
+             "source_name": source_name, "client_id": client_id, "app": (fields.get("app") or "")[:60],
              "status": "pending", "step": 0, "message": "대기 중", "created_at": meta["created_at"]}
     with open(os.path.join(cfg["jobs_dir"], job_id + ".json"), "w", encoding="utf-8") as f:
         json.dump(queue, f, ensure_ascii=False, indent=2)
