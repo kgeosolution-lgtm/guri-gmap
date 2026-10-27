@@ -23,8 +23,13 @@ import uuid
 
 import msvcrt
 
-msvcrt.setmode(sys.stdin.fileno(), os.O_BINARY)
-msvcrt.setmode(sys.stdout.fileno(), os.O_BINARY)
+# IIS CGI 에서 stdin 핸들이 없거나(GET, 일부 HTTP/2 요청) 파이프가 아니면 setmode 가 OSError 를 내고
+# 헤더를 쓰기 전에 죽어 502(HTTP/1.1) 또는 스트림 끊김(HTTP/2)이 된다 → 실패해도 계속 (파이썬은 이미 바이너리 모드)
+for _fd_owner in (sys.stdin, sys.stdout):
+    try:
+        msvcrt.setmode(_fd_owner.fileno(), os.O_BINARY)
+    except (OSError, ValueError, AttributeError):
+        pass
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # python -I 에서도 common.py 를 찾도록
 from common import load_config, respond  # noqa: E402

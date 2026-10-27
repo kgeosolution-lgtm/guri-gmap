@@ -31,8 +31,12 @@ import urllib.request
 
 import msvcrt
 
-msvcrt.setmode(sys.stdin.fileno(), os.O_BINARY)
-msvcrt.setmode(sys.stdout.fileno(), os.O_BINARY)
+# GET 이나 HTTP/2 요청에서는 IIS 가 넘긴 stdin 이 파이프가 아니어서 setmode 가 OSError → 헤더 전에 죽어 502 가 된다
+for _fd_owner in (sys.stdin, sys.stdout):
+    try:
+        msvcrt.setmode(_fd_owner.fileno(), os.O_BINARY)
+    except (OSError, ValueError, AttributeError):
+        pass
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import load_config, query_params, respond, safe_job_id  # noqa: E402
