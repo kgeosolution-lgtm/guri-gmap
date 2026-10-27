@@ -103,6 +103,9 @@ def main():
     ap.add_argument("--jpeg-quality", type=int, default=85)
     ap.add_argument("--max-las-points", type=int, default=2000000)
     ap.add_argument("--keep-extract", action="store_true")
+    ap.add_argument("--object-mode", action="store_true", help="물체 영역만 남긴다 (현장조사 물체 모드)")
+    ap.add_argument("--obj-center", default="", help="x,y,z (ARKit 월드). 없으면 카메라 시선 교점으로 자동")
+    ap.add_argument("--obj-radius", default="", help="m. 없으면 LiDAR 로 추정")
     args = ap.parse_args()
 
     t0 = time.time()
@@ -120,13 +123,36 @@ def main():
     n_frames = len([f for f in os.listdir(os.path.join(data, "depth")) if f.endswith(".png")])
     log(f"dataset: {data} ({n_frames} depth frames)", t0)
 
-    # 1) fusion
+    # 1) fusion (물체 모드: 더 촘촘한 복셀, 가까운 깊이만)
+    voxel, max_depth = args.voxel, args.max_depth
+    if args.object_mode:
+        voxel, max_depth = min(voxel, 0.004), min(max_depth, 1.5)
     t1 = time.time()
     run([PY, "-I", os.path.join(HERE, "stray_to_mesh.py"), "--data", data, "--out", args.out,
-         "--voxel", str(args.voxel), "--every", str(args.every), "--conf", "1", "--max-depth", str(args.max_depth),
+         "--voxel", str(voxel), "--every", str(args.every), "--conf", "1", "--max-depth", str(max_depth),
          "--target-tris", str(args.fuse_tris)], t0, log_path)
     t_fuse = time.time() - t1
     ply = os.path.join(args.out, "mesh.ply")
+
+    # 1b) 물체 모드: 영역(중심·반경·받침면)을 정하고 메시를 자른다. 너무 적게 남으면 자르지 않는다.
+    region = None
+    if args.object_mode:
+        sys.path.insert(0, HERE)            # python -I 는 스크립트 폴더를 경로에 넣지 않는다
+        import object_region
+        region = object_region.resolve_region(data, args.obj_center or None, args.obj_radius or None)
+        shutil.copy2(ply, os.path.join(args.out, "mesh_full.ply"))
+        kept, total = object_region.crop_mesh_file(ply, ply, region)
+        region["mesh_tris_kept"], region["mesh_tris_total"] = kept, total
+        if kept < 500:
+            shutil.copy2(os.path.join(args.out, "mesh_full.ply"), ply)
+            region["cropped"] = False
+            log(f"object region: only {kept} tris inside -> keep full mesh", t0)
+        else:
+            region["cropped"] = True
+            log(f"object region: center {region['center']} r {region['radius']} floor {region['floor_y']} "
+                f"({region['center_by']}/{region['radius_by']}) -> {kept}/{total} tris", t0)
+        with open(os.path.join(args.out, "object_region.json"), "w", encoding="utf-8") as f:
+            json.dump(region, f, ensure_ascii=False, indent=2)
 
     # 2) photo texture
     t2 = time.time()
@@ -154,6 +180,7 @@ def main():
         input_zip=os.path.abspath(args.zip), frames=n_frames, fusion=fuse_stats, texture=tex_stats, las=las_info,
         georef=dict(lon=args.lon, lat=args.lat, elev=args.elev, heading_deg=args.heading, crs="EPSG:32652"),
         outputs=dict(glb="mesh_tex.glb", las="scan.las", ply="mesh.ply", thumb="thumb.jpg" if os.path.exists(thumb) else None),
+        object_region=region,
         seconds=dict(fusion=round(t_fuse, 1), texture=round(t_tex, 1), las=round(t_las, 1), total=round(time.time() - t0, 1)))
     with open(os.path.join(args.out, "result.json"), "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2, ensure_ascii=False)

@@ -102,7 +102,14 @@ def step_prepare(meta, out_dir):
                "--max-depth", str(fu.get("max_depth", 4.0)), "--fuse-tris", str(fu.get("fuse_tris", 600000)),
                "--tex-tris", str(tx.get("tris", 120000)), "--keyframes", str(tx.get("keyframes", 100)),
                "--tex-size", str(tx.get("tex_size", 4096)), "--jpeg-quality", str(tx.get("jpeg_quality", 85))]
-        log("워커 실행: process_scan.py")
+        obj = meta.get("object") or None
+        if obj:
+            cmd += ["--object-mode"]
+            if obj.get("center"):
+                cmd += ["--obj-center", ",".join(str(v) for v in obj["center"])]
+            if obj.get("radius"):
+                cmd += ["--obj-radius", str(obj["radius"])]
+        log("워커 실행: process_scan.py" + (" (물체 모드)" if obj else ""))
         with open(os.path.join(out_dir, "worker_stdout.log"), "a", encoding="utf-8") as lf:
             proc = subprocess.run(cmd, stdout=lf, stderr=subprocess.STDOUT, text=True)
         if proc.returncode != 0:
@@ -356,6 +363,12 @@ def main():
 
     q.update(step=1, message="입력 준비" + (" (융합·텍스처 처리 중, 몇 분 걸립니다)" if meta["mode"] == "stray" else ""))
     las_path, glb_path = step_prepare(meta, out_dir)
+    region_path = os.path.join(out_dir, "object_region.json")
+    if os.path.exists(region_path):
+        try:
+            q.update(object_region=json.load(open(region_path, "r", encoding="utf-8")))
+        except Exception as e:
+            log(f"물체 영역 기록 생략: {e}")
     q.update(step=2, message="좌표·LAS 읽는 중")
     las_info = step_las(las_path)
     q.update(step=3, message="GLB 준비")
