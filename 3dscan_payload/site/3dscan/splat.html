@@ -88,20 +88,31 @@ if (!modelUrl) {
   run(modelUrl);
 }
 
-async function loadView(url) {
-  // 워커가 올린 <job>.splat.json: { view: { look, pos, up } } — 카메라가 조준한 점과 촬영 궤적 중앙 시점
+async function loadMeta(url) {
+  // 워커가 올린 <job>.splat.json: { view: { look, pos, up }, splat_full_url?, object_mode? } — 시점과 물체 모드 정보
   try {
     const r = await fetch(url.href + '.json', { cache: 'no-store' });
     if (!r.ok) return null;
-    const j = await r.json();
-    return j && j.view ? j.view : null;
+    return await r.json();
   } catch (e) { return null; }
 }
 
 async function run(url) {
   const name = url.pathname.split('/').pop();
   $('hudInfo').textContent = name;
-  const view = await loadView(url);
+  const isFull = /_full\.(splat|spz|ksplat)$/.test(url.pathname);
+  const metaUrl = isFull ? new URL(url.href.replace(/_full(\.(splat|spz|ksplat))$/, '$1')) : url;
+  const meta = await loadMeta(metaUrl);
+  const view = meta && meta.view ? meta.view : null;
+  // 물체 모드: 자른 것(기본) ↔ 전체 전환 버튼
+  if (meta && meta.splat_full_url) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'btn';
+    b.textContent = isFull ? '✂ 물체만' : '⧉ 전체';
+    b.title = isFull ? '물체 영역으로 자른 스플랫 보기' : '자르기 전 전체 장면 보기';
+    b.onclick = () => { const p = new URLSearchParams(location.search); p.set('model', isFull ? meta.splat_url : meta.splat_full_url); location.search = p.toString(); };
+    $('ctl').insertBefore(b, $('btnReset'));
+  }
   const look = vec(params.get('look'), view && Array.isArray(view.look) ? view.look : null);
   const pos  = vec(params.get('pos'),  view && Array.isArray(view.pos)  ? view.pos  : null);
   const up   = vec(params.get('up'),   view && Array.isArray(view.up)   ? view.up   : [0, 1, 0]);

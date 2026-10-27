@@ -156,9 +156,16 @@ def main():
 
     # 2) photo texture
     t2 = time.time()
-    run([PY, "-I", os.path.join(HERE, "texture_fast.py"), "--data", data, "--mesh", ply, "--out", args.out,
-         "--target-tris", str(args.tex_tris), "--keyframes", str(args.keyframes), "--tex-size", str(args.tex_size),
-         "--jpeg-quality", str(args.jpeg_quality)], t0, log_path)
+    tex_args = ["--target-tris", str(args.tex_tris), "--keyframes", str(args.keyframes), "--tex-size", str(args.tex_size),
+                "--jpeg-quality", str(args.jpeg_quality)]
+    if region and region.get("cropped"):
+        # 물체 모드: 기본 2 cm 정점 병합은 컵 같은 작은 물체를 수백 삼각형으로 뭉갠다 → 3 mm.
+        # 텍스처는 2048 이면 충분하고 메모리가 1/4 (서버는 ArcGIS 가 메모리를 많이 써서 4096 에서 MemoryError 가 났다)
+        tex_args = ["--target-tris", str(args.tex_tris), "--keyframes", str(args.keyframes),
+                    "--tex-size", str(min(args.tex_size, 2048)), "--cluster-voxel", "0.003", "--min-component", "20",
+                    "--jpeg-quality", str(args.jpeg_quality)]
+    run([PY, "-I", os.path.join(HERE, "texture_fast.py"), "--data", data, "--mesh", ply, "--out", args.out] + tex_args,
+        t0, log_path)
     t_tex = time.time() - t2
 
     # 2b) thumbnail (optional: failure must not stop the job)

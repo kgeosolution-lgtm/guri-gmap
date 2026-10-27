@@ -119,7 +119,8 @@ def delete_scan(objectid=None, title=None):
     glb = feat.get("glb_url") or ""
     if glb:
         base = os.path.splitext(os.path.basename(glb))[0]
-        for name in (os.path.basename(glb), base + ".jpg", base + ".splat", base + ".splat.json", base + ".spz", base + ".spz.json"):   # 서빙 GLB + 썸네일 + 스플랫
+        for name in (os.path.basename(glb), base + ".jpg", base + ".splat", base + ".splat.json", base + ".spz", base + ".spz.json",
+                     base + "_full.splat", base + "_full.splat.json"):   # 서빙 GLB + 썸네일 + 스플랫(물체 모드는 자르기 전 _full 도)
             p = os.path.join(CFG["glb_serve_dir"], name)
             if os.path.exists(p):
                 os.remove(p)

@@ -1,6 +1,6 @@
 {
-  "once_id": "2026-10-27-tail-87c1c2ef",
+  "once_id": "2026-10-27-object-texture-fix",
   "actions": [
-    {"op": "tail-log", "job_id": "87c1c2ef", "lines": 80}
+    {"op": "list"}
   ]
 }
