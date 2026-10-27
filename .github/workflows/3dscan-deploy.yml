@@ -48,7 +48,7 @@ jobs:
             'tools/register_task.ps1' = 'f715092ec71960880a80d5aa18ebad602786209b229a194d22095e40e0c394ae'
             'tools/maintenance.py' = '84151d3bc4f9c6b424a59635d5ada84b081332d1ee42ccbd128fe1e0c480a48c'
             'tools/config_patch.py' = '8a17bc868075356ce46f94e2c07eca8f715a6fbbebe376db6b6d120c398777a9'
-            'maintenance.json' = 'a5a5083dc2272267158b651f03b76ada88f3a27dd894cf5e2b7603feaa64c14a'
+            'maintenance.json' = 'af04fc7e3bf75292182ef04ba72ea71438e37f59fdc3cc885ed10cf63bc02cce'
             'worker/process_scan.py' = '9c5021197cac07b456669286978b40ec8ce6ed3e124278056d54e341075ce856'
             'worker/stray_to_mesh.py' = '2c4dc1d2ce92586c7e7e7cafb59ea5143f4775ed16275ece8e513c4a61182ea9'
             'worker/texture_fast.py' = 'fde627b7c0bdf9736e8e0d863984cc4032c7ce569d8ccb610777d85699bad17b'

@@ -1,6 +1,7 @@
 {
-  "once_id": "2026-10-28-objcap-mode",
+  "once_id": "2026-10-28-delete-objcap-test",
   "actions": [
+    {"op": "delete-scan", "objectid": 56},
     {"op": "list"}
   ]
 }
