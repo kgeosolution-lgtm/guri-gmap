@@ -8,7 +8,7 @@ kgeoScan pipeline v2:  python -I pipeline.py <job_dir>\job.json <jobs>\<id>.json
   4 SLPK 생성  : arcpy (선택: slpk_enabled 이고 arcgis_python 이 있을 때만, 실패해도 계속)
   5 Portal 발행: SLPK 아이템 추가 → Scene 서비스 발행 → 공개 (SLPK 가 있을 때만)
   6 scan_points 등록
-  7 완료
+  7 완료  (+ 설정 splat.enabled 이고 유형이 splat.scan_types 에 있으면 큐 파일에 splat_status=pending → 외부 GPU 워커가 가져감)
 """
 import json
 import os
@@ -32,6 +32,10 @@ def log(msg):
 class Queue:
     def __init__(self, path):
         self.path = path
+
+    def read(self):
+        with open(self.path, "r", encoding="utf-8") as f:
+            return json.load(f)
 
     def update(self, **fields):
         with open(self.path, "r", encoding="utf-8") as f:
@@ -319,6 +323,26 @@ def step_register(meta, las_info, glb_url, slpk_item_id, scene_item_id, scene_ur
     return res.get("objectId")
 
 
+def splat_wanted(meta):
+    """GPU 스플랫 워커에 넘길 작업인가: 설정 splat.enabled, Stray 원본, 유형이 splat.scan_types 에 있거나 업로드 때 splat=1 요청"""
+    sp = CFG.get("splat") or {}
+    if not sp.get("enabled") or meta.get("mode") != "stray":
+        return False
+    if meta.get("splat_requested"):
+        return True
+    return (meta.get("scan_type") or "home") in (sp.get("scan_types") or ["survey"])
+
+
+def splat_fields(meta, q):
+    """완료 시 큐 파일에 넣을 스플랫 필드. 이미 진행·완료된 스플랫(재시도)은 건드리지 않는다."""
+    if q.read().get("splat_status") in ("pending", "processing", "done"):
+        return {}
+    if splat_wanted(meta):
+        log("스플랫: GPU 워커 대기열에 등록 (splat_status=pending)")
+        return {"splat_status": "pending", "splat_message": "스플랫 대기 중 (GPU 워커)"}
+    return {}
+
+
 def main():
     meta_path, queue_path = sys.argv[1], sys.argv[2]
     meta = json.load(open(meta_path, "r", encoding="utf-8"))
@@ -354,8 +378,10 @@ def main():
                   scene_item_id=scene_item_id, scene_url=scene_url, objectid=oid, seconds=round(time.time() - T0, 1))
     with open(os.path.join(out_dir, "pipeline_result.json"), "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
+    extra = {"objectid": oid} if oid else {}
+    extra.update(splat_fields(meta, q))
     q.update(step=7, status="done", message="처리 완료" + ("" if slpk else " (SLPK 없이)"),
-             scene_item_id=scene_item_id or None, glb_url=glb_url, thumb_url=thumb_url or None)
+             scene_item_id=scene_item_id or None, glb_url=glb_url, thumb_url=thumb_url or None, **extra)
     log(f"완료 {result['seconds']}s")
 
 

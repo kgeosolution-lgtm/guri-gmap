@@ -19,5 +19,12 @@
   "fusion": { "voxel": 0.006, "every": 1, "max_depth": 4.0, "fuse_tris": 600000 },
   "texture": { "tris": 120000, "keyframes": 100, "tex_size": 4096, "jpeg_quality": 85 },
   "poll_interval_sec": 10,
-  "pipeline_timeout_sec": 1800
+  "pipeline_timeout_sec": 1800,
+  "splat": {
+    "_comment": "가우시안 스플랫: 서버에 GPU 가 없어 외부 GPU 워커(worker_gpu/splat_worker.py)가 3dupload/splat_jobs.py 로 작업을 가져간다. scan_types 의 유형(또는 업로드 splat=1)만 대상",
+    "enabled": true,
+    "scan_types": ["survey"],
+    "worker_token": "<SPLAT_TOKEN>",
+    "stale_processing_hours": 3
+  }
 }

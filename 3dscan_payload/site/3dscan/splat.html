@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>kgeoScan Splat Viewer</title>
+<!--
+  가우시안 스플랫 전용 뷰어 (ES 모듈). 사이트 본문은 three.js r128 전역 스크립트라 최신 three 가 필요한 스플랫 라이브러리를
+  섞을 수 없어, 이 페이지를 iframe(사이드바) 또는 새 탭으로 띄운다.
+    ?model=<.splat 경로>   같은 사이트(origin)의 파일만 허용. 옆에 <model>.json 이 있으면 그 view(look/pos/up)로 시작
+    &look=x,y,z&pos=x,y,z  시점 직접 지정 (json 보다 우선)
+  좌표: 스플랫은 GLB 와 같은 ARKit 로컬 프레임(미터, y 위).
+  라이브러리: three 0.165 + @mkkellogg/gaussian-splats-3d 0.4.7 (CDN, import map). SharedArrayBuffer 는 쓰지 않음(COOP/COEP 불필요).
+-->
+<style>
+  :root { --bg:#080b0f; --text:#e2e8f0; --text2:#94a3b8; --accent:#38bdf8; --acc-o:#fb923c; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--text); font:13px/1.4 -apple-system, 'Pretendard', system-ui, sans-serif; overflow:hidden; }
+  body { position:fixed; inset:0; touch-action:none; }
+  canvas { display:block; outline:none; }
+  #hud { position:fixed; left:10px; top:10px; z-index:10; pointer-events:none; display:flex; flex-direction:column; gap:4px; }
+  .pill { background:rgba(8,11,15,.78); border:1px solid rgba(56,189,248,.25); color:var(--accent); font-family:'IBM Plex Mono',ui-monospace,monospace;
+          font-size:10px; letter-spacing:.4px; padding:3px 8px; border-radius:2px; width:fit-content; backdrop-filter:blur(6px); white-space:nowrap; }
+  .pill.o { border-color:rgba(251,146,60,.35); color:var(--acc-o); }
+  #ctl { position:fixed; right:10px; top:10px; z-index:10; display:flex; gap:5px; }
+  .btn { height:28px; padding:0 10px; background:rgba(13,17,23,.88); border:1px solid rgba(148,163,184,.35); color:var(--accent);
+         font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:11px; font-weight:600; border-radius:3px; cursor:pointer; backdrop-filter:blur(6px); white-space:nowrap; }
+  .btn:hover { border-color:var(--accent); background:rgba(56,189,248,.12); }
+  #help { position:fixed; left:50%; bottom:10px; transform:translateX(-50%); z-index:10; pointer-events:none; background:rgba(0,0,0,.55); color:#ccc;
+          font-size:11px; padding:5px 12px; border-radius:20px; white-space:nowrap; max-width:calc(100% - 20px); overflow:hidden; text-overflow:ellipsis; }
+  #load { position:fixed; inset:0; z-index:9; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; background:var(--bg); transition:opacity .4s; }
+  #load.done { opacity:0; pointer-events:none; }
+  .spin { width:28px; height:28px; border-radius:50%; border:3px solid rgba(56,189,248,.25); border-top-color:var(--accent); animation:spin .9s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  #loadText { font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:11px; color:var(--text2); }
+  #bar { width:180px; height:3px; background:rgba(255,255,255,.1); border-radius:3px; overflow:hidden; }
+  #bar i { display:block; height:100%; width:0; background:var(--accent); transition:width .3s; }
+  #err { position:fixed; inset:0; z-index:20; display:none; align-items:center; justify-content:center; padding:24px; text-align:center; color:#f87171; background:var(--bg); font-size:13px; line-height:1.7; }
+  /* 사이드바 iframe 안(embedded): 부모가 좌상단(배지·탭)·우상단(버튼)·우하단(전체화면)을 쓰므로 겹치지 않게 아래쪽으로 옮기고 중복 버튼은 숨긴다 */
+  .embedded #hud { top:auto; bottom:10px; }
+  .embedded #hud .pill.o { display:none; }
+  .embedded #ctl { top:auto; bottom:10px; right:52px; }
+  .embedded #btnFull { display:none; }
+  .embedded #help { bottom:auto; top:10px; left:50%; max-width:40%; font-size:10px; }
+  @media (max-width: 700px) { .embedded #help { display:none; } }
+</style>
+<script type="importmap">
+{ "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+    "@mkkellogg/gaussian-splats-3d": "https://cdn.jsdelivr.net/npm/@mkkellogg/gaussian-splats-3d@0.4.7/build/gaussian-splats-3d.module.js"
+} }
+</script>
+</head>
+<body>
+<div id="hud"><div class="pill o">Gaussian Splat · 3DGS</div><div class="pill" id="hudInfo">loading…</div></div>
+<div id="ctl">
+  <button type="button" class="btn" id="btnReset" title="처음 시점으로 (R)">↺ 시점</button>
+  <button type="button" class="btn" id="btnFull" title="전체화면 (F)">⤢</button>
+</div>
+<div id="help">좌클릭·한 손가락: 회전 &nbsp;|&nbsp; 우클릭·두 손가락: 이동·줌 &nbsp;|&nbsp; 휠: 줌 &nbsp;|&nbsp; R: 시점 초기화</div>
+<div id="load"><div class="spin"></div><div id="loadText">스플랫 불러오는 중...</div><div id="bar"><i id="barFill"></i></div></div>
+<div id="err"></div>
+<script type="module">
+import * as THREE from 'three';
+import * as GaussianSplats3D from '@mkkellogg/gaussian-splats-3d';
+
+const $ = id => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+const vec = (s, d) => { if (!s) return d; const v = s.split(',').map(Number); return v.length === 3 && v.every(Number.isFinite) ? v : d; };
+const isMobile = window.matchMedia('(max-width: 768px)').matches || /iPhone|iPad|Android/i.test(navigator.userAgent);
+if (window.parent !== window) document.documentElement.classList.add('embedded');   // 사이드바 iframe 안
+const post = (msg) => { try { if (window.parent !== window) window.parent.postMessage(Object.assign({ type: 'kgeo-splat' }, msg), location.origin); } catch (e) {} };
+
+function fail(msg) {
+  $('load').classList.add('done');
+  const e = $('err'); e.style.display = 'flex'; e.textContent = msg;
+  $('hudInfo').textContent = 'error';
+  post({ state: 'error', message: msg });
+}
+
+const modelParam = params.get('model');
+let modelUrl = null;
+try { modelUrl = modelParam ? new URL(modelParam, location.href) : null; } catch (e) {}
+if (!modelUrl) {
+  fail('?model=<.splat 경로> 가 필요합니다');
+} else if (modelUrl.origin !== location.origin) {
+  fail('같은 사이트의 스플랫 파일만 열 수 있습니다');
+} else {
+  run(modelUrl);
+}
+
+async function loadView(url) {
+  // 워커가 올린 <job>.splat.json: { view: { look, pos, up } } — 카메라가 조준한 점과 촬영 궤적 중앙 시점
+  try {
+    const r = await fetch(url.href + '.json', { cache: 'no-store' });
+    if (!r.ok) return null;
+    const j = await r.json();
+    return j && j.view ? j.view : null;
+  } catch (e) { return null; }
+}
+
+async function run(url) {
+  const name = url.pathname.split('/').pop();
+  $('hudInfo').textContent = name;
+  const view = await loadView(url);
+  const look = vec(params.get('look'), view && Array.isArray(view.look) ? view.look : null);
+  const pos  = vec(params.get('pos'),  view && Array.isArray(view.pos)  ? view.pos  : null);
+  const up   = vec(params.get('up'),   view && Array.isArray(view.up)   ? view.up   : [0, 1, 0]);
+  const haveView = !!(look && pos);
+  const viewer = new GaussianSplats3D.Viewer({
+    cameraUp: up,
+    initialCameraPosition: haveView ? pos : [0, 0.6, 1.2],
+    initialCameraLookAt: haveView ? look : [0, 0, 0],
+    sharedMemoryForWorkers: false,          // 사이트가 COOP/COEP 헤더를 보내지 않으므로 SharedArrayBuffer 불가
+    gpuAcceleratedSort: false,
+    antialiased: !isMobile,
+    sphericalHarmonicsDegree: 0,            // .splat 에는 SH 가 없다
+    halfPrecisionCovariancesOnGPU: isMobile,
+    inMemoryCompressionLevel: isMobile ? 1 : 0,
+    sceneRevealMode: GaussianSplats3D.SceneRevealMode.Instant,
+    logLevel: GaussianSplats3D.LogLevel.None,
+  });
+  window.__viewer = viewer;
+  const bar = $('barFill'), lt = $('loadText');
+  try {
+    await viewer.addSplatScene(url.href, {
+      splatAlphaRemovalThreshold: 5,
+      showLoadingUI: false,
+      progressiveLoad: false,
+      onProgress: (pct, label, stage) => {
+        if (typeof pct === 'number' && Number.isFinite(pct)) { bar.style.width = Math.max(0, Math.min(100, pct)) + '%'; lt.textContent = `스플랫 불러오는 중... ${Math.round(pct)}%`; }
+        else if (label) lt.textContent = String(label);
+      },
+    });
+  } catch (err) {
+    fail('스플랫을 불러오지 못했습니다: ' + (err && err.message ? err.message : err));
+    console.error(err);
+    return;
+  }
+  viewer.start();
+  const mesh = viewer.getSplatMesh();
+  const n = mesh && mesh.getSplatCount ? mesh.getSplatCount() : 0;
+  if (!haveView) fitCamera(viewer, mesh, n);
+  const home = { pos: viewer.camera.position.clone(), target: viewer.controls ? viewer.controls.target.clone() : new THREE.Vector3() };
+  $('hudInfo').textContent = `${name} · ${n.toLocaleString()} splats`;
+  $('load').classList.add('done');
+  window.__loaded = true;
+  post({ state: 'loaded', count: n });
+
+  function resetView() {
+    viewer.camera.position.copy(home.pos);
+    if (viewer.controls) { viewer.controls.target.copy(home.target); viewer.controls.update(); }
+  }
+  $('btnReset').onclick = resetView;
+  $('btnFull').onclick = () => {
+    const el = document.documentElement;
+    if (document.fullscreenElement) document.exitFullscreen();
+    else if (el.requestFullscreen) el.requestFullscreen();
+  };
+  window.addEventListener('keydown', e => {
+    if (e.code === 'KeyR') resetView();
+    if (e.code === 'KeyF') $('btnFull').onclick();
+  });
+}
+
+function fitCamera(viewer, mesh, n) {
+  // 시점 정보가 없을 때: 스플랫 중심을 표본으로 중앙값·반경을 구해 카메라를 놓는다
+  if (!mesh || !n || !mesh.getSplatCenter) return;
+  const step = Math.max(1, Math.floor(n / 20000));
+  const xs = [], ys = [], zs = [];
+  const v = new THREE.Vector3();
+  for (let i = 0; i < n; i += step) { mesh.getSplatCenter(i, v, false); if (Number.isFinite(v.x)) { xs.push(v.x); ys.push(v.y); zs.push(v.z); } }
+  if (!xs.length) return;
+  const med = a => { const s = a.slice().sort((p, q) => p - q); return s[Math.floor(s.length / 2)]; };
+  const c = new THREE.Vector3(med(xs), med(ys), med(zs));
+  const d = xs.map((x, i) => Math.hypot(x - c.x, ys[i] - c.y, zs[i] - c.z)).sort((p, q) => p - q);
+  const r = Math.max(0.3, d[Math.floor(d.length * 0.8)] || 1);
+  viewer.camera.position.set(c.x + r * 0.5, c.y + r * 0.6, c.z + r * 1.4);
+  if (viewer.controls) { viewer.controls.target.copy(c); viewer.controls.update(); }
+}
+</script>
+</body>
+</html>

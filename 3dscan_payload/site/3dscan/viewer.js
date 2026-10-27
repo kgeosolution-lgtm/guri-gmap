@@ -70,6 +70,9 @@ require([
   let _glbMaxDim    = 1;
   let _glbDist      = 3;
   const _ms = { on: false, pts: [], objs: [], text: "" };   // 거리 측정 상태
+  let _viewMode   = "glb";                  // 사이드바 뷰어 모드: "glb"(메시) | "splat"(가우시안 스플랫 iframe)
+  let _splatFrame = null;                   // splat.html iframe
+  const SPLAT_PAGE = "splat.html?v=ba0c17f314";          // 배포(deploy.mjs stampAssets)가 ?v=해시 를 붙인다
 
   /* ── MapView ── */
   const webmap = new WebMap({ portalItem: { id: WEBMAP_ID } });
@@ -276,6 +279,8 @@ require([
     document.getElementById("btnExpand").classList.add("active");
     document.getElementById("sidebar").classList.add("open", "expanded");
 
+    setupViewerTabs(attrs);                 // splat_url 이 있으면 메시/스플랫 탭 표시. 항상 메시 모드로 시작
+
     // GLB URL 우선, 없으면 glb_url 필드 사용
     const glbUrl = attrs.glb_url || null;
     if (glbUrl) {
@@ -298,6 +303,8 @@ require([
     isExpanded = false;
     document.getElementById("btnExpand").classList.remove("active");
     destroyGLB();
+    removeSplatFrame();
+    _viewMode = "glb";
     setListActive(null);
   };
 
@@ -683,6 +690,63 @@ require([
     glbControls.update();
   };
 
+  /* ════ 가우시안 스플랫 (사진 기반 3D 기록) — splat.html 을 iframe 으로 ════
+     scan_points.splat_url 은 GPU 워커(worker_gpu/splat_worker.py)가 학습을 마치면 채운다.
+     three r128 전역 스크립트와 스플랫 라이브러리(three 0.165 모듈)가 한 페이지에 못 있으므로 전용 페이지를 띄운다. */
+  function splatPageUrl(url) { return SPLAT_PAGE + (SPLAT_PAGE.includes("?") ? "&" : "?") + "model=" + encodeURIComponent(url); }
+  function removeSplatFrame() {
+    if (_splatFrame) { try { _splatFrame.src = "about:blank"; } catch (e) {} _splatFrame.remove(); _splatFrame = null; }
+    const sceneDiv = document.getElementById("sceneDiv"), loadingEl = document.getElementById("sceneLoading");
+    if (sceneDiv) sceneDiv.style.display = "";
+    if (loadingEl) loadingEl.style.display = "";
+  }
+  function setupViewerTabs(attrs) {
+    removeSplatFrame();
+    _viewMode = "glb";
+    const tabs = document.getElementById("viewerTabs");
+    if (tabs) tabs.style.display = attrs.splat_url ? "flex" : "none";
+    applyViewMode();
+  }
+  function applyViewMode() {
+    const splat = _viewMode === "splat";
+    const g = id => document.getElementById(id);
+    if (g("vtabGlb"))      g("vtabGlb").classList.toggle("active", !splat);
+    if (g("vtabSplat"))    g("vtabSplat").classList.toggle("active", splat);
+    if (g("btnMeasure"))   g("btnMeasure").style.display   = splat ? "none" : "";
+    if (g("btnTop"))       g("btnTop").style.display       = splat ? "none" : "";
+    if (g("btnSplatOpen")) g("btnSplatOpen").style.display = splat ? "" : "none";
+    const badge = document.querySelector(".viewer-badge");
+    if (badge) badge.textContent = splat ? "Gaussian Splat · 3DGS Viewer" : "3D Object · GLB Viewer";
+  }
+  window.setViewMode = function(mode) {
+    if (!currentAttrs) return;
+    if (mode === "splat" && !currentAttrs.splat_url) return;
+    if (mode === _viewMode) return;
+    _viewMode = mode;
+    applyViewMode();
+    const sceneDiv = document.getElementById("sceneDiv"), loadingEl = document.getElementById("sceneLoading");
+    if (mode === "splat") {
+      destroyGLB();                                   // 폰 GPU 메모리를 아끼려 메시 뷰어를 내리고 스플랫만 띄운다
+      sceneDiv.style.display = "none";
+      loadingEl.style.display = "none";
+      const f = document.createElement("iframe");
+      f.id = "splatFrame";
+      f.title = "Gaussian Splat Viewer";
+      f.setAttribute("allow", "fullscreen");
+      f.allowFullscreen = true;
+      f.src = splatPageUrl(currentAttrs.splat_url);
+      sceneDiv.parentNode.insertBefore(f, sceneDiv);
+      _splatFrame = f;
+    } else {
+      removeSplatFrame();
+      if (currentAttrs.glb_url) loadGLBViewer(currentAttrs.glb_url);
+    }
+  };
+  window.openSplatPage = function() {
+    if (!currentAttrs?.splat_url) return;
+    window.open(splatPageUrl(currentAttrs.splat_url), "_blank");
+  };
+
   /* ── Portal Scene Viewer로 열기 (새 탭) ── */
   window.openSceneViewer = function() {
     if (!currentAttrs?.scene_item_id) return;
@@ -697,7 +761,7 @@ require([
 
   /* ── sceneDiv 전체화면 (Fullscreen API) ── */
   window.openFullscreen = function() {
-    const el = document.getElementById("sceneDiv");
+    const el = (_viewMode === "splat" && _splatFrame) ? _splatFrame : document.getElementById("sceneDiv");
     if (!el) return;
     const req = el.requestFullscreen
       || el.webkitRequestFullscreen
@@ -764,6 +828,7 @@ require([
           <div class="lp-item-meta">
             ${t ? `<span class="lp-item-type ${esc(a.scan_type)}">${t.icon} ${t.label}</span>` : ''}
             <span class="lp-item-date">${dtStr}</span>
+            ${a.splat_url ? '<span class="lp-item-splat" title="가우시안 스플랫 있음">✦</span>' : ''}
             ${isNew ? '<span class="lp-item-new">NEW</span>' : ''}
           </div>
         </div>
@@ -935,7 +1000,9 @@ function uploadWithProgress(url, fd, onProgress) {
       try { data = JSON.parse(xhr.responseText); } catch (e) { data = { error: "서버 응답 오류 (HTTP " + xhr.status + ")" }; }
       resolve(data);
     };
-    xhr.onerror = () => reject(new Error("네트워크 오류로 업로드에 실패했습니다"));
+    // IIS 가 HTTP/2 로 받은 CGI POST 의 응답을 끊는 문제(본문은 다 받아 작업은 만들어짐) → 호출 쪽에서 client_id 로 접수 확인
+    xhr.onerror = () => { const e = new Error("네트워크 오류로 업로드에 실패했습니다"); e.network = true; e.sentAll = xhr._sentAll; reject(e); };
+    xhr.upload.onload = () => { xhr._sentAll = true; };
     xhr.ontimeout = () => reject(new Error("업로드 시간 초과"));
     xhr.timeout = 30 * 60 * 1000;
     xhr.send(fd);
@@ -1121,11 +1188,15 @@ async function startUpload() {
   if (!title)                                         { alert("스캔 제목을 입력해주세요."); return; }
   if (checkEl && checkEl.classList.contains("error")) { alert("이미 사용 중인 제목입니다."); return; }
 
+  const clientId = "web-" + ((window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+                   : Date.now().toString(36) + Math.random().toString(36).slice(2));
   const fd = new FormData();
   fd.append("title", title);
   fd.append("note",  document.getElementById("mNote").value);
   fd.append("mode",  _mode);
   fd.append("scan_type", _scanType);
+  fd.append("client_id", clientId);
+  fd.append("app", "web");
   if (_mode === "stray") {
     if (!_files.zip)                     { alert("Stray Scanner 녹화 zip 파일을 선택해주세요."); return; }
     if (_loc.lon == null || _loc.lat == null) { alert("스캔 위치를 지도에서 찍거나 현재 위치로 지정해주세요."); return; }
@@ -1156,8 +1227,27 @@ async function startUpload() {
     if (!data.job_id) throw new Error(data.error || "업로드 실패");
     trackJob(data.job_id, title);
   } catch(err) {
+    if (err.network) {
+      // 응답만 끊긴 경우가 많다: 서버에 이 업로드(client_id)로 만든 작업이 있는지 확인
+      setUploadState("processing", title, 0, 10, "서버 접수 확인 중...");
+      const jobId = await findJobByClientId(clientId, err.sentAll ? 90 : 20);
+      if (jobId) { trackJob(jobId, title); return; }
+    }
     setUploadState("error", title, 0, 0, err.message);
   }
+}
+
+/* client_id 로 서버 작업을 찾는다 (3초 간격, 최대 seconds 초). 찾으면 job_id, 못 찾으면 null */
+async function findJobByClientId(clientId, seconds) {
+  const until = Date.now() + seconds * 1000;
+  while (Date.now() < until) {
+    try {
+      const r = await fetch(`/app/3dupload/find_job.py?client_id=${encodeURIComponent(clientId)}`, { cache: "no-store" });
+      if (r.ok) { const d = await r.json(); if (d.job_id) return d.job_id; }
+    } catch (e) {}
+    await new Promise(res => setTimeout(res, 3000));
+  }
+  return null;
 }
 
 /* ── 작업 추적: 업로드 직후, ?job=<id> (아이폰 단축어·앱), 새로고침 뒤 이어서 ── */
@@ -1199,6 +1289,8 @@ async function trackJob(jobId, title) {
             document.getElementById("doneModalMsg").innerHTML =
               `<strong style="color:var(--text)">${esc(title)}</strong> 스캔이 처리되어 지도에 등록되었습니다.` +
               (sd.scene_item_id ? "" : "<br><span style='color:var(--text3)'>Scene 레이어(SLPK)는 생성되지 않아 GLB 뷰어로만 볼 수 있습니다.</span>") +
+              (sd.splat_status === "pending" || sd.splat_status === "processing"
+                ? "<br><span style='color:var(--acc-o)'>✦ 사진 기반 스플랫은 GPU 워커가 몇 분 뒤 추가합니다. 끝나면 목록에서 다시 열어 ✦ 스플랫 탭을 누르세요.</span>" : "") +
               (sd.message && sd.message !== "처리 완료" ? `<br><span style='color:var(--text3)'>${esc(sd.message)}</span>` : "");
             dm.classList.add("show");
           } else {

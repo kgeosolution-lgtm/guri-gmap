@@ -21,6 +21,7 @@ jobs:
         shell: powershell
         env:
           KGEOSCAN_PORTAL_PASSWORD: ${{ secrets.KGEOSCAN_PORTAL_PASSWORD }}
+          KGEOSCAN_SPLAT_TOKEN: ${{ secrets.KGEOSCAN_SPLAT_TOKEN }}
         run: |
           $ErrorActionPreference = 'Stop'
           $ProgressPreference = 'SilentlyContinue'
@@ -28,28 +29,35 @@ jobs:
 
           $src = Join-Path $env:GITHUB_WORKSPACE '3dscan_payload'
           $expected = [ordered]@{
-            'site/3dscan/index.html' = '1b9df4606f6db85041a952814c0f9e720d96da890e0bebd95fad10b4a1254338'
-            'site/3dscan/viewer.js' = 'b80711622e385d24373d234e34480371dd288f95a89471082283db087be0b806'
-            'site/3dscan/viewer.css' = 'ee369c639a002654ebfad3375b4b271e98242d6370be03234cfe4cfc2b9c1453'
+            'site/3dscan/index.html' = 'a27254d28c53f52440fd4b99192c635f2ab81eb5684c7cb53479b6705a09f391'
+            'site/3dscan/viewer.js' = 'd9862b4cc1d2cdbbcbed7c0b274ae608b9a568db99bb437de2f327274a1bc5f9'
+            'site/3dscan/viewer.css' = '591202f96bef530a1509cbd7328aaf60c2db6199d48fc832017f0e58239ecd00'
+            'site/3dscan/splat.html' = 'ba0c17f31494ec27485e0909879cb2fcd24a4cbadf484185b1a8374e2032e495'
+            'site/3dscan/glb.web.config' = '07e754133e5f12594c5f054b487e04c9da461c3e51e0dc86c8336fcd1652fabb'
             '3dupload/common.py' = 'af4551445364ecec4e645a1c63fca0e6d9aea3e86154031664ebba037b34846f'
-            '3dupload/upload.py' = '7852acba5849bb3792a19241f097af0e13d7069fb4ca9e672e39f6ca8a5b718f'
-            '3dupload/status.py' = 'a2ad021d400ae8ec36f912ca2f20c58aee7366d7e427ae41491fc74c22d8fa9f'
+            '3dupload/upload.py' = 'fbcb2437ea5427c6a0066f3af9467626d61ab223b4d59cad95addd52e088cdbd'
+            '3dupload/status.py' = '25583014a9d8b6f1e2966484530c386fac44ad20136bc89766d72f184a4b375f'
             '3dupload/check_title.py' = 'a27fc6fdd49535cffc57ce4fbd917220406f28c68b247edc5cf5076b88181c3c'
             '3dupload/retry.py' = '867ee3d6b5cdfa37ee6db144249e966f667a8e4c97e728fe97a1ea2c0e8ed442'
+            '3dupload/splat_jobs.py' = '9d8fc679fe5bd752ccafc16641dd432f1553dda9e7d2ed6b8a278590efcb008a'
             '3dupload/find_job.py' = 'b023f4d162976fc1c961a3c4e6ab13b48ead754b04a751d0e15f42c195de0287'
+            '3dupload/echo.py' = '9d23ab3d126f6be69181b2cd1a6918271268ef1a07cbbe5356dced1d04375bfd'
+            '3dupload/h2t/echo.py' = '5708513457eb97d105187b741e9d7716a16ba8f4c42abc0979dd127d3637178a'
+            '3dupload/h2t/web.config' = '74f2aef212d9c2ba7cf9c353d661bde8b104bc00252982ebd0d6a67c30f7ed53'
             '3dupload/web.config' = 'c5562814cdca943748b6cc46205e29a2392ae99362e99ace4ac14b621dd81783'
             'tools/queue_runner.py' = '2f0391007ee7522f97f23a797433b9149e89df4b1b473123cb43e17c2995eff8'
-            'tools/pipeline.py' = '0019417e6c4a2107e88de55d3d494fc9dd1f106d33205adace97e22d76ebdf4b'
+            'tools/pipeline.py' = 'cf9a765fbc4b7b12f695eb24667a39a6b36f3a91c51bf418131626168b50f26b'
             'tools/slpk_step.py' = 'a76ee0bc029538ce8b9d93904ce06cd9294842f0a119d5f3565294b2a0e30b95'
             'tools/register_task.ps1' = 'f715092ec71960880a80d5aa18ebad602786209b229a194d22095e40e0c394ae'
-            'tools/maintenance.py' = '4656af68d57b3e446689f09661afd030aec64043ceb5f0b0a034d9345d934c56'
-            'maintenance.json' = '570c075b3a125b6697178b5538962bfbfc3847da80df371f377a819c9853085e'
+            'tools/maintenance.py' = '339563458aecfc1ceed34d75cb560433af86db25387da04ef2d47bd8c0c5416a'
+            'tools/config_patch.py' = 'd8e6f13cdd92a5024bd4dd8dcc1ec9fd18a006c9a1f42fef9372adf3a04f09bb'
+            'maintenance.json' = '1c247301956bd8a6194c702516a02b15e98cd80d1fdd37ace2002974e34d7b1e'
             'worker/process_scan.py' = '7722c86432518d35cf4410de6d20ac69f9385a88c16d494f552ad0c0bf9c91ce'
             'worker/stray_to_mesh.py' = '2c4dc1d2ce92586c7e7e7cafb59ea5143f4775ed16275ece8e513c4a61182ea9'
             'worker/texture_fast.py' = 'fde627b7c0bdf9736e8e0d863984cc4032c7ce569d8ccb610777d85699bad17b'
             'worker/glb_to_obj.py' = '2e96adac2ba01e1ff4c58cf83aad853f88b5727d9d5e9e15307a5475a71c1122'
             'worker/thumbnail.py' = 'b724f8bea39564268a26b4f693c3d05a93e7a15d9c42e5091d31e65abdfa76b1'
-            'config/kgeoscan.example.json' = '33d6cdf07bc46210d84c6fc6a67c7420c397d9448c1389469bf5a33750ce3f91'
+            'config/kgeoscan.example.json' = 'a0c8ffe042e8b44789b3ebda3b02266164ac088fb12ae4d0c66d7b1656da7240'
             'requirements.txt' = '93966ec7f2e088045d99a3b1705dac28cf918a525cb346dbd6fa86e7ced428a5'
           }
           foreach ($k in $expected.Keys) {
@@ -93,7 +101,10 @@ jobs:
 
           # ── 파일 설치
           New-Item -ItemType Directory -Force -Path $site, $upload | Out-Null
-          foreach ($f in 'index.html','viewer.js','viewer.css') { Copy-Item -LiteralPath (Join-Path $src ('site\3dscan\' + $f)) -Destination (Join-Path $site $f) -Force }
+          foreach ($f in 'index.html','viewer.js','viewer.css','splat.html') { Copy-Item -LiteralPath (Join-Path $src ('site\3dscan\' + $f)) -Destination (Join-Path $site $f) -Force }
+          # 스플랫 파일(.splat/.spz/.json) MIME 매핑: glb\web.config (이 폴더에만 적용). 아래 'SPLAT MIME' 검사에서 실패하면 제거한다
+          New-Item -ItemType Directory -Force -Path (Join-Path $site 'glb') | Out-Null
+          Copy-Item -LiteralPath (Join-Path $src 'site\3dscan\glb.web.config') -Destination (Join-Path $site 'glb\web.config') -Force
           robocopy (Join-Path $src '3dupload') $upload /MIR /R:2 /W:2 /NFL /NDL /NJH /NJS /NP | Out-Null
           if ($LASTEXITCODE -ge 8) { throw 'copy 3dupload failed' }
           foreach ($f in Get-ChildItem -LiteralPath (Join-Path $src 'tools') -File) { Copy-Item -LiteralPath $f.FullName -Destination (Join-Path $tools $f.Name) -Force }
@@ -148,6 +159,11 @@ jobs:
             $tok = Invoke-RestMethod -Method Post -Uri ($c.portal_url + '/sharing/rest/generateToken') -Body @{ username = $c.portal_user; password = $c.portal_password; referer = $c.portal_url; expiration = 5; f = 'json' } -TimeoutSec 30
             if ($tok.token) { "PORTAL LOGIN: OK ($($c.portal_user))" } else { "PORTAL LOGIN: FAILED - $($tok.error.message) $($tok.error.details)" }
           } catch { "PORTAL LOGIN: test error - $($_.Exception.Message)" }
+          # 설정 보강: 예제에만 있는 키(splat 등)를 추가하고 스플랫 워커 토큰(secret KGEOSCAN_SPLAT_TOKEN)을 넣는다. 있는 값은 안 바꿈
+          try {
+            $cp = cmd /c ('"' + $venvPy + '" -I "' + (Join-Path $tools 'config_patch.py') + '" "' + $cfgPath + '" "' + (Join-Path $src 'config\kgeoscan.example.json') + '" 2>&1')
+            foreach ($l in $cp) { "$l" }
+          } catch { "CONFIG PATCH: failed - $($_.Exception.Message)" }
           # ArcGIS Pro python 경로 보정 (C:/D: 어느 쪽에 설치돼 있든)
           $proCands = @('D:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe', 'C:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe')
           $proFound = $proCands | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
@@ -172,6 +188,7 @@ jobs:
           # ── 설치 확인
           foreach ($k in $expected.Keys) {
             $dest = switch -Wildcard ($k) {
+              'site/3dscan/glb.web.config' { Join-Path $site 'glb\web.config' }
               'site/3dscan/*' { Join-Path $site ($k.Substring(12)) }
               '3dupload/*'    { Join-Path $upload ($k.Substring(9)) }
               'tools/*'       { Join-Path $tools ($k.Substring(6)) }
@@ -212,6 +229,18 @@ jobs:
             foreach ($line in ((& $appcmd list config -section:system.webServer/security/isapiCgiRestriction /text:*) | Select-String -Pattern 'python')) { "CGI ALLOWED: $($line.Line.Trim())" }
           } catch { "HANDLER DIAG FAILED: $($_.Exception.Message)" }
           try { $r = Invoke-WebRequest -Uri 'https://kgeodata.com/app/3dupload/upload.py' -Method POST -Body 'x=1' -UseBasicParsing -TimeoutSec 30; "UPLOAD POST TEST: $($r.StatusCode) $($r.Content)" } catch { $resp = $_.Exception.Response; $code = if ($resp) { [int]$resp.StatusCode } else { '?' }; "UPLOAD POST TEST: HTTP $code (400 = CGI reached, 405/404 = handler problem)" }
+          # 스플랫 MIME 확인: glb\web.config 로 .splat 이 200 으로 나오고 기존 .glb 도 그대로 나오는지. 실패하면 web.config 제거
+          try {
+            $probe = Join-Path $site 'glb\_probe.splat'
+            [System.IO.File]::WriteAllBytes($probe, (New-Object byte[] 32))
+            $r1 = Invoke-WebRequest -Uri 'https://kgeodata.com/app/3dscan/glb/_probe.splat' -UseBasicParsing -TimeoutSec 30
+            $glbName = (Get-ChildItem -LiteralPath (Join-Path $site 'glb') -Filter *.glb | Select-Object -First 1).Name
+            $r2 = if ($glbName) { Invoke-WebRequest -Uri ('https://kgeodata.com/app/3dscan/glb/' + $glbName) -Method Head -UseBasicParsing -TimeoutSec 30 } else { $null }
+            "SPLAT MIME: probe $($r1.StatusCode) $($r1.Headers['Content-Type']); glb $(if ($r2) { $r2.StatusCode } else { 'n/a' })"
+          } catch {
+            "SPLAT MIME: FAILED ($($_.Exception.Message)) -> removing glb\web.config"
+            Remove-Item -LiteralPath (Join-Path $site 'glb\web.config') -Force -ErrorAction SilentlyContinue
+          }
           # 유지보수 작업 (maintenance.json 의 once_id 가 새것일 때만 실행됨)
           try {
             $mout = cmd /c ('"' + $venvPy + '" -I "' + (Join-Path $tools 'maintenance.py') + '" --actions "' + (Join-Path $src 'maintenance.json') + '" 2>&1')

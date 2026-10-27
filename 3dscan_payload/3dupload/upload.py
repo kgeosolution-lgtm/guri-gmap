@@ -1,7 +1,7 @@
 """
 POST /app/3dupload/upload.py  (multipart/form-data)
 
-  공통 필드 : title (필수), note, scan_type (home=홈스캔 | survey=현장조사, 기본 home)
+  공통 필드 : title (필수), note, scan_type (home=홈스캔 | survey=현장조사, 기본 home), splat (1 이면 유형과 무관하게 GPU 스플랫 요청)
   mode=stray: scan_zip (Stray Scanner 녹화 폴더 zip), lon, lat (필수), elev, heading
   mode=legacy (기본): las_file, glb_file (Scaniverse 등에서 내보낸 LAS + GLB)
 
@@ -126,6 +126,7 @@ def main():
     scan_type = (fields.get("scan_type") or "home").lower()
     if scan_type not in ("home", "survey"):
         return respond({"error": "scan_type은 home 또는 survey"}, "400 Bad Request")
+    splat_requested = (fields.get("splat") or "").lower() in ("1", "true", "yes", "on")
 
     source_name = (files.get("scan_zip") or files.get("las_file") or ("", b""))[0] or ""
     client_id = (fields.get("client_id") or "")[:64]
@@ -141,6 +142,7 @@ def main():
     meta = {
         "job_id": job_id, "title": title, "note": note, "mode": mode, "scan_type": scan_type, "job_dir": job_dir,
         "author": cfg.get("portal_user", ""), "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "splat_requested": splat_requested,
     }
     try:
         if mode == "stray":
@@ -167,6 +169,7 @@ def main():
         json.dump(meta, f, ensure_ascii=False, indent=2)
     queue = {"job_id": job_id, "title": title, "job_dir": job_dir, "mode": mode, "scan_type": scan_type,
              "source_name": source_name, "client_id": client_id, "app": (fields.get("app") or "")[:60],
+             "splat_requested": splat_requested,
              "status": "pending", "step": 0, "message": "대기 중", "created_at": meta["created_at"]}
     with open(os.path.join(cfg["jobs_dir"], job_id + ".json"), "w", encoding="utf-8") as f:
         json.dump(queue, f, ensure_ascii=False, indent=2)

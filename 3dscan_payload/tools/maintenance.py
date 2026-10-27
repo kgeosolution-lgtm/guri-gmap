@@ -4,9 +4,11 @@ kgeoScan 유지보수 (서버에서 워커 venv 파이썬으로 실행; 설정�
   python -I maintenance.py cleanup-orphans             scan_points 가 참조하지 않는 REST 업로드 흔적(Scene Package) 삭제
   python -I maintenance.py delete-scan <objectid>      점 + Scene 서비스 + SLPK 아이템 + 서빙 GLB 삭제
   python -I maintenance.py list                         현재 스캔 목록
-  python -I maintenance.py add-fields                   scan_points 에 scan_type, thumb_url 필드 추가 (없을 때만)
+  python -I maintenance.py add-fields                   scan_points 에 scan_type, thumb_url, splat_url 필드 추가 (없을 때만)
   python -I maintenance.py backfill-thumbs              썸네일 없는 스캔에 zip 에서 썸네일 생성·등록
   python -I maintenance.py set-scan-type [home]         scan_type 이 비어 있는 스캔을 채움
+  python -I maintenance.py queue-splat <job_id>         완료된 Stray 작업을 GPU 스플랫 대기열에 넣음 (큐 파일 splat_status=pending)
+  python -I maintenance.py backfill-splats              서빙 폴더에 <job>.splat 이 있는데 splat_url 이 빈 스캔을 등록
 
 actions.json 예:  {"actions": [{"op": "cleanup-orphans"}, {"op": "delete-scan", "objectid": 41}], "once_id": "2026-10-26-1"}
   once_id 가 같은 파일은 다시 실행하지 않는다 (<data_root>\\maintenance_done.txt 에 기록).
@@ -117,7 +119,7 @@ def delete_scan(objectid=None, title=None):
     glb = feat.get("glb_url") or ""
     if glb:
         base = os.path.splitext(os.path.basename(glb))[0]
-        for name in (os.path.basename(glb), base + ".jpg"):          # 서빙 GLB + 썸네일
+        for name in (os.path.basename(glb), base + ".jpg", base + ".splat", base + ".splat.json", base + ".spz", base + ".spz.json"):   # 서빙 GLB + 썸네일 + 스플랫
             p = os.path.join(CFG["glb_serve_dir"], name)
             if os.path.exists(p):
                 os.remove(p)
@@ -129,6 +131,7 @@ def delete_scan(objectid=None, title=None):
 NEW_FIELDS = [
     {"name": "scan_type", "type": "esriFieldTypeString", "alias": "스캔 유형", "length": 20, "nullable": True, "editable": True},
     {"name": "thumb_url", "type": "esriFieldTypeString", "alias": "썸네일 URL", "length": 300, "nullable": True, "editable": True},
+    {"name": "splat_url", "type": "esriFieldTypeString", "alias": "스플랫 URL", "length": 300, "nullable": True, "editable": True},
 ]
 
 
@@ -143,7 +146,7 @@ def add_fields():
     have = layer_fields(stoken)
     missing = [f for f in NEW_FIELDS if f["name"].lower() not in have]
     if not missing:
-        print("add-fields: scan_type, thumb_url 모두 있음")
+        print("add-fields: scan_type, thumb_url, splat_url 모두 있음")
         return
     admin = CFG["points_layer_url"].replace("/rest/services/", "/rest/admin/services/")
     out = http_json(admin + "/addToDefinition", {"addToDefinition": json.dumps({"fields": missing}), "f": "json", "token": stoken})
@@ -211,7 +214,51 @@ def set_scan_type(value="home"):
 def list_scans():
     for a in sorted(features(token(CFG["server_url"])), key=lambda a: a.get("objectid", 0)):
         print(f"  OID {a.get('objectid'):>4}  [{a.get('scan_type') or '-'}] {a.get('scan_title')}  scene={a.get('scene_item_id')}  "
-              f"slpk={a.get('slpk_item_id')}  glb={a.get('glb_url')}  thumb={'O' if a.get('thumb_url') else '-'}")
+              f"slpk={a.get('slpk_item_id')}  glb={a.get('glb_url')}  thumb={'O' if a.get('thumb_url') else '-'}  splat={'O' if a.get('splat_url') else '-'}")
+
+
+def _queue_file(job_id):
+    p = os.path.join(CFG["jobs_dir"], str(job_id) + ".json")
+    return (p, json.load(open(p, "r", encoding="utf-8"))) if os.path.exists(p) else (p, None)
+
+
+def queue_splat(job_id, force=False):
+    """완료된 Stray 작업의 큐 파일에 splat_status=pending 을 써서 GPU 워커가 가져가게 한다."""
+    p, q = _queue_file(job_id)
+    if not q:
+        print(f"queue-splat: 큐 파일 없음 ({job_id})"); return
+    if q.get("status") != "done" or q.get("mode") != "stray":
+        print(f"queue-splat: {job_id} 는 완료된 Stray 작업이 아님 (status={q.get('status')}, mode={q.get('mode')})"); return
+    if q.get("splat_status") in ("pending", "processing") and not force:
+        print(f"queue-splat: {job_id} 이미 {q.get('splat_status')}"); return
+    q.update(splat_status="pending", splat_message="스플랫 대기 중 (maintenance)", updated_at=time.strftime("%Y-%m-%d %H:%M:%S"))
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump(q, f, ensure_ascii=False, indent=2)
+    print(f"queue-splat: {job_id} '{q.get('title')}' → pending")
+
+
+def backfill_splats():
+    """서빙 폴더에 <job>.splat(.spz) 이 있는데 scan_points.splat_url 이 비어 있는 스캔: 필드를 채우고 큐 파일도 맞춘다."""
+    stoken = token(CFG["server_url"])
+    if "splat_url" not in layer_fields(stoken):
+        print("backfill-splats: splat_url 필드가 없음 (add-fields 먼저)"); return
+    n = 0
+    for a in features(stoken):
+        if a.get("splat_url") or not a.get("glb_url"):
+            continue
+        job_id = os.path.splitext(os.path.basename(a["glb_url"]))[0]
+        for ext in (".splat", ".spz", ".ksplat"):
+            if os.path.exists(os.path.join(CFG["glb_serve_dir"], job_id + ext)):
+                url = f"{CFG['glb_serve_url']}/{job_id}{ext}"
+                print(f"  OID {a.get('objectid')} '{a.get('scan_title')}' splat_url → {url}: {update_attrs(stoken, a['objectid'], {'splat_url': url})}")
+                p, q = _queue_file(job_id)
+                if q:
+                    q.update(splat_status="done", splat_url=url, splat_registered=True, updated_at=time.strftime("%Y-%m-%d %H:%M:%S"))
+                    with open(p, "w", encoding="utf-8") as f:
+                        json.dump(q, f, ensure_ascii=False, indent=2)
+                n += 1
+                break
+    print(f"backfill-splats: {n}개 등록")
 
 
 def main():
@@ -240,6 +287,10 @@ def main():
                     backfill_thumbs()
                 elif op == "set-scan-type":
                     set_scan_type(act.get("value", "home"))
+                elif op == "queue-splat":
+                    queue_splat(act.get("job_id"), bool(act.get("force")))
+                elif op == "backfill-splats":
+                    backfill_splats()
                 else:
                     print(f"알 수 없는 작업: {op}")
             except Exception as e:
@@ -261,6 +312,10 @@ def main():
         backfill_thumbs()
     elif cmd == "set-scan-type":
         set_scan_type(sys.argv[2] if len(sys.argv) > 2 else "home")
+    elif cmd == "queue-splat":
+        queue_splat(sys.argv[2], "--force" in sys.argv)
+    elif cmd == "backfill-splats":
+        backfill_splats()
     else:
         list_scans()
 
