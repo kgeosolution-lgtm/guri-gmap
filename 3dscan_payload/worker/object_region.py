@@ -11,7 +11,8 @@ kgeoScan 물체 모드: 물체 영역(중심 + 반경) 정하기와 메시 자�
 반경: 앱 값(obj_radius) → 없으면 중심에서 LiDAR 로 본 물체 표면까지 거리로 추정 → 실패하면 0.25 m.
 자르기 영역은 구(중심, 반경)이고, 아래쪽은 받침면 2 cm 까지만 남긴다(바닥·책상을 넓게 남기지 않기 위함).
 
-다른 스크립트에서 쓰는 함수: resolve_region(), crop_mesh_file(), crop_splat_file(), keep_mask()
+다른 스크립트에서 쓰는 함수: resolve_region(), crop_mesh_file(), crop_splat_file(), keep_mask(), fit_footprint()
+물체 몸통 좁히기: 구로 자른 메시에서 받침면 위 덩어리 중 중심축에 닿는 것을 물체로 보고 그 둘레 + 3 cm 원기둥(footprint)만 남긴다.
 """
 import argparse
 import csv
@@ -224,19 +225,72 @@ def resolve_region(data_dir, center=None, radius=None):
 
 
 def keep_mask(points, region):
-    """points (N,3) 중 물체 영역 안: 구 안이고, 받침면이 있으면 그 아래 BASE_KEEP 보다 위"""
+    """points (N,3) 중 물체 영역 안: 구 안이고, 받침면이 있으면 그 아래 BASE_KEEP 보다 위.
+    footprint_r 이 있으면(메시에서 물체 몸통을 찾아 좁힌 경우) 그 수직 원기둥 안만 — 책상 원판·옆 물건을 뺀다."""
     c = np.asarray(region["center"]); r = float(region["radius"])
     m = np.linalg.norm(points - c, axis=1) <= r
     if region.get("floor_y") is not None:
         m &= points[:, 1] >= region["floor_y"] - BASE_KEEP
+    fr = region.get("footprint_r")
+    if fr:
+        fc = region.get("footprint_center") or [c[0], c[2]]
+        m &= np.hypot(points[:, 0] - fc[0], points[:, 2] - fc[1]) <= float(fr)
     return m
 
 
-def crop_mesh_file(ply_in, ply_out, region):
-    """삼각형의 세 꼭짓점이 모두 영역 안인 것만 남긴다 -> (남은 삼각형 수, 원래 삼각형 수)"""
+LIFT = 0.015          # 받침면 위 이 높이부터를 물체 몸통으로 본다
+FOOT_MARGIN = 0.03    # 몸통 둘레에 남길 여유 (m)
+
+
+def fit_footprint(V, T, region, log=None):
+    """구로 자른 메시(V, T)에서 받침면 위로 솟은 덩어리 중 중심축에 닿는 것(=물체)을 찾아
+    region 에 footprint_center([x, z]), footprint_r 을 넣는다. 받침면을 모르거나 덩어리를 못 찾으면 그대로 둔다."""
+    import open3d as o3d
+    fy = region.get("floor_y")
+    if fy is None or len(T) == 0:
+        return region
+    above_v = V[:, 1] > fy + LIFT
+    above_t = above_v[T].all(axis=1)
+    if above_t.sum() < 100:
+        return region
+    sub = o3d.geometry.TriangleMesh(o3d.utility.Vector3dVector(V), o3d.utility.Vector3iVector(T[above_t]))
+    with o3d.utility.VerbosityContextManager(o3d.utility.VerbosityLevel.Error):
+        labels, counts, _ = sub.cluster_connected_triangles()
+    labels = np.asarray(labels)
+    c = np.asarray(region["center"]); r = float(region["radius"])
+    rc = max(0.03, 0.25 * r)                                   # 중심축 둘레 원기둥: 여기에 닿는 덩어리가 물체
+    keep_vert = np.zeros(len(V), bool)
+    T_above = T[above_t]
+    for k in range(len(counts)):
+        tv = np.unique(T_above[labels == k])
+        if len(tv) == 0:
+            continue
+        dmin = np.hypot(V[tv, 0] - c[0], V[tv, 2] - c[2]).min()
+        if dmin <= rc and counts[k] >= 20:
+            keep_vert[tv] = True
+    if keep_vert.sum() < 50:
+        return region
+    P = V[keep_vert]
+    fc = [float(np.median(P[:, 0])), float(np.median(P[:, 2]))]
+    d = np.hypot(P[:, 0] - fc[0], P[:, 2] - fc[1])
+    fr = float(min(np.percentile(d, 98) + FOOT_MARGIN, r))
+    region["footprint_center"] = [round(fc[0], 4), round(fc[1], 4)]
+    region["footprint_r"] = round(fr, 3)
+    region["object_top_y"] = round(float(P[:, 1].max()), 4)
+    if log:
+        log(f"footprint: center {region['footprint_center']} r {region['footprint_r']} (sphere r {r}), height {P[:, 1].max() - fy:.3f} m")
+    return region
+
+
+def crop_mesh_file(ply_in, ply_out, region, tighten=True):
+    """삼각형의 세 꼭짓점이 모두 영역 안인 것만 남긴다 -> (남은 삼각형 수, 원래 삼각형 수).
+    tighten: 먼저 구로 자른 메시에서 물체 몸통을 찾아 region 에 footprint 를 기록하고(스플랫 자르기도 같은 값을 씀) 그 원기둥으로 자른다."""
     import open3d as o3d
     mesh = o3d.io.read_triangle_mesh(ply_in)
     V = np.asarray(mesh.vertices); T = np.asarray(mesh.triangles)
+    if tighten and not region.get("footprint_r"):
+        in_sphere = keep_mask(V, region)
+        fit_footprint(V, T[in_sphere[T].all(axis=1)], region)
     keep_v = keep_mask(V, region)
     keep_t = keep_v[T].all(axis=1)
     n0 = len(T)
