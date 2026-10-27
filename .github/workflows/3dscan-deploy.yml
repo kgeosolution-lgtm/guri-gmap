@@ -188,7 +188,7 @@ jobs:
           # ── 설치 확인
           foreach ($k in $expected.Keys) {
             $dest = switch -Wildcard ($k) {
-              'site/3dscan/glb.web.config' { Join-Path $site 'glb\web.config' }
+              'site/3dscan/glb.web.config' { Join-Path $site 'glb\web.config'; break }
               'site/3dscan/*' { Join-Path $site ($k.Substring(12)) }
               '3dupload/*'    { Join-Path $upload ($k.Substring(9)) }
               'tools/*'       { Join-Path $tools ($k.Substring(6)) }
