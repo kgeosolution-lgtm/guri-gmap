@@ -42,7 +42,7 @@ jobs:
             'tools/slpk_step.py' = 'a76ee0bc029538ce8b9d93904ce06cd9294842f0a119d5f3565294b2a0e30b95'
             'tools/register_task.ps1' = 'f715092ec71960880a80d5aa18ebad602786209b229a194d22095e40e0c394ae'
             'tools/maintenance.py' = '4656af68d57b3e446689f09661afd030aec64043ceb5f0b0a034d9345d934c56'
-            'maintenance.json' = 'ab8fb9766f0e4495b52af35f0ff476bf6ab5cb343993cbf691b6178dcb34b220'
+            'maintenance.json' = 'f488e6b98a3d5cbc58f13f14530c671457e66615c23bbb981fb6fb24bb215bb7'
             'worker/process_scan.py' = '7722c86432518d35cf4410de6d20ac69f9385a88c16d494f552ad0c0bf9c91ce'
             'worker/stray_to_mesh.py' = '2c4dc1d2ce92586c7e7e7cafb59ea5143f4775ed16275ece8e513c4a61182ea9'
             'worker/texture_fast.py' = 'fde627b7c0bdf9736e8e0d863984cc4032c7ce569d8ccb610777d85699bad17b'

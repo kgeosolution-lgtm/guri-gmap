@@ -1,7 +1,9 @@
 {
-  "once_id": "2026-10-27-delete-survey-test",
+  "once_id": "2026-10-27-delete-dup-bottle",
   "actions": [
-    {"op": "delete-scan", "title": "현장조사 테스트 1026"},
+    {"op": "delete-scan", "objectid": 44},
+    {"op": "delete-scan", "objectid": 45},
+    {"op": "delete-scan", "objectid": 46},
     {"op": "list"}
   ]
 }
