@@ -1,7 +1,6 @@
 {
-  "once_id": "2026-10-27-splat-token-apply-2",
+  "once_id": "2026-10-27-tail-87c1c2ef",
   "actions": [
-    {"op": "add-fields"},
-    {"op": "list"}
+    {"op": "tail-log", "job_id": "87c1c2ef", "lines": 80}
   ]
 }

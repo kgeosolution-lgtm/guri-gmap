@@ -211,6 +211,21 @@ def set_scan_type(value="home"):
     print(f"set-scan-type: {n}개 → {value}")
 
 
+def tail_job_logs(job_id, lines=60):
+    """작업 폴더의 로그 끝부분을 출력 (배포 로그에서 읽기 위함)"""
+    job_id = "".join(c for c in str(job_id) if c in "0123456789abcdef")[:8]
+    out = os.path.join(CFG["data_root"], job_id, "out")
+    for name in ("worker_stdout.log", "worker.log", "pipeline_error.log"):
+        p = os.path.join(out, name)
+        if os.path.exists(p):
+            txt = open(p, encoding="utf-8", errors="replace").read().splitlines()
+            print(f"--- {job_id}/{name} (last {lines} of {len(txt)})")
+            for line in txt[-lines:]:
+                print("  " + line)
+        else:
+            print(f"--- {job_id}/{name}: 없음")
+
+
 def list_scans():
     for a in sorted(features(token(CFG["server_url"])), key=lambda a: a.get("objectid", 0)):
         print(f"  OID {a.get('objectid'):>4}  [{a.get('scan_type') or '-'}] {a.get('scan_title')}  scene={a.get('scene_item_id')}  "
@@ -281,6 +296,8 @@ def main():
                     delete_scan(act.get("objectid"), act.get("title"))
                 elif op == "list":
                     list_scans()
+                elif op == "tail-log":
+                    tail_job_logs(act.get("job_id", ""), int(act.get("lines", 60)))
                 elif op == "add-fields":
                     add_fields()
                 elif op == "backfill-thumbs":

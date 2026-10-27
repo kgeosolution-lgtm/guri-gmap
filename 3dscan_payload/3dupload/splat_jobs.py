@@ -121,6 +121,8 @@ def splat_summary(q, meta):
         "splat_message": q.get("splat_message"), "splat_requested": bool(meta.get("splat_requested")),
         "zip_bytes": os.path.getsize(zip_path) if zip_path and os.path.exists(zip_path) else 0,
         "mesh_available": os.path.exists(mesh), "objectid": q.get("objectid"),
+        "object": q.get("object") or meta.get("object"), "object_region": q.get("object_region"),   # 물체 모드 (upload.py / pipeline.py 기록)
+        "splat_full_url": q.get("splat_full_url"),
     }
 
 
@@ -266,31 +268,51 @@ def op_upload(cfg, job_id):
         f.write(blob)
     os.replace(dest + ".tmp", dest)
     splat_url = f"{serve_url}/{job_id}{ext}"
+    # 물체 모드: 자르기 전 전체 스플랫 <job>_full.splat (선택)
+    full_url = None
+    full_item = files.get("splat_full")
+    if full_item and full_item[1]:
+        fdest = os.path.join(serve_dir, job_id + "_full" + ext)
+        with open(fdest + ".tmp", "wb") as f:
+            f.write(full_item[1])
+        os.replace(fdest + ".tmp", fdest)
+        full_url = f"{serve_url}/{job_id}_full{ext}"
+    else:
+        for old in (os.path.join(serve_dir, job_id + "_full" + e) for e in (".splat", ".spz", ".ksplat")):
+            if os.path.exists(old):
+                os.remove(old)                                   # 전체 모드로 다시 만든 경우 옛 _full 제거
     stats = None
     if fields.get("stats"):
         try:
             stats = json.loads(fields["stats"])
             with open(os.path.join(serve_dir, job_id + ext + ".json"), "w", encoding="utf-8") as f:
-                json.dump({"job_id": job_id, "splat_url": splat_url, "view": stats.get("view"),
-                           "gaussians": stats.get("gaussians"), "train_seconds": stats.get("train_seconds"),
-                           "test_psnr": stats.get("test_psnr"), "worker": stats.get("worker"), "created": now_str()},
+                json.dump({"job_id": job_id, "splat_url": splat_url, "splat_full_url": full_url, "view": stats.get("view"),
+                           "gaussians": stats.get("gaussians"), "gaussians_full": stats.get("gaussians_full"),
+                           "object_mode": bool(stats.get("object_mode")), "object_region": stats.get("object_region"),
+                           "train_seconds": stats.get("train_seconds"), "test_psnr": stats.get("test_psnr"),
+                           "test_psnr_object": stats.get("test_psnr_object"), "worker": stats.get("worker"), "created": now_str()},
                           f, ensure_ascii=False, indent=2)
         except Exception as e:
             stats = {"parse_error": str(e)}
     summary = None
     if isinstance(stats, dict):
-        summary = {k: stats.get(k) for k in ("gaussians", "train_seconds", "total_seconds", "test_psnr", "peak_vram_gb",
-                                             "iters", "strategy", "keyframes_train", "worker", "splat_bytes") if k in stats}
+        summary = {k: stats.get(k) for k in ("gaussians", "gaussians_full", "object_mode", "train_seconds", "total_seconds", "test_psnr",
+                                             "test_psnr_object", "peak_vram_gb", "iters", "strategy", "cap_max", "keyframes_train",
+                                             "worker", "splat_bytes", "splat_full_bytes") if k in stats}
     registered, reg_msg, oid = False, "", q.get("objectid")
     try:
         oid = register_splat_url(cfg, q, splat_url)
         registered = True
     except Exception as e:
         reg_msg = str(e)[:300]
-    q = update_queue(qp, splat_status="done", splat_url=splat_url, splat_done_at=now_str(), splat_stats=summary,
+    extra = {}
+    if isinstance(stats, dict) and stats.get("object_mode"):
+        extra["splat_object_region"] = stats.get("object_region")   # 워커가 확정한 영역 (pipeline 의 object_region 은 건드리지 않음)
+    q = update_queue(qp, splat_status="done", splat_url=splat_url, splat_full_url=full_url, splat_done_at=now_str(), splat_stats=summary,
                      splat_registered=registered, objectid=oid or q.get("objectid"),
-                     splat_message="스플랫 완료" + ("" if registered else " (scan_points 등록 실패: " + reg_msg + ")"))
-    respond({"job_id": job_id, "splat_url": splat_url, "bytes": len(blob), "registered": registered,
+                     splat_message="스플랫 완료" + (" (물체 모드)" if extra else "") + ("" if registered else " (scan_points 등록 실패: " + reg_msg + ")"),
+                     **extra)
+    respond({"job_id": job_id, "splat_url": splat_url, "splat_full_url": full_url, "bytes": len(blob), "registered": registered,
              "objectid": oid, "message": q.get("splat_message")})
 
 
@@ -314,7 +336,25 @@ def op_queue(cfg, job_id):
         return respond({"error": "Stray 원본 zip 이 있는 작업만 스플랫을 만들 수 있습니다"}, "409 Conflict")
     if q.get("splat_status") in ("pending", "processing") and not force:
         return respond(splat_summary(q, meta))
-    q = update_queue(qp, splat_status="pending", splat_message="스플랫 대기 중 (수동 요청)", splat_worker=None, splat_started_at=None)
+    # 물체 모드 지정: ?object=1[&center=x,y,z][&radius=r] → 큐 파일 object (upload.py 와 같은 꼴). ?object=0 이면 전체 모드로
+    p = query_params()
+    extra = {}
+    if p.get("object") in ("1", "true"):
+        center = radius = None
+        try:
+            if p.get("center"):
+                center = [float(t) for t in p["center"].split(",")]
+                if len(center) != 3:
+                    center = None
+            if p.get("radius"):
+                radius = float(p["radius"])
+        except ValueError:
+            center = radius = None
+        extra["object"] = {"mode": 1, "center": center, "radius": radius, "coverage": None, "by": "queue"}
+    elif p.get("object") in ("0", "false"):
+        extra["object"] = None
+    q = update_queue(qp, splat_status="pending", splat_message="스플랫 대기 중 (수동 요청" + (", 물체 모드" if extra.get("object") else "") + ")",
+                     splat_worker=None, splat_started_at=None, **extra)
     respond(splat_summary(q, meta))
 
 
