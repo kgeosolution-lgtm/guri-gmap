@@ -1,9 +1,11 @@
 {
-  "once_id": "2026-10-27-delete-dup-bottle",
+  "once_id": "2026-10-27-delete-dup-bottle-2",
   "actions": [
-    {"op": "delete-scan", "objectid": 44},
-    {"op": "delete-scan", "objectid": 45},
-    {"op": "delete-scan", "objectid": 46},
+    {"op": "delete-scan", "objectid": 47},
+    {"op": "delete-scan", "objectid": 48},
+    {"op": "delete-scan", "objectid": 49},
+    {"op": "delete-scan", "objectid": 50},
+    {"op": "delete-scan", "objectid": 51},
     {"op": "list"}
   ]
 }
