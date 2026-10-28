@@ -148,6 +148,10 @@ def main():
         return respond({"error": "scan_type은 home 또는 survey"}, "400 Bad Request")
     splat_requested = (fields.get("splat") or "").lower() in ("1", "true", "yes", "on")
     obj = parse_object_fields(fields)
+    area = None
+    if (fields.get("area_mode") or "").strip().lower() in ("1", "true", "yes", "on"):
+        surf = (fields.get("area_surface") or "auto").strip().lower()
+        area = {"mode": 1, "surface": surf if surf in ("auto", "floor", "wall") else "auto"}
 
     source_name = (files.get("scan_zip") or files.get("las_file") or ("", b""))[0] or ""
     client_id = (fields.get("client_id") or "")[:64]
@@ -163,7 +167,7 @@ def main():
     meta = {
         "job_id": job_id, "title": title, "note": note, "mode": mode, "scan_type": scan_type, "job_dir": job_dir,
         "author": cfg.get("portal_user", ""), "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "splat_requested": splat_requested, "object": obj,
+        "splat_requested": splat_requested, "object": obj, "area": area,
     }
     try:
         if mode in ("stray", "objcap"):      # objcap: Apple Object Capture zip (model/ OBJ + images/ + poses.json)
@@ -190,7 +194,7 @@ def main():
         json.dump(meta, f, ensure_ascii=False, indent=2)
     queue = {"job_id": job_id, "title": title, "job_dir": job_dir, "mode": mode, "scan_type": scan_type,
              "source_name": source_name, "client_id": client_id, "app": (fields.get("app") or "")[:60],
-             "splat_requested": splat_requested, "object": obj,
+             "splat_requested": splat_requested, "object": obj, "area": area,
              "status": "pending", "step": 0, "message": "대기 중", "created_at": meta["created_at"]}
     with open(os.path.join(cfg["jobs_dir"], job_id + ".json"), "w", encoding="utf-8") as f:
         json.dump(queue, f, ensure_ascii=False, indent=2)

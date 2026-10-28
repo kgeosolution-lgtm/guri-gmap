@@ -106,6 +106,8 @@ def main():
     ap.add_argument("--object-mode", action="store_true", help="물체 영역만 남긴다 (현장조사 물체 모드)")
     ap.add_argument("--obj-center", default="", help="x,y,z (ARKit 월드). 없으면 카메라 시선 교점으로 자동")
     ap.add_argument("--obj-radius", default="", help="m. 없으면 LiDAR 로 추정")
+    ap.add_argument("--area-mode", action="store_true", help="면 촬영: 정사영상(ortho/) 생성")
+    ap.add_argument("--area-surface", default="auto", choices=["auto", "floor", "wall"])
     args = ap.parse_args()
 
     t0 = time.time()
@@ -181,13 +183,29 @@ def main():
                          args.max_las_points, t0)
     t_las = time.time() - t3
 
+    # 4) 면 촬영: 정사영상 (실패해도 작업은 계속)
+    ortho = None
+    if args.area_mode:
+        t4 = time.time()
+        odir = os.path.join(args.out, "ortho")
+        try:
+            run([PY, "-I", os.path.join(HERE, "orthophoto.py"), "--data", data, "--mesh", os.path.join(args.out, "mesh_full.ply")
+                 if os.path.exists(os.path.join(args.out, "mesh_full.ply")) else ply, "--out", odir,
+                 "--surface", args.area_surface, "--lon", str(args.lon), "--lat", str(args.lat), "--heading", str(args.heading)],
+                t0, log_path)
+            ortho = json.load(open(os.path.join(odir, "ortho.json"), encoding="utf-8"))
+            log(f"ortho: {ortho['surface']} {ortho['width']}x{ortho['height']} {ortho['gsd_m'] * 1000:.2f} mm/px "
+                f"({time.time() - t4:.0f}s)", t0)
+        except SystemExit as e:
+            log(f"ortho skipped: {e}", t0)
+
     fuse_stats = json.load(open(os.path.join(args.out, "stats.json")))
     tex_stats = json.load(open(os.path.join(args.out, "stats_tex.json")))
     result = dict(
         input_zip=os.path.abspath(args.zip), frames=n_frames, fusion=fuse_stats, texture=tex_stats, las=las_info,
         georef=dict(lon=args.lon, lat=args.lat, elev=args.elev, heading_deg=args.heading, crs="EPSG:32652"),
         outputs=dict(glb="mesh_tex.glb", las="scan.las", ply="mesh.ply", thumb="thumb.jpg" if os.path.exists(thumb) else None),
-        object_region=region,
+        object_region=region, ortho=ortho,
         seconds=dict(fusion=round(t_fuse, 1), texture=round(t_tex, 1), las=round(t_las, 1), total=round(time.time() - t0, 1)))
     with open(os.path.join(args.out, "result.json"), "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2, ensure_ascii=False)

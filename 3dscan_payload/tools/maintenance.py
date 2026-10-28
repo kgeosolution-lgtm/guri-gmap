@@ -120,7 +120,8 @@ def delete_scan(objectid=None, title=None):
     if glb:
         base = os.path.splitext(os.path.basename(glb))[0]
         for name in (os.path.basename(glb), base + ".jpg", base + ".splat", base + ".splat.json", base + ".spz", base + ".spz.json",
-                     base + "_full.splat", base + "_full.splat.json"):   # 서빙 GLB + 썸네일 + 스플랫(물체 모드는 자르기 전 _full 도)
+                     base + "_full.splat", base + "_full.splat.json",    # 서빙 GLB + 썸네일 + 스플랫(물체 모드는 자르기 전 _full 도)
+                     base + "_ortho.json", base + "_ortho.jpg", base + "_ortho.png", base + "_ortho.jgw", base + "_ortho.prj"):  # 정사영상
             p = os.path.join(CFG["glb_serve_dir"], name)
             if os.path.exists(p):
                 os.remove(p)
@@ -133,6 +134,7 @@ NEW_FIELDS = [
     {"name": "scan_type", "type": "esriFieldTypeString", "alias": "스캔 유형", "length": 20, "nullable": True, "editable": True},
     {"name": "thumb_url", "type": "esriFieldTypeString", "alias": "썸네일 URL", "length": 300, "nullable": True, "editable": True},
     {"name": "splat_url", "type": "esriFieldTypeString", "alias": "스플랫 URL", "length": 300, "nullable": True, "editable": True},
+    {"name": "ortho_url", "type": "esriFieldTypeString", "alias": "정사영상 URL", "length": 300, "nullable": True, "editable": True},
 ]
 
 

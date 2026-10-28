@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>kgeoScan 정사영상</title>
+<!--
+  정사영상 뷰어: ?meta=<서버의 <job>_ortho.json 주소>  (같은 사이트 파일만)
+  확대/이동(휠·드래그·두 손가락), 축척 막대, 두 점 거리 재기(mm·cm·m). 바닥은 실제 땅 위 거리, 벽은 벽면 위 거리.
+-->
+<style>
+  :root { --bg:#080b0f; --panel:rgba(13,17,23,.9); --line:rgba(255,255,255,.14); --text:#e6edf6; --muted:#8b98a8; --accent:#38bdf8; --mark:#facc15; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--text); font-family:'Pretendard',-apple-system,'Malgun Gothic',sans-serif; overflow:hidden; }
+  #cv { position:absolute; inset:0; width:100%; height:100%; touch-action:none; cursor:grab; }
+  #cv.measuring { cursor:crosshair; }
+  .bar { position:absolute; display:flex; gap:6px; align-items:center; z-index:2; }
+  .tl { top:10px; left:10px; flex-direction:column; align-items:flex-start; }
+  .tr { top:10px; right:10px; }
+  .bl { bottom:12px; left:10px; }
+  .badge { font:600 11px 'IBM Plex Mono',monospace; padding:3px 8px; border:1px solid var(--line); border-radius:3px; background:var(--panel); color:var(--accent); }
+  .info { font:11px 'IBM Plex Mono',monospace; color:var(--muted); background:var(--panel); padding:3px 8px; border-radius:3px; }
+  button { height:30px; padding:0 10px; border:1px solid var(--line); border-radius:4px; background:var(--panel); color:var(--text); font:12px inherit; cursor:pointer; }
+  button.on { border-color:var(--mark); color:var(--mark); }
+  #scale { display:flex; flex-direction:column; gap:3px; font:11px 'IBM Plex Mono',monospace; color:var(--text); background:var(--panel); padding:5px 8px 6px; border-radius:3px; }
+  #scaleBar { height:6px; border:2px solid var(--text); border-top:none; }
+  #measure { position:absolute; left:50%; bottom:12px; transform:translateX(-50%); z-index:2; font:600 13px 'IBM Plex Mono',monospace;
+             background:var(--panel); color:var(--mark); border:1px solid rgba(250,204,21,.5); padding:5px 10px; border-radius:4px; display:none; }
+  /* 사이드바 iframe 안(embedded): 부모가 좌상단(배지·탭)·우상단(버튼)·우하단(전체화면)을 쓰므로 아래쪽으로 옮기고 중복 버튼은 숨긴다 */
+  .embedded .tl { top:auto; bottom:48px; }
+  .embedded .tl .badge { display:none; }
+  .embedded .tr { top:auto; bottom:10px; right:52px; }
+  .embedded #btnOpen { display:none; }
+  .embedded #measure { left:auto; right:52px; transform:none; bottom:48px; }
+  #msg { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:13px; z-index:3; }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div class="bar tl">
+  <div class="badge" id="title">정사영상</div>
+  <div class="info" id="meta"></div>
+</div>
+<div class="bar tr">
+  <button id="btnMeasure" title="두 점을 눌러 거리 재기">📏 측정</button>
+  <button id="btnFit" title="전체 보기">⤢ 전체</button>
+  <button id="btnOpen" title="원본 이미지 새 탭">↗ 원본</button>
+</div>
+<div class="bar bl"><div id="scale"><span id="scaleText">—</span><div id="scaleBar"></div></div></div>
+<div id="measure"></div>
+<div id="msg">정사영상 불러오는 중...</div>
+
+<script>
+if (window.parent !== window) document.documentElement.classList.add("embedded");   // 사이드바 iframe 안
+(function () {
+  const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
+  const $ = id => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  const metaUrl = params.get("meta");
+  let meta = null, img = null, gsd = 0.001;
+  let scale = 1, ox = 0, oy = 0;                  // 화면 = 이미지 * scale + (ox, oy)
+  let measuring = false, pts = [];
+  let userMoved = false;                          // 사용자가 움직이기 전에는 창 크기가 바뀔 때마다 전체 보기로 다시 맞춘다
+
+  function sameOrigin(u) { try { return new URL(u, location.href).origin === location.origin; } catch (e) { return false; } }
+  function fail(t) { $("msg").textContent = t; $("msg").style.display = "flex"; }
+  function fmtLen(m) { return m >= 1 ? m.toFixed(3) + " m" : m >= 0.01 ? (m * 100).toFixed(1) + " cm" : (m * 1000).toFixed(1) + " mm"; }
+
+  function resize() {
+    const r = window.devicePixelRatio || 1;
+    cv.width = Math.round(cv.clientWidth * r); cv.height = Math.round(cv.clientHeight * r);
+    ctx.setTransform(r, 0, 0, r, 0, 0);
+    if (!userMoved) fit(); else draw();
+  }
+  function fit() {
+    if (!img) return;
+    const w = cv.clientWidth, h = cv.clientHeight;
+    if (!w || !h) return;                         // 숨겨진 iframe 등 크기 0 일 때는 다음 resize 에서 맞춘다
+    scale = Math.min(w / img.width, h / img.height) * 0.95;
+    ox = (w - img.width * scale) / 2; oy = (h - img.height * scale) / 2;
+    draw();
+  }
+  function draw() {
+    const w = cv.clientWidth, h = cv.clientHeight;
+    ctx.fillStyle = "#080b0f"; ctx.fillRect(0, 0, w, h);
+    if (!img) return;
+    ctx.imageSmoothingEnabled = scale < 2;
+    ctx.drawImage(img, ox, oy, img.width * scale, img.height * scale);
+    // 측정선
+    if (pts.length) {
+      ctx.strokeStyle = "#facc15"; ctx.fillStyle = "#facc15"; ctx.lineWidth = 2;
+      const sp = pts.map(p => [p[0] * scale + ox, p[1] * scale + oy]);
+      if (sp.length === 2) { ctx.beginPath(); ctx.moveTo(sp[0][0], sp[0][1]); ctx.lineTo(sp[1][0], sp[1][1]); ctx.stroke(); }
+      sp.forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], 4, 0, Math.PI * 2); ctx.fill(); });
+    }
+    // 축척 막대: 화면 80~160 px 에 맞는 깔끔한 길이
+    const mPerScreenPx = gsd / scale;
+    const nice = [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50];
+    let L = nice[nice.length - 1];
+    for (const n of nice) { if (n / mPerScreenPx >= 80) { L = n; break; } }
+    $("scaleBar").style.width = Math.round(L / mPerScreenPx) + "px";
+    $("scaleText").textContent = fmtLen(L);
+  }
+  function zoomAt(sx, sy, f) {
+    userMoved = true;
+    const ns = Math.min(Math.max(scale * f, 0.02), 40);
+    ox = sx - (sx - ox) * (ns / scale); oy = sy - (sy - oy) * (ns / scale); scale = ns; draw();
+  }
+  function toImg(sx, sy) { return [(sx - ox) / scale, (sy - oy) / scale]; }
+
+  // ── 입력: 마우스·터치 공통 (pointer events) ──
+  const active = new Map(); let lastPinch = 0, moved = 0, downAt = null;
+  cv.addEventListener("pointerdown", e => { cv.setPointerCapture(e.pointerId); active.set(e.pointerId, [e.offsetX, e.offsetY]); moved = 0; downAt = [e.offsetX, e.offsetY]; });
+  cv.addEventListener("pointermove", e => {
+    if (!active.has(e.pointerId)) return;
+    const prev = active.get(e.pointerId); active.set(e.pointerId, [e.offsetX, e.offsetY]);
+    if (active.size === 1) { userMoved = true; ox += e.offsetX - prev[0]; oy += e.offsetY - prev[1]; moved += Math.abs(e.offsetX - prev[0]) + Math.abs(e.offsetY - prev[1]); draw(); }
+    else if (active.size === 2) {
+      const [a, b] = [...active.values()]; const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+      if (lastPinch) zoomAt((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, d / lastPinch);
+      lastPinch = d; moved += 10;
+    }
+  });
+  const up = e => {
+    active.delete(e.pointerId); if (active.size < 2) lastPinch = 0;
+    if (measuring && moved < 6 && downAt && active.size === 0) {
+      const p = toImg(downAt[0], downAt[1]);
+      if (p[0] >= 0 && p[1] >= 0 && p[0] <= img.width && p[1] <= img.height) {
+        if (pts.length >= 2) pts = [];
+        pts.push(p);
+        if (pts.length === 2) {
+          const d = Math.hypot(pts[1][0] - pts[0][0], pts[1][1] - pts[0][1]) * gsd;
+          $("measure").textContent = "거리 " + fmtLen(d);
+        } else $("measure").textContent = "두 번째 점을 누르세요";
+        $("measure").style.display = "block"; draw();
+      }
+    }
+    downAt = null;
+  };
+  cv.addEventListener("pointerup", up); cv.addEventListener("pointercancel", up);
+  cv.addEventListener("wheel", e => { e.preventDefault(); zoomAt(e.offsetX, e.offsetY, e.deltaY < 0 ? 1.2 : 1 / 1.2); }, { passive: false });
+  $("btnFit").onclick = () => { userMoved = false; fit(); };
+  $("btnMeasure").onclick = () => {
+    measuring = !measuring; pts = [];
+    $("btnMeasure").classList.toggle("on", measuring); cv.classList.toggle("measuring", measuring);
+    $("measure").style.display = measuring ? "block" : "none";
+    $("measure").textContent = "첫 번째 점을 누르세요"; draw();
+  };
+  $("btnOpen").onclick = () => { if (meta) window.open(meta.files.image, "_blank"); };
+  window.addEventListener("resize", resize);
+
+  if (!metaUrl || !sameOrigin(metaUrl)) { fail("?meta= 가 없거나 다른 사이트 주소입니다"); return; }
+  fetch(metaUrl, { cache: "no-store" }).then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); }).then(m => {
+    meta = m; gsd = m.gsd_m || 0.001;
+    const kind = m.surface === "wall" ? "벽 정면" : "바닥·위에서";
+    $("title").textContent = "정사영상 · " + kind;
+    $("meta").textContent = `${(gsd * 1000).toFixed(2)} mm/px · ${m.extent_m[0].toFixed(2)} × ${m.extent_m[1].toFixed(2)} m · ${m.source === "hires" ? "고해상도 사진" : "영상"} ${m.views_used}장`;
+    const src = m.files && m.files.image;
+    if (!src || !sameOrigin(src)) throw new Error("이미지 주소 오류");
+    img = new Image();
+    img.onload = () => { $("msg").style.display = "none"; resize(); };
+    img.onerror = () => fail("이미지를 불러오지 못했습니다");
+    img.src = src;
+  }).catch(e => fail("정사영상 정보를 불러오지 못했습니다: " + e.message));
+  resize();
+})();
+</script>
+</body>
+</html>

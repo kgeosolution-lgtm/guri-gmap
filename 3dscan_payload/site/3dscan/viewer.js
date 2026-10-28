@@ -72,6 +72,7 @@ require([
   const _ms = { on: false, pts: [], objs: [], text: "" };   // 거리 측정 상태
   let _viewMode   = "glb";                  // 사이드바 뷰어 모드: "glb"(메시) | "splat"(가우시안 스플랫 iframe)
   let _splatFrame = null;                   // splat.html iframe
+  const ORTHO_PAGE = "ortho.html?v=b7b8d657c8";                       // 배포(deploy.mjs stampAssets)가 ?v=해시 를 붙인다
   const SPLAT_PAGE = "splat.html?v=da8f1ec908";          // 배포(deploy.mjs stampAssets)가 ?v=해시 를 붙인다
 
   /* ── MapView ── */
@@ -700,41 +701,78 @@ require([
     if (sceneDiv) sceneDiv.style.display = "";
     if (loadingEl) loadingEl.style.display = "";
   }
+  function orthoPageUrl(url) { return ORTHO_PAGE + (ORTHO_PAGE.includes("?") ? "&" : "?") + "meta=" + encodeURIComponent(url); }
   function setupViewerTabs(attrs) {
     removeSplatFrame();
+    removeOrthoOverlay();
     _viewMode = "glb";
-    const tabs = document.getElementById("viewerTabs");
-    if (tabs) tabs.style.display = attrs.splat_url ? "flex" : "none";
+    const g = id => document.getElementById(id);
+    const tabs = g("viewerTabs");
+    if (tabs) tabs.style.display = (attrs.splat_url || attrs.ortho_url) ? "flex" : "none";
+    if (g("vtabSplat")) g("vtabSplat").style.display = attrs.splat_url ? "" : "none";
+    if (g("vtabOrtho")) g("vtabOrtho").style.display = attrs.ortho_url ? "" : "none";
     applyViewMode();
   }
   function applyViewMode() {
-    const splat = _viewMode === "splat";
+    const splat = _viewMode === "splat", ortho = _viewMode === "ortho", glb = _viewMode === "glb";
     const g = id => document.getElementById(id);
-    if (g("vtabGlb"))      g("vtabGlb").classList.toggle("active", !splat);
+    if (g("vtabGlb"))      g("vtabGlb").classList.toggle("active", glb);
     if (g("vtabSplat"))    g("vtabSplat").classList.toggle("active", splat);
-    if (g("btnMeasure"))   g("btnMeasure").style.display   = splat ? "none" : "";
-    if (g("btnTop"))       g("btnTop").style.display       = splat ? "none" : "";
-    if (g("btnSplatOpen")) g("btnSplatOpen").style.display = splat ? "" : "none";
+    if (g("vtabOrtho"))    g("vtabOrtho").classList.toggle("active", ortho);
+    if (g("btnMeasure"))   g("btnMeasure").style.display   = glb ? "" : "none";
+    if (g("btnTop"))       g("btnTop").style.display       = glb ? "" : "none";
+    if (g("btnSplatOpen")) g("btnSplatOpen").style.display = glb ? "none" : "";
+    if (g("btnOrthoMap"))  g("btnOrthoMap").style.display  = ortho ? "" : "none";
     const badge = document.querySelector(".viewer-badge");
-    if (badge) badge.textContent = splat ? "Gaussian Splat · 3DGS Viewer" : "3D Object · GLB Viewer";
+    if (badge) badge.textContent = splat ? "Gaussian Splat · 3DGS Viewer" : ortho ? "Orthophoto · 정사영상" : "3D Object · GLB Viewer";
   }
+  /* ── 정사영상: 지도 위 제자리에 겹치기 (바닥 정사영상만 좌표가 있음) ── */
+  let _orthoLayer = null;
+  function removeOrthoOverlay() {
+    if (_orthoLayer) { try { webmap.remove(_orthoLayer); } catch (e) {} _orthoLayer = null; }
+    const b = document.getElementById("btnOrthoMap"); if (b) b.classList.remove("active");
+  }
+  window.toggleOrthoOverlay = async function() {
+    if (_orthoLayer) { removeOrthoOverlay(); return; }
+    if (!currentAttrs?.ortho_url) return;
+    let m;
+    try { m = await (await fetch(currentAttrs.ortho_url, { cache: "no-store" })).json(); } catch (e) { alert("정사영상 정보를 불러오지 못했습니다"); return; }
+    const c = m.georef && m.georef.corners_lonlat;
+    if (!c) { alert("벽 정사영상은 지도 좌표가 없어 겹칠 수 없습니다"); return; }
+    // 콜백은 async 로 쓰지 않는다: 4.30 AMD require 가 async 콜백을 부르지 않는다(로컬에서 확인)
+    require(["esri/layers/MediaLayer", "esri/layers/support/ImageElement", "esri/layers/support/CornersGeoreference", "esri/geometry/Point", "esri/layers/support/TileInfo"],
+      (MediaLayer, ImageElement, CornersGeoreference, Point, TileInfo) => {
+        // 배경지도 타일 단계(최대 19)로는 수 m 짜리 정사영상이 몇 픽셀이라, 확대 단계를 24 까지 늘린다(배경은 확대해 보임)
+        if ((mapView.constraints.lods || []).length < 25) mapView.constraints.lods = TileInfo.create({ numLODs: 25 }).lods;
+        const P = ll => new Point({ longitude: ll[0], latitude: ll[1], spatialReference: { wkid: 4326 } });
+        const el = new ImageElement({ image: m.files.overlay || m.files.image,
+          georeference: new CornersGeoreference({ topLeft: P(c.top_left), topRight: P(c.top_right), bottomRight: P(c.bottom_right), bottomLeft: P(c.bottom_left) }) });
+        _orthoLayer = new MediaLayer({ source: [el], title: "정사영상", opacity: 1 });
+        webmap.add(_orthoLayer);
+        const b = document.getElementById("btnOrthoMap"); if (b) b.classList.add("active");
+        _orthoLayer.when(() => mapView.goTo({ target: _orthoLayer.fullExtent.expand(1.6) }, { duration: 700 }).catch(() => {}));
+      });
+  };
   window.setViewMode = function(mode) {
     if (!currentAttrs) return;
     if (mode === "splat" && !currentAttrs.splat_url) return;
+    if (mode === "ortho" && !currentAttrs.ortho_url) return;
     if (mode === _viewMode) return;
+    if (mode !== "ortho") removeOrthoOverlay();
     _viewMode = mode;
     applyViewMode();
     const sceneDiv = document.getElementById("sceneDiv"), loadingEl = document.getElementById("sceneLoading");
-    if (mode === "splat") {
-      destroyGLB();                                   // 폰 GPU 메모리를 아끼려 메시 뷰어를 내리고 스플랫만 띄운다
+    if (mode === "splat" || mode === "ortho") {
+      destroyGLB();                                   // 폰 GPU 메모리를 아끼려 메시 뷰어를 내리고 한 가지만 띄운다
+      removeSplatFrame();
       sceneDiv.style.display = "none";
       loadingEl.style.display = "none";
       const f = document.createElement("iframe");
       f.id = "splatFrame";
-      f.title = "Gaussian Splat Viewer";
+      f.title = mode === "ortho" ? "Orthophoto Viewer" : "Gaussian Splat Viewer";
       f.setAttribute("allow", "fullscreen");
       f.allowFullscreen = true;
-      f.src = splatPageUrl(currentAttrs.splat_url);
+      f.src = mode === "ortho" ? orthoPageUrl(currentAttrs.ortho_url) : splatPageUrl(currentAttrs.splat_url);
       sceneDiv.parentNode.insertBefore(f, sceneDiv);
       _splatFrame = f;
     } else {
@@ -743,6 +781,7 @@ require([
     }
   };
   window.openSplatPage = function() {
+    if (_viewMode === "ortho" && currentAttrs?.ortho_url) { window.open(orthoPageUrl(currentAttrs.ortho_url), "_blank"); return; }
     if (!currentAttrs?.splat_url) return;
     window.open(splatPageUrl(currentAttrs.splat_url), "_blank");
   };
@@ -829,6 +868,7 @@ require([
             ${t ? `<span class="lp-item-type ${esc(a.scan_type)}">${t.icon} ${t.label}</span>` : ''}
             <span class="lp-item-date">${dtStr}</span>
             ${a.splat_url ? '<span class="lp-item-splat" title="가우시안 스플랫 있음">✦</span>' : ''}
+            ${a.ortho_url ? '<span class="lp-item-splat" title="정사영상 있음">▦</span>' : ''}
             ${isNew ? '<span class="lp-item-new">NEW</span>' : ''}
           </div>
         </div>

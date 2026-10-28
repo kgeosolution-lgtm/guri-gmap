@@ -187,13 +187,15 @@ canvas { display: block; }
         <div class="viewer-tabs" id="viewerTabs" style="display:none">
           <button type="button" class="vtab active" id="vtabGlb" onclick="setViewMode('glb')" title="LiDAR 메시 — 치수 측정 가능">◈ 메시</button>
           <button type="button" class="vtab" id="vtabSplat" onclick="setViewMode('splat')" title="가우시안 스플랫 — 사진처럼 보이는 기록">✦ 스플랫</button>
+          <button type="button" class="vtab" id="vtabOrtho" onclick="setViewMode('ortho')" title="정사영상 — 위/정면에서 본 실측 고해상도 사진">▦ 정사영상</button>
         </div>
       </div>
       <!-- 우상단: 측정 · 평면 · 씬으로 보기 -->
       <div class="viewer-controls">
         <button class="vctrl" id="btnMeasure" title="두 점을 클릭해 거리 재기 (M)" onclick="toggleMeasure()">📏 측정</button>
         <button class="vctrl" id="btnTop" title="위에서 내려다보기 (평면)" onclick="viewTop()">⬇ 평면</button>
-        <button class="vctrl" id="btnSplatOpen" style="display:none" title="스플랫 뷰어를 새 탭에서 크게" onclick="openSplatPage()">↗ 크게</button>
+        <button class="vctrl" id="btnSplatOpen" style="display:none" title="새 탭에서 크게" onclick="openSplatPage()">↗ 크게</button>
+        <button class="vctrl" id="btnOrthoMap" style="display:none" title="정사영상을 지도 위 제자리에 겹쳐 보기" onclick="toggleOrthoOverlay()">🗺 지도에 겹치기</button>
         <button class="vctrl" title="Portal Scene Viewer 새 탭" onclick="openSceneViewer()">⧉ 씬</button>
       </div>
       <!-- 측정 결과 -->
@@ -444,6 +446,6 @@ canvas { display: block; }
   <div class="toast-step" id="tStep"></div>
 </div>
 
-<script src="viewer.js?v=45c49a6e37"></script>
+<script src="viewer.js?v=709d16384d"></script>
 </body>
 </html>

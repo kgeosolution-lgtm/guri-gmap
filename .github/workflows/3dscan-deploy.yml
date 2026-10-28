@@ -29,13 +29,14 @@ jobs:
 
           $src = Join-Path $env:GITHUB_WORKSPACE '3dscan_payload'
           $expected = [ordered]@{
-            'site/3dscan/index.html' = 'd7cbdf6905959ad2c3753e0485a987743a750dbe86e57af07e687ae2c0de2a40'
-            'site/3dscan/viewer.js' = '45c49a6e37260f43ead866db1f570e860755e9baa950519fa3a6c43098f68e26'
+            'site/3dscan/index.html' = '6763a9f0f6e446b929df79dececcd0823fd6192e93d187c43d77160093c82031'
+            'site/3dscan/viewer.js' = '709d16384d56736956204225013553a4c9967389d9e73791ea87beeb0c922f66'
             'site/3dscan/viewer.css' = '591202f96bef530a1509cbd7328aaf60c2db6199d48fc832017f0e58239ecd00'
             'site/3dscan/splat.html' = 'da8f1ec90893e602ae6c954cb18b4dc6f51f181904dcd5c185dd645ee9831873'
-            'site/3dscan/glb.web.config' = '07e754133e5f12594c5f054b487e04c9da461c3e51e0dc86c8336fcd1652fabb'
+            'site/3dscan/ortho.html' = 'b7b8d657c81b6e62e8207fa0355cce7e00c97fbfc880a2e55840ef0fa59c0f03'
+            'site/3dscan/glb.web.config' = 'f2eee390d47062f63ed6bb66da50f76d4124dc3c69049ec0238dac600af81c3e'
             '3dupload/common.py' = 'af4551445364ecec4e645a1c63fca0e6d9aea3e86154031664ebba037b34846f'
-            '3dupload/upload.py' = '8d698c0e14fb7a24a5507d7dcf7d3dac445b1f269c8a66072d5edc8f5a90f521'
+            '3dupload/upload.py' = '758e9d0e3da46d7b2dfb7cc8b6cf6c2a663d2a7eca3e16733f621bbafa6c5ca7'
             '3dupload/status.py' = '25583014a9d8b6f1e2966484530c386fac44ad20136bc89766d72f184a4b375f'
             '3dupload/check_title.py' = 'a27fc6fdd49535cffc57ce4fbd917220406f28c68b247edc5cf5076b88181c3c'
             '3dupload/retry.py' = '867ee3d6b5cdfa37ee6db144249e966f667a8e4c97e728fe97a1ea2c0e8ed442'
@@ -43,19 +44,20 @@ jobs:
             '3dupload/find_job.py' = 'b023f4d162976fc1c961a3c4e6ab13b48ead754b04a751d0e15f42c195de0287'
             '3dupload/web.config' = '2a580379b9269a6b083a8e6f71ccbad4aef2e29e7afef32d8d1454d6503d8b48'
             'tools/queue_runner.py' = 'c3eff407ce2f360f942062fbe604c6dbaaf3b60d71b9944fc11cfc2db0b24f74'
-            'tools/pipeline.py' = 'b4227b6a2d0f076ff91f04b0635246453c3d4ea4b00f0f79b25eb07e9a9e1ce1'
+            'tools/pipeline.py' = '84fab499e48bf4acc830c7870f00084e76ecb14e02d223893bea26a6fd848622'
             'tools/slpk_step.py' = 'a76ee0bc029538ce8b9d93904ce06cd9294842f0a119d5f3565294b2a0e30b95'
             'tools/register_task.ps1' = 'f715092ec71960880a80d5aa18ebad602786209b229a194d22095e40e0c394ae'
-            'tools/maintenance.py' = '84151d3bc4f9c6b424a59635d5ada84b081332d1ee42ccbd128fe1e0c480a48c'
+            'tools/maintenance.py' = '74a7ba6147e6f4393085aa535757788d5eb805cbba5efbfe99a9bbfa9badb0b6'
             'tools/config_patch.py' = '8a17bc868075356ce46f94e2c07eca8f715a6fbbebe376db6b6d120c398777a9'
-            'maintenance.json' = '4e82528d9d70e6671397986ee2ad3ec00943f7e70e9ded7065914b54c4e7b792'
-            'worker/process_scan.py' = '9c5021197cac07b456669286978b40ec8ce6ed3e124278056d54e341075ce856'
+            'maintenance.json' = '8617be009d8c0cdbf9021da2bf67035d4eed9d8c52bb5f85e66cddfc10abd07f'
+            'worker/process_scan.py' = 'a7f0f3c7cd8bceba303f88e55a8e596602425b7ba9370fac6cd9eb2f7b367405'
             'worker/stray_to_mesh.py' = '2c4dc1d2ce92586c7e7e7cafb59ea5143f4775ed16275ece8e513c4a61182ea9'
             'worker/texture_fast.py' = 'fde627b7c0bdf9736e8e0d863984cc4032c7ce569d8ccb610777d85699bad17b'
             'worker/glb_to_obj.py' = 'dc396620d222b1082586c873b25bd092425db4a213432ce9108e5f3e4e825f22'
             'worker/thumbnail.py' = 'b724f8bea39564268a26b4f693c3d05a93e7a15d9c42e5091d31e65abdfa76b1'
             'worker/object_region.py' = 'e37361174ebdd4a57f8ad3035fe1f7fe2a3eb43dabf4f1ee6bad8d52ca3c4893'
             'worker/process_objcap.py' = '79b917aba9fdd44f582599f5be9e74d2c029772443018385b10454bccf19c7dc'
+            'worker/orthophoto.py' = 'ba0d04abb52c131cd9d216d3f49c9192861857ba8af52e3b13ce71df7f39de09'
             'config/kgeoscan.example.json' = 'a0c8ffe042e8b44789b3ebda3b02266164ac088fb12ae4d0c66d7b1656da7240'
             'requirements.txt' = '93966ec7f2e088045d99a3b1705dac28cf918a525cb346dbd6fa86e7ced428a5'
           }
@@ -100,7 +102,7 @@ jobs:
 
           # ── 파일 설치
           New-Item -ItemType Directory -Force -Path $site, $upload | Out-Null
-          foreach ($f in 'index.html','viewer.js','viewer.css','splat.html') { Copy-Item -LiteralPath (Join-Path $src ('site\3dscan\' + $f)) -Destination (Join-Path $site $f) -Force }
+          foreach ($f in 'index.html','viewer.js','viewer.css','splat.html','ortho.html') { Copy-Item -LiteralPath (Join-Path $src ('site\3dscan\' + $f)) -Destination (Join-Path $site $f) -Force }
           # 스플랫 파일(.splat/.spz/.json) MIME 매핑: glb\web.config (이 폴더에만 적용). 아래 'SPLAT MIME' 검사에서 실패하면 제거한다
           New-Item -ItemType Directory -Force -Path (Join-Path $site 'glb') | Out-Null
           Copy-Item -LiteralPath (Join-Path $src 'site\3dscan\glb.web.config') -Destination (Join-Path $site 'glb\web.config') -Force

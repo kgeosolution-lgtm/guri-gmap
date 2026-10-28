@@ -1,6 +1,7 @@
 {
-  "once_id": "2026-10-28-splat-jobs-objcap",
+  "once_id": "2026-10-28-ortho-field",
   "actions": [
+    {"op": "add-fields"},
     {"op": "list"}
   ]
 }

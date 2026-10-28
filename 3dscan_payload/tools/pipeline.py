@@ -125,7 +125,10 @@ def step_prepare(meta, out_dir):
                 cmd += ["--obj-center", ",".join(str(v) for v in obj["center"])]
             if obj.get("radius"):
                 cmd += ["--obj-radius", str(obj["radius"])]
-        log("워커 실행: process_scan.py" + (" (물체 모드)" if obj else ""))
+        area = meta.get("area") or None
+        if area:
+            cmd += ["--area-mode", "--area-surface", area.get("surface", "auto")]
+        log("워커 실행: process_scan.py" + (" (물체 모드)" if obj else "") + (" (면 촬영·정사영상)" if area else ""))
         with open(os.path.join(out_dir, "worker_stdout.log"), "a", encoding="utf-8") as lf:
             proc = subprocess.run(cmd, stdout=lf, stderr=subprocess.STDOUT, text=True)
         if proc.returncode != 0:
@@ -173,6 +176,28 @@ def step_thumb(meta, out_dir, job_id):
     shutil.copy2(src, dest)
     url = f"{CFG['glb_serve_url']}/{job_id}.jpg"
     log(f"썸네일: {url} ({os.path.getsize(dest) / 1e3:.0f} KB)")
+    return url
+
+
+def step_ortho(out_dir, job_id):
+    """워커가 만든 out/ortho/ 를 서빙 폴더로 복사 -> ortho_url(메타 JSON 주소). 없으면 ''"""
+    src = os.path.join(out_dir, "ortho")
+    meta_p = os.path.join(src, "ortho.json")
+    if not os.path.exists(meta_p):
+        return ""
+    m = json.load(open(meta_p, "r", encoding="utf-8"))
+    base = f"{job_id}_ortho"
+    names = {"ortho.jpg": base + ".jpg", "ortho_overlay.png": base + ".png", "ortho.jgw": base + ".jgw", "ortho.prj": base + ".prj"}
+    for a, b in names.items():
+        if os.path.exists(os.path.join(src, a)):
+            shutil.copy2(os.path.join(src, a), os.path.join(CFG["glb_serve_dir"], b))
+    m["files"] = {"image": f"{CFG['glb_serve_url']}/{base}.jpg", "overlay": f"{CFG['glb_serve_url']}/{base}.png"}
+    if m.get("georef"):
+        m["georef"]["world_file_url"] = f"{CFG['glb_serve_url']}/{base}.jgw"
+    with open(os.path.join(CFG["glb_serve_dir"], base + ".json"), "w", encoding="utf-8") as f:
+        json.dump(m, f, ensure_ascii=False, indent=2)
+    url = f"{CFG['glb_serve_url']}/{base}.json"
+    log(f"정사영상: {url} ({m.get('surface')} {m.get('width')}x{m.get('height')}, {m.get('gsd_m', 0) * 1000:.2f} mm/px)")
     return url
 
 
@@ -315,7 +340,7 @@ def step_publish_rest(slpk, service_name, title):
     return slpk_item_id, scene_item_id, scene_url
 
 
-def step_register(meta, las_info, glb_url, slpk_item_id, scene_item_id, scene_url, thumb_url=""):
+def step_register(meta, las_info, glb_url, slpk_item_id, scene_item_id, scene_url, thumb_url="", ortho_url=""):
     layer = CFG["points_layer_url"]
     token = get_token(CFG["server_url"])
     info = http_json(layer, {"f": "json", "token": token})
@@ -338,6 +363,8 @@ def step_register(meta, las_info, glb_url, slpk_item_id, scene_item_id, scene_ur
         feature["attributes"]["scan_type"] = meta.get("scan_type") or "home"
     if "thumb_url" in layer_fields:
         feature["attributes"]["thumb_url"] = thumb_url or None
+    if "ortho_url" in layer_fields and ortho_url:
+        feature["attributes"]["ortho_url"] = ortho_url
     out = http_json(layer + "/addFeatures", {"features": json.dumps([feature]), "f": "json", "token": token})
     res = out["addResults"][0]
     if not res.get("success"):
@@ -391,7 +418,8 @@ def main():
     q.update(step=3, message="GLB 준비")
     glb_url = step_glb(glb_path, job_id)
     thumb_url = step_thumb(meta, out_dir, job_id)
-    q.update(step=4, message="SLPK 생성 중", glb_url=glb_url, thumb_url=thumb_url or None)
+    ortho_url = step_ortho(out_dir, job_id)
+    q.update(step=4, message="SLPK 생성 중", glb_url=glb_url, thumb_url=thumb_url or None, ortho_url=ortho_url or None)
     heading = float(meta.get("georef", {}).get("heading", 0.0)) if meta["mode"] in ("stray", "objcap") else 0.0
     slpk = step_slpk(glb_path, out_dir, las_info, service_name, heading)
     slpk_item_id = scene_item_id = scene_url = ""
@@ -401,7 +429,7 @@ def main():
     oid = None
     if CFG.get("portal_enabled", True):
         q.update(step=6, message="지도에 등록 중")
-        oid = step_register(meta, las_info, glb_url, slpk_item_id, scene_item_id, scene_url, thumb_url)
+        oid = step_register(meta, las_info, glb_url, slpk_item_id, scene_item_id, scene_url, thumb_url, ortho_url)
     else:
         log("portal_enabled=false: 발행·등록 건너뜀 (로컬 테스트)")
     result = dict(job_id=job_id, las=las_info, glb_url=glb_url, thumb_url=thumb_url, slpk=slpk, slpk_item_id=slpk_item_id,
