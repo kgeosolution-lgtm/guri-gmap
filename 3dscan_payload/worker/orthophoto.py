@@ -20,6 +20,7 @@ auto: 카메라들이 주로 아래를 봤으면 floor, 수평으로 봤으면 w
 """
 import argparse
 import csv
+import gc
 import json
 import math
 import os
@@ -376,8 +377,13 @@ def main():
                                                   bottom_right=cx(left + W * gsd, top_n - Hh * gsd), bottom_left=cx(left, top_n - Hh * gsd)))
     meta["seconds"] = round(time.time() - t0, 1)
     json.dump(meta, open(os.path.join(a.out, "ortho.json"), "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+    # memmap 과 그 조각(bt, ct)이 하나라도 살아 있으면 Windows 에서 파일이 안 지워져 작업마다 ~150 MB 가 남는다
     del P, Nn, best, col
+    bt = ct = None
+    gc.collect()
     shutil.rmtree(tmp, ignore_errors=True)
+    if os.path.exists(tmp):
+        log(f"warning: temp folder not removed: {tmp}")
     log(f"done: {W}x{Hh}, {meta['coverage_pct']}% colored, {meta['seconds']}s")
 
 

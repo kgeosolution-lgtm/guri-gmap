@@ -57,7 +57,7 @@ jobs:
             'worker/thumbnail.py' = 'b724f8bea39564268a26b4f693c3d05a93e7a15d9c42e5091d31e65abdfa76b1'
             'worker/object_region.py' = 'e37361174ebdd4a57f8ad3035fe1f7fe2a3eb43dabf4f1ee6bad8d52ca3c4893'
             'worker/process_objcap.py' = '79b917aba9fdd44f582599f5be9e74d2c029772443018385b10454bccf19c7dc'
-            'worker/orthophoto.py' = 'aa8e1449ccdec472b28ac5cc03ac93e03b09d4e7e5976e4e984c7aa388f48af3'
+            'worker/orthophoto.py' = '228c2d63384a5f76d3e40468eb8acb6df8eea58b670099336d7e50ae5d565b9b'
             'config/kgeoscan.example.json' = 'a0c8ffe042e8b44789b3ebda3b02266164ac088fb12ae4d0c66d7b1656da7240'
             'requirements.txt' = '93966ec7f2e088045d99a3b1705dac28cf918a525cb346dbd6fa86e7ced428a5'
           }
