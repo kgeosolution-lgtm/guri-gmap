@@ -72,7 +72,7 @@ require([
   const _ms = { on: false, pts: [], objs: [], text: "" };   // 거리 측정 상태
   let _viewMode   = "glb";                  // 사이드바 뷰어 모드: "glb"(메시) | "splat"(가우시안 스플랫 iframe)
   let _splatFrame = null;                   // splat.html iframe
-  const ORTHO_PAGE = "ortho.html?v=b7b8d657c8";                       // 배포(deploy.mjs stampAssets)가 ?v=해시 를 붙인다
+  const ORTHO_PAGE = "ortho.html?v=ec1fb88497";                       // 배포(deploy.mjs stampAssets)가 ?v=해시 를 붙인다
   const SPLAT_PAGE = "splat.html?v=da8f1ec908";          // 배포(deploy.mjs stampAssets)가 ?v=해시 를 붙인다
 
   /* ── MapView ── */

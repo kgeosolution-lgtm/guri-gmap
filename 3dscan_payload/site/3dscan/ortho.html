@@ -33,6 +33,15 @@
   .embedded #btnOpen { display:none; }
   .embedded #measure { left:auto; right:52px; transform:none; bottom:48px; }
   #msg { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:13px; z-index:3; }
+  /* 높이 지도: 범례(색 막대 + 최소·최대)와 커서 위치 값 */
+  #legend { display:none; flex-direction:column; gap:3px; font:11px 'IBM Plex Mono',monospace; color:var(--text);
+            background:var(--panel); padding:5px 8px 6px; border-radius:3px; min-width:150px; }
+  #legendBar { height:8px; border-radius:2px;
+               background:linear-gradient(90deg,#30123b,#4145ab,#4675ed,#39a2fc,#1bcfd4,#24eca6,#61fc6c,#a4fc3b,#d1e834,#f3c63a,#fe9b2d,#f36315,#d93806,#b11901,#7a0402); }
+  #legendTicks { display:flex; justify-content:space-between; color:var(--muted); }
+  #hval { font:11px 'IBM Plex Mono',monospace; color:var(--accent); background:var(--panel); padding:3px 8px; border-radius:3px; display:none; }
+  .bl { flex-direction:column; align-items:flex-start; }
+  .embedded .bl { bottom:84px; }
 </style>
 </head>
 <body>
@@ -42,11 +51,16 @@
   <div class="info" id="meta"></div>
 </div>
 <div class="bar tr">
+  <button id="btnHeight" title="높이(바닥) / 벽면 앞뒤(벽) 색 지도" style="display:none">▤ 높이</button>
   <button id="btnMeasure" title="두 점을 눌러 거리 재기">📏 측정</button>
   <button id="btnFit" title="전체 보기">⤢ 전체</button>
   <button id="btnOpen" title="원본 이미지 새 탭">↗ 원본</button>
 </div>
-<div class="bar bl"><div id="scale"><span id="scaleText">—</span><div id="scaleBar"></div></div></div>
+<div class="bar bl">
+  <div id="hval"></div>
+  <div id="legend"><span id="legendTitle">높이</span><div id="legendBar"></div><div id="legendTicks"><span id="legendLo"></span><span id="legendMid"></span><span id="legendHi"></span></div></div>
+  <div id="scale"><span id="scaleText">—</span><div id="scaleBar"></div></div>
+</div>
 <div id="measure"></div>
 <div id="msg">정사영상 불러오는 중...</div>
 
@@ -61,6 +75,27 @@ if (window.parent !== window) document.documentElement.classList.add("embedded")
   let scale = 1, ox = 0, oy = 0;                  // 화면 = 이미지 * scale + (ox, oy)
   let measuring = false, pts = [];
   let userMoved = false;                          // 사용자가 움직이기 전에는 창 크기가 바뀔 때마다 전체 보기로 다시 맞춘다
+  // 높이 지도: int16 mm (행 우선, -32768 = 없음), 격자 한 칸 = 정사영상 step 픽셀. 바닥 = 기준면(가장 넓은 면) 대비 높이, 벽 = 평면 대비 앞뒤
+  let H = null, hImg = null, showHeight = false;
+
+  function heightAt(p) {                          // 정사영상 픽셀 좌표 → mm (없으면 null)
+    if (!H || !H.data) return null;
+    const hx = Math.floor(p[0] / H.step), hy = Math.floor(p[1] / H.step);
+    if (hx < 0 || hy < 0 || hx >= H.width || hy >= H.height) return null;
+    const v = H.data[hy * H.width + hx];
+    return v === -32768 ? null : v;
+  }
+  function fmtH(mm, signed) {
+    const s = signed && mm > 0 ? "+" : "";
+    return Math.abs(mm) >= 1000 ? s + (mm / 1000).toFixed(2) + " m" : Math.abs(mm) >= 100 ? s + (mm / 10).toFixed(1) + " cm" : s + mm.toFixed(0) + " mm";
+  }
+  function loadHeight() {
+    if (H.data || H.loading) return;
+    H.loading = true;
+    fetch(meta.files.height_bin).then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.arrayBuffer(); })
+      .then(buf => { H.data = new Int16Array(buf); })
+      .catch(() => { H.failed = true; });
+  }
 
   function sameOrigin(u) { try { return new URL(u, location.href).origin === location.origin; } catch (e) { return false; } }
   function fail(t) { $("msg").textContent = t; $("msg").style.display = "flex"; }
@@ -85,7 +120,12 @@ if (window.parent !== window) document.documentElement.classList.add("embedded")
     ctx.fillStyle = "#080b0f"; ctx.fillRect(0, 0, w, h);
     if (!img) return;
     ctx.imageSmoothingEnabled = scale < 2;
-    ctx.drawImage(img, ox, oy, img.width * scale, img.height * scale);
+    if (showHeight && hImg && hImg.complete && hImg.naturalWidth) {
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(hImg, ox, oy, hImg.naturalWidth * H.step * scale, hImg.naturalHeight * H.step * scale);
+    } else {
+      ctx.drawImage(img, ox, oy, img.width * scale, img.height * scale);
+    }
     // 측정선
     if (pts.length) {
       ctx.strokeStyle = "#facc15"; ctx.fillStyle = "#facc15"; ctx.lineWidth = 2;
@@ -130,8 +170,14 @@ if (window.parent !== window) document.documentElement.classList.add("embedded")
         pts.push(p);
         if (pts.length === 2) {
           const d = Math.hypot(pts[1][0] - pts[0][0], pts[1][1] - pts[0][1]) * gsd;
-          $("measure").textContent = "거리 " + fmtLen(d);
-        } else $("measure").textContent = "두 번째 점을 누르세요";
+          let t = "거리 " + fmtLen(d);
+          const h0 = heightAt(pts[0]), h1 = heightAt(pts[1]);
+          if (h0 !== null && h1 !== null) t += (H.kind === "relief" ? " · 앞뒤 차 " : " · 높이차 ") + fmtH(h1 - h0, true);
+          $("measure").textContent = t;
+        } else {
+          const h0 = heightAt(pts[0]);
+          $("measure").textContent = "두 번째 점을 누르세요" + (h0 !== null ? " (첫 점 " + fmtH(h0, true) + ")" : "");
+        }
         $("measure").style.display = "block"; draw();
       }
     }
@@ -140,6 +186,23 @@ if (window.parent !== window) document.documentElement.classList.add("embedded")
   cv.addEventListener("pointerup", up); cv.addEventListener("pointercancel", up);
   cv.addEventListener("wheel", e => { e.preventDefault(); zoomAt(e.offsetX, e.offsetY, e.deltaY < 0 ? 1.2 : 1 / 1.2); }, { passive: false });
   $("btnFit").onclick = () => { userMoved = false; fit(); };
+  $("btnHeight").onclick = () => {
+    showHeight = !showHeight;
+    $("btnHeight").classList.toggle("on", showHeight);
+    $("legend").style.display = showHeight ? "flex" : "none";
+    if (showHeight && !hImg) { hImg = new Image(); hImg.onload = draw; hImg.src = meta.files.height_image; }
+    loadHeight();
+    draw();
+  };
+  // 마우스 위치의 높이 (터치는 측정 모드의 점 값으로 본다)
+  cv.addEventListener("mousemove", e => {
+    if (!H || !H.data || active.size) { $("hval").style.display = "none"; return; }
+    const v = heightAt(toImg(e.offsetX, e.offsetY));
+    if (v === null) { $("hval").style.display = "none"; return; }
+    $("hval").textContent = (H.kind === "relief" ? "벽면 기준 " : "기준면 대비 ") + fmtH(v, true) + (H.kind === "relief" ? (v > 0 ? " (앞)" : v < 0 ? " (뒤)" : "") : "");
+    $("hval").style.display = "block";
+  });
+  cv.addEventListener("mouseleave", () => { $("hval").style.display = "none"; });
   $("btnMeasure").onclick = () => {
     measuring = !measuring; pts = [];
     $("btnMeasure").classList.toggle("on", measuring); cv.classList.toggle("measuring", measuring);
@@ -157,6 +220,15 @@ if (window.parent !== window) document.documentElement.classList.add("embedded")
     $("meta").textContent = `${(gsd * 1000).toFixed(2)} mm/px · ${m.extent_m[0].toFixed(2)} × ${m.extent_m[1].toFixed(2)} m · ${m.source === "hires" ? "고해상도 사진" : "영상"} ${m.views_used}장`;
     const src = m.files && m.files.image;
     if (!src || !sameOrigin(src)) throw new Error("이미지 주소 오류");
+    if (m.height && m.files.height_bin && m.files.height_image && sameOrigin(m.files.height_bin) && sameOrigin(m.files.height_image)) {
+      H = Object.assign({}, m.height);
+      $("btnHeight").style.display = "";
+      $("legendTitle").textContent = H.kind === "relief" ? "벽면 앞뒤 (평면 기준)" : "높이 (가장 넓은 면 기준)";
+      $("legendLo").textContent = fmtH(H.display_range_mm[0], true);
+      $("legendHi").textContent = fmtH(H.display_range_mm[1], true);
+      $("legendMid").textContent = fmtH((H.display_range_mm[0] + H.display_range_mm[1]) / 2, true);
+      loadHeight();                               // 측정·커서 값용 (사진 모드에서도 높이차를 보여 준다)
+    }
     img = new Image();
     img.onload = () => { $("msg").style.display = "none"; resize(); };
     img.onerror = () => fail("이미지를 불러오지 못했습니다");

@@ -156,6 +156,65 @@ def bilinear(img, u, v):
     return np.clip(c + 0.5, 0, 255).astype(np.uint8)
 
 
+def height_map(P, valid, surface, nrm, d0, px_m, out_dir, log, max_side=1024):
+    """정사영상 격자의 높이(바닥: 위로 +) 또는 벽면 기준 앞뒤(벽: 카메라 쪽 +)를 mm 로 저장한다.
+    기준 0 = 가장 넓은 면(높이 히스토그램 5 mm 칸의 최빈값; 벽은 주 벽면). 메시 해상도(6 mm 복셀)라 긴 변 ≤1024 px 로 줄인다.
+    ortho_height.bin = int16 리틀엔디언 mm (행 우선, -32768 = 없음), ortho_height.jpg = 색 + 음영 미리보기 (같은 크기)"""
+    Hh, W = valid.shape
+    step = max(1, int(math.ceil(max(W, Hh) / max_side)))
+    Ps = np.asarray(P[step // 2::step, step // 2::step], dtype=np.float64)
+    vs = valid[step // 2::step, step // 2::step]
+    if surface == "floor":
+        h = Ps[..., 1]
+        hv = h[vs]
+        if hv.size < 100:
+            raise RuntimeError("표면점이 너무 적음")
+        bins = np.arange(hv.min(), hv.max() + 0.01, 0.005)
+        hist, edges = np.histogram(hv, bins=bins) if len(bins) > 2 else (np.array([1]), np.array([hv.min(), hv.max()]))
+        ref = float(edges[np.argmax(hist)] + 0.0025)
+        rel = h - ref
+        kind = "height"
+    else:
+        rel = Ps @ nrm - d0
+        # 평탄도: 주 벽면(±10 cm 안) 점에 기울기까지 맞춘 평면을 빼서 국부 굴곡만 남긴다.
+        # (수직 가정 평면 그대로면 ARKit 중력 오차 0.4° 정도가 위아래 ±18 mm 기울기로 보였다 — 벽 시험 ee6c8922)
+        yy, xx = np.nonzero(vs & (np.abs(rel) < 0.10))
+        if len(yy) > 100:
+            pick = np.random.default_rng(0).choice(len(yy), min(len(yy), 200_000), replace=False)
+            A = np.c_[xx[pick] * step * px_m, yy[pick] * step * px_m, np.ones(len(pick))]
+            coef = np.linalg.lstsq(A, rel[yy[pick], xx[pick]], rcond=None)[0]
+            gy_, gx_ = np.mgrid[0:rel.shape[0], 0:rel.shape[1]]
+            rel = rel - (coef[0] * gx_ * step * px_m + coef[1] * gy_ * step * px_m + coef[2])
+        ref = float(d0)
+        kind = "relief"
+    mm = np.full(rel.shape, -32768, np.int16)
+    mm[vs] = np.clip(np.round(rel[vs] * 1000), -32767, 32767).astype(np.int16)
+    mm.astype("<i2").tofile(os.path.join(out_dir, "ortho_height.bin"))
+    # 미리보기: 2~98 백분위로 늘린 색(TURBO) × 음영(왼쪽 위 빛)
+    v = rel[vs]
+    lo, hi = np.percentile(v, 2), np.percentile(v, 98)
+    if kind == "relief":                                   # 벽은 0 을 가운데에, 범위는 주 벽면(±10 cm 안) 값으로 — 꺾인 옆 벽은 색이 끝에 붙는다
+        # 최소 ±2 cm: LiDAR 융합 메시의 벽면 잡음이 ±1 cm 정도라(평면 맞춤 뒤 98 백분위 8 mm) 그보다 좁으면 멀쩡한 벽이 울퉁불퉁해 보인다
+        near = v[np.abs(v) < 0.10]
+        m = max(float(np.percentile(np.abs(near), 98)) if near.size > 100 else 0.02, 0.02)
+        lo, hi = -m, m
+    norm = np.clip((rel - lo) / max(hi - lo, 1e-6), 0, 1)
+    color = cv2.applyColorMap((norm * 255).astype(np.uint8), cv2.COLORMAP_TURBO)
+    # 음영: 기울기(높이 차 / 격자 간격) → 표면 법선 · 왼쪽 위 빛 (램버트)
+    gy, gx = np.gradient(np.where(vs, rel, np.median(v)) / (step * px_m))
+    nz = 1.0 / np.sqrt(gx * gx + gy * gy + 1.0)
+    light = np.array([-1.0, -1.0, 1.5]) / np.linalg.norm([-1.0, -1.0, 1.5])
+    lam = (-gx * nz) * light[0] + (-gy * nz) * light[1] + nz * light[2]
+    shade = np.clip(0.35 + 0.75 * lam, 0.35, 1.1)[..., None]
+    img = np.clip(color.astype(np.float32) * shade, 0, 255).astype(np.uint8)
+    img[~vs] = 24
+    cv2.imwrite(os.path.join(out_dir, "ortho_height.jpg"), img, [cv2.IMWRITE_JPEG_QUALITY, 88])
+    log(f"height map ({kind}): {mm.shape[1]}x{mm.shape[0]} (step {step}), range {lo * 1000:.0f}..{hi * 1000:.0f} mm")
+    return dict(kind=kind, width=int(mm.shape[1]), height=int(mm.shape[0]), step=step, units="mm", nodata=-32768,
+                reference="dominant_level" if kind == "height" else "wall_plane", reference_value_m=round(ref, 4),
+                display_range_mm=[round(lo * 1000, 1), round(hi * 1000, 1)])
+
+
 def estimate_gains(views, P, Nn, valid, scene, log, n_samples=150_000, slots=6, sigma_n=10.0, sigma_g=0.1):
     """사진별 RGB 밝기 배율 (OpenCV GainCompensator 와 같은 식):
     min Σ_ij N_ij [ (g_i·I_ij − g_j·I_ji)² / σn² + (1 − g_i)² / σg² ],  I_ij = 사진 i 가 j 와 함께 본 표본점들의 평균 색.
@@ -508,6 +567,11 @@ def main():
         meta["georef"] = dict(crs=f"EPSG:{a.utm_epsg}", world_file="ortho.jgw",
                               corners_lonlat=dict(top_left=cx(left, top_n), top_right=cx(left + W * gsd, top_n),
                                                   bottom_right=cx(left + W * gsd, top_n - Hh * gsd), bottom_left=cx(left, top_n - Hh * gsd)))
+    try:
+        meta["height"] = height_map(P, valid, surface, nrm if surface != "floor" else None, d0 if surface != "floor" else 0.0, gsd, a.out, log)
+        meta["files"]["height_bin"], meta["files"]["height_image"] = "ortho_height.bin", "ortho_height.jpg"
+    except Exception as e:                                 # 높이 지도는 부가 기능 — 실패해도 정사영상은 낸다
+        log(f"height map skipped: {e}")
     meta["seconds"] = round(time.time() - t0, 1)
     json.dump(meta, open(os.path.join(a.out, "ortho.json"), "w", encoding="utf-8"), indent=2, ensure_ascii=False)
     # memmap 과 그 조각(bt, ct)이 하나라도 살아 있으면 Windows 에서 파일이 안 지워져 작업마다 ~150 MB 가 남는다

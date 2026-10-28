@@ -187,11 +187,16 @@ def step_ortho(out_dir, job_id):
         return ""
     m = json.load(open(meta_p, "r", encoding="utf-8"))
     base = f"{job_id}_ortho"
-    names = {"ortho.jpg": base + ".jpg", "ortho_overlay.png": base + ".png", "ortho.jgw": base + ".jgw", "ortho.prj": base + ".prj"}
+    names = {"ortho.jpg": base + ".jpg", "ortho_overlay.png": base + ".png", "ortho.jgw": base + ".jgw", "ortho.prj": base + ".prj",
+             "ortho_height.bin": base + "_h.bin", "ortho_height.jpg": base + "_h.jpg"}
     for a, b in names.items():
         if os.path.exists(os.path.join(src, a)):
             shutil.copy2(os.path.join(src, a), os.path.join(CFG["glb_serve_dir"], b))
-    m["files"] = {"image": f"{CFG['glb_serve_url']}/{base}.jpg", "overlay": f"{CFG['glb_serve_url']}/{base}.png"}
+    files = {"image": f"{CFG['glb_serve_url']}/{base}.jpg", "overlay": f"{CFG['glb_serve_url']}/{base}.png"}
+    if m.get("height") and os.path.exists(os.path.join(src, "ortho_height.bin")):   # 높이 지도 (int16 mm) + 색 미리보기
+        files["height_bin"] = f"{CFG['glb_serve_url']}/{base}_h.bin"
+        files["height_image"] = f"{CFG['glb_serve_url']}/{base}_h.jpg"
+    m["files"] = files
     if m.get("georef"):
         m["georef"]["world_file_url"] = f"{CFG['glb_serve_url']}/{base}.jgw"
     with open(os.path.join(CFG["glb_serve_dir"], base + ".json"), "w", encoding="utf-8") as f:
