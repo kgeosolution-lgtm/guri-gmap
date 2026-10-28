@@ -1,5 +1,5 @@
 """GET /app/3dupload/status.py?job_id=xxxxxxxx -> 큐 파일 내용 (status, step, step_name, message, title, scan_type, scene_item_id, glb_url, thumb_url,
-splat_status pending|processing|done|failed, splat_url, splat_message)"""
+splat_status pending|processing|done|failed, splat_url, splat_message, ortho_url, area)"""
 import json
 import os
 import sys
@@ -26,6 +26,7 @@ def main():
         "step_name": STEP_NAMES[min(step, len(STEP_NAMES) - 1)], "message": q.get("message", ""),
         "scene_item_id": q.get("scene_item_id"), "glb_url": q.get("glb_url"),
         "splat_status": q.get("splat_status"), "splat_url": q.get("splat_url"), "splat_message": q.get("splat_message"),
+        "ortho_url": q.get("ortho_url"), "area": q.get("area"),
         "updated_at": q.get("updated_at"), "error_detail": q.get("error_detail"),
     })
 

@@ -13,6 +13,7 @@
   "portal_user": "portaladmin",
   "portal_password": "<PORTAL_PASSWORD>",
   "portal_folder_id": "7692334157ac42d9b8f7497d0e82e709",
+  "portal_folder": "kgeoscan",
   "points_layer_url": "https://kgeodata.com/server/rest/services/Hosted/scan_points/FeatureServer/0",
   "utm_epsg": 32652,
   "default_elev": 0.0,

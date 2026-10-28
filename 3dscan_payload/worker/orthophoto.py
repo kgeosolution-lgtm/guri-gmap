@@ -156,6 +156,90 @@ def bilinear(img, u, v):
     return np.clip(c + 0.5, 0, 255).astype(np.uint8)
 
 
+def estimate_gains(views, P, Nn, valid, scene, log, n_samples=150_000, slots=6, sigma_n=10.0, sigma_g=0.1):
+    """사진별 RGB 밝기 배율 (OpenCV GainCompensator 와 같은 식):
+    min Σ_ij N_ij [ (g_i·I_ij − g_j·I_ji)² / σn² + (1 − g_i)² / σg² ],  I_ij = 사진 i 가 j 와 함께 본 표본점들의 평균 색.
+    표본: 표면 격자에서 고르게 뽑은 점, 색은 1/4 축소 사진(작은 어긋남·잡음에 강함), 포화(반사광)·너무 어두운 점은 뺀다."""
+    t0 = time.time()
+    Hh, W = valid.shape
+    step = max(1, int(math.sqrt(valid.sum() / n_samples)))
+    ys, xs = np.nonzero(valid[::step, ::step])
+    ys, xs = ys * step, xs * step
+    S, nV = len(ys), len(views)
+    if S < 100 or nV < 2:
+        return np.ones((nV, 3))
+    pts = P[ys, xs].astype(np.float64)
+    nrm = Nn[ys, xs].astype(np.float64)
+    obs_v = np.full((S, slots), -1, np.int32)
+    obs_c = np.zeros((S, slots, 3), np.float32)
+    n_obs = np.zeros(S, np.int32)
+    for vi, v in enumerate(views):
+        img = cv2.imdecode(np.fromfile(v["path"], np.uint8), cv2.IMREAD_REDUCED_COLOR_4 | cv2.IMREAD_IGNORE_ORIENTATION)
+        if img is None:
+            continue
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        h4, w4 = img.shape[:2]
+        K = v["K"].copy()
+        K[0] *= w4 / v["w"]
+        K[1] *= h4 / v["h"]
+        T_CW = np.linalg.inv(v["T_WC"])
+        pc = pts @ T_CW[:3, :3].T + T_CW[:3, 3]
+        z = pc[:, 2]
+        good = z > 0.08
+        u = K[0, 0] * pc[:, 0] / np.where(good, z, 1) + K[0, 2]
+        vv = K[1, 1] * pc[:, 1] / np.where(good, z, 1) + K[1, 2]
+        good &= (u > 4) & (u < w4 - 4) & (vv > 4) & (vv < h4 - 4)
+        if not good.any():
+            continue
+        dz, sw, shh = view_depth(scene, K, v["T_WC"], w4, h4, 1.0)
+        zd = dz[np.clip(vv.astype(int), 0, shh - 1), np.clip(u.astype(int), 0, sw - 1)]
+        good &= z <= zd + 0.02 + 0.03 * z
+        to_cam = v["T_WC"][:3, 3] - pts
+        to_cam /= np.linalg.norm(to_cam, axis=1, keepdims=True) + 1e-9
+        good &= np.abs((nrm * to_cam).sum(axis=1)) > 0.4
+        idx = np.flatnonzero(good & (n_obs < slots))
+        if len(idx) == 0:
+            continue
+        c = bilinear(img, u[idx], vv[idx]).astype(np.float32)
+        ok = (c.max(axis=1) < 245) & (c.min(axis=1) > 8)
+        idx, c = idx[ok], c[ok]
+        obs_v[idx, n_obs[idx]] = vi
+        obs_c[idx, n_obs[idx]] = c
+        n_obs[idx] += 1
+    # 쌍마다 겹친 표본 수 N_ij 와 평균 색 I_ij
+    N = np.zeros((nV, nV))
+    I = np.zeros((nV, nV, 3))
+    for a_ in range(slots):
+        for b_ in range(slots):
+            if a_ == b_:
+                continue
+            m = (obs_v[:, a_] >= 0) & (obs_v[:, b_] >= 0)
+            if not m.any():
+                continue
+            np.add.at(N, (obs_v[m, a_], obs_v[m, b_]), 1.0)
+            np.add.at(I, (obs_v[m, a_], obs_v[m, b_]), obs_c[m, a_])
+    I = I / np.maximum(N, 1)[..., None]
+    gains = np.ones((nV, 3))
+    for ch in range(3):
+        A = np.zeros((nV, nV))
+        b = np.zeros(nV)
+        Ic = I[..., ch]
+        for i in range(nV):
+            for j in range(nV):
+                if i == j or N[i, j] == 0:
+                    continue
+                A[i, i] += N[i, j] * (Ic[i, j] ** 2 / sigma_n ** 2 + 1 / sigma_g ** 2)
+                A[i, j] -= N[i, j] * Ic[i, j] * Ic[j, i] / sigma_n ** 2
+                b[i] += N[i, j] / sigma_g ** 2
+        lone = A.diagonal() == 0                               # 겹친 데가 없는 사진은 1 그대로
+        A[lone, lone] = 1.0
+        b[lone] = 1.0
+        gains[:, ch] = np.linalg.solve(A, b)
+    pairs = int((N > 0).sum() // 2)
+    log(f"gain compensation: {S} samples, {pairs} overlapping pairs, gains {gains.min():.2f}..{gains.max():.2f} ({time.time() - t0:.1f}s)")
+    return np.clip(gains, 0.5, 2.0)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", required=True)
@@ -171,6 +255,8 @@ def main():
     ap.add_argument("--heading", type=float, default=0.0)
     ap.add_argument("--utm-epsg", type=int, default=32652)
     ap.add_argument("--jpeg-quality", type=int, default=90)
+    ap.add_argument("--no-gain-comp", dest="gain_comp", action="store_false", help="사진별 밝기 맞춤 끄기")
+    ap.add_argument("--blend-power", type=float, default=4.0, help="저주파 섞기 지수 (0 = 점수 1등 사진만, 클수록 1등 사진 쪽으로)")
     a = ap.parse_args()
 
     t0 = time.time()
@@ -273,11 +359,23 @@ def main():
                 tiles.append((ty, tx, h_, w_, corners, q.mean(axis=0)))
     log(f"surface points: {valid.mean() * 100:.1f}% of {W}x{Hh}, {len(tiles)} tiles")
 
+    # ── 1b) 사진별 밝기 맞춤 (겹치는 곳의 평균 색을 비교해 사진마다 RGB 배율) ──
+    gains = estimate_gains(views, P, Nn, valid, scene, log) if a.gain_comp else np.ones((len(views), 3))
+
     # ── 2) 사진마다 맡을 픽셀 고르기 ──
     best = np.lib.format.open_memmap(os.path.join(tmp, "best.npy"), mode="w+", dtype=np.float32, shape=(Hh, W))
     best[:] = -1.0
     col = np.lib.format.open_memmap(os.path.join(tmp, "col.npy"), mode="w+", dtype=np.uint8, shape=(Hh, W, 3))
     col[:] = 0
+    # 2대역 섞기(다중 대역 섞기의 간단판): 세부(고주파) = 점수 1등 사진의 (색 − 그 사진의 저주파),
+    # 큰 흐름(저주파) = 여러 사진 저주파의 가중 평균(w = 점수^p, 1/4 해상도에 누적).
+    # → 사진마다 다른 밝기·비네팅 경계는 사라지고, 글씨·균열은 한 장에서만 와서 이중으로 번지지 않는다(평균 섞기는 2~4 mm 어긋남으로 번졌다)
+    blend = a.blend_power > 0
+    if blend:
+        Lb = np.lib.format.open_memmap(os.path.join(tmp, "Lb.npy"), mode="w+", dtype=np.uint8, shape=(Hh, W, 3))
+        H4, W4 = (Hh + 3) // 4, (W + 3) // 4
+        accL = np.zeros((H4 * W4, 3), np.float64)
+        wL = np.zeros(H4 * W4, np.float64)
     used = 0
     for vi, v in enumerate(views):
         img = load_rgb(v["path"])
@@ -289,6 +387,8 @@ def main():
             K[0] *= w / v["w"]; K[1] *= h / v["h"]
         T_CW = np.linalg.inv(v["T_WC"]); cam = v["T_WC"][:3, 3]
         sh_w = 0.6 + 0.4 * min(1.0, sharpness(img) / 800.0)
+        if blend:                                          # 사진의 저주파: 1/4 축소 + 가우시안(σ 4 → 원본 약 16 px)
+            img_low = cv2.GaussianBlur(cv2.resize(img, (w // 4, h // 4), interpolation=cv2.INTER_AREA), (0, 0), 4)
         dz, sw, shh = view_depth(scene, K, v["T_WC"], w, h, 800.0 / max(w, h))
         dscale = sw / w
         touched = False
@@ -325,6 +425,16 @@ def main():
             sc = cosang ** 2 / (z + 0.2) * sh_w * np.clip(border, 0.25, 1.0)
             sc = np.where(good, sc, -1.0).astype(np.float32)
             bt = best[ty:ty + h_, tx:tx + w_]
+            if blend and good.any():
+                # 저주파 누적: 이 사진이 보는 모든 표면 픽셀 → 1/4 격자
+                gi = np.flatnonzero(ok.reshape(-1))[good]
+                g_r, g_c = np.unravel_index(gi, ok.shape)
+                lowv = bilinear(img_low, u[good] / 4.0, vv[good] / 4.0).astype(np.float64) * gains[vi]
+                q = ((ty + g_r) // 4) * W4 + (tx + g_c) // 4
+                wq = np.power(sc[good].astype(np.float64), a.blend_power)
+                for ch in range(3):
+                    accL[:, ch] += np.bincount(q, weights=wq * lowv[:, ch], minlength=H4 * W4)
+                wL[:] += np.bincount(q, weights=wq, minlength=H4 * W4)
             cur = bt[ok]
             win = sc > cur
             if not win.any():
@@ -332,13 +442,36 @@ def main():
             idx = np.flatnonzero(ok.reshape(-1))[win]
             rows, cols_ = np.unravel_index(idx, ok.shape)
             colv = bilinear(img, u[win], vv[win])
+            if np.any(gains[vi] != 1.0):
+                colv = np.clip(colv.astype(np.float32) * gains[vi] + 0.5, 0, 255).astype(np.uint8)
             bt[rows, cols_] = sc[win]
             ct = col[ty:ty + h_, tx:tx + w_]
             ct[rows, cols_] = colv
+            if blend:                                      # 1등 사진의 저주파도 같이 기억 (세부 = 색 − 이것)
+                lb = bilinear(img_low, u[win] / 4.0, vv[win] / 4.0)
+                if np.any(gains[vi] != 1.0):
+                    lb = np.clip(lb.astype(np.float32) * gains[vi] + 0.5, 0, 255).astype(np.uint8)
+                Lt = Lb[ty:ty + h_, tx:tx + w_]
+                Lt[rows, cols_] = lb
             touched = True
         used += touched
         if (vi + 1) % 20 == 0:
             log(f"  views {vi + 1}/{len(views)}")
+    if blend:                                              # 색 = 1등 사진 색 − 1등 사진 저주파 + 섞인 저주파 (줄 단위)
+        L4 = (accL / np.maximum(wL, 1e-300)[:, None]).reshape(H4, W4, 3).astype(np.float32)
+        has4 = (wL > 0).reshape(H4, W4)
+        L4[~has4] = 0
+        for y0 in range(0, Hh, TILE):
+            y1 = min(Hh, y0 + TILE)
+            qa, qb = max(0, y0 // 4 - 1), min(H4, (y1 + 3) // 4 + 1)
+            up = cv2.resize(L4[qa:qb], (W4 * 4, (qb - qa) * 4), interpolation=cv2.INTER_LINEAR)[y0 - qa * 4:y1 - qa * 4, :W]
+            hu = cv2.resize(has4[qa:qb].astype(np.uint8), (W4 * 4, (qb - qa) * 4), interpolation=cv2.INTER_NEAREST)[y0 - qa * 4:y1 - qa * 4, :W] > 0
+            c_ = col[y0:y1].astype(np.float32)
+            out = c_ - Lb[y0:y1].astype(np.float32) + up
+            col[y0:y1] = np.where(hu[..., None], np.clip(out + 0.5, 0, 255), c_).astype(np.uint8)
+        del L4, up, hu, accL, wL
+        Lt = None
+        del Lb
     covered = (best[:] > 0) & valid
     log(f"colored {covered.sum() / max(1, valid.sum()) * 100:.1f}% of surface pixels using {used} views")
     # 작은 구멍 메우기: 칠해진 픽셀 가까이(4 px)의 빈 표면 픽셀만 주변 색으로 채운다
@@ -379,7 +512,7 @@ def main():
     json.dump(meta, open(os.path.join(a.out, "ortho.json"), "w", encoding="utf-8"), indent=2, ensure_ascii=False)
     # memmap 과 그 조각(bt, ct)이 하나라도 살아 있으면 Windows 에서 파일이 안 지워져 작업마다 ~150 MB 가 남는다
     del P, Nn, best, col
-    bt = ct = None
+    bt = ct = Lt = None
     gc.collect()
     shutil.rmtree(tmp, ignore_errors=True)
     if os.path.exists(tmp):

@@ -251,6 +251,29 @@ def find_items(token, service_name, slpk_name):
     return slpk_id, scene_id, scene_url
 
 
+def scan_folder_id(token):
+    """Portal 사용자 폴더(설정 portal_folder, 기본 'kgeoscan')의 id. 없으면 만든다. 스캔 아이템은 모두 여기에 모은다"""
+    user, portal, name = CFG["portal_user"], CFG["portal_url"], CFG.get("portal_folder", "kgeoscan")
+    info = http_json(f"{portal}/sharing/rest/content/users/{user}", {"f": "json", "num": 1, "token": token})
+    for f in info.get("folders", []):
+        if f.get("title") == name:
+            return f["id"]
+    return http_json(f"{portal}/sharing/rest/content/users/{user}/createFolder", {"title": name, "f": "json", "token": token})["folder"]["id"]
+
+
+def move_to_scan_folder(token, item_ids):
+    """SharePackage 는 사용자 루트 폴더에 올린다 → 발행 뒤 스캔 폴더로 옮긴다 (아이템 id·서비스 주소는 그대로)"""
+    ids = [i for i in item_ids if i]
+    if not ids:
+        return
+    user, portal = CFG["portal_user"], CFG["portal_url"]
+    fid = scan_folder_id(token)
+    out = http_json(f"{portal}/sharing/rest/content/users/{user}/moveItems",
+                    {"items": ",".join(ids), "folder": fid, "f": "json", "token": token})
+    bad = [r for r in out.get("results", []) if not r.get("success")]
+    log(f"Portal 폴더 '{CFG.get('portal_folder', 'kgeoscan')}' 로 이동: {len(ids) - len(bad)}/{len(ids)}" + (f" 실패 {bad}" if bad else ""))
+
+
 def step_publish(slpk, service_name, title):
     user, portal = CFG["portal_user"], CFG["portal_url"]
     token = get_token(portal)
@@ -286,6 +309,10 @@ def step_publish(slpk, service_name, title):
                       {"everyone": "true", "org": "true", "f": "json", "token": token})
         except Exception as e:
             log(f"공유 설정 생략 ({iid}): {e}")
+    try:
+        move_to_scan_folder(token, [slpk_item_id, scene_item_id])
+    except Exception as e:                                 # 폴더 정리는 부가 기능 — 실패해도 스캔은 계속
+        log(f"Portal 폴더 이동 생략: {e}")
     log(f"Scene 아이템: {scene_item_id} → {scene_url}")
     return slpk_item_id, scene_item_id, scene_url
 

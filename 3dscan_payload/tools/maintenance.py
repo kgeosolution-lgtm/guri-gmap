@@ -9,6 +9,8 @@ kgeoScan 유지보수 (서버에서 워커 venv 파이썬으로 실행; 설정�
   python -I maintenance.py set-scan-type [home]         scan_type 이 비어 있는 스캔을 채움
   python -I maintenance.py queue-splat <job_id>         완료된 Stray 작업을 GPU 스플랫 대기열에 넣음 (큐 파일 splat_status=pending)
   python -I maintenance.py backfill-splats              서빙 폴더에 <job>.splat 이 있는데 splat_url 이 빈 스캔을 등록
+  actions 전용: {"op": "move-to-folder", "extra": [아이템 id...], "folder": "kgeoscan"}  스캔 Portal 아이템을 한 폴더로 모음
+               {"op": "redo-ortho", "job_id": "..."}  끝난 면 촬영 작업의 정사영상을 현재 orthophoto.py 로 다시 만듦
 
 actions.json 예:  {"actions": [{"op": "cleanup-orphans"}, {"op": "delete-scan", "objectid": 41}], "once_id": "2026-10-26-1"}
   once_id 가 같은 파일은 다시 실행하지 않는다 (<data_root>\\maintenance_done.txt 에 기록).
@@ -59,6 +61,88 @@ def delete_item(ptoken, iid):
     except Exception as e:
         print(f"  삭제 실패: 아이템 {iid} - {e}")
         return False
+
+
+def move_to_folder(extra_ids=(), name=None):
+    """스캔 관련 Portal 아이템을 사용자 폴더(기본 'kgeoscan')로 모은다: scan_points 가 가리키는 SLPK·Scene 아이템,
+    'kgeoScan' 태그 아이템, extra_ids(점 레이어·웹맵 등). 다른 사람 소유이거나 이미 폴더에 있으면 건너뛴다. id·주소는 바뀌지 않는다"""
+    name = name or CFG.get("portal_folder", "kgeoscan")
+    ptoken, stoken = token(PORTAL), token(CFG["server_url"])
+    info = http_json(f"{PORTAL}/sharing/rest/content/users/{USER}", {"f": "json", "num": 1, "token": ptoken})
+    fid = next((f["id"] for f in info.get("folders", []) if f.get("title") == name), None)
+    if not fid:
+        fid = http_json(f"{PORTAL}/sharing/rest/content/users/{USER}/createFolder", {"title": name, "f": "json", "token": ptoken})["folder"]["id"]
+        print(f"폴더 생성: '{name}' ({fid})")
+    ids = set(i for i in extra_ids if i)
+    for a in features(stoken):
+        ids |= {a.get("slpk_item_id"), a.get("scene_item_id")}
+    start = 1
+    while start > 0:
+        out = http_json(PORTAL + "/sharing/rest/search", {"q": f'owner:{USER} AND tags:"kgeoScan"', "num": 100, "start": start, "f": "json", "token": ptoken})
+        ids |= {r["id"] for r in out.get("results", [])}
+        start = out.get("nextStart", -1)
+    ids.discard(None)
+    ids.discard("")
+    todo = []
+    for iid in sorted(ids):
+        try:
+            it = http_json(f"{PORTAL}/sharing/rest/content/items/{iid}", {"f": "json", "token": ptoken})
+        except Exception as e:
+            print(f"  없음/조회 실패 {iid}: {e}")
+            continue
+        if it.get("owner") != USER:
+            print(f"  건너뜀(소유자 {it.get('owner')}): {iid} {it.get('type')} '{it.get('title')}'")
+        elif it.get("ownerFolder") == fid:
+            print(f"  이미 폴더에 있음: {iid} {it.get('type')} '{it.get('title')}'")
+        else:
+            todo.append(iid)
+            print(f"  이동 대상: {iid} {it.get('type')} '{it.get('title')}' (현재 폴더 {it.get('ownerFolder') or '루트'})")
+    moved = 0
+    for k in range(0, len(todo), 50):
+        out = http_json(f"{PORTAL}/sharing/rest/content/users/{USER}/moveItems",
+                        {"items": ",".join(todo[k:k + 50]), "folder": fid, "f": "json", "token": ptoken})
+        for r in out.get("results", []):
+            if r.get("success"):
+                moved += 1
+            else:
+                print(f"  이동 실패: {r}")
+    print(f"move-to-folder: '{name}' ({fid}) 로 {moved}/{len(todo)}개 이동, 대상 후보 {len(ids)}개")
+
+
+def redo_ortho(job_id):
+    """끝난 면 촬영 작업의 정사영상을 지금의 orthophoto.py 로 다시 만든다: zip 을 임시로 다시 풀어 out/mesh.ply 와 함께 돌리고
+    서빙 폴더의 <job>_ortho.* 를 덮어쓴다 (ortho_url 은 그대로)"""
+    import shutil
+    import subprocess
+    import tempfile
+    import zipfile
+    sys.path.insert(0, HERE)
+    import pipeline as pl
+    job_dir = os.path.join(CFG["data_root"], job_id)
+    meta = json.load(open(os.path.join(job_dir, "job.json"), "r", encoding="utf-8"))
+    out_dir = os.path.join(job_dir, "out")
+    mesh = os.path.join(out_dir, "mesh_full.ply")
+    if not os.path.exists(mesh):
+        mesh = os.path.join(out_dir, "mesh.ply")
+    area, g = meta.get("area") or {}, meta.get("georef") or {}
+    tmp = tempfile.mkdtemp(prefix="ortho_", dir=job_dir)
+    try:
+        with zipfile.ZipFile(meta["scan_zip"]) as z:
+            for n in z.namelist():
+                if n.startswith(("/", "\\")) or ".." in n.replace("\\", "/").split("/"):
+                    raise RuntimeError(f"zip 경로 이상: {n}")
+            z.extractall(tmp)
+        data = next(root for root, _, files in os.walk(tmp) if "odometry.csv" in files)
+        cmd = [CFG["worker_python"], "-I", os.path.join(CFG["worker_dir"], "orthophoto.py"), "--data", data, "--mesh", mesh,
+               "--out", os.path.join(out_dir, "ortho"), "--surface", area.get("surface", "auto"),
+               "--lon", str(g["lon"]), "--lat", str(g["lat"]), "--heading", str(g.get("heading", 0.0))]
+        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
+        print("\n".join(proc.stdout.strip().splitlines()[-6:]))
+        if proc.returncode != 0:
+            raise RuntimeError("orthophoto.py 실패: " + proc.stderr.strip()[-600:])
+        print(f"redo-ortho {job_id}: {pl.step_ortho(out_dir, job_id)}")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def cleanup_orphans():
@@ -311,6 +395,10 @@ def main():
                     queue_splat(act.get("job_id"), bool(act.get("force")))
                 elif op == "backfill-splats":
                     backfill_splats()
+                elif op == "move-to-folder":
+                    move_to_folder(act.get("extra", []), act.get("folder"))
+                elif op == "redo-ortho":
+                    redo_ortho(act.get("job_id"))
                 else:
                     print(f"알 수 없는 작업: {op}")
             except Exception as e:

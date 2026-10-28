@@ -1,7 +1,8 @@
 {
-  "once_id": "2026-10-28-ortho-field",
+  "once_id": "2026-10-28-kgeoscan-folder",
   "actions": [
-    {"op": "add-fields"},
+    {"op": "move-to-folder", "folder": "kgeoscan", "extra": ["1058978572fd43e799f7068330ff90d8", "c61a12cd31684312b5be93863e7a1a07"]},
+    {"op": "redo-ortho", "job_id": "ee6c8922"},
     {"op": "list"}
   ]
 }

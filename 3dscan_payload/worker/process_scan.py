@@ -166,6 +166,8 @@ def main():
         tex_args = ["--target-tris", str(args.tex_tris), "--keyframes", str(args.keyframes),
                     "--tex-size", str(min(args.tex_size, 2048)), "--cluster-voxel", "0.003", "--min-component", "20",
                     "--jpeg-quality", str(args.jpeg_quality)]
+    # (면 촬영 3D 텍스처를 고해상도 사진으로 입히는 texture_hires.py 는 첫 벽 시험(ee6c8922, 사진 12장)에서 경계가 더 보여 보류 —
+    #  세부 기록은 정사영상이 맡는다. research/pgm/README.md 참고)
     run([PY, "-I", os.path.join(HERE, "texture_fast.py"), "--data", data, "--mesh", ply, "--out", args.out] + tex_args,
         t0, log_path)
     t_tex = time.time() - t2
