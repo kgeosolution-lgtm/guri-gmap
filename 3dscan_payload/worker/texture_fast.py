@@ -204,6 +204,24 @@ def main():
         if changed.sum() < nF * 0.002:
             break
 
+    # ---- face orientation: front side = the side the camera saw ----------------------------------
+    # The fused mesh's winding is mixed (only 55-70% of faces point at the scanner), so a single-sided viewer showed
+    # ceilings from above and walls from outside. Facing every triangle toward the camera that textured it (or the
+    # nearest keyframe camera when none did) gives a Scaniverse-style "dollhouse": from outside/above, walls and ceilings
+    # are back faces and get culled, so you look into the room.
+    cams = np.array([T_[:3, 3] for T_ in T_WCs])
+    face_cam = np.empty(nF, np.int64)
+    face_cam[has_view] = best[has_view]
+    nv = np.flatnonzero(~has_view)
+    for s0 in range(0, len(nv), 20000):
+        idx = nv[s0:s0 + 20000]
+        face_cam[idx] = np.argmin(((cent[idx, None, :] - cams[None, :, :]) ** 2).sum(-1), axis=1)
+    flip = ((cams[face_cam] - cent) * TN).sum(axis=1) < 0
+    Fc = Fc.copy()
+    Fc[flip] = Fc[flip][:, [0, 2, 1]]
+    TN = np.where(flip[:, None], -TN, TN)
+    log(f"face orientation: flipped {flip.mean() * 100:.1f}% of triangles to face their camera")
+
     # ---- atlas layout: one square cell per two triangles ------------------------------------
     T = args.tex_size
     n_cells = int(np.ceil(np.sqrt(np.ceil(nF / 2))))
@@ -281,7 +299,7 @@ def main():
     uv = tri_px / T
     uv[..., 1] = 1.0 - uv[..., 1]
     Vs = V[Fc].reshape(-1, 3)
-    Ns = np.asarray(mesh.vertex_normals)[Fc].reshape(-1, 3)
+    Ns = np.repeat(TN, 3, axis=0)                              # flat normals that agree with the (re-oriented) winding
     Fs = np.arange(len(Vs)).reshape(-1, 3)
     tex_img = Image.fromarray(atlas)
     if args.jpeg_quality > 0:

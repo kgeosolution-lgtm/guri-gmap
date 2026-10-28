@@ -1,6 +1,6 @@
 {
-  "once_id": "2026-10-28-ortho-height",
+  "once_id": "2026-10-28-dollhouse-rebuild",
   "actions": [
-    {"op": "redo-ortho", "job_id": "ee6c8922"}
+    {"op": "rebuild-glb", "jobs": "all"}
   ]
 }

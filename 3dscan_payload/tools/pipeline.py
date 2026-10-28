@@ -425,10 +425,35 @@ def splat_fields(meta, q):
     return {}
 
 
+def rebuild_glb(meta, q):
+    """대기열 항목 kind=rebuild_glb: 끝난 Stray 스캔을 지금의 워커로 다시 처리해 서빙 GLB(+면 촬영 정사영상)만 바꾼다.
+    Portal Scene·LAS·점 속성은 그대로(같은 glb_url). out → out_prev 로 한 세대만 남긴다.
+    (maintenance.py rebuild-glb 가 대기열에 넣는다. 대기열 처리기는 오래 떠 있는 프로세스라 배포만으로 새 코드가 안 들어가므로
+     작업마다 새로 뜨는 pipeline.py 에서 처리한다)"""
+    job_id, job_dir = meta["job_id"], meta["job_dir"]
+    new_out = os.path.join(job_dir, "out_rebuild")
+    shutil.rmtree(new_out, ignore_errors=True)
+    os.makedirs(new_out)
+    q.update(status="processing", step=1, message=f"{job_id} 다시 처리 중")
+    _, glb = step_prepare(meta, new_out)
+    url = step_glb(glb, job_id)
+    if meta.get("area"):
+        step_ortho(new_out, job_id)
+    old, prev = os.path.join(job_dir, "out"), os.path.join(job_dir, "out_prev")
+    shutil.rmtree(prev, ignore_errors=True)
+    if os.path.exists(old):
+        os.replace(old, prev)
+    os.replace(new_out, old)
+    q.update(status="done", step=7, message=f"GLB 다시 만듦: {url}")
+    log(f"rebuild-glb {job_id}: {url}")
+
+
 def main():
     meta_path, queue_path = sys.argv[1], sys.argv[2]
     meta = json.load(open(meta_path, "r", encoding="utf-8"))
     q = Queue(queue_path)
+    if q.read().get("kind") == "rebuild_glb":
+        return rebuild_glb(meta, q)
     job_id, out_dir = meta["job_id"], os.path.join(meta["job_dir"], "out")
     os.makedirs(out_dir, exist_ok=True)
     service_name = "kgeoscan_" + time.strftime("%Y%m%d_%H%M%S")

@@ -66,17 +66,22 @@ def scale_intrinsics(K, rgb_w, rgb_h):
         DEPTH_W, DEPTH_H, K[0, 0] * sx, K[1, 1] * sy, K[0, 2] * sx, K[1, 2] * sy)
 
 
-def load_depth(data_dir, i, conf_min):
+def load_depth(data_dir, i, conf_min, far_m=0.0, conf_far=2):
+    """far_m > 0: beyond far_m metres keep only confidence >= conf_far. Medium-confidence LiDAR returns at 2-4 m
+    (glass, dark walls, people) fused into huge spiky triangles in a restaurant scan (c3c1e8c7); near-range medium
+    returns are fine and fill holes, so only the far ones are dropped."""
     d = cv2.imread(os.path.join(data_dir, "depth", f"{i:06d}.png"), cv2.IMREAD_UNCHANGED)
     if d is None:
         return None
     if d.dtype != np.uint16:
         d = d.astype(np.uint16)
-    if conf_min > 0:
+    if conf_min > 0 or far_m > 0:
         c = cv2.imread(os.path.join(data_dir, "confidence", f"{i:06d}.png"), cv2.IMREAD_UNCHANGED)
         if c is not None:
             d = d.copy()
             d[c < conf_min] = 0
+            if far_m > 0:
+                d[(d > far_m * 1000) & (c < conf_far)] = 0
     return d
 
 
@@ -126,6 +131,8 @@ def main():
     ap.add_argument("--voxel", type=float, default=0.01)
     ap.add_argument("--every", type=int, default=2)
     ap.add_argument("--conf", type=int, default=1, help="min confidence 0..2")
+    ap.add_argument("--far", type=float, default=2.0, help="beyond this depth (m) require --conf-far (0 = off)")
+    ap.add_argument("--conf-far", type=int, default=2)
     ap.add_argument("--max-depth", type=float, default=4.0)
     ap.add_argument("--target-tris", type=int, default=400000)
     ap.add_argument("--max-frames", type=int, default=0)
@@ -183,7 +190,7 @@ def main():
             break
         if i % args.every or i not in avail_set:
             continue
-        d = load_depth(args.data, i, args.conf)
+        d = load_depth(args.data, i, args.conf, args.far, args.conf_far)
         if d is None:
             continue
         rgb = cv2.cvtColor(cv2.resize(bgr, (DEPTH_W, DEPTH_H), interpolation=cv2.INTER_AREA), cv2.COLOR_BGR2RGB)

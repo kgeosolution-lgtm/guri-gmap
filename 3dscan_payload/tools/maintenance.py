@@ -11,6 +11,7 @@ kgeoScan 유지보수 (서버에서 워커 venv 파이썬으로 실행; 설정�
   python -I maintenance.py backfill-splats              서빙 폴더에 <job>.splat 이 있는데 splat_url 이 빈 스캔을 등록
   actions 전용: {"op": "move-to-folder", "extra": [아이템 id...], "folder": "kgeoscan"}  스캔 Portal 아이템을 한 폴더로 모음
                {"op": "redo-ortho", "job_id": "..."}  끝난 면 촬영 작업의 정사영상을 현재 orthophoto.py 로 다시 만듦
+               {"op": "rebuild-glb", "jobs": "all" | [job...]}  Stray 스캔을 현재 워커로 다시 처리하도록 대기열에 넣음 (GLB 만 교체)
 
 actions.json 예:  {"actions": [{"op": "cleanup-orphans"}, {"op": "delete-scan", "objectid": 41}], "once_id": "2026-10-26-1"}
   once_id 가 같은 파일은 다시 실행하지 않는다 (<data_root>\\maintenance_done.txt 에 기록).
@@ -143,6 +144,33 @@ def redo_ortho(job_id):
         print(f"redo-ortho {job_id}: {pl.step_ortho(out_dir, job_id)}")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+def rebuild_glb(jobs="all"):
+    """끝난 Stray 스캔을 지금의 워커(면 방향 맞추기·먼 거리 신뢰도 규칙)로 다시 처리하도록 대기열에 넣는다.
+    처리는 대기열 처리기 → pipeline.py(kind=rebuild_glb)가 한 건씩 한다 (배포 작업 안에서 돌리면 러너가 끝날 때 프로세스가 정리된다).
+    대기열 이름 rb_<job>.json, 진행은 find_job.py?recent 로 보인다."""
+    if jobs == "all":
+        stoken = token(CFG["server_url"])
+        jobs = [os.path.splitext(os.path.basename(a.get("glb_url") or ""))[0] for a in features(stoken)]
+    n = 0
+    for job_id in [j for j in jobs if j]:
+        job_dir = os.path.join(CFG["data_root"], job_id)
+        meta_p = os.path.join(job_dir, "job.json")
+        if not os.path.exists(meta_p):
+            print(f"  {job_id}: job.json 없음 — 건너뜀")
+            continue
+        meta = json.load(open(meta_p, "r", encoding="utf-8"))
+        if meta.get("mode") != "stray" or not os.path.exists(meta.get("scan_zip") or ""):
+            print(f"  {job_id}: Stray zip 아님({meta.get('mode')}) — 건너뜀")
+            continue
+        qp = os.path.join(CFG["jobs_dir"], f"rb_{job_id}.json")
+        json.dump({"job_id": f"rb_{job_id}", "kind": "rebuild_glb", "target": job_id, "title": f"GLB 재처리 {meta.get('title')}",
+                   "job_dir": job_dir, "mode": "stray", "status": "pending", "step": 0, "message": "대기 중",
+                   "created_at": time.strftime("%Y-%m-%d %H:%M:%S")}, open(qp, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+        n += 1
+        print(f"  대기열: rb_{job_id} ({meta.get('title')}, {'면 촬영' if meta.get('area') else '물체' if meta.get('object') else '일반'})")
+    print(f"rebuild-glb: {n}개 대기열에 넣음")
 
 
 def cleanup_orphans():
@@ -400,6 +428,8 @@ def main():
                     move_to_folder(act.get("extra", []), act.get("folder"))
                 elif op == "redo-ortho":
                     redo_ortho(act.get("job_id"))
+                elif op == "rebuild-glb":
+                    rebuild_glb(act.get("jobs", "all"))
                 else:
                     print(f"알 수 없는 작업: {op}")
             except Exception as e:
