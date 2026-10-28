@@ -29,11 +29,11 @@ jobs:
 
           $src = Join-Path $env:GITHUB_WORKSPACE '3dscan_payload'
           $expected = [ordered]@{
-            'site/3dscan/index.html' = 'c2c16b4153ac4d512718be16cf9dd759be34c4aa3a61a263cd6fd99e214badd6'
-            'site/3dscan/viewer.js' = '91e7cf7a40e70b4b412d06bfcdd99c2860a83665084666fe3da657c1bd7f2b4b'
+            'site/3dscan/index.html' = 'f70bc9dc271190ed290e3b27c8ce100e5bb84ca9445f29345cd5c3f86259a2aa'
+            'site/3dscan/viewer.js' = '9d9947f49be690a443b4a8333390f1008ba99e782d98c4ce6b64fe0be032a8df'
             'site/3dscan/viewer.css' = '591202f96bef530a1509cbd7328aaf60c2db6199d48fc832017f0e58239ecd00'
             'site/3dscan/splat.html' = 'da8f1ec90893e602ae6c954cb18b4dc6f51f181904dcd5c185dd645ee9831873'
-            'site/3dscan/ortho.html' = 'ec1fb884970a4887fda892562f52efdd21d8608ae4203b93ac271319e7cbae15'
+            'site/3dscan/ortho.html' = 'b04b6d3cd989cba0c4ddb9f796523df08f53ee46a6efb01f3a174fc1b83573f7'
             'site/3dscan/glb.web.config' = '76cb2e9b97a78a9b4c250c11713ee7f374947ebed1dc10f389bc774527809f25'
             '3dupload/common.py' = 'af4551445364ecec4e645a1c63fca0e6d9aea3e86154031664ebba037b34846f'
             '3dupload/upload.py' = '758e9d0e3da46d7b2dfb7cc8b6cf6c2a663d2a7eca3e16733f621bbafa6c5ca7'

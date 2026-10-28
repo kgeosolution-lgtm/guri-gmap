@@ -72,7 +72,7 @@ require([
   const _ms = { on: false, pts: [], objs: [], text: "" };   // 거리 측정 상태
   let _viewMode   = "glb";                  // 사이드바 뷰어 모드: "glb"(메시) | "splat"(가우시안 스플랫 iframe)
   let _splatFrame = null;                   // splat.html iframe
-  const ORTHO_PAGE = "ortho.html?v=ec1fb88497";                       // 배포(deploy.mjs stampAssets)가 ?v=해시 를 붙인다
+  const ORTHO_PAGE = "ortho.html?v=b04b6d3cd9";                       // 배포(deploy.mjs stampAssets)가 ?v=해시 를 붙인다
   const SPLAT_PAGE = "splat.html?v=da8f1ec908";          // 배포(deploy.mjs stampAssets)가 ?v=해시 를 붙인다
 
   /* ── MapView ── */
@@ -701,7 +701,10 @@ require([
     if (sceneDiv) sceneDiv.style.display = "";
     if (loadingEl) loadingEl.style.display = "";
   }
-  function orthoPageUrl(url) { return ORTHO_PAGE + (ORTHO_PAGE.includes("?") ? "&" : "?") + "meta=" + encodeURIComponent(url); }
+  function orthoPageUrl(url) {                  // title: 보고서용 이미지 저장의 제목
+    return ORTHO_PAGE + (ORTHO_PAGE.includes("?") ? "&" : "?") + "meta=" + encodeURIComponent(url) +
+      (currentAttrs && currentAttrs.scan_title ? "&title=" + encodeURIComponent(currentAttrs.scan_title) : "");
+  }
   function setupViewerTabs(attrs) {
     removeSplatFrame();
     removeOrthoOverlay();

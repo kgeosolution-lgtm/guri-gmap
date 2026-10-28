@@ -52,7 +52,9 @@
 </div>
 <div class="bar tr">
   <button id="btnHeight" title="높이(바닥) / 벽면 앞뒤(벽) 색 지도" style="display:none">▤ 높이</button>
-  <button id="btnMeasure" title="두 점을 눌러 거리 재기">📏 측정</button>
+  <button id="btnMeasure" title="두 점을 눌러 거리 재기 (여러 개 남음)">📏 측정</button>
+  <button id="btnClear" title="측정 모두 지우기" style="display:none">✕ 지우기</button>
+  <button id="btnSave" title="지금 화면을 측정·축척과 함께 이미지로 저장 (보고서용)">⬇ 저장</button>
   <button id="btnFit" title="전체 보기">⤢ 전체</button>
   <button id="btnOpen" title="원본 이미지 새 탭">↗ 원본</button>
 </div>
@@ -73,7 +75,7 @@ if (window.parent !== window) document.documentElement.classList.add("embedded")
   const metaUrl = params.get("meta");
   let meta = null, img = null, gsd = 0.001;
   let scale = 1, ox = 0, oy = 0;                  // 화면 = 이미지 * scale + (ox, oy)
-  let measuring = false, pts = [];
+  let measuring = false, pts = [], segs = [];
   let userMoved = false;                          // 사용자가 움직이기 전에는 창 크기가 바뀔 때마다 전체 보기로 다시 맞춘다
   // 높이 지도: int16 mm (행 우선, -32768 = 없음), 격자 한 칸 = 정사영상 step 픽셀. 바닥 = 기준면(가장 넓은 면) 대비 높이, 벽 = 평면 대비 앞뒤
   let H = null, hImg = null, showHeight = false;
@@ -126,13 +128,7 @@ if (window.parent !== window) document.documentElement.classList.add("embedded")
     } else {
       ctx.drawImage(img, ox, oy, img.width * scale, img.height * scale);
     }
-    // 측정선
-    if (pts.length) {
-      ctx.strokeStyle = "#facc15"; ctx.fillStyle = "#facc15"; ctx.lineWidth = 2;
-      const sp = pts.map(p => [p[0] * scale + ox, p[1] * scale + oy]);
-      if (sp.length === 2) { ctx.beginPath(); ctx.moveTo(sp[0][0], sp[0][1]); ctx.lineTo(sp[1][0], sp[1][1]); ctx.stroke(); }
-      sp.forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], 4, 0, Math.PI * 2); ctx.fill(); });
-    }
+    drawMeasures(ctx, p => [p[0] * scale + ox, p[1] * scale + oy]);
     // 축척 막대: 화면 80~160 px 에 맞는 깔끔한 길이
     const mPerScreenPx = gsd / scale;
     const nice = [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50];
@@ -140,6 +136,30 @@ if (window.parent !== window) document.documentElement.classList.add("embedded")
     for (const n of nice) { if (n / mPerScreenPx >= 80) { L = n; break; } }
     $("scaleBar").style.width = Math.round(L / mPerScreenPx) + "px";
     $("scaleText").textContent = fmtLen(L);
+  }
+  // 측정: 끝난 것은 segs 에 남겨 둔다(번호·값 표시), pts = 지금 찍는 중인 점
+  function measureLabel(a, b) {
+    let t = fmtLen(Math.hypot(b[0] - a[0], b[1] - a[1]) * gsd);
+    const h0 = heightAt(a), h1 = heightAt(b);
+    if (h0 !== null && h1 !== null) t += (H.kind === "relief" ? " · 앞뒤 " : " · 높이차 ") + fmtH(h1 - h0, true);
+    return t;
+  }
+  function drawMeasures(c, toScreen) {
+    c.save();
+    c.lineWidth = 2;
+    c.font = "600 12px 'IBM Plex Mono', monospace";
+    segs.forEach((s, i) => {
+      const a = toScreen(s.a), b = toScreen(s.b);
+      c.strokeStyle = "#facc15"; c.fillStyle = "#facc15";
+      c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke();
+      [a, b].forEach(p => { c.beginPath(); c.arc(p[0], p[1], 3.5, 0, Math.PI * 2); c.fill(); });
+      const t = (i + 1) + ") " + s.label, tw = c.measureText(t).width;
+      const mx = (a[0] + b[0]) / 2 + 8, my = (a[1] + b[1]) / 2 - 8;
+      c.fillStyle = "rgba(8,11,15,.82)"; c.fillRect(mx - 4, my - 13, tw + 8, 18);
+      c.fillStyle = "#facc15"; c.fillText(t, mx, my);
+    });
+    pts.forEach(p => { const q = toScreen(p); c.fillStyle = "#facc15"; c.beginPath(); c.arc(q[0], q[1], 4, 0, Math.PI * 2); c.fill(); });
+    c.restore();
   }
   function zoomAt(sx, sy, f) {
     userMoved = true;
@@ -166,14 +186,13 @@ if (window.parent !== window) document.documentElement.classList.add("embedded")
     if (measuring && moved < 6 && downAt && active.size === 0) {
       const p = toImg(downAt[0], downAt[1]);
       if (p[0] >= 0 && p[1] >= 0 && p[0] <= img.width && p[1] <= img.height) {
-        if (pts.length >= 2) pts = [];
         pts.push(p);
         if (pts.length === 2) {
-          const d = Math.hypot(pts[1][0] - pts[0][0], pts[1][1] - pts[0][1]) * gsd;
-          let t = "거리 " + fmtLen(d);
-          const h0 = heightAt(pts[0]), h1 = heightAt(pts[1]);
-          if (h0 !== null && h1 !== null) t += (H.kind === "relief" ? " · 앞뒤 차 " : " · 높이차 ") + fmtH(h1 - h0, true);
-          $("measure").textContent = t;
+          const label = measureLabel(pts[0], pts[1]);
+          segs.push({ a: pts[0], b: pts[1], label });
+          pts = [];
+          $("measure").textContent = segs.length + ") 거리 " + label + "  — 다음 측정: 점을 누르세요";
+          $("btnClear").style.display = "";
         } else {
           const h0 = heightAt(pts[0]);
           $("measure").textContent = "두 번째 점을 누르세요" + (h0 !== null ? " (첫 점 " + fmtH(h0, true) + ")" : "");
@@ -203,11 +222,52 @@ if (window.parent !== window) document.documentElement.classList.add("embedded")
     $("hval").style.display = "block";
   });
   cv.addEventListener("mouseleave", () => { $("hval").style.display = "none"; });
-  $("btnMeasure").onclick = () => {
+  $("btnMeasure").onclick = () => {               // 끄더라도 끝난 측정은 화면에 남는다 (지우기로 지움)
     measuring = !measuring; pts = [];
     $("btnMeasure").classList.toggle("on", measuring); cv.classList.toggle("measuring", measuring);
     $("measure").style.display = measuring ? "block" : "none";
     $("measure").textContent = "첫 번째 점을 누르세요"; draw();
+  };
+  $("btnClear").onclick = () => {
+    segs = []; pts = [];
+    $("btnClear").style.display = "none";
+    if (measuring) $("measure").textContent = "첫 번째 점을 누르세요";
+    draw();
+  };
+  // 보고서용 이미지: 지금 보이는 화면(측정선·값 포함) + 아래 띠(제목·정보·날짜·축척 막대·범례)
+  $("btnSave").onclick = () => {
+    if (!img) return;
+    const r = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight, foot = 58;
+    const out = document.createElement("canvas");
+    out.width = cv.width; out.height = cv.height + Math.round(foot * r);
+    const c = out.getContext("2d");
+    c.fillStyle = "#080b0f"; c.fillRect(0, 0, out.width, out.height);
+    c.drawImage(cv, 0, 0);
+    c.setTransform(r, 0, 0, r, 0, 0);
+    c.fillStyle = "#e6edf6"; c.font = "600 14px 'Pretendard', 'Malgun Gothic', sans-serif";
+    c.fillText((params.get("title") || "kgeoScan") + " · " + $("title").textContent, 12, h + 22);
+    c.fillStyle = "#8b98a8"; c.font = "11px 'IBM Plex Mono', monospace";
+    c.fillText($("meta").textContent + " · 저장 " + new Date().toLocaleString("ko-KR"), 12, h + 42);
+    const bw = parseFloat($("scaleBar").style.width) || 80, x1 = w - 16, x0 = x1 - bw, y = h + 40;
+    c.strokeStyle = "#e6edf6"; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(x0, y - 7); c.lineTo(x0, y); c.lineTo(x1, y); c.lineTo(x1, y - 7); c.stroke();
+    c.fillStyle = "#e6edf6"; c.textAlign = "right"; c.fillText($("scaleText").textContent, x1, y - 12);
+    if (showHeight && H) {                        // 높이 범례
+      const gx = x0 - 190, gw = 160, g = c.createLinearGradient(gx, 0, gx + gw, 0);
+      ["#30123b", "#4675ed", "#1bcfd4", "#61fc6c", "#d1e834", "#fe9b2d", "#d93806", "#7a0402"].forEach((col, i, arr) => g.addColorStop(i / (arr.length - 1), col));
+      c.fillStyle = g; c.fillRect(gx, y - 10, gw, 8);
+      c.fillStyle = "#8b98a8"; c.textAlign = "left"; c.fillText($("legendLo").textContent, gx, y + 12);
+      c.textAlign = "right"; c.fillText($("legendHi").textContent, gx + gw, y + 12);
+    }
+    if (meta.surface === "floor") {               // 바닥 정사영상은 위쪽이 북쪽
+      c.textAlign = "center"; c.fillStyle = "#e6edf6"; c.font = "600 13px sans-serif";
+      c.fillText("N", w - 24, 26); c.beginPath(); c.moveTo(w - 24, 32); c.lineTo(w - 30, 46); c.lineTo(w - 18, 46); c.closePath(); c.fill();
+    }
+    const d = new Date(), pad = n => String(n).padStart(2, "0");
+    const a = document.createElement("a");
+    a.href = out.toDataURL("image/png");
+    a.download = `kgeoscan_ortho_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}.png`;
+    document.body.appendChild(a); a.click(); a.remove();
   };
   $("btnOpen").onclick = () => { if (meta) window.open(meta.files.image, "_blank"); };
   window.addEventListener("resize", resize);
