@@ -92,7 +92,9 @@ def video_views(data, frames, Fx, n_keep, tmp, log):
 
 
 def load_rgb(path):
-    img = cv2.imdecode(np.fromfile(path, np.uint8), cv2.IMREAD_COLOR)
+    # 앱 hires/*.jpg 는 센서 방향 픽셀 + EXIF 회전값(6)이고 내부 파라미터도 센서 방향 기준이다.
+    # IMREAD_COLOR 만 주면 OpenCV 가 EXIF 대로 돌려 버려(400x300 -> 300x400 확인) 자세와 어긋나므로 회전을 무시한다
+    img = cv2.imdecode(np.fromfile(path, np.uint8), cv2.IMREAD_COLOR | cv2.IMREAD_IGNORE_ORIENTATION)
     return None if img is None else cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
 
