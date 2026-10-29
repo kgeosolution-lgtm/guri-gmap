@@ -280,8 +280,10 @@ if (window.parent !== window) document.documentElement.classList.add("embedded")
     $("meta").textContent = `${(gsd * 1000).toFixed(2)} mm/px · ${m.extent_m[0].toFixed(2)} × ${m.extent_m[1].toFixed(2)} m · ${m.source === "hires" ? "고해상도 사진" : "영상"} ${m.views_used}장`;
     const src = m.files && m.files.image;
     if (!src || !sameOrigin(src)) throw new Error("이미지 주소 오류");
-    if (m.height && m.files.height_bin && m.files.height_image && sameOrigin(m.files.height_bin) && sameOrigin(m.files.height_image)) {
-      H = Object.assign({}, m.height);
+    // 높이 지도 정보: height_map (2026-10-29~). 그 전 판은 height 에 넣었다 (그때는 height 가 영상 세로 픽셀 수를 덮어씀)
+    const hm = m.height_map || (m.height && typeof m.height === "object" ? m.height : null);
+    if (hm && m.files.height_bin && m.files.height_image && sameOrigin(m.files.height_bin) && sameOrigin(m.files.height_image)) {
+      H = Object.assign({}, hm);
       $("btnHeight").style.display = "";
       $("legendTitle").textContent = H.kind === "relief" ? "벽면 앞뒤 (평면 기준)" : "높이 (가장 넓은 면 기준)";
       $("legendLo").textContent = fmtH(H.display_range_mm[0], true);

@@ -24,11 +24,12 @@ import open3d as o3d
 import open3d.core as o3c
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from stray_to_mesh import read_odometry, F_ARKIT_TO_CV  # noqa: E402
+from stray_to_mesh import read_odometry, read_frame_quality, blur_factor, F_ARKIT_TO_CV  # noqa: E402
 
 
-def pick_keyframes(video_path, frames, n_keep, log):
-    """Read the video once; within each window keep the sharpest frame (variance of Laplacian)."""
+def pick_keyframes(video_path, frames, n_keep, log, qual=None):
+    """Read the video once; within each window keep the sharpest frame (variance of Laplacian,
+    scaled down by the app's per-frame blur estimate / tracking state when frame_quality.csv exists)."""
     cap = cv2.VideoCapture(video_path)
     n = min(int(cap.get(cv2.CAP_PROP_FRAME_COUNT)), len(frames))
     win = max(1, n // n_keep)
@@ -41,6 +42,8 @@ def pick_keyframes(video_path, frames, n_keep, log):
             break
         small = cv2.cvtColor(cv2.resize(bgr, (480, 360), interpolation=cv2.INTER_AREA), cv2.COLOR_BGR2GRAY)
         score = cv2.Laplacian(small, cv2.CV_64F).var()
+        if qual:
+            score *= blur_factor(qual, frames[i]["idx"])
         w = i // win
         if w not in best or score > best[w][0]:
             best[w] = (score, i, cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB))
@@ -136,7 +139,8 @@ def main():
 
     # keyframes
     _, frames = read_odometry(os.path.join(args.data, "odometry.csv"))
-    keys = pick_keyframes(os.path.join(args.data, "rgb.mp4"), frames, args.keyframes, log)
+    keys = pick_keyframes(os.path.join(args.data, "rgb.mp4"), frames, args.keyframes, log,
+                          read_frame_quality(args.data))
     Fx = np.eye(4) if args.convention == "cv" else F_ARKIT_TO_CV
     imgs = [k[2] for k in keys]
     sharp = np.array([k[0] for k in keys], np.float64)

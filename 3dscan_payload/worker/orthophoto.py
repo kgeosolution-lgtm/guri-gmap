@@ -34,7 +34,7 @@ import open3d as o3d
 import open3d.core as o3c
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from stray_to_mesh import read_odometry, F_ARKIT_TO_CV  # noqa: E402
+from stray_to_mesh import read_odometry, read_frame_quality, blur_factor, F_ARKIT_TO_CV  # noqa: E402
 
 TILE = 1024
 UP = np.array([0.0, 1.0, 0.0])
@@ -64,11 +64,14 @@ def video_views(data, frames, Fx, n_keep, tmp, log):
     n = min(int(cap.get(cv2.CAP_PROP_FRAME_COUNT)), len(frames))
     win = max(1, n // n_keep)
     best = {}
+    qual = read_frame_quality(data)   # 앱의 흔들림 예측·추적 상태 (없으면 {})
     for i in range(n):
         ok, bgr = cap.read()
         if not ok:
             break
         s = cv2.Laplacian(cv2.cvtColor(cv2.resize(bgr, (480, 360)), cv2.COLOR_BGR2GRAY), cv2.CV_64F).var()
+        if qual:
+            s *= blur_factor(qual, frames[i]["idx"])
         w = i // win
         if w not in best or s > best[w][0]:
             best[w] = (s, i)
@@ -568,7 +571,8 @@ def main():
                               corners_lonlat=dict(top_left=cx(left, top_n), top_right=cx(left + W * gsd, top_n),
                                                   bottom_right=cx(left + W * gsd, top_n - Hh * gsd), bottom_left=cx(left, top_n - Hh * gsd)))
     try:
-        meta["height"] = height_map(P, valid, surface, nrm if surface != "floor" else None, d0 if surface != "floor" else 0.0, gsd, a.out, log)
+        # "height" 는 영상 세로 픽셀 수라 높이 지도는 height_map 에 둔다 (2026-10-28 판은 height 를 덮어썼다 — 뷰어는 둘 다 읽음)
+        meta["height_map"] = height_map(P, valid, surface, nrm if surface != "floor" else None, d0 if surface != "floor" else 0.0, gsd, a.out, log)
         meta["files"]["height_bin"], meta["files"]["height_image"] = "ortho_height.bin", "ortho_height.jpg"
     except Exception as e:                                 # 높이 지도는 부가 기능 — 실패해도 정사영상은 낸다
         log(f"height map skipped: {e}")

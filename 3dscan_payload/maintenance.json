@@ -1,6 +1,4 @@
 {
-  "once_id": "2026-10-28-dollhouse-rebuild",
-  "actions": [
-    {"op": "rebuild-glb", "jobs": "all"}
-  ]
+  "once_id": "2026-10-29-none",
+  "actions": []
 }

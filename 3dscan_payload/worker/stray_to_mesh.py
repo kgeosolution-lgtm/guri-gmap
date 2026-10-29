@@ -26,6 +26,7 @@ import numpy as np
 import open3d as o3d
 import open3d.core as o3c
 
+# 기본 256x192(4:3). 16:9 영상 형식(앱 면 촬영 무음 4K, 2026-10-29)이면 깊이도 256x144 라 main() 이 첫 깊이 파일로 다시 정한다
 DEPTH_W, DEPTH_H = 256, 192
 # ARKit camera (x right, y up, z backward)  ->  OpenCV camera (x right, y down, z forward)
 F_ARKIT_TO_CV = np.diag([1.0, -1.0, -1.0, 1.0])
@@ -60,6 +61,36 @@ def read_odometry(path):
     return header, frames
 
 
+BAD_TRACKING = {"initializing", "relocalizing", "notAvailable"}
+
+
+def read_frame_quality(data_dir):
+    """앱의 선택 파일 frame_quality.csv (frame,timestamp,blur_px,tracking,...) -> {frame: (blur_px, tracking)}.
+    없거나 읽을 수 없으면 {} (기존 녹화는 그대로 처리)"""
+    path = os.path.join(data_dir, "frame_quality.csv")
+    q = {}
+    if not os.path.exists(path):
+        return q
+    try:
+        with open(path, newline="") as f:
+            for r in csv.DictReader(f):
+                try:
+                    q[int(float(r["frame"]))] = (float(r.get("blur_px") or 0.0), (r.get("tracking") or "normal").strip())
+                except (KeyError, ValueError, TypeError):
+                    continue
+    except OSError:
+        return {}
+    return q
+
+
+def blur_factor(qual, idx, blur_ok=4.0):
+    """키프레임 점수 배율: 흔들림 예측(가로 1920 px 기준)이 blur_ok 를 넘으면 그 비율만큼 낮추고 (8 px -> 0.5),
+    추적 불량이면 크게 낮춘다"""
+    b, tr = qual.get(idx, (0.0, "normal"))
+    f = 1.0 / (1.0 + max(0.0, b / blur_ok - 1.0))
+    return f * (0.1 if tr in BAD_TRACKING else 1.0)
+
+
 def scale_intrinsics(K, rgb_w, rgb_h):
     sx, sy = DEPTH_W / rgb_w, DEPTH_H / rgb_h
     return o3d.camera.PinholeCameraIntrinsic(
@@ -88,7 +119,7 @@ def load_depth(data_dir, i, conf_min, far_m=0.0, conf_far=2):
 def backproject(depth_u16, intr, T_WC, max_depth):
     """depth (mm) -> world points, OpenCV camera convention"""
     z = depth_u16.astype(np.float32) / 1000.0
-    v, u = np.mgrid[0:DEPTH_H, 0:DEPTH_W]
+    v, u = np.mgrid[0:z.shape[0], 0:z.shape[1]]
     m = (z > 0.05) & (z < max_depth)
     fx, fy = intr.intrinsic_matrix[0, 0], intr.intrinsic_matrix[1, 1]
     cx, cy = intr.intrinsic_matrix[0, 2], intr.intrinsic_matrix[1, 2]
@@ -156,6 +187,10 @@ def main():
     n_video = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = cap.get(cv2.CAP_PROP_FPS)
     K_fallback = np.loadtxt(os.path.join(args.data, "camera_matrix.csv"), delimiter=",")
+    global DEPTH_W, DEPTH_H
+    d0 = cv2.imread(os.path.join(args.data, "depth", f"{avail[0]:06d}.png"), cv2.IMREAD_UNCHANGED) if avail else None
+    if d0 is not None:
+        DEPTH_H, DEPTH_W = d0.shape[:2]
     n = min(len(frames), n_depth, n_video if n_video > 0 else 10**9)
     if args.max_frames:
         n = min(n, args.max_frames)
@@ -181,7 +216,12 @@ def main():
         attr_channels=((1), (1), (3)),
         voxel_size=args.voxel, block_resolution=8, block_count=args.block_count, device=dev)
 
-    used = 0
+    qual = read_frame_quality(args.data)
+    if qual:
+        bl = np.array([b for b, _ in qual.values()])
+        print(f"frame_quality: {len(qual)} frames, blur>4px(1920 기준) {np.mean(bl > 4.0) * 100:.1f}%, "
+              f"bad tracking {sum(tr in BAD_TRACKING for _, tr in qual.values())}")
+    used = skipped_track = 0
     t1 = time.time()
     for i in range(n):
         ok, bgr = cap.read()
@@ -189,6 +229,9 @@ def main():
             print(f"video ended early at frame {i}")
             break
         if i % args.every or i not in avail_set:
+            continue
+        if qual.get(frames[i]["idx"], (0, "normal"))[1] in BAD_TRACKING:
+            skipped_track += 1   # 재위치 잡기·초기화 중 자세는 믿을 수 없어 TSDF 에 넣지 않는다
             continue
         d = load_depth(args.data, i, args.conf, args.far, args.conf_far)
         if d is None:
@@ -205,7 +248,8 @@ def main():
         if used % 100 == 0:
             print(f"  integrated {used} frames (frame {i}/{n}) {time.time() - t1:.1f}s")
     cap.release()
-    print(f"integration: {used} frames in {time.time() - t1:.1f}s")
+    print(f"integration: {used} frames in {time.time() - t1:.1f}s"
+          + (f" (skipped {skipped_track} bad-tracking frames)" if skipped_track else ""))
 
     t2 = time.time()
     print(f"voxel blocks: {vbg.hashmap().size()}")

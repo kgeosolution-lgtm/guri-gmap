@@ -193,7 +193,8 @@ def step_ortho(out_dir, job_id):
         if os.path.exists(os.path.join(src, a)):
             shutil.copy2(os.path.join(src, a), os.path.join(CFG["glb_serve_dir"], b))
     files = {"image": f"{CFG['glb_serve_url']}/{base}.jpg", "overlay": f"{CFG['glb_serve_url']}/{base}.png"}
-    if m.get("height") and os.path.exists(os.path.join(src, "ortho_height.bin")):   # 높이 지도 (int16 mm) + 색 미리보기
+    hm = m.get("height_map") or (m.get("height") if isinstance(m.get("height"), dict) else None)
+    if hm and os.path.exists(os.path.join(src, "ortho_height.bin")):   # 높이 지도 (int16 mm) + 색 미리보기
         files["height_bin"] = f"{CFG['glb_serve_url']}/{base}_h.bin"
         files["height_image"] = f"{CFG['glb_serve_url']}/{base}_h.jpg"
     m["files"] = files
