@@ -1,0 +1,28 @@
+name: Hyblog family drafting page
+on:
+  push:
+    branches: [codex/hyblog-publish]
+    paths: ['hyblog-release/**', '.github/workflows/hyblog.yml']
+permissions:
+  contents: read
+concurrency:
+  group: hyblog-publication
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 7
+    steps:
+      - name: Check out isolated Hyblog release
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: hyblog-checkout
+          sparse-checkout: hyblog-release
+          persist-credentials: false
+      - name: Install Hyblog and verify HTTPS and access isolation
+        shell: powershell
+        env:
+          HYBLOG_WORKER_HASH: ${{ secrets.HYBLOG_RELAY_VERIFIER }}
+        run: |
+          $ErrorActionPreference='Stop'
+          & "$env:GITHUB_WORKSPACE\hyblog-checkout\hyblog-release\install-iis.ps1" -SourceRoot "$env:GITHUB_WORKSPACE\hyblog-checkout\hyblog-release" -SourceCommit "$env:GITHUB_SHA"
