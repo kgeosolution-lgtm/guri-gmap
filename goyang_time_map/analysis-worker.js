@@ -1,5 +1,5 @@
 'use strict';
-importScripts('vendor/turf.min.js', 'analysis-core.js?v=10f0745ecd25');
+importScripts('vendor/turf.min.js', 'analysis-core.js?v=f3859fedc8fe');
 const cache = new Map();
 self.onmessage = ({ data }) => {
   if (data.type === 'cache') { cache.set(data.year, data.collection); return; }

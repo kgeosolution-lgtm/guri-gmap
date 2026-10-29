@@ -1,4 +1,4 @@
-name: Goyang time map deployment
+name: Goyang time map insight update
 on:
   push:
     branches: [codex/goyang-time-map-deploy]
@@ -16,6 +16,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - name: Verify and install only the new map folder
+      - name: Update map insights with verified previous-version backup
         shell: powershell
         run: ./deploy/install.ps1

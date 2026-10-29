@@ -1,6 +1,8 @@
 {
   "application": "goyang-time-map-seoul021",
-  "preparedAt": "2026-10-29T06:21:09.260Z",
+  "version": 2,
+  "release": "urban-change-insights",
+  "preparedAt": "2026-10-29T07:06:17.779Z",
   "sheet": "37608021",
   "years": [
     2006,
