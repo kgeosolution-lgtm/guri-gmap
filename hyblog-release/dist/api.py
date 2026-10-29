@@ -84,7 +84,8 @@ class Queue:
             if self.db.execute("SELECT count(*) FROM jobs WHERE status IN ('queued','running')").fetchone()[0] >= 3: raise RequestError(409, '초안을 만들고 있어요. 잠시 후 다시 시도해주세요.')
             if self.db.execute("SELECT count(*) FROM jobs WHERE owner=? AND created>?", (device['id'],now-3600)).fetchone()[0] >= 10: raise RequestError(429, '한 시간에 10편까지 만들 수 있어요. 잠시 쉬었다 이어주세요.')
             job_id = secrets.token_hex(16)
-            allowed = ['place','area','link','visitDate','notes','menus','facts','sponsorship','style','photos']
+            if not isinstance(body.get('receipts',[]),list) or len(body.get('receipts',[])) > 3: raise RequestError(400, '영수증은 최대 3장까지 넣어주세요.')
+            allowed = ['place','area','link','visitDate','visitTime','notes','menus','facts','sponsorship','style','photos','receipts','useReviews','reviewLinks']
             payload = {k:body[k] for k in allowed if k in body}
             self.db.execute('INSERT INTO jobs(id,owner,request_id,status,input,stage,created,updated) VALUES(?,?,?,?,?,?,?,?)', (job_id,device['id'],request_id,'queued',encode(payload),'사진을 보내고 있어요',now,now))
             return 202, {'id':job_id}, None
