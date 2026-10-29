@@ -1,0 +1,21 @@
+name: Goyang time map deployment
+on:
+  push:
+    branches: [codex/goyang-time-map-deploy]
+    paths: [.github/workflows/goyang-time-map-deploy.yml]
+permissions:
+  contents: read
+concurrency:
+  group: goyang-time-map-deploy
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Verify and install only the new map folder
+        shell: powershell
+        run: ./deploy/install.ps1
