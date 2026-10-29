@@ -89,7 +89,8 @@ class Queue:
             payload = {k:body[k] for k in allowed if k in body}
             if route=='/api/naver':
                 if not isinstance(body.get('draft'),dict): raise RequestError(400,'먼저 초안을 만들어주세요.')
-                payload['draft']=body['draft'];payload['kind']='naver';payload['naverAutoSave']=True
+                payload['draft']={k:body['draft'][k] for k in ['title','titles','intro','sections','closing','tags','checks'] if k in body['draft']};payload['kind']='naver';payload['naverAutoSave']=True
+                payload.pop('receipts',None);payload.pop('notes',None);payload.pop('facts',None)
             self.db.execute('INSERT INTO jobs(id,owner,request_id,status,input,stage,created,updated) VALUES(?,?,?,?,?,?,?,?)', (job_id,device['id'],request_id,'queued',encode(payload),'사진을 보내고 있어요',now,now))
             return 202, {'id':job_id}, None
         match = re.fullmatch('/api/jobs/([a-f0-9]{32})(/cancel)?',route)

@@ -77,7 +77,9 @@ async function submitGeneration(){
   if(Date.now()-state.pendingRequest.startedAt>23*60*60*1000){await finishFailure('접수 확인 기한이 지났어요. 임시저장한 사진과 입력으로 다시 만들어주세요.');return;}
   jobRequestActive=true;submitting=true;jobStarted=state.pendingRequest.startedAt;jobStage='초안 만들기 요청을 확인하고 있어요';render();startClock();
   try{
-    const transfer=state.pendingRequest.kind==='naver';const res=await apiFetch(transfer?'/api/naver':'/api/generate',{method:'POST',headers:{'Content-Type':'application/json','X-Meal-Note':'1'},body:JSON.stringify({...generationInput(),...(transfer?{draft:state.draft}:{}),requestId:state.pendingRequest.id}),signal:AbortSignal.timeout(60000)});
+    const transfer=state.pendingRequest.kind==='naver';
+    const input=generationInput();if(transfer){input.receipts=[];input.notes='';input.facts='';input.draft=Object.fromEntries(['title','titles','intro','sections','closing','tags','checks'].map(k=>[k,state.draft[k]]));}
+    const res=await apiFetch(transfer?'/api/naver':'/api/generate',{method:'POST',headers:{'Content-Type':'application/json','X-Meal-Note':'1'},body:JSON.stringify({...input,requestId:state.pendingRequest.id}),signal:AbortSignal.timeout(60000)});
     const result=await res.json();
     if(!res.ok){if(res.status>=500||res.status===408)throw new Error(result.error);await finishFailure(result.error||'생성을 시작하지 못했어요. 입력은 보관돼 있어요.');return;}
     if(!result.id)throw new Error('접수를 다시 확인하고 있어요.');
@@ -95,7 +97,7 @@ async function pollJob(){
     networkRetries=0;
     if(job.status==='done'){
       if(!job.draft?.sections)throw new Error('초안 결과를 다시 확인하고 있어요.');
-      state.draft=job.draft;state.lastUsage=job.usage;delete state.pendingJob;jobId=null;view='editor';preview=false;
+      if(state.pendingJob?.kind==='naver'&&state.draft)state.draft.naver=job.draft.naver;else state.draft=job.draft;state.lastUsage=job.usage;delete state.pendingJob;jobId=null;view='editor';preview=false;
       const stored=await saveNow();render();window.scrollTo({top:0,behavior:'smooth'});toast(!stored?'초안은 완성됐지만 기기 저장에 실패했어요. 작업 파일로 보관해주세요.':state.draft.naver?.status==='saved'?'네이버 임시저장을 마쳤어요. 수정 화면을 열어보세요.':'초안이 완성되고 이 기기에 저장됐어요.');return;
     }
     if(job.status==='failed'||job.status==='cancelled'){await finishFailure((job.error||'생성을 취소했어요.')+' 사진과 입력은 임시저장되어 있어요.');return;}
