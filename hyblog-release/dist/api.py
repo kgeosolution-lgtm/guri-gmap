@@ -70,23 +70,26 @@ class Queue:
         if route == '/api/status' and method == 'GET':
             online, presence = self.presence()
             approved = bool(device and device['state']=='approved')
-            return 200, {'ready': approved and online and bool(presence.get('ready')), 'authRequired':not approved, 'pairCode':device['code'] if device and not approved else None, 'workerOnline':online, 'message': '이 기기를 먼저 연결해주세요.' if not approved else ('초안 생성 PC와 연결되지 않았어요. PC에서 한편을 열어주세요.' if not online else presence.get('message','글쓰기 연결 확인 중'))}, None
+            return 200, {'ready': approved and online and bool(presence.get('ready')), 'authRequired':not approved, 'pairCode':device['code'] if device and not approved else None, 'workerOnline':online, 'naverConnected':online and presence.get('naverConnected',False), 'message': '이 기기를 먼저 연결해주세요.' if not approved else ('초안 생성 PC와 연결되지 않았어요. PC에서 한편을 열어주세요.' if not online else presence.get('message','글쓰기 연결 확인 중'))}, None
         if not device or device['state'] != 'approved': raise RequestError(401, '이 기기를 먼저 연결해주세요.')
-        if route == '/api/generate' and method == 'POST':
+        if route in ('/api/generate','/api/naver') and method == 'POST':
             request_id = str(body.get('requestId',''))
             if not re.fullmatch('[a-zA-Z0-9_-]{1,80}', request_id): raise RequestError(400, '요청 번호가 필요합니다.')
             old = self.db.execute('SELECT id FROM jobs WHERE owner=? AND request_id=?', (device['id'], request_id)).fetchone()
             if old: return 202, {'id':old['id']}, None
             online, presence = self.presence()
-            if not online or not presence.get('ready'): raise RequestError(503, '초안 생성 PC의 연결과 Codex 사용 한도를 확인해주세요.')
+            if not online or (route=='/api/generate' and not presence.get('ready')): raise RequestError(503, '초안 생성 PC의 연결과 Codex 사용 한도를 확인해주세요.')
             if not isinstance(body.get('place'),str) or not body['place'].strip(): raise RequestError(400, '식당 이름을 입력해주세요.')
             if not isinstance(body.get('photos'),list) or not 1 <= len(body['photos']) <= 24: raise RequestError(400, '사진은 1~24장 넣어주세요.')
             if self.db.execute("SELECT count(*) FROM jobs WHERE status IN ('queued','running')").fetchone()[0] >= 3: raise RequestError(409, '초안을 만들고 있어요. 잠시 후 다시 시도해주세요.')
             if self.db.execute("SELECT count(*) FROM jobs WHERE owner=? AND created>?", (device['id'],now-3600)).fetchone()[0] >= 10: raise RequestError(429, '한 시간에 10편까지 만들 수 있어요. 잠시 쉬었다 이어주세요.')
             job_id = secrets.token_hex(16)
             if not isinstance(body.get('receipts',[]),list) or len(body.get('receipts',[])) > 3: raise RequestError(400, '영수증은 최대 3장까지 넣어주세요.')
-            allowed = ['place','area','link','visitDate','visitTime','notes','menus','facts','sponsorship','style','photos','receipts','useReviews','reviewLinks']
+            allowed = ['place','area','link','visitDate','visitTime','notes','menus','facts','sponsorship','style','photos','receipts','useReviews','reviewLinks','naverAutoSave']
             payload = {k:body[k] for k in allowed if k in body}
+            if route=='/api/naver':
+                if not isinstance(body.get('draft'),dict): raise RequestError(400,'먼저 초안을 만들어주세요.')
+                payload['draft']=body['draft'];payload['kind']='naver';payload['naverAutoSave']=True
             self.db.execute('INSERT INTO jobs(id,owner,request_id,status,input,stage,created,updated) VALUES(?,?,?,?,?,?,?,?)', (job_id,device['id'],request_id,'queued',encode(payload),'사진을 보내고 있어요',now,now))
             return 202, {'id':job_id}, None
         match = re.fullmatch('/api/jobs/([a-f0-9]{32})(/cancel)?',route)
@@ -114,7 +117,7 @@ class Queue:
             self.db.execute('DELETE FROM devices WHERE id=?',(body.get('id'),))
             return 200, {'revoked':True}, None
         if route=='/worker/heartbeat' and method=='POST':
-            self.db.execute("INSERT OR REPLACE INTO meta VALUES('worker',?)",(encode({'at':now,'ready':body.get('ready') is True,'message':str(body.get('message',''))[:200]}),))
+            self.db.execute("INSERT OR REPLACE INTO meta VALUES('worker',?)",(encode({'at':now,'ready':body.get('ready') is True,'naverConnected':isinstance(body.get('naver'),dict) and body['naver'].get('connected') is True,'message':str(body.get('message',''))[:200]}),))
             if body.get('id'):
                 item = self.db.execute('SELECT cancel,status FROM jobs WHERE id=? AND lease=?',(body.get('id'),body.get('lease'))).fetchone()
                 if item:
