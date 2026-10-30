@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parent
 MAX_BODY = 52 * 1024 * 1024
 ORIGIN = 'https://kgeodata.com'
 COOKIE = 'HYBLOG_DEVICE'
+RESULT_RETENTION_SECONDS = 7 * 86400
 
 class RequestError(Exception):
     def __init__(self, status, message): self.status, self.message = status, message
@@ -32,7 +33,9 @@ class Queue:
         now = time.time()
         self.db.execute('DELETE FROM devices WHERE expires < ?', (now,))
         self.db.execute('DELETE FROM attempts WHERE expires < ?', (now,))
-        self.db.execute('DELETE FROM jobs WHERE created < ?', (now-86400,))
+        # Completed jobs no longer contain uploaded input. Keep their receipts
+        # for seven days so a closed phone browser can recover the same result.
+        self.db.execute("DELETE FROM jobs WHERE status IN ('done','failed','cancelled') AND updated < ?", (now-RESULT_RETENTION_SECONDS,))
         self.db.execute("UPDATE jobs SET status='failed',input=NULL,error=?,updated=? WHERE status IN ('queued','running') AND updated < ?", ('연결이 오래 끊겨 생성을 중단했어요. 입력은 브라우저에 남아 있습니다.', now, now-600))
 
     def worker(self, headers):
@@ -74,6 +77,11 @@ class Queue:
             approved = bool(device and device['state']=='approved')
             return 200, {'ready': approved and online and bool(presence.get('ready')), 'authRequired':not approved, 'pairCode':device['code'] if device and not approved else None, 'workerOnline':online, 'naverConnected':online and presence.get('naverConnected',False), 'message': '이 기기를 먼저 연결해주세요.' if not approved else ('초안 생성 PC와 연결되지 않았어요. PC에서 한편을 열어주세요.' if not online else presence.get('message','글쓰기 연결 확인 중'))}, None
         if not device or device['state'] != 'approved': raise RequestError(401, '이 기기를 먼저 연결해주세요.')
+        request_match = re.fullmatch('/api/jobs/by-request/([a-zA-Z0-9_-]{1,80})',route)
+        if request_match and method == 'GET':
+            job = self.db.execute('SELECT id FROM jobs WHERE owner=? AND request_id=?',(device['id'],request_match[1])).fetchone()
+            if not job: raise RequestError(404,'접수된 작업이 없거나 결과 보관 기간이 지났어요.')
+            return 200, {'id':job['id']}, None
         if route in ('/api/generate','/api/naver') and method == 'POST':
             request_id = str(body.get('requestId',''))
             if not re.fullmatch('[a-zA-Z0-9_-]{1,80}', request_id): raise RequestError(400, '요청 번호가 필요합니다.')
@@ -93,7 +101,7 @@ class Queue:
                 if not isinstance(body.get('draft'),dict): raise RequestError(400,'먼저 초안을 만들어주세요.')
                 payload['draft']={k:body['draft'][k] for k in ['title','titles','intro','sections','closing','tags','checks','stickers','location'] if k in body['draft']};payload['kind']='naver';payload['naverAutoSave']=True
                 payload.pop('receipts',None);payload.pop('notes',None);payload.pop('facts',None)
-            self.db.execute('INSERT INTO jobs(id,owner,request_id,status,input,stage,created,updated) VALUES(?,?,?,?,?,?,?,?)', (job_id,device['id'],request_id,'queued',encode(payload),'사진을 보내고 있어요',now,now))
+            self.db.execute('INSERT INTO jobs(id,owner,request_id,status,input,stage,created,updated) VALUES(?,?,?,?,?,?,?,?)', (job_id,device['id'],request_id,'queued',encode(payload),'접수 완료 · PC에서 순서대로 작업을 시작해요',now,now))
             return 202, {'id':job_id}, None
         match = re.fullmatch('/api/jobs/([a-f0-9]{32})(/cancel)?',route)
         if match:
