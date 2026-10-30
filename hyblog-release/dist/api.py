@@ -27,6 +27,8 @@ class Queue:
           CREATE TABLE IF NOT EXISTS attempts(id TEXT PRIMARY KEY, count INTEGER, expires REAL);
         ''')
         self.db.execute('BEGIN IMMEDIATE')
+        if 'attention' not in {r[1] for r in self.db.execute('PRAGMA table_info(jobs)')}:
+            self.db.execute('ALTER TABLE jobs ADD COLUMN attention TEXT')
         now = time.time()
         self.db.execute('DELETE FROM devices WHERE expires < ?', (now,))
         self.db.execute('DELETE FROM attempts WHERE expires < ?', (now,))
@@ -85,11 +87,11 @@ class Queue:
             if self.db.execute("SELECT count(*) FROM jobs WHERE owner=? AND created>?", (device['id'],now-3600)).fetchone()[0] >= 10: raise RequestError(429, '한 시간에 10편까지 만들 수 있어요. 잠시 쉬었다 이어주세요.')
             job_id = secrets.token_hex(16)
             if not isinstance(body.get('receipts',[]),list) or len(body.get('receipts',[])) > 3: raise RequestError(400, '영수증은 최대 3장까지 넣어주세요.')
-            allowed = ['place','area','link','visitDate','visitTime','notes','menus','facts','sponsorship','style','stickers','photos','receipts','useReviews','reviewLinks','naverAutoSave']
+            allowed = ['place','area','link','visitDate','visitTime','notes','menus','facts','sponsorship','style','stickers','location','photos','receipts','useReviews','reviewLinks','naverAutoSave']
             payload = {k:body[k] for k in allowed if k in body}
             if route=='/api/naver':
                 if not isinstance(body.get('draft'),dict): raise RequestError(400,'먼저 초안을 만들어주세요.')
-                payload['draft']={k:body['draft'][k] for k in ['title','titles','intro','sections','closing','tags','checks','stickers'] if k in body['draft']};payload['kind']='naver';payload['naverAutoSave']=True
+                payload['draft']={k:body['draft'][k] for k in ['title','titles','intro','sections','closing','tags','checks','stickers','location'] if k in body['draft']};payload['kind']='naver';payload['naverAutoSave']=True
                 payload.pop('receipts',None);payload.pop('notes',None);payload.pop('facts',None)
             self.db.execute('INSERT INTO jobs(id,owner,request_id,status,input,stage,created,updated) VALUES(?,?,?,?,?,?,?,?)', (job_id,device['id'],request_id,'queued',encode(payload),'사진을 보내고 있어요',now,now))
             return 202, {'id':job_id}, None
@@ -102,7 +104,7 @@ class Queue:
                 return 200, {'cancelled':True}, None
             if not match[2] and method=='GET':
                 result = json.loads(job['result']) if job['result'] else {}
-                return 200, {'id':job['id'],'status':job['status'],'stage':job['stage'],'error':job['error'],**result}, None
+                return 200, {'id':job['id'],'status':job['status'],'stage':job['stage'],'attention':json.loads(job['attention']) if job['attention'] else None,'error':job['error'],**result}, None
         raise RequestError(404,'요청을 찾지 못했어요.')
 
     def handle_worker(self, route, method, body, now):
@@ -122,7 +124,7 @@ class Queue:
             if body.get('id'):
                 item = self.db.execute('SELECT cancel,status FROM jobs WHERE id=? AND lease=?',(body.get('id'),body.get('lease'))).fetchone()
                 if item:
-                    self.db.execute("UPDATE jobs SET stage=?,updated=? WHERE id=? AND status='running'",(str(body.get('stage','사진을 읽고 글을 만들고 있어요'))[:200],now,body['id']))
+                    self.db.execute("UPDATE jobs SET stage=?,attention=?,updated=? WHERE id=? AND status='running'",(str(body.get('stage','사진을 읽고 글을 만들고 있어요'))[:200],encode(body['attention']) if isinstance(body.get('attention'),dict) else None,now,body['id']))
                     return 200, {'cancelled':bool(item['cancel']) or item['status']=='cancelled'}, None
             return 200, {'ok':True}, None
         if route=='/worker/claim' and method=='POST':
