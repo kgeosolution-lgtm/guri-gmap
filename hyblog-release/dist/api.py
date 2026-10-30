@@ -176,6 +176,8 @@ class Queue:
             if not isinstance(body.get('receipts',[]),list) or len(body.get('receipts',[])) > 3: raise RequestError(400, '영수증은 최대 3장까지 넣어주세요.')
             allowed = ['place','area','link','visitDate','visitTime','notes','menus','facts','sponsorship','style','stickers','location','photos','receipts','useReviews','reviewLinks','naverAutoSave']
             payload = {k:body[k] for k in allowed if k in body}
+            # Generation always ends in the app for review, including older clients.
+            payload['naverAutoSave']=False
             if route=='/api/naver':
                 if not isinstance(body.get('draft'),dict): raise RequestError(400,'먼저 초안을 만들어주세요.')
                 payload['draft']={k:body['draft'][k] for k in ['title','titles','intro','sections','closing','tags','checks','stickers','location'] if k in body['draft']};payload['kind']='naver';payload['naverAutoSave']=True
@@ -228,7 +230,10 @@ class Queue:
             if not item: return 200, {'job':None}, None
             lease=secrets.token_hex(16)
             self.db.execute("UPDATE jobs SET status='running',lease=?,updated=?,stage=? WHERE id=?",(lease,now,'사진을 읽고 글을 만들고 있어요',item['id']))
-            return 200, {'job':{'id':item['id'],'lease':lease,'input':json.loads(item['input'])}}, None
+            payload=json.loads(item['input'])
+            # Also protect generation requests queued before review-first was released.
+            payload['naverAutoSave']=payload.get('kind')=='naver'
+            return 200, {'job':{'id':item['id'],'lease':lease,'input':payload}}, None
         if route=='/worker/result' and method=='POST':
             item=self.db.execute('SELECT * FROM jobs WHERE id=? AND lease=?',(body.get('id'),body.get('lease'))).fetchone()
             if not item: raise RequestError(404,'작업을 찾지 못했습니다.')
