@@ -114,3 +114,11 @@ body{background:#f5f7f6;color:var(--ink)}header.topbar,.card,.article{background
 .expression-text{word-break:keep-all;overflow-wrap:break-word}.article textarea.expression-updated{background:#edf9f1;box-shadow:0 0 0 2px #77bd8d;transition:background .3s}
 
 .expression-original{white-space:pre-line}@media(max-width:850px){.expression-buttons .muted-link{min-height:44px;padding:10px 0}.expression-source summary{min-height:44px;padding:10px 0}.expression-source a{display:block;min-height:44px;padding:8px 0}}
+
+/* A single search field on both desktop and mobile. */
+.place-search-field{width:100%;min-width:0}
+.place-search-control{position:relative;width:100%;min-width:0}
+.place-search-control input{display:block;width:100%;min-width:0;min-height:56px;padding:12px 108px 12px 14px;border-radius:10px}
+.place-search-control .place-search-button{position:absolute;right:5px;top:5px;bottom:5px;display:flex;align-items:center;justify-content:center;gap:5px;min-width:92px;min-height:44px;padding:0 10px;border:0;border-radius:7px;background:#eaf6ee;color:#287348;font-size:13px;font-weight:600;white-space:nowrap}
+.place-search-button .icon{width:16px;height:16px}.place-search-button:hover{background:#ddf1e4}.place-search-control:focus-within{border-radius:10px;box-shadow:0 0 0 2px #c4e6d0}
+@media(max-width:420px){.place-search-control input{padding-left:12px;padding-right:101px}.place-search-control .place-search-button{min-width:86px;padding:0 8px;font-size:12px}.place-search-button .icon{width:15px;height:15px}}

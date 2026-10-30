@@ -9,6 +9,7 @@ function normalizeState(s){
 }
 function naverMapUrl(){return 'https://map.naver.com/p/search/'+encodeURIComponent([state.place,state.area].filter(Boolean).join(' '));}
 function mapButton(){return `<button class="button map-button" data-action="map">${icon('pin')}지점 검색</button>`;}
+function placeSearchField(){return `<div class="field place-search-field"><label for="place">식당 이름 · 지점</label><div class="place-search-control"><input id="place" data-field="place" type="text" value="${esc(state.place)}" placeholder="예: 오봉집 광교점" maxlength="120" enterkeyhint="search" autocomplete="off"><button type="button" class="place-search-button" data-action="map" aria-label="지점 검색">${icon('pin')}<span>지점 검색</span></button></div></div>`;}
 function mediaView(p,cls='photo-img'){
  if(safeGif(p.gifData))return `<img class="${cls}" data-animated="true" style="max-width:min(100%,480px);max-height:400px;width:auto;height:auto;object-fit:contain" src="${p.gifData}" alt="${esc(p.note||p.name)}">`;
  if(p.kind==='video'&&/^data:video\/(mp4|webm|quicktime);base64,[A-Za-z0-9+/=]+$/.test(p.videoData||''))return `<video class="${cls}" src="${p.videoData}" poster="${p.data}" controls playsinline preload="metadata"></video>`;
