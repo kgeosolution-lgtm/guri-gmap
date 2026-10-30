@@ -6,7 +6,7 @@ function normalizeState(s){
  for(const p of s.photos){if(p.gifData&&!safeGif(p.gifData))delete p.gifData;if(p.videoData&&!/^data:video\/(mp4|webm|quicktime);base64,[A-Za-z0-9+/=]+$/.test(p.videoData))delete p.videoData;p.clipStart=Number.isFinite(Number(p.clipStart))?Number(p.clipStart):0;p.duration=Number.isFinite(Number(p.duration))?Number(p.duration):0;}
  return s;
 }
-function kakaoUrl(){return 'https://map.naver.com/p/search/'+encodeURIComponent([state.place,state.area].filter(Boolean).join(' '));}
+function naverMapUrl(){return 'https://map.naver.com/p/search/'+encodeURIComponent([state.place,state.area].filter(Boolean).join(' '));}
 function mapButton(){return `<button class="button map-button" data-action="map">${icon('pin')}네이버 지도 검색 ↗</button>`;}
 function mediaView(p,cls='photo-img'){
  if(cls!=='photo-img'&&safeGif(p.gifData))return `<img class="${cls}" src="${p.gifData}" alt="${esc(p.note||p.name)}">`;
@@ -65,7 +65,7 @@ function downloadBundle(){const files=[],ordered=state.draft.sections.flatMap(s=
 document.addEventListener('input',e=>{if(e.target.dataset.clipStart){const p=state.photos.find(x=>x.id===e.target.dataset.clipStart);if(p){p.clipStart=Number(e.target.value);scheduleSave();}}});
 document.addEventListener('change',e=>{if(e.target.id==='receipt-picker')addReceipts(e.target.files);if(e.target.dataset.reviewToggle!==undefined){if(jobId||photoBusy)return;forkInput();state.useReviews=e.target.checked;scheduleSave();}if(e.target.id==='article-alignment'){state.alignment=e.target.value;scheduleSave();render();}});
 document.addEventListener('click',async e=>{const b=e.target.closest('[data-action]');if(!b||b.disabled)return;const a=b.dataset.action;try{
- if(a==='map'){if(!state.place.trim())return toast('식당 이름과 지점을 먼저 입력해주세요.');window.open(kakaoUrl(),'_blank','noopener,noreferrer');}
+ if(a==='map'){if(!state.place.trim())return toast('식당 이름과 지점을 먼저 입력해주세요.');window.open(naverMapUrl(),'_blank','noopener,noreferrer');}
  if(a==='receipt-upload')$('#receipt-picker')?.click();
  if(['receipt-remove','receipt-apply','gif'].includes(a)&&(jobId||photoBusy||submitting))return;
  if(a==='receipt-remove'){forkInput();state.receipts=state.receipts.filter(p=>p.id!==b.dataset.id);scheduleSave();render();}
