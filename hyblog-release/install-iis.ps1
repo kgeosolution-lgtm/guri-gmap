@@ -8,7 +8,7 @@ foreach($p in @($taskWeb,$taskTarget,$taskRelease,$taskData)){if((Test-Path -Lit
 if([IO.Path]::GetFullPath($taskTarget) -ne 'D:\codesolution\kgeodata\hyblog'){throw 'Target boundary mismatch'}
 $taskPrior=Join-Path $taskTarget 'deployment.json'
 if(Test-Path -LiteralPath $taskTarget){if(-not(Test-Path -LiteralPath $taskPrior)){throw 'Unmanaged existing target'};if((Get-Content -LiteralPath $taskPrior -Raw|ConvertFrom-Json).application -ne 'hyblog'){throw 'Wrong existing app'}}
-$taskFiles=@('index.html','app.js','style.css','mark.svg','enhancements.js','place-picker.js','media-worker.js','composition.js','job-recovery.js','visit.js','decorations.js','location.js','attention.js','gifenc.js','gifenc-LICENSE.txt','api.py','web.config')
+$taskFiles=@('index.html','app.js','style.css','mark.svg','enhancements.js','place-picker.js','media-worker.js','composition.js','expressions.js','expression-ui.js','job-recovery.js','visit.js','decorations.js','location.js','attention.js','gifenc.js','gifenc-LICENSE.txt','api.py','web.config')
 foreach($f in $taskFiles){if(-not(Test-Path -LiteralPath (Join-Path $SourceRoot ('dist\'+$f)))){throw ('Missing release asset: '+$f)}}
 & $taskPython -c "import pathlib; compile(pathlib.Path(r'$SourceRoot\dist\api.py').read_text(encoding='utf-8'),'api.py','exec'); import sqlite3, json, hashlib"
 if($LASTEXITCODE -ne 0){throw 'Queue code check failed'}
