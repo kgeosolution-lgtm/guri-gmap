@@ -85,11 +85,11 @@ class Queue:
             if self.db.execute("SELECT count(*) FROM jobs WHERE owner=? AND created>?", (device['id'],now-3600)).fetchone()[0] >= 10: raise RequestError(429, '한 시간에 10편까지 만들 수 있어요. 잠시 쉬었다 이어주세요.')
             job_id = secrets.token_hex(16)
             if not isinstance(body.get('receipts',[]),list) or len(body.get('receipts',[])) > 3: raise RequestError(400, '영수증은 최대 3장까지 넣어주세요.')
-            allowed = ['place','area','link','visitDate','visitTime','notes','menus','facts','sponsorship','style','photos','receipts','useReviews','reviewLinks','naverAutoSave']
+            allowed = ['place','area','link','visitDate','visitTime','notes','menus','facts','sponsorship','style','stickers','photos','receipts','useReviews','reviewLinks','naverAutoSave']
             payload = {k:body[k] for k in allowed if k in body}
             if route=='/api/naver':
                 if not isinstance(body.get('draft'),dict): raise RequestError(400,'먼저 초안을 만들어주세요.')
-                payload['draft']={k:body['draft'][k] for k in ['title','titles','intro','sections','closing','tags','checks'] if k in body['draft']};payload['kind']='naver';payload['naverAutoSave']=True
+                payload['draft']={k:body['draft'][k] for k in ['title','titles','intro','sections','closing','tags','checks','stickers'] if k in body['draft']};payload['kind']='naver';payload['naverAutoSave']=True
                 payload.pop('receipts',None);payload.pop('notes',None);payload.pop('facts',None)
             self.db.execute('INSERT INTO jobs(id,owner,request_id,status,input,stage,created,updated) VALUES(?,?,?,?,?,?,?,?)', (job_id,device['id'],request_id,'queued',encode(payload),'사진을 보내고 있어요',now,now))
             return 202, {'id':job_id}, None
