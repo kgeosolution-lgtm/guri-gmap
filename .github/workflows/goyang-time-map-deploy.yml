@@ -1,4 +1,4 @@
-name: Goyang time map insight update
+name: Goyang city time map update
 on:
   push:
     branches: [codex/goyang-time-map-deploy]
@@ -11,11 +11,11 @@ concurrency:
 jobs:
   deploy:
     runs-on: [self-hosted, Windows, X64, guri-preview]
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - name: Update map insights with verified previous-version backup
+      - name: Expand verified city maps with previous-version backup
         shell: powershell
         run: ./deploy/install.ps1

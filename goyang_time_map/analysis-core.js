@@ -25,6 +25,7 @@
     const selectedArea = T.area(selection);
     const region = intersection(selection, sheet);
     const result = { selectedArea, coveredArea: region ? T.area(region) : 0, buildings: 0, roads: 0, footprintArea: 0, landArea: 0, uses: [], categories: [], land: [], names: [], featureIds: [], errors: 0 };
+    result.mapOnly=(collection.mapOnlyAreas||[]).some(area=>{const part=intersection(selection,area);return part&&T.area(part)>1;});
     if (!region || result.coveredArea < 1) return result;
     const extent = bbox(region), uses = new Map(), names = new Map(), land = new Map(), footprints = [], allLand = [], counts = new Map();
     for (const feature of collection.features) {
@@ -74,6 +75,7 @@
       } catch (_) { result.errors++; }
     }
     result.land.sort((a, b) => b.area - a.area);
+    if(result.mapOnly){result.buildings=null;result.roads=null;result.footprintArea=null;result.landArea=null;result.uses=[];result.categories=[];result.land=[];}
     return result;
   }
   root.TimeMapAnalysis = { analyze, intersection, overlaps, categories, useCategory, unionArea };

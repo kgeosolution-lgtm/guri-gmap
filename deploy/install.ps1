@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 if ($env:COMPUTERNAME -ne 'KGO-GIS') { throw 'Unexpected server' }
 if ($env:GITHUB_RUN_ID -notmatch '^\d+$') { throw 'Invalid deployment run ID' }
@@ -47,12 +47,18 @@ try {
   Check-Tree $target $expected
   $page = Invoke-WebRequest -UseBasicParsing -Uri ('https://kgeodata.com/app/goyang_time_map/?release=' + $env:GITHUB_RUN_ID) -TimeoutSec 30
   if ($page.StatusCode -ne 200 -or -not $page.Content.Contains('id="insightSection"') -or -not $page.Content.Contains('id="swipeRange"')) { throw 'Public insight page check failed' }
+  $catalogResponse = Invoke-WebRequest -UseBasicParsing -Uri ('https://kgeodata.com/app/goyang_time_map/data/catalog.json?release=' + $env:GITHUB_RUN_ID) -TimeoutSec 30
+  $catalog = $catalogResponse.Content | ConvertFrom-Json
+  if ($catalog.sheets.Count -ne 62 -or $catalog.counts.'2025' -ne 62) { throw 'Public city catalog check failed' }
   foreach ($year in @(2006,2011,2022,2025)) {
-    $response = Invoke-WebRequest -UseBasicParsing -Uri ('https://kgeodata.com/app/goyang_time_map/data/' + $year + '.json') -TimeoutSec 30
+    $response = Invoke-WebRequest -UseBasicParsing -Uri ('https://kgeodata.com/app/goyang_time_map/data/sheets/37608021/' + $year + '.json?release=' + $env:GITHUB_RUN_ID) -TimeoutSec 30
     $dataset = $response.Content | ConvertFrom-Json
     if ($response.StatusCode -ne 200 -or $dataset.type -ne 'FeatureCollection' -or $dataset.features.Count -lt 1) { throw ('Public data check failed: ' + $year) }
     Write-Output ('DATA_OK ' + $year + ' ' + $dataset.features.Count)
   }
+  $expanded = Invoke-WebRequest -UseBasicParsing -Uri ('https://kgeodata.com/app/goyang_time_map/data/sheets/37608007/2025.json?release=' + $env:GITHUB_RUN_ID) -TimeoutSec 30
+  if (($expanded.Content | ConvertFrom-Json).features.Count -lt 1) { throw 'Expanded district check failed' }
+  Write-Output ('CITY_COUNTS ' + ($catalog.counts | ConvertTo-Json -Compress))
 } catch {
   $deploymentError = $_
   if (Test-Path -LiteralPath $target) { Move-Item -LiteralPath $target -Destination $failed }

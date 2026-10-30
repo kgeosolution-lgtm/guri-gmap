@@ -1,13 +1,38 @@
 {
-  "application": "goyang-time-map-seoul021",
-  "version": 2,
-  "release": "urban-change-insights",
-  "preparedAt": "2026-10-29T07:06:17.779Z",
-  "sheet": "37608021",
+  "application": "goyang-time-map-city",
+  "version": 3,
+  "release": "goyang-city-coverage",
+  "preparedAt": "2026-10-30T02:29:05.906Z",
   "years": [
     2006,
     2011,
     2022,
     2025
-  ]
+  ],
+  "counts": {
+    "2006": 56,
+    "2011": 62,
+    "2022": 62,
+    "2025": 62
+  },
+  "coverageByYear": {
+    "2006": {
+      "areaKm2": 221.19885880713468,
+      "cityPercent": 82.98161172254736
+    },
+    "2011": {
+      "areaKm2": 240.7637225878837,
+      "cityPercent": 90.32126952373977
+    },
+    "2022": {
+      "areaKm2": 240.7637225878837,
+      "cityPercent": 90.32126952373977
+    },
+    "2025": {
+      "areaKm2": 240.76362722748178,
+      "cityPercent": 90.32123374977651
+    }
+  },
+  "source": "국토지리정보원",
+  "scopeNote": "공개 목록에서 확보·검증한 고양시 경계 내 자료. 미확보·미확인 영역 별도 표시."
 }

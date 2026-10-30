@@ -1,4 +1,4 @@
-/* Seoul021 time map. All statements come from the selected source map attributes. */
+/* Goyang time map. Statements are restricted to verified source coverage. */
 (() => {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -8,20 +8,21 @@
   const years = [2006, 2011, 2022, 2025];
   const palette = TimeMapAnalysis.categories;
   const dataCache = new Map(), pending = new Map(), groups = new Map(), summaries = new Map(), failures = new Map();
-  const compareGroups = new Map();
-  let compareYear = 2006, viewMode = 'swipe', activeCategory = null, chartMetric = 'buildings', compareToken = 0, syncing = false;
+  const compareGroups = new Map(), analysisData = new Map();
+  let catalog, coverageLayers = [], viewportTimer, requestedYear = 2025, overlayToken = 0;
+  let compareYear = 2006, viewMode = 'single', activeCategory = null, chartMetric = 'buildings', compareToken = 0, syncing = false;
   let meta, year = 2025, selection = null, selectionToken = 0, yearToken = 0, selectedName = '', worker;
   let regionLayer, overlayLayer, labelLayer, highlightLayer, drawing = null, toastTimer;
   let compareRegion, compareLabels, compareHighlight;
-  const mapOptions = { zoomControl: false, preferCanvas: true, minZoom: 13, maxZoom: 20, zoomAnimation: false, markerZoomAnimation: false };
+  const mapOptions = { zoomControl: false, preferCanvas: true, minZoom: 10, maxZoom: 20, zoomAnimation: false, markerZoomAnimation: false };
   const map = L.map('map', { ...mapOptions, attributionControl: true }).setView([37.694, 126.763], 16);
   const compareMap = L.map('compareMap', { ...mapOptions, attributionControl: false }).setView([37.694, 126.763], 16);
   map.attributionControl.setPrefix(false);
-  map.attributionControl.addAttribution('<a href="https://map.ngii.go.kr/" target="_blank" rel="noopener">국토지리정보원</a> · 서울021 | <a href="https://leafletjs.com">Leaflet</a>');
+  map.attributionControl.addAttribution('<a href="https://map.ngii.go.kr/" target="_blank" rel="noopener">국토지리정보원</a> · 고양시 | <a href="https://leafletjs.com">Leaflet</a>');
   L.control.zoom({ position: 'topright' }).addTo(map);
   for (const view of [map, compareMap]) for (const [name, z] of [['boundaryPane', 300], ['dataPane', 310], ['latestPane', 360], ['selectionPane', 390], ['labelsPane', 410]]) {
     view.createPane(name); view.getPane(name).style.zIndex = z;
-    if (['labelsPane','boundaryPane','latestPane','selectionPane'].includes(name)) view.getPane(name).style.pointerEvents = 'none';
+    if (['labelsPane','latestPane','selectionPane'].includes(name)) view.getPane(name).style.pointerEvents = 'none';
   }
   function syncView(from, to) { if (syncing) return; syncing = true; to.setView(from.getCenter(), from.getZoom(), { animate: false }); syncing = false; }
   map.on('move zoom', () => syncView(map, compareMap));
@@ -29,15 +30,38 @@
   const isComparing = () => viewMode === 'swipe' && year > 2006 && !drawing;
   function toast(message) { clearTimeout(toastTimer); $('toast').textContent = message; $('toast').hidden = false; toastTimer = setTimeout(() => { $('toast').hidden = true; }, 4500); }
   async function fetchJSON(path) { const response = await fetch(path); if (!response.ok) throw new Error(`자료 요청 실패 (${response.status})`); return response.json(); }
-  async function loadYear(value) {
-    if (dataCache.has(value)) return dataCache.get(value);
-    if (pending.has(value)) return pending.get(value);
-    const promise = fetchJSON(`data/${value}.json`).then(collection => {
-      dataCache.set(value, collection);
-      if (worker) worker.postMessage({ type: 'cache', year: value, collection });
-      return collection;
-    }).finally(() => pending.delete(value));
-    pending.set(value, promise); return promise;
+  function viewportRegion() { const b=map.getBounds();return turf.bboxPolygon([b.getWest(),b.getSouth(),b.getEast(),b.getNorth()]); }
+  async function loadYear(value, region=null) {
+    const collection = !region && map.getZoom()<14 ? {type:'FeatureCollection',features:[],coverage:null,missing:[]} : await CitySource.load(value,region||viewportRegion());
+    if(region) return collection;
+    return collection;
+  }
+  function replaceGroups(cache,value,collection,view) {
+    for(const set of cache.values())for(const layer of Object.values(set))view.removeLayer(layer);
+    cache.clear();cache.set(value,createGroups(collection,value,view));
+  }
+  function drawCoverage() {
+    for(const [view,layer] of coverageLayers)view.removeLayer(layer);coverageLayers=[];
+    for(const [view,value] of [[map,year],[compareMap,compareYear]]) {
+      view.getPane('dataPane').style.pointerEvents=map.getZoom()<14?'none':'auto';
+      const group=L.layerGroup();
+      group.addLayer(L.geoJSON(catalog.unindexedArea,{pane:'boundaryPane',interactive:map.getZoom()<14,style:{color:'#948b83',weight:1,dashArray:'3 4',fillColor:'#bfb9b0',fillOpacity:.3}}).bindTooltip('공개 목록에서 원본을 확인하지 못한 영역'));
+      for(const sheet of catalog.sheets) {
+        const status=sheet.years[value], ready=status.ready, overview=map.getZoom()<14;
+        if(!overview&&ready)continue;
+        const layer=L.geoJSON(sheet.boundary,{pane:'boundaryPane',interactive:overview,style:{color:ready?'#4d978d':'#b1a9a0',weight:.8,fillColor:ready?'#8cc1ad':'#bfb9b0',fillOpacity:overview?.3:.2}});
+        if(overview)layer.bindTooltip(`${sheet.name} · ${value}년 ${status.status}`).on('click',()=>{if(!drawing)map.fitBounds(layer.getBounds(),{maxZoom:15,animate:false});});
+        group.addLayer(layer);
+      }
+      if(map.getZoom()<14)for(const district of catalog.districts.features) {
+        const center=L.geoJSON(district).getBounds().getCenter();
+        group.addLayer(L.marker(center,{pane:'labelsPane',interactive:false,keyboard:false,icon:L.divIcon({className:'district-label',html:`<span>${escape(district.properties.name.replace('고양시 ',''))}</span>`,iconSize:[100,28],iconAnchor:[50,14]})}));
+      }
+      group.addTo(view);coverageLayers.push([view,group]);
+    }
+    const cityPercent=catalog.coverageByYear?.[year]?.cityPercent;
+    $('cityStatus').textContent=map.getZoom()<14?'동네를 확대해 보세요. 회색은 자료 미확보·미확인입니다.':`${year}년 · 시 면적 ${cityPercent?.toFixed(1) ?? '—'}% 제공 · 회색은 미확보·미확인`;
+    $('coverageCount').textContent='확인 목록 기준 · '+catalog.years.map(y=>`${y} ${catalog.counts[y]}/${catalog.sheets.length}`).join(' · ');
   }
   function category(theme) { return theme === '건물' ? 'buildings' : theme.startsWith('도로') ? 'roads' : theme.startsWith('하천') ? 'water' : 'land'; }
   function style(feature) {
@@ -50,8 +74,11 @@
   }
   function featureHTML(feature, sourceYear = year) {
     const p = feature.properties;
+    const source = catalog.sheets.find(sheet => sheet.number === p.sheetNumber);
+    const provenance = source?.years[sourceYear]?.sourceMetadata?.[0] || {};
+    const dates = [['촬영',provenance['촬영년도']],['조사',provenance['조사년도']],['고시',provenance['고시일자']?.slice(0,10)]].filter(([,v])=>v).map(([k,v])=>`${k} ${escape(v)}`).join(' · ');
     const entries = [['종류', p.theme], ['용도', p.use], ['이름', p.name], ['지도 표기', p.note], ['구분', p.land], ['층수', p.floors], ['도로 폭', p.width ? `${p.width} m` : null]];
-    return `<div class="popup-title">${escape(p.name || p.note || p.use || p.theme)}</div>${entries.filter(([, v]) => v !== undefined && v !== null && v !== '').map(([k, v]) => `<div class="popup-row"><b>${k}</b><span>${escape(v)}</span></div>`).join('')}<p class="popup-meta">${sourceYear}년 제작본 · ${escape(p.sourceLayer)}<br>원본 도형 ID ${escape(p.sourceRecord)}${p.qualityNote ? `<br>${escape(p.qualityNote)}` : ''}</p>`;
+    return `<div class="popup-title">${escape(p.name || p.note || p.use || p.theme)}</div>${entries.filter(([, v]) => v !== undefined && v !== null && v !== '').map(([k, v]) => `<div class="popup-row"><b>${k}</b><span>${escape(v)}</span></div>`).join('')}<p class="popup-meta">${sourceYear}년 제작본 · ${escape(source?.name || p.sheetNumber)}<br>${dates ? dates+'<br>' : ''}${escape(p.sourceLayer)} · 원본 도형 ID ${escape(p.sourceRecord)}${p.qualityNote ? `<br>${escape(p.qualityNote)}` : ''}</p>`;
   }
   function inspectFeature(feature, latlng, sourceYear = year, view = map) {
     if (drawing) return;
@@ -108,30 +135,34 @@
     if (isComparing()) compareLabels = labelsFor(compareYear, compareMap);
   }
   async function updateOverlay() {
+    const token = ++overlayToken;
     if (overlayLayer) { map.removeLayer(overlayLayer); overlayLayer = null; }
     $('overlayLatest').disabled = year === 2025 || isComparing();
     if (year === 2025 || isComparing() || !$('overlayLatest').checked) return;
     try {
       const collection = await loadYear(2025);
-      if (year === 2025 || isComparing() || !$('overlayLatest').checked) return;
+      if (token !== overlayToken || year === 2025 || isComparing() || !$('overlayLatest').checked) return;
       overlayLayer = L.geoJSON(collection, { filter: f => f.properties.theme === '건물', pane: 'latestPane', interactive: false, style: { color: '#d46b3d', weight: 1.4, fill: false, opacity: 0.9 } }).addTo(map);
     } catch (_) { $('overlayLatest').checked = false; toast('2025년 겹치기 자료를 불러오지 못했습니다. 다시 선택해 주세요.'); }
   }
   async function switchYear(value) {
+    clearTimeout(viewportTimer);
+    requestedYear = value;
     const token = ++yearToken;
     $('loading').hidden = false; $('loadingText').textContent = `${value}년 지도를 불러오고 있습니다`; $('errorBox').hidden = true;
     try {
       const collection = await loadYear(value);
       if (token !== yearToken) return;
-      if (!groups.has(value)) groups.set(value, createGroups(collection, value));
+      dataCache.set(value,collection);
+      replaceGroups(groups,value,collection,map);
       year = value;
       if (highlightLayer) map.removeLayer(highlightLayer);
       if (compareHighlight) compareMap.removeLayer(compareHighlight);
       $('featureDetails').hidden = true; map.closePopup(); compareMap.closePopup();
       document.querySelectorAll('[data-year]').forEach(button => button.setAttribute('aria-pressed', String(Number(button.dataset.year) === year)));
       $('mapYear').innerHTML = `${year}<span>년</span>`;
-      const source = meta.yearMeta[year];
-      $('mapDateDetail').textContent = `촬영 ${source['촬영년도']} · 조사 ${source['조사년도']}${year === 2025 ? ' · 최신 제작본' : ''}`;
+      $('mapDateDetail').textContent = '제작년도 기준 · 촬영·조사 시점은 도엽별 상이';
+      drawCoverage();
       if (compareYear >= year && year > 2006) compareYear = 2006;
       updateLayers(); updateComparison(); updateOverlay(); renderSummary(); renderYearCounts(); renderInsights();
       document.querySelectorAll('[data-story-year]').forEach(button => button.setAttribute('aria-pressed', String(Number(button.dataset.storyYear) === year)));
@@ -142,13 +173,11 @@
     } finally { if (token === yearToken) $('loading').hidden = true; }
   }
   function requestAnalysis(value, token) {
-    if (token !== selectionToken || !selection) return;
-    if (worker) worker.postMessage({ type: 'analyze', year: value, token, selection, sheet: meta.sheetBoundary });
-    else setTimeout(() => {
-      if (token !== selectionToken) return;
-      try { receiveResult(value, token, TimeMapAnalysis.analyze(dataCache.get(value), selection, meta.sheetBoundary)); }
-      catch (error) { receiveFailure(value, token, error.message); }
-    }, 0);
+    if(token!==selectionToken||!selection||!analysisData.has(value))return;
+    const collection=analysisData.get(value), sheet=collection.coverage;
+    if(!sheet){receiveResult(value,token,{selectedArea:turf.area(selection),coveredArea:0,buildings:0,roads:0,footprintArea:0,landArea:0,uses:[],categories:[],land:[],names:[],featureIds:[],errors:0});return;}
+    if(worker)worker.postMessage({type:'analyze',year:value,token,collection,selection,sheet});
+    else setTimeout(()=>{if(token!==selectionToken)return;try{receiveResult(value,token,TimeMapAnalysis.analyze(collection,selection,sheet));}catch(e){receiveFailure(value,token,e.message);}},0);
   }
   function receiveResult(value, token, result) {
     if (token !== selectionToken) return;
@@ -160,7 +189,8 @@
     failures.set(value, message); renderYearCounts(); renderInsights(); if (value === year) renderSummary();
   }
   function setSelection(feature, name, fit = false) {
-    selection = feature; selectedName = name; const token = ++selectionToken;
+    if(feature&&turf.area(feature)>20000000){toast('동네 단위로 20 km² 이내의 영역을 골라 주세요.');return;}
+    analysisData.clear();selection = feature; selectedName = name; const token = ++selectionToken;
     summaries.clear(); failures.clear();
     if (regionLayer) map.removeLayer(regionLayer);
     if (compareRegion) compareMap.removeLayer(compareRegion);
@@ -183,7 +213,7 @@
     $('storySbs').setAttribute('aria-pressed', String(presetId === 'sbs'));
     renderSummary(); renderYearCounts(); renderInsights();
     if (!feature) return;
-    [year, ...years.filter(value => value !== year)].forEach(value => loadYear(value).then(() => requestAnalysis(value, token)).catch(error => receiveFailure(value, token, error.message)));
+    [year, ...years.filter(value => value !== year)].forEach(value => loadYear(value,feature).then(collection=>{if(token!==selectionToken)return;analysisData.set(value,collection);requestAnalysis(value,token);}).catch(error=>receiveFailure(value,token,error.message)));
   }
   function fitRegion() {
     if (!selection) return;
@@ -192,15 +222,18 @@
   }
   function applyPreset(id) {
     cancelDrawing();
-    if (id === 'full') setSelection(meta.sheetBoundary, '서울021 전체 영역', true);
+    if (id === 'city') { setSelection(null,'');map.fitBounds(L.geoJSON(meta.sheetBoundary).getBounds(),{animate:false}); }
+    else if (id.startsWith('district-')) { const district=catalog.districts.features.find(f=>f.properties.code===id.slice(9));if(district){setSelection(null,'');map.fitBounds(L.geoJSON(district).getBounds(),{animate:false});} }
+    else if (id === 'full') setSelection(viewportRegion(), '현재 화면 영역', false);
     else { const preset = meta.presets.find(item => item.id === id); if (preset) setSelection(turf.bboxPolygon(preset.bbox), preset.shortName, true); }
   }
   function renderYearCounts() {
     const maximum = Math.max(1, ...[...summaries.values()].map(item => item[chartMetric] || 0));
     $('yearCounts').innerHTML = years.map(value => {
       const result = summaries.get(value), amount = result?.[chartMetric];
-      const count = typeof amount === 'number' ? (chartMetric === 'buildings' ? number(amount) : `${(amount/10000).toFixed(2)}`) : failures.has(value) ? '오류' : selection && !result ? '…' : '—';
-      return `<button class="year-bar" data-count-year="${value}" aria-pressed="${year === value}" aria-label="${value}년 ${count}${chartMetric === 'buildings' ? '개' : '헥타르'}, 해당 연도로 이동"><b>${count}</b><i style="height:${typeof amount === 'number' ? Math.max(2, amount / maximum * 65) : 2}px;background:${chartMetric === 'landArea' ? '#8ab16d' : chartMetric === 'footprintArea' ? '#578eda' : '#e89952'}"></i><span>${value}</span></button>`;
+      const count = result?.mapOnly ? '지도만 제공' : result && result.coveredArea < 1 ? '자료 없음' : typeof amount === 'number' ? (chartMetric === 'buildings' ? number(amount) : `${(amount/10000).toFixed(2)}`) : failures.has(value) ? '오류' : selection && !result ? '…' : '—';
+      const coverage = result ? Math.min(100, result.coveredArea / result.selectedArea * 100) : null;
+      return `<button class="year-bar" data-count-year="${value}" aria-pressed="${year === value}" aria-label="${value}년 ${count}, 해당 연도로 이동"><b>${count}</b><i style="height:${typeof amount === 'number' ? Math.max(2, amount / maximum * 65) : 2}px;background:${chartMetric === 'landArea' ? '#8ab16d' : chartMetric === 'footprintArea' ? '#578eda' : '#e89952'}"></i><span>${value}</span><small class="year-coverage">${coverage === null ? '' : `범위 ${coverage.toFixed(0)}%`}</small></button>`;
     }).join('');
   }
   function renderSummary() {
@@ -208,9 +241,9 @@
     const result = summaries.get(year);
     $('recordSection').setAttribute('aria-busy', String(!!selection && !result && !failures.has(year)));
     $('exportButton').disabled = !result || !result.featureIds.length;
-    $('buildingCount').textContent = result ? number(result.buildings) : '—';
+    $('buildingCount').textContent = result?.coveredArea >= 1 && !result.mapOnly ? number(result.buildings) : '—';
     renderCategories(result);
-    $('roadCount').textContent = result ? number(result.roads) : '—';
+    $('roadCount').textContent = result?.coveredArea >= 1 && !result.mapOnly ? number(result.roads) : '—';
     $('landSection').hidden = !result?.land.length;
     $('coverageNotice').hidden = true;
     if (!result) {
@@ -219,7 +252,8 @@
       $('evidenceList').innerHTML = '<span class="muted">선택 영역의 지도 표기가 여기에 표시됩니다.</span>'; return;
     }
     const notices = [];
-    if (result.coveredArea < 1) notices.push('서울021 도엽 바깥입니다. 주황색 영역을 지도 자료가 있는 안쪽으로 다시 선택해 주세요.');
+    if(result.mapOnly)notices.push('이 영역에는 과거 DXF 자료가 포함됩니다. 경지 기호는 면적 정보가 아니므로 이 연도는 지도와 표기만 제공하고 통계 비교는 표시하지 않습니다.');
+    if (result.coveredArea < 1) notices.push('이 연도의 검증된 원본이 없는 영역입니다. 지도 위의 자료 확보 범위를 확인해 주세요.');
     else if (result.coveredArea < result.selectedArea * 0.995) notices.push(`선택 면적의 ${(result.coveredArea / result.selectedArea * 100).toFixed(1)}%가 제공 범위에 포함됩니다. 그 안의 자료만 집계했습니다.`);
     if (result.errors) notices.push(`도형 계산 오류 ${result.errors}건이 있어 일부 집계가 제외되었습니다.`);
     if (notices.length) { $('coverageNotice').textContent = notices.join(' '); $('coverageNotice').hidden = false; }
@@ -228,8 +262,8 @@
     if (construction) narrative = `지도에 ‘${construction.label}’라는 공사 관련 표기가 남아 있습니다.`;
     else if (result.land.length) narrative += ` 영역 일부에는 ‘${result.land.map(item => item.label).slice(0, 2).join('·')}’으로 기록된 경지가 있습니다.`;
     else if (result.uses.length) narrative += ` 가장 많은 용도 표기는 ‘${result.uses[0].label}’입니다.`;
-    $('narrative').textContent = narrative;
-    $('useList').innerHTML = result.uses.length ? result.uses.map(item => `<div class="use-row"><span>${escape(item.label)}</span><div class="use-bar"><i style="width:${item.count / result.buildings * 100}%;background:${TimeMapAnalysis.useCategory(item.label).color}"></i></div><b>${number(item.count)}</b></div>`).join('') : '<span class="muted">이 영역에 기록된 건물 도형이 없습니다.</span>';
+    $('narrative').textContent = result.mapOnly ? '과거 원본의 건물·도로 윤곽과 경지 기호를 지도에서 확인할 수 있습니다.' : narrative;
+    $('useList').innerHTML = result.uses.length ? result.uses.map(item => `<div class="use-row"><span>${escape(item.label)}</span><div class="use-bar"><i style="width:${item.count / result.buildings * 100}%;background:${TimeMapAnalysis.useCategory(item.label).color}"></i></div><b>${number(item.count)}</b></div>`).join('') : `<span class="muted">${result.mapOnly ? 'DXF 원본의 분류 차이로 통계를 제공하지 않습니다.' : result.coveredArea < 1 ? '이 연도의 검증된 원본이 없는 영역입니다.' : '이 영역에 기록된 건물 도형이 없습니다.'}</span>`;
     $('landList').innerHTML = result.land.map(item => `<span class="land-chip"><b>${escape(item.label)}</b> ${areaLabel(item.area)}</span>`).join('');
     $('evidenceList').innerHTML = result.names.length ? result.names.slice(0, 12).map(item => `<button class="evidence-item" data-feature="${item.id}"><span>${escape(item.label)}</span><small>${escape(item.use || item.theme)} ↗</small></button>`).join('') + (result.names.length > 12 ? `<p class="stat-caption">총 ${number(result.names.length)}개 표기 중 12개 표시</p>` : '') : '<span class="muted">이 영역에서 이름·주기 표기를 찾지 못했습니다.</span>';
   }
@@ -257,7 +291,8 @@
     try {
       const collection = await loadYear(compareYear);
       if (token !== compareToken || !isComparing()) return;
-      if (!compareGroups.has(compareYear)) compareGroups.set(compareYear, createGroups(collection, compareYear, compareMap));
+      dataCache.set(compareYear,collection);
+      replaceGroups(compareGroups,compareYear,collection,compareMap);drawCoverage();
       for (const id of ['compareClip','comparisonLabels','swipeLine','swipeRange','swipeHint']) $(id).hidden = false;
       document.querySelector('.map-date').hidden = true;
       syncing = true; compareMap.invalidateSize({ pan: false }); compareMap.setView(map.getCenter(), map.getZoom(), { animate: false }); syncing = false;
@@ -268,6 +303,7 @@
     }
   }
   function renderCategories(result) {
+    if (result?.coveredArea < 1 || result?.mapOnly) result = null;
     $('donutCount').textContent = result ? number(result.buildings) : '—';
     let offset = 0;
     const segments = (result?.categories || []).filter(item => item.count > 0).map(item => {
@@ -298,7 +334,10 @@
     if (year === 2006) { $('insightTitle').textContent = '변화의 시작점을 살펴보세요.'; $('insightText').textContent = '2006년은 제공하는 가장 오래된 기록입니다. 아래에서 이후 연도를 골라 땅과 건물의 변화를 확인하세요.'; return; }
     if (failures.has(compareYear) || failures.has(year)) { $('insightTitle').textContent = '비교 자료를 확인하지 못했습니다.'; $('insightText').textContent = '선택 영역의 자료를 다시 불러오면 비교를 이어갈 수 있습니다.'; return; }
     if (!before || !after) { $('insightTitle').textContent = '같은 땅의 두 시점을 읽고 있습니다.'; $('insightText').textContent = '건물과 경지의 겹치는 면적을 계산합니다.'; return; }
-    if (after.coveredArea < 1) { $('insightTitle').textContent = '제공 범위 바깥입니다.'; $('insightText').textContent = '서울021 도엽 안으로 영역을 다시 골라 주세요.'; return; }
+    if(before.mapOnly||after.mapOnly){$('insightTitle').textContent='원본 형식이 달라 지도만 비교합니다.';$('insightText').textContent='과거 DXF의 경지 기호·경계선은 면적 자료와 구분해야 합니다. 밀어서 비교로 당시 표기를 확인해 주세요.';return;}
+    if (after.coveredArea < 1) { $('insightTitle').textContent = '제공 범위 바깥입니다.'; $('insightText').textContent = '원본 자료가 확보된 동네를 골라 주세요.'; return; }
+    const citySelection=TimeMapAnalysis.intersection(selection,meta.sheetBoundary), targetArea=citySelection?turf.area(citySelection):0;
+    if(before.coveredArea<targetArea*.995||after.coveredArea<targetArea*.995){$('insightTitle').textContent='두 시점의 자료 범위가 아직 다릅니다.';$('insightText').textContent='미확보 지역을 건물이나 경지가 없었던 곳으로 계산하지 않습니다. 확보 범위 안으로 영역을 좁혀 비교해 주세요.';return;}
     if (before.errors || after.errors || before.footprintArea === null || after.footprintArea === null || before.landArea === null || after.landArea === null) { $('insightTitle').textContent = '일부 도형은 비교에서 확인이 필요합니다.'; $('insightText').textContent = '계산 오류가 있는 상태에서는 면적 변화의 결론을 표시하지 않습니다.'; return; }
     const builtChange = after.footprintArea - before.footprintArea, landChange = after.landArea - before.landArea;
     const builtRatio = before.footprintArea > 0 ? after.footprintArea / before.footprintArea : null;
@@ -363,7 +402,7 @@
     else { $('finishPolygon').disabled = drawing.points.length < 3; if (drawing.mode === 'rect') $('drawMessage').textContent = '반대쪽 모서리를 클릭하세요.'; }
   });
   map.on('mousemove', event => previewDrawing(event.latlng));
-  map.on('moveend zoomend', updateLabels);
+  map.on('moveend zoomend',()=>{updateLabels();if(!catalog)return;clearTimeout(viewportTimer);viewportTimer=setTimeout(()=>switchYear(requestedYear),250);});
   compareMap.on('moveend zoomend', updateLabels);
   $('swipeRange').min = '0'; $('swipeRange').max = '100';
   $('swipeRange').oninput = updateSwipePosition;
@@ -392,7 +431,7 @@
   $('evidenceList').onclick = event => {
     const button = event.target.closest('[data-feature]');
     if (!button) return;
-    const feature = dataCache.get(year)?.features.find(item => item.id === Number(button.dataset.feature));
+    const feature = analysisData.get(year)?.features.find(item => String(item.id) === button.dataset.feature);
     if (feature) { const bounds = L.geoJSON(feature).getBounds(); map.fitBounds(bounds.pad(0.5), { maxZoom: 18 }); inspectFeature(feature, bounds.getCenter()); }
   };
   $('useList').onclick = event => { if (event.target.closest('#retryAnalysis')) setSelection(selection, selectedName); };
@@ -404,26 +443,28 @@
   $('exportButton').onclick = () => {
     const result = summaries.get(year); if (!result || !selection) return;
     const ids = new Set(result.featureIds);
-    const output = { type: 'FeatureCollection', metadata: { sheet: meta.sheet, sheetNumber: meta.sheetNumber, productionYear: year, photoYear: meta.yearMeta[year]['촬영년도'], source: meta.source, selection, note: '선택 영역 및 도엽 범위에 걸친 원본 도형 전체입니다. 경계로 잘라낸 도형이 아닙니다. WGS84 경위도.' }, features: dataCache.get(year).features.filter(feature => ids.has(feature.id)) };
+    const loaded = analysisData.get(year);
+    const output = { type: 'FeatureCollection', metadata: { sheet: meta.sheet, productionYear: year, source: meta.source, selection, coveredArea: result.coveredArea, selectedArea: result.selectedArea, sources: loaded.sheets.map(number=>{const sheet=catalog.sheets.find(s=>s.number===number);return {number,name:sheet.name,metadata:sheet.years[year].sourceMetadata};}), missing: loaded.missing, note: '고양시 경계로 잘라낸 도형 중 선택 영역에 걸친 도형입니다. WGS84 경위도. 미확보 범위는 통계에 포함되지 않습니다.' }, features: loaded.features.filter(feature => ids.has(feature.id)) };
     const url = URL.createObjectURL(new Blob([JSON.stringify(output)], { type: 'application/geo+json' }));
-    const link = document.createElement('a'); link.href = url; link.download = `서울021_${year}_선택영역.geojson`; document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000);
+    const link = document.createElement('a'); link.href = url; link.download = `고양시_${year}_선택영역.geojson`; document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000);
     toast(`${year}년 도형 ${number(output.features.length)}개를 내려받습니다.`);
   };
   async function initialize() {
     $('loading').hidden = false; $('errorBox').hidden = true;
     try {
-      meta = await fetchJSON('data/meta.json');
+      meta = await fetchJSON('data/meta.json');catalog=await CitySource.init();meta.sheetBoundary=catalog.cityBoundary;meta.sheet='고양시';meta.sheetNumber='여러 도엽';
+      for(const district of catalog.districts.features) { const option=document.createElement('option');option.value='district-'+district.properties.code;option.textContent=district.properties.name.replace('고양시 ','')+' 둘러보기';$('preset').insertBefore(option,$('preset').querySelector('[value="full"]')); }
       try {
-        worker = new Worker('analysis-worker.js?v=3df0415fb01f');
+        worker = new Worker('analysis-worker.js?v=abdbed3b048f');
         worker.onmessage = ({ data }) => data.type === 'result' ? receiveResult(data.year, data.token, data.result) : receiveFailure(data.year, data.token, data.message);
-        worker.onerror = () => { worker.terminate(); worker = null; for (const value of years) if (dataCache.has(value) && !summaries.has(value)) requestAnalysis(value, selectionToken); };
+        worker.onerror = () => { worker.terminate(); worker = null; for (const value of years) if (analysisData.has(value) && !summaries.has(value)) requestAnalysis(value, selectionToken); };
       } catch (_) { worker = null; }
       for (const view of [map, compareMap]) {
         L.geoJSON(meta.sheetBoundary, { pane: 'boundaryPane', interactive: false, style: { color: '#6f8681', weight: 1.5, dashArray: '4 5', fill: false } }).addTo(view);
         view.setMaxBounds(L.geoJSON(meta.sheetBoundary).getBounds().pad(1.2));
       }
       $('aboutDialog').insertAdjacentHTML('beforeend', '<h3>변화 요약과 색상 기준</h3><p>건물 윤곽 면적은 선택 영역과 도엽 안에서 건물 도형을 잘라 겹치는 부분을 합친 면적입니다. 연면적·법적 건폐율이 아닙니다. 경지 면적도 같은 방법으로 D001 레이어의 중첩을 제거합니다. 색상은 원본 용도를 5개 묶음으로 표현한 화면용 분류이며, 공공 소유나 법적 용도를 판정하지 않습니다. 연도별 원본 분류 체계의 차이가 있어 색의 변화만으로 실제 용도 전환을 단정할 수 없습니다.</p>');
-      applyPreset('zenith'); await switchYear(2025);
+      $('preset').value='city';applyPreset('city'); await switchYear(2025);
     } catch (error) { $('loading').hidden = true; $('errorText').textContent = error.message; $('errorBox').hidden = false; }
   }
   new ResizeObserver(() => { map.invalidateSize(); if (isComparing()) { syncing = true; compareMap.invalidateSize({pan:false}); compareMap.setView(map.getCenter(), map.getZoom(), {animate:false}); syncing = false; } updateSwipePosition(); }).observe($('map'));
