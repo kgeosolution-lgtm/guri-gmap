@@ -14,5 +14,9 @@
   const scale=Math.min(1,maxWidth/width,maxHeight/height);
   return {width:Math.max(1,Math.floor(width*scale)),height:Math.max(1,Math.floor(height*scale))};
  }
- globalThis.MangnaComposition=Object.freeze({disclosure,beats,fit});
+ const shopHeading=place=>place?'「 '+String(place).trim().replace(/[「」\r\n]/g,'')+' 」':'';
+ const sectionHeading=(heading,index)=>heading?`${index+1}. ${String(heading).replace(/^\d+[.)]\s*/, '')}`:'';
+ // Old developer fixture notices must never leak into a reader-facing article.
+ const cleanArticleText=value=>String(value||'').replace(/기능\s*시험용\s*임시저장입니다\.?\s*(?:공개\s*발행하지\s*않습니다\.?)?/g,'').replace(/\n{3,}/g,'\n\n').trim();
+ globalThis.MangnaComposition=Object.freeze({disclosure,beats,fit,shopHeading,sectionHeading,cleanArticleText});
 })();

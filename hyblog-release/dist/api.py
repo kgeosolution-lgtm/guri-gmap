@@ -206,6 +206,14 @@ class Queue:
         if route=='/worker/revoke' and method=='POST':
             self.db.execute('DELETE FROM devices WHERE id=?',(body.get('id'),))
             return 200, {'revoked':True}, None
+        if route=='/worker/jobs' and method=='GET':
+            rows=self.db.execute('SELECT id,status,stage,result,error,updated FROM jobs ORDER BY created DESC LIMIT 5').fetchall()
+            recent=[]
+            for row in rows:
+                result=json.loads(row['result']) if row['result'] else {}
+                naver=(result.get('draft') or {}).get('naver') or {}
+                recent.append({'id':row['id'],'status':row['status'],'stage':row['stage'],'naverStatus':naver.get('status'),'message':naver.get('message') or row['error'],'updated':row['updated']})
+            return 200, {'jobs':recent}, None
         if route=='/worker/heartbeat' and method=='POST':
             self.db.execute("INSERT OR REPLACE INTO meta VALUES('worker',?)",(encode({'at':now,'ready':body.get('ready') is True,'naverConnected':isinstance(body.get('naver'),dict) and body['naver'].get('connected') is True,'message':str(body.get('message',''))[:200]}),))
             if body.get('id'):
