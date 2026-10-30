@@ -98,7 +98,7 @@ async function pollJob(){
     if(job.status==='done'){
       if(!job.draft?.sections)throw new Error('초안 결과를 다시 확인하고 있어요.');
       if(state.pendingJob?.kind==='naver'&&state.draft)state.draft.naver=job.draft.naver;else state.draft=job.draft;state.lastUsage=job.usage;delete state.pendingJob;jobId=null;jobAttention=null;view='editor';preview=false;
-      const stored=await saveNow();render();window.scrollTo({top:0,behavior:'smooth'});toast(!stored?'초안은 완성됐지만 기기 저장에 실패했어요. 작업 파일로 보관해주세요.':state.draft.naver?.status==='saved'?'네이버 임시저장을 마쳤어요. 수정 화면을 열어보세요.':'초안이 완성되고 이 기기에 저장됐어요.');return;
+      const stored=await saveNow();render();window.scrollTo({top:0,behavior:'smooth'});toast(!stored?'초안은 완성됐지만 기기 저장에 실패했어요. 작업 파일로 보관해주세요.':state.draft.naver?.status==='saved'?'네이버 임시저장을 마쳤어요. 수정 화면을 열어보세요.':state.draft.naver?'초안은 보관했어요. 네이버 저장 안내를 확인해주세요.':'초안이 완성되고 이 기기에 저장됐어요.');return;
     }
     if(job.status==='failed'||job.status==='cancelled'){await finishFailure((job.error||'생성을 취소했어요.')+' 사진과 입력은 임시저장되어 있어요.');return;}
     if(JSON.stringify(jobAttention)!==JSON.stringify(job.attention||null)){jobAttention=job.attention||null;render();}jobStage=job.stage||'사진과 이야기를 읽고 있어요';const stage=$('#job-stage');if(stage)stage.textContent=jobStage;
