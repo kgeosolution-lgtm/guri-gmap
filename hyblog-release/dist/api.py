@@ -2,6 +2,9 @@
 import hashlib, hmac, http.cookies, json, os, re, secrets, sqlite3, sys, time
 from pathlib import Path
 from urllib.parse import parse_qs
+from urllib.parse import urlencode, urlsplit
+from urllib.request import Request, urlopen
+from html.parser import HTMLParser
 
 ROOT = Path(__file__).resolve().parent
 MAX_BODY = 52 * 1024 * 1024
@@ -14,6 +17,61 @@ class RequestError(Exception):
 
 def digest(value): return hashlib.sha256(value.encode('utf8')).hexdigest()
 def encode(value): return json.dumps(value, ensure_ascii=False, separators=(',', ':'))
+
+class PlaceCards(HTMLParser):
+    """Read public share cards and the exact place link in the same card.
+
+    Never infer a branch/address from the query or from a neighbouring result.
+    No login, cookies, browser state or executable page scripts are used.
+    """
+    VOID = {'area','base','br','col','embed','hr','img','input','link','meta','param','source','track','wbr'}
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.stack = [{'tag':'root','ids':set(),'cards':[]}]
+        self.cards = []
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs); frame = {'tag':tag,'ids':set(),'cards':[]}
+        u = urlsplit(a.get('href',''))
+        m = re.search(r'/place/(\d+)(?:/|$)', u.path)
+        if u.hostname in ('map.naver.com','m.place.naver.com','pcmap.place.naver.com') and m:
+            frame['ids'].add(m[1])
+        name, address = a.get('data-line-title','').strip(), a.get('data-line-description','').strip()
+        if name and len(address) >= 6:
+            card = {'name':name[:120], 'address':address[:240]}
+            frame['cards'].append(card); self.cards.append(card)
+        self.stack.append(frame)
+        if tag in self.VOID: self._close()
+    def _close(self):
+        f = self.stack.pop()
+        for c in f['cards']:
+            c['_levels'] = c.get('_levels',0)+1
+            if len(f['ids']) == 1 and c['_levels'] <= 6 and f['tag'] not in ('html','body','root'):
+                c.setdefault('placeId', next(iter(f['ids'])))
+        self.stack[-1]['ids'].update(f['ids'])
+        self.stack[-1]['cards'].extend(f['cards'])
+    def handle_endtag(self, tag):
+        for i in range(len(self.stack)-1,0,-1):
+            if self.stack[i]['tag'] == tag:
+                while len(self.stack) > i: self._close()
+                break
+    def results(self):
+        out, seen = [], set()
+        for card in self.cards:
+            pid = card.get('placeId')
+            if pid and pid not in seen:
+                out.append({'name':card['name'],'address':card['address'],'placeId':pid,'url':'https://map.naver.com/p/entry/place/'+pid})
+                seen.add(pid)
+        return out[:6]
+
+def search_places(query):
+    request = Request('https://search.naver.com/search.naver?'+urlencode({'where':'nexearch','query':query}),
+                      headers={'User-Agent':'Mozilla/5.0','Accept':'text/html','Accept-Language':'ko-KR,ko;q=0.9'})
+    with urlopen(request, timeout=8) as response:
+        if urlsplit(response.url).hostname != 'search.naver.com': raise ValueError('Unexpected search destination')
+        raw = response.read(4*1024*1024+1)
+        if len(raw) > 4*1024*1024: raise ValueError('Search response too large')
+    parser = PlaceCards(); parser.feed(raw.decode('utf8')); parser.close()
+    return parser.results()
 
 class Queue:
     def __init__(self, root=Path('D:/services/hyblog/data')):
@@ -77,6 +135,27 @@ class Queue:
             approved = bool(device and device['state']=='approved')
             return 200, {'ready': approved and online and bool(presence.get('ready')), 'authRequired':not approved, 'pairCode':device['code'] if device and not approved else None, 'workerOnline':online, 'naverConnected':online and presence.get('naverConnected',False), 'message': '이 기기를 먼저 연결해주세요.' if not approved else ('초안 생성 PC와 연결되지 않았어요. PC에서 한편을 열어주세요.' if not online else presence.get('message','글쓰기 연결 확인 중'))}, None
         if not device or device['state'] != 'approved': raise RequestError(401, '이 기기를 먼저 연결해주세요.')
+        if route == '/api/places/search' and method == 'POST':
+            query = body.get('query','')
+            if not isinstance(query,str) or not 2 <= len(query.strip()) <= 120:
+                raise RequestError(400,'식당 이름과 동네를 2~120자로 입력해주세요.')
+            query = ' '.join(query.split())
+            bucket = 'places:'+device['id']+':'+str(int(now//3600))
+            count = self.db.execute('SELECT count FROM attempts WHERE id=?',(bucket,)).fetchone()
+            if count and count[0] >= 60: raise RequestError(429,'검색이 많아요. 잠시 후 다시 찾아주세요.')
+            self.db.execute('INSERT OR REPLACE INTO attempts VALUES (?,?,?)',(bucket,(count[0] if count else 0)+1,now+3600))
+            cache_key = 'places:'+digest(query)
+            cached = self.db.execute('SELECT data FROM meta WHERE id=?',(cache_key,)).fetchone()
+            data = json.loads(cached[0]) if cached else None
+            # Release the queue write lock before the external search request.
+            self.db.commit()
+            if data and now-data.get('at',0) < 21600:
+                return 200, {'places':data['places']}, None
+            try: places = search_places(query)
+            except Exception: raise RequestError(502,'네이버 장소 검색이 잠시 연결되지 않아요. 다시 검색하거나 아래에서 직접 입력해주세요.')
+            self.db.execute('INSERT OR REPLACE INTO meta VALUES (?,?)',(cache_key,encode({'at':now,'places':places})))
+            self.db.execute("DELETE FROM meta WHERE id LIKE 'places:%' AND rowid NOT IN (SELECT rowid FROM meta WHERE id LIKE 'places:%' ORDER BY rowid DESC LIMIT 100)")
+            return 200, {'places':places}, None
         request_match = re.fullmatch('/api/jobs/by-request/([a-zA-Z0-9_-]{1,80})',route)
         if request_match and method == 'GET':
             job = self.db.execute('SELECT id FROM jobs WHERE owner=? AND request_id=?',(device['id'],request_match[1])).fetchone()

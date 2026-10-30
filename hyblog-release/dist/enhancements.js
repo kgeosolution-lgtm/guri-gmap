@@ -7,7 +7,7 @@ function normalizeState(s){
  return s;
 }
 function naverMapUrl(){return 'https://map.naver.com/p/search/'+encodeURIComponent([state.place,state.area].filter(Boolean).join(' '));}
-function mapButton(){return `<button class="button map-button" data-action="map">${icon('pin')}네이버 지도 검색 ↗</button>`;}
+function mapButton(){return `<button class="button map-button" data-action="map">${icon('pin')}지점 검색</button>`;}
 function mediaView(p,cls='photo-img'){
  if(safeGif(p.gifData))return `<img class="${cls}" data-animated="true" style="max-width:min(100%,480px);max-height:400px;width:auto;height:auto;object-fit:contain" src="${p.gifData}" alt="${esc(p.note||p.name)}">`;
  if(p.kind==='video'&&/^data:video\/(mp4|webm|quicktime);base64,[A-Za-z0-9+/=]+$/.test(p.videoData||''))return `<video class="${cls}" src="${p.videoData}" poster="${p.data}" controls playsinline preload="metadata"></video>`;
@@ -23,6 +23,26 @@ function researchPanel(){const r=state.draft?.research;if(!r)return '';return `<
 function safeWebUrl(s){try{const u=new URL(s);return u.protocol==='https:'&&!u.username&&!u.password?esc(u.href):'#';}catch{return '#';}}
 function alignmentControl(){return `<label class="alignment">글 정렬 <select id="article-alignment"><option value="center" ${state.alignment!=='left'?'selected':''}>가운데</option><option value="left" ${state.alignment==='left'?'selected':''}>왼쪽</option></select></label>`;}
 const fileData=file=>new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(Error('파일을 읽지 못했어요.'));r.readAsDataURL(file);});
+let mediaWorker=null,mediaWorkId=0;
+const mediaWaiting=new Map();
+function stopMediaWorker(){
+ mediaWorker?.terminate();mediaWorker=null;
+ for(const pending of mediaWaiting.values()){clearTimeout(pending.timer);pending.reject(Error('미디어 준비를 다시 시도해주세요.'));}
+ mediaWaiting.clear();
+}
+function mediaWork(op,data={},transfer=[]){
+ return new Promise((resolve,reject)=>{
+  try{
+   if(!mediaWorker){
+    mediaWorker=new Worker('./media-worker.js',{type:'module'});
+    mediaWorker.onmessage=({data:message})=>{const p=mediaWaiting.get(message.id);if(!p)return;clearTimeout(p.timer);mediaWaiting.delete(message.id);message.error?p.reject(Error(message.error)):p.resolve(message.result);};
+    mediaWorker.onerror=stopMediaWorker;
+   }
+   const id=++mediaWorkId,timer=setTimeout(stopMediaWorker,30000);
+   mediaWaiting.set(id,{resolve,reject,timer});mediaWorker.postMessage({id,op,...data},transfer);
+  }catch(e){reject(e);}
+ });
+}
 async function videoOpen(src){const v=document.createElement('video');v.muted=true;v.playsInline=true;v.preload='auto';await new Promise((resolve,reject)=>{const t=setTimeout(()=>reject(Error('동영상을 읽지 못했어요. H.264 MP4로 내보내 다시 넣어주세요.')),20000);v.onloadeddata=()=>{clearTimeout(t);resolve();};v.onerror=()=>{clearTimeout(t);reject(Error('이 브라우저에서 재생할 수 없어요. H.264 MP4 파일로 다시 넣어주세요.'));};v.src=src;});return v;}
 async function videoSeek(v,time){if(Math.abs(v.currentTime-time)<.002&&v.readyState>=2)return;await new Promise((resolve,reject)=>{const t=setTimeout(()=>reject(Error('동영상 장면을 읽는 시간이 초과됐어요.')),10000);v.onseeked=()=>{clearTimeout(t);resolve();};v.currentTime=time;});}
 function videoCanvas(v,width){const c=document.createElement('canvas'),scale=Math.min(1,width/Math.max(v.videoWidth,v.videoHeight));c.width=Math.max(1,Math.round(v.videoWidth*scale));c.height=Math.max(1,Math.round(v.videoHeight*scale));return c;}
@@ -49,16 +69,17 @@ async function encodeVideoGif(p){
  try{
   const {GIFEncoder,quantize,applyPalette}=await import('./gifenc.js');v=await videoOpen(p.videoData);
   const start=Math.max(0,Math.min(Math.max(0,v.duration-.1),Number(p.clipStart)||0));
-  const c=videoCanvas(v,480),ctx=c.getContext('2d',{willReadFrequently:true}),gif=GIFEncoder();
+  const c=videoCanvas(v,480),ctx=c.getContext('2d',{willReadFrequently:true});let offthread=true;try{await mediaWork('gif-start');}catch{offthread=false;}const gif=offthread?null:GIFEncoder();
   const length=Math.min(4,v.duration-start),frames=Math.max(2,Math.ceil(length*8));
   for(let i=0;i<frames;i++){
    updateMediaProgress(`${p.name||'동영상'} · 움짤 만드는 중 ${Math.round(i/frames*100)}%`);
    await videoSeek(v,Math.max(0,Math.min(v.duration-.03,start+i/8)));ctx.drawImage(v,0,0,c.width,c.height);
-   const rgba=ctx.getImageData(0,0,c.width,c.height).data,palette=quantize(rgba,128);
-   gif.writeFrame(applyPalette(rgba,palette),c.width,c.height,{palette,delay:125,repeat:0});
+   const rgba=ctx.getImageData(0,0,c.width,c.height).data;
+   if(offthread)await mediaWork('gif-frame',{rgba:rgba.buffer,width:c.width,height:c.height},[rgba.buffer]);
+   else{const palette=quantize(rgba,128);gif.writeFrame(applyPalette(rgba,palette),c.width,c.height,{palette,delay:125,repeat:0});}
    await new Promise(r=>setTimeout(r,0));
   }
-  gif.finish();const blob=new Blob([gif.bytes()],{type:'image/gif'});
+  let blob;if(offthread)blob=await mediaWork('gif-end');else{gif.finish();blob=new Blob([gif.bytes()],{type:'image/gif'});}
   if(blob.size>12*1024*1024)throw Error('움짤이 너무 커요. 시작 장면을 바꿔 다시 만들어주세요.');
   p.gifData=await fileData(blob);p.gifStart=start;p.clipStart=start;p.gifSeconds=length;p.gifFrames=frames;
   updateMediaProgress('움짤 완성 · 움직이는 미리보기를 확인해주세요');
@@ -75,16 +96,16 @@ async function ensureGifs(){
  catch(e){ok=false;error=e.message+' 움짤 준비 후 다시 눌러주세요.';}
  finally{photoBusy=false;mediaProgress='';await saveNow();render();}return ok;
 }
-function paymentToggle(){return `<label class="check-line payment-toggle"><input type="checkbox" data-payment="self" ${state.sponsorship==='self'?'checked':''} ${jobId||submitting||photoBusy?'disabled':''}>내돈내산</label>`;}
-function paymentFields(){return `<div class="payment-card"><h3>이 글의 비용 표시</h3>${paymentToggle()}<p class="hint">직접 결제한 방문이라면 체크해주세요. 글 상단에 내돈내산 문구가 들어가요.</p><label class="check-line provided-toggle"><input type="checkbox" data-payment="provided" ${state.sponsorship==='provided'?'checked':''} ${jobId||submitting||photoBusy?'disabled':''}>식사 제공 · 협찬을 받았어요</label></div>`;}
+function paymentToggle(){return `<label class="check-line payment-toggle"><input type="checkbox" data-payment="self" ${state.sponsorship==='self'?'checked':''} ${jobId||submitting?'disabled':''}>내돈내산</label>`;}
+function paymentFields(){return `<div class="payment-card"><h3>이 글의 비용 표시</h3>${paymentToggle()}<p class="hint">직접 결제한 방문이라면 체크해주세요. 글 상단에 내돈내산 문구가 들어가요.</p><label class="check-line provided-toggle"><input type="checkbox" data-payment="provided" ${state.sponsorship==='provided'?'checked':''} ${jobId||submitting?'disabled':''}>식사 제공 · 협찬을 받았어요</label></div>`;}
 function disclosureMarkup(){const text=MangnaComposition.disclosure(state.sponsorship);return text?`<p class="payment-disclosure ${state.sponsorship==='self'?'self-paid':''}">${esc(text)}</p>`:'';}
 function sectionPreview(s){return MangnaComposition.beats(s).map(b=>`<div class="article-images">${b.photoIds.map(id=>{const p=state.photos.find(p=>p.id===id);return p?mediaView(p,'article-media'):'';}).join('')}</div>${b.body?`<div class="read-text">${esc(b.body)}</div>`:''}`).join('');}
 document.addEventListener('change',e=>{
  if(e.target.dataset.payment){
-  if(jobId||submitting||photoBusy)return;
+  if(jobId||submitting)return;
   state.sponsorship=e.target.checked?e.target.dataset.payment:'unknown';
   if(state.draft?.naver)state.draft.naver={...state.draft.naver,status:'needs_attention',message:'비용 표시를 바꿨어요. 현재 초안을 다시 임시저장하면 네이버에도 반영돼요.'};
-  scheduleSave();render();
+  scheduleSave();if(photoBusy)document.querySelectorAll('[data-payment]').forEach(el=>el.checked=el.dataset.payment===state.sponsorship);else render();
  }
 });
 
@@ -113,9 +134,9 @@ function naverDialog(){showDialog(`<h2>하연의 네이버에 임시저장</h2><
 function zipStore(files){const enc=new TextEncoder(),chunks=[],central=[];let offset=0;const crc=bytes=>{let n=-1;for(const b of bytes){n^=b;for(let k=0;k<8;k++)n=(n>>>1)^((n&1)?0xedb88320:0);}return (n^-1)>>>0;};for(const f of files){const name=enc.encode(f.name),data=typeof f.data==='string'?enc.encode(f.data):f.data,checksum=crc(data),head=new Uint8Array(30+name.length),v=new DataView(head.buffer);v.setUint32(0,0x04034b50,true);v.setUint16(4,20,true);v.setUint16(6,0x800,true);v.setUint32(14,checksum,true);v.setUint32(18,data.length,true);v.setUint32(22,data.length,true);v.setUint16(26,name.length,true);head.set(name,30);const c=new Uint8Array(46+name.length),d=new DataView(c.buffer);d.setUint32(0,0x02014b50,true);d.setUint16(4,20,true);d.setUint16(6,20,true);d.setUint16(8,0x800,true);d.setUint32(16,checksum,true);d.setUint32(20,data.length,true);d.setUint32(24,data.length,true);d.setUint16(28,name.length,true);d.setUint32(42,offset,true);c.set(name,46);central.push(c);chunks.push(head,data);offset+=head.length+data.length;}const size=central.reduce((n,c)=>n+c.length,0),end=new Uint8Array(22),e=new DataView(end.buffer);e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,size,true);e.setUint32(16,offset,true);return new Blob([...chunks,...central,end],{type:'application/zip'});}
 function downloadBundle(){const files=[],ordered=state.draft.sections.flatMap(s=>s.photoIds).map(id=>state.photos.find(p=>p.id===id)).filter(Boolean);ordered.forEach((p,i)=>{const n=String(i+1).padStart(2,'0');files.push({name:n+(safeGif(p.gifData)?'.gif':'.jpg'),data:mediaBytes(safeGif(p.gifData)?p.gifData:p.data)});if(p.videoData)files.push({name:n+'-original.'+(p.videoData.startsWith('data:video/quicktime')?'mov':p.videoData.startsWith('data:video/webm')?'webm':'mp4'),data:mediaBytes(p.videoData)});});files.push({name:'본문.html',data:'<!doctype html><meta charset="utf-8"><h1>'+esc(state.draft.title)+'</h1>'+naverBody(false)},{name:'작성안내.txt',data:'대상 블로그: 101507kim\n제목: '+state.draft.title+'\n\n본문의 [사진 NN] 위치에 같은 번호 사진/GIF를 올려주세요. 원본 영상은 동영상 추가 메뉴로 넣을 수 있습니다. 영수증은 포함되지 않습니다. 저장 후 임시저장 목록에서 확인하세요. 발행 전 내용을 직접 검토해주세요.'});download(filename()+'-네이버.zip',zipStore(files),'application/zip');}
 document.addEventListener('input',e=>{if(e.target.dataset.clipStart){const p=state.photos.find(x=>x.id===e.target.dataset.clipStart);if(p){p.clipStart=Number(e.target.value);scheduleSave();const card=e.target.closest('.media-tools');const label=card?.querySelector('strong');if(label)label.textContent=currentGif(p)?'✓ 움짤 준비 완료':'시작 구간 변경 · 다시 만들기를 눌러주세요';}}});
-document.addEventListener('change',e=>{if(e.target.id==='receipt-picker')addReceipts(e.target.files);if(e.target.dataset.reviewToggle!==undefined){if(jobId||photoBusy)return;forkInput();state.useReviews=e.target.checked;scheduleSave();}if(e.target.id==='article-alignment'){state.alignment=e.target.value;scheduleSave();render();}});
+document.addEventListener('change',e=>{if(e.target.id==='receipt-picker')addReceipts(e.target.files);if(e.target.dataset.reviewToggle!==undefined){if(jobId||submitting)return;forkInput();state.useReviews=e.target.checked;scheduleSave();}if(e.target.id==='article-alignment'){state.alignment=e.target.value;scheduleSave();render();}});
 document.addEventListener('click',async e=>{const b=e.target.closest('[data-action]');if(!b||b.disabled)return;const a=b.dataset.action;try{
- if(a==='map'){if(!state.place.trim())return toast('식당 이름과 지점을 먼저 입력해주세요.');window.open(naverMapUrl(),'_blank','noopener,noreferrer');}
+ if(a==='map')await searchPlaces();
  if(a==='receipt-upload')$('#receipt-picker')?.click();
  if(['receipt-remove','receipt-apply','gif'].includes(a)&&(jobId||photoBusy||submitting))return;
  if(a==='receipt-remove'){forkInput();state.receipts=state.receipts.filter(p=>p.id!==b.dataset.id);scheduleSave();render();}
@@ -140,7 +161,7 @@ function stickerMarkup(index,draft=state.draft){const item=HanpyeonDecorations.p
 
 document.addEventListener('change',e=>{if(['draft-stickers','input-stickers'].includes(e.target.id)){if(jobId||submitting)return;e.target.id==='draft-stickers'?state.draft.stickers=e.target.checked:state.stickers=e.target.checked;scheduleSave();if(e.target.id==='draft-stickers')render();}});
 
-function confirmedLocation(){return state.locationConfirmed?HyblogLocation.validate({name:state.mapName,address:state.mapAddress,confirmed:true}):null;}
+function confirmedLocation(){return state.locationConfirmed?HyblogLocation.validate({name:state.mapName,address:state.mapAddress,placeId:state.mapPlaceId,confirmed:true}):null;}
 function locationFields(){return '<section class="location-fields"><h3>글 마지막에 넣을 위치 <span class="optional">선택</span></h3><p class="hint">네이버 지도에서 지점을 찾고 상호와 도로명 주소를 옮겨주세요. 같은 장소를 확인한 뒤 글 끝에 지도 카드를 넣어요.</p>'+field('mapName','지도에 표시된 상호','예: 더차돌')+field('mapAddress','도로명 주소','예: 경기 과천시 뒷골2로 5 1층')+'<label class="check-line"><input type="checkbox" id="location-confirmed" '+(state.locationConfirmed?'checked':'')+'>방문한 지점이 맞아요 · 글 끝에 위치 넣기</label></section>';}
 function locationPreview(value){let place;try{place=HyblogLocation.validate(value);}catch{return '';}return place?'<div class="article-location"><span>방문한 곳</span><strong>'+esc(place.name)+'</strong><p>'+esc(place.address)+'</p><a href="https://map.naver.com/p/search/'+encodeURIComponent(place.name+' '+place.address)+'" target="_blank" rel="noopener noreferrer">네이버 지도에서 보기 ↗</a><small>네이버 임시저장 시 장소 카드로 넣어요.</small></div>':'';}
 function attentionCard(a){if(!a)return '';return '<section class="attention-card" role="alert"><strong>'+esc(a.title)+'</strong><p>'+esc(a.action)+'</p>'+(a.notification?.accepted===true?'<small>개인 Telegram으로 확인 요청을 보냈어요.</small>':'')+(a.waiting?'<button class="button" data-action="retry-job">확인했어요 · 진행 다시 확인</button><small>이 버튼은 상태를 다시 확인해요. 네이버의 보안 확인은 열린 네이버 화면에서 완료해주세요.</small>':'')+'</section>';}

@@ -29,3 +29,18 @@ body{background:#fff8fc;color:var(--ink)}.topbar{background:#fffafd;border-color
 
 .native-sticker-note{border:1px dashed #d7bfde;border-radius:12px;color:#875993;font-size:12px;padding:12px 18px;max-width:260px;margin:28px auto;text-align:center}.native-sticker-note small{display:block;color:#a181a8;font-size:10px;margin-top:4px}
 .background-notice{padding:16px 18px;margin:0 0 18px;border-radius:14px;background:#fff9ec;border:1px solid #eedbb6;color:#775225}.background-notice.accepted{background:#f3eefb;border-color:#ded0ef;color:#594071}.background-notice strong{display:block;line-height:1.6}.background-notice p{margin:5px 0 0!important;font-size:13px;line-height:1.8}
+/* Inline branch selection and a compact payment choice below the visit time. */
+.place-search-status{font-size:13px;line-height:1.7;color:#785875;display:flex;align-items:center;gap:10px}
+.place-search-status:empty{display:none}
+.place-results{padding:0;margin:14px 0;list-style:none;display:grid;gap:8px}
+.place-results li{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #e8dce7;border-radius:12px;padding:5px 12px 5px 5px}
+.place-result{display:flex;align-items:center;justify-content:space-between;gap:12px;flex:1;min-width:0;background:none;border:0;padding:12px;text-align:left;color:inherit;cursor:pointer;border-radius:8px}
+.place-result:hover,.place-result:focus-visible{background:#fff0f8;outline:2px solid #b786ad}
+.place-result strong,.place-result small{display:block;overflow-wrap:anywhere}
+.place-result strong{font-size:14px;margin-bottom:5px}.place-result small{font-size:12px;line-height:1.6;color:#756b78}
+.place-select-label{font-size:12px;color:#985c8d;flex-shrink:0}.place-results a{font-size:12px;white-space:nowrap;color:#785875}
+.selected-place{display:grid;gap:8px;padding:17px;margin:14px 0;background:#fff;border:1px solid #d4b3ce;border-radius:12px;font-size:13px;overflow-wrap:anywhere}
+.selected-check{color:#916184;font-size:12px}.selected-place strong{font-size:16px}.selected-place>div{display:flex;justify-content:space-between;gap:12px;margin-top:4px}
+.selected-place a{color:#815577}.place-manual{margin-top:12px}.place-manual summary{font-size:12px;color:#807080;cursor:pointer;padding:9px 0}.place-manual[open] .field{margin-top:12px}
+.visit-picker+.payment-card{margin:16px 0 22px}.media-progress{line-height:1.7;overflow-wrap:anywhere}
+@media(max-width:600px){.place-results li{gap:2px;padding-right:9px}.place-result{align-items:flex-start;flex-direction:column;gap:6px;padding:10px}.place-select-label{font-size:11px}.place-results a{font-size:11px}.selected-place{padding:14px}.payment-card{padding:16px}}
