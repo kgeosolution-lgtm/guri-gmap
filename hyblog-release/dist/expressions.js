@@ -2,7 +2,7 @@
   const clean=(s,n=400)=>typeof s==='string'?s.trim().slice(0,n):'';
   const sourceUrl=value=>{try{const u=new URL(value);return u.protocol==='https:'&&!u.username&&!u.password&&(/(^|\.)blog\.naver\.com$|(^|\.)place\.naver\.com$|(^|\.)tistory\.com$|(^|\.)diningcode\.com$|(^|\.)siksinhot\.com$|(^|\.)google\.(com|co\.kr)$/.test(u.hostname))?u.href:'';}catch{return '';}};
   function prepare(items,sections,references){
-    const seen=new Set();return (Array.isArray(items)?items:[]).slice(0,12).flatMap(item=>{
+    const seen=new Set();return (Array.isArray(items)?items:[]).slice(0,18).flatMap(item=>{
       const section=sections[item.sectionIndex],source=references[item.sourceIndex],note=source?.menuNotes?.[item.noteIndex];
       const text=clean(item.text,320),url=sourceUrl(source?.url);
       if(section?.kind!=='food'||!section.photoIds?.[0]||!note||!url||!text||seen.has(text))return [];

@@ -1,15 +1,14 @@
 import {GIFEncoder,quantize,applyPalette} from './gifenc.js';
+import './photo-orientation.js';
 let gif;
 self.onmessage=async({data:{id,op,...data}})=>{
  try{
   let result;
   if(op==='photo'){
-   const bitmap=await createImageBitmap(data.file);
+   const source=await MangnaPhoto.source(data.file);
+   const bitmap=await createImageBitmap(source.blob,{imageOrientation:'from-image'});
    try{
-    if(bitmap.width*bitmap.height>100000000)throw Error('사진 해상도가 너무 높아요.');
-    const scale=Math.min(1,1600/Math.max(bitmap.width,bitmap.height));
-    const c=new OffscreenCanvas(Math.max(1,Math.round(bitmap.width*scale)),Math.max(1,Math.round(bitmap.height*scale))),ctx=c.getContext('2d');
-    ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(bitmap,0,0,c.width,c.height);
+    const c=new OffscreenCanvas(1,1);MangnaPhoto.draw(c,bitmap,source.orientation,data.turns||0);
     result=await c.convertToBlob({type:'image/jpeg',quality:.82});
    }finally{bitmap.close();}
   }else if(op==='gif-start'){gif=GIFEncoder();result=true;}
