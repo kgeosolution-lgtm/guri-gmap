@@ -1063,3 +1063,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 앞 항목(여백 5%→10%)은 요청과 반대였음 — 요청 그림은 구리시가 화면 높이를 꽉 채운 상태. `FIT_MARGIN=0`, `fitExtent()` 는 시 외곽선 실제 범위(`cityBBox`, 받기 전엔 `CITY.extent`)에 여백 없이 맞춘다(CITY.extent 와 합치지 않음 — 합치면 작아짐). 시작 화면·'처음 화면'·주제 변경·칩 변경·동 전체 모두 같은 범위, 모바일은 시트 위 영역 기준(padding 유지).
 - 더 키우고 싶으면 `FIT_MARGIN` 을 음수로(예: -0.03, 가장자리가 조금 잘림).
 - 검증: 스텁 하네스(`pw/fit-test.js`), theme `node --check`, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-fit-large`.
+
+## 2026-11-09 모바일 첫 화면 축척이 다르던 것 수정 (담당: 강민아)
+
+- 증상: 메인에서 우리동네 찾기로 들어온 모바일 첫 화면만 너무 확대됨(칩 변경·'처음 화면' 뒤에는 정상).
+- 원인: 시작 맞춤(`view.when` 의 `view.extent=`)이 지도 크기·padding 이 확정되기 전에 한 번만 실행되고, 이후 크기가 바뀌어도(모바일 주소창·시트) 다시 맞추지 않았음. 나중 화면은 `goTo` 경로라 정상.
+- 조치(`theme.html`): 시작 맞춤 뒤 한 프레임 지나 같은 `goTo` 경로로 한 번 더(`refitInit`, 애니메이션 없음), 지도 크기가 바뀌면 **시작 화면 그대로일 때만**(`atInitView`: 사용자가 안 움직임) 다시 맞춤(`reactiveUtils.watch(width,height)`). 시 외곽선 범위 반영(`setCityBBox`)도 같은 경로.
+- 검증: 스텁 하네스 `pw/initfit-test.js`·`fit-test.js`, theme `node --check`, `npm run build:deploy`, `git diff --check` 통과. 실제 휴대폰 확인 필요. 브랜치 `work/kangmina-mobile-initfit`.
