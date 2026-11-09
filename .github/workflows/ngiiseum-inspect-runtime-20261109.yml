@@ -1,0 +1,36 @@
+name: NGII inspect-runtime
+on:
+  push:
+    branches: [codex/ngiiseum-inspect-runtime-20261109]
+    paths: [.github/workflows/ngiiseum-inspect-runtime-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: inspect-runtime
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'Server identity'}
+          $service='D:\services\ngiiseum'
+          foreach($name in @('postgres.local.json','postgres.log','postgres-data\PG_VERSION','postgres-data\postmaster.pid','data\real50-20261109\review\manifest.json')){
+           $file=Join-Path $service $name
+           if(Test-Path -LiteralPath $file){$item=Get-Item -LiteralPath $file;[ordered]@{file=$name;bytes=$item.Length;created=$item.CreationTimeUtc.ToString('o');modified=$item.LastWriteTimeUtc.ToString('o')}|ConvertTo-Json -Compress}
+          }
+          if(Test-Path -LiteralPath (Join-Path $service 'postgres.log')){
+           $lines=@(Get-Content -LiteralPath (Join-Path $service 'postgres.log') -Tail 30|Where-Object {$_ -notmatch '(?i)password|token|secret|insert into|copy local_flow'})
+           [ordered]@{log='postgres.log';lines=$lines}|ConvertTo-Json -Compress
+          }
+          $listeners=@(Get-NetTCPConnection -State Listen -LocalPort 49326 -ErrorAction SilentlyContinue|Select-Object LocalAddress,LocalPort,OwningProcess)
+          [ordered]@{listeners=$listeners;user=[Security.Principal.WindowsIdentity]::GetCurrent().Name}|ConvertTo-Json -Depth 4 -Compress
+          $p=Start-Process -FilePath (Join-Path $service 'data\real50-20261109\postgres\bin\pg_ctl.exe') -ArgumentList @('-D',(Join-Path $service 'postgres-data'),'status') -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $service 'pg-status.stdout.log') -RedirectStandardError (Join-Path $service 'pg-status.stderr.log')
+          if(-not $p.WaitForExit(10000)){Stop-Process -Id $p.Id;throw 'pg_ctl status did not exit within 10 seconds'}
+          $p.Refresh()
+          [ordered]@{pgStatusExit=$p.ExitCode;stdout=@(Get-Content -LiteralPath (Join-Path $service 'pg-status.stdout.log'));stderr=@(Get-Content -LiteralPath (Join-Path $service 'pg-status.stderr.log'))}|ConvertTo-Json -Compress
+          
