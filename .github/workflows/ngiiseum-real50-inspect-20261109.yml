@@ -1,0 +1,29 @@
+name: NGII real50 preparation read-only evidence
+on:
+  push:
+    branches: [codex/ngiiseum-real50-inspect-20261109]
+    paths: [.github/workflows/ngiiseum-real50-inspect-20261109.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 4
+    steps:
+      - name: Read isolated import and verification receipts
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'Server identity'}
+          $service='D:\services\ngiiseum'
+          foreach($name in @('real-review-import.json','real-review-verification.json','real-review-stage.json','real-review-activate.json')){
+            $file=Join-Path $service $name
+            if(Test-Path -LiteralPath $file){[ordered]@{file=$name;receipt=(Get-Content -LiteralPath $file -Raw|ConvertFrom-Json)}|ConvertTo-Json -Depth 8 -Compress}else{[ordered]@{file=$name;exists=$false}|ConvertTo-Json -Compress}
+          }
+          foreach($name in @('real-review-verification.private.log','review-restore.private.log')){
+            $file=Join-Path $service $name
+            if(Test-Path -LiteralPath $file){$lines=@(Get-Content -LiteralPath $file -Tail 18);[ordered]@{errorFile=$name;lines=$lines}|ConvertTo-Json -Compress}
+          }
+          $processes=@(Get-CimInstance Win32_Process|Where-Object {$_.ExecutablePath -like ($service+'*') -or ($_.Name -eq 'node.exe' -and $_.CommandLine -like '*server-review-database.mjs*') -or ($_.Name -eq 'node.exe' -and $_.CommandLine -like '*verify-real-review.mjs*')}|Select-Object ProcessId,ParentProcessId,Name,ExecutablePath,CreationDate,ReadTransferCount,WriteTransferCount)
+          [ordered]@{isolatedProcesses=$processes;checkedAt=[DateTime]::UtcNow.ToString('o')}|ConvertTo-Json -Depth 5 -Compress
+          foreach($name in @('postgres.local.json','real-review.local.json','postgres-data','data\real50-20261109\business.dump','data\real50-20261109\review\manifest.json')){[ordered]@{path=$name;exists=(Test-Path -LiteralPath (Join-Path $service $name))}|ConvertTo-Json -Compress}
