@@ -1,0 +1,37 @@
+name: NGII verify-detached-start
+on:
+  push:
+    branches: [codex/ngiiseum-verify-detached-start-20261109]
+    paths: [.github/workflows/ngiiseum-verify-detached-start-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: verify-detached-start
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'Server identity'}
+          $release='D:\services\ngiiseum\releases\96f63d01c6d793111217e48d9acfff52218a3c5b'
+          Push-Location $release
+          try{
+           $source=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('aW1wb3J0IGZzIGZyb20gJ25vZGU6ZnMvcHJvbWlzZXMnOwppbXBvcnQgcGF0aCBmcm9tICdub2RlOnBhdGgnOwppbXBvcnQge3NwYXdufSBmcm9tICdub2RlOmNoaWxkX3Byb2Nlc3MnOwppbXBvcnQgcGcgZnJvbSAncGcnOwoKY29uc3Qgc2VydmljZT0nRDovc2VydmljZXMvbmdpaXNldW0nLGRhdGE9cGF0aC5qb2luKHNlcnZpY2UsJ3Bvc3RncmVzLWRhdGEnKTsKaWYocHJvY2Vzcy5lbnYuQ09NUFVURVJOQU1FIT09J0tHTy1HSVMnKXRocm93IEVycm9yKCdEQVRBQkFTRV9TVEFSVF9IT1NUX1JFSkVDVEVEJyk7CmNvbnN0IGNvbmZpZz1KU09OLnBhcnNlKGF3YWl0IGZzLnJlYWRGaWxlKHBhdGguam9pbihzZXJ2aWNlLCdwb3N0Z3Jlcy5sb2NhbC5qc29uJyksJ3V0ZjgnKSk7CmlmKGNvbmZpZy5ob3N0IT09JzEyNy4wLjAuMSd8fGNvbmZpZy5wb3J0IT09NDkzMjZ8fGNvbmZpZy51c2VyIT09J25naWlzZXVtX293bmVyJyl0aHJvdyBFcnJvcignREFUQUJBU0VfU1RBUlRfSURFTlRJVFlfUkVKRUNURUQnKTsKaWYoKGF3YWl0IGZzLnJlYWRGaWxlKHBhdGguam9pbihkYXRhLCdQR19WRVJTSU9OJyksJ3V0ZjgnKSkudHJpbSgpIT09JzE4Jyl0aHJvdyBFcnJvcignREFUQUJBU0VfU1RBUlRfVkVSU0lPTl9SRUpFQ1RFRCcpOwphc3luYyBmdW5jdGlvbiByZWFkeSgpewogY29uc3QgZGI9bmV3IHBnLkNsaWVudCh7Li4uY29uZmlnLGRhdGFiYXNlOidwb3N0Z3JlcycsY29ubmVjdGlvblRpbWVvdXRNaWxsaXM6MTUwMCxxdWVyeV90aW1lb3V0OjE1MDB9KTsKIHRyeXsKICBhd2FpdCBkYi5jb25uZWN0KCk7CiAgY29uc3Qgcj0oYXdhaXQgZGIucXVlcnkoInNlbGVjdCBjdXJyZW50X3VzZXIgbmFtZSxpbmV0X3NlcnZlcl9wb3J0KCkgcG9ydCxjdXJyZW50X3NldHRpbmcoJ2RhdGFfZGlyZWN0b3J5JykgZGlyZWN0b3J5IikpLnJvd3NbMF07CiAgaWYoci5uYW1lIT09Y29uZmlnLnVzZXJ8fHIucG9ydCE9PTQ5MzI2fHxwYXRoLnJlc29sdmUoci5kaXJlY3RvcnkpLnRvTG93ZXJDYXNlKCkhPT1wYXRoLnJlc29sdmUoZGF0YSkudG9Mb3dlckNhc2UoKSl0aHJvdyBFcnJvcignREFUQUJBU0VfU1RBUlRfV1JPTkdfSU5TVEFOQ0UnKTsKICByZXR1cm4gdHJ1ZTsKIH1jYXRjaChlKXtpZihlLmNvZGU9PT0nRUNPTk5SRUZVU0VEJylyZXR1cm4gZmFsc2U7dGhyb3cgRXJyb3IoZS5tZXNzYWdlPT09J0RBVEFCQVNFX1NUQVJUX1dST05HX0lOU1RBTkNFJz9lLm1lc3NhZ2U6J0RBVEFCQVNFX1NUQVJUX1BST0JFX0ZBSUxFRCcpO30KIGZpbmFsbHl7YXdhaXQgZGIuZW5kKCkuY2F0Y2goKCk9Pnt9KTt9Cn0KY29uc3QgcmV1c2VkPWF3YWl0IHJlYWR5KCk7CmlmKCFyZXVzZWQpewogLy8gQSBzeW5jaHJvbm91cyBQb3dlclNoZWxsIHBpcGVsaW5lIGNhbiByZXRhaW4gdGhlIGRlc2NlbmRhbnQgUG9zdGdyZVNRTAogLy8gY29uc29sZSBoYW5kbGVzLiBBIGRldGFjaGVkIGNvbnRyb2xsZXIgd2l0aCBpZ25vcmVkIHN0ZGlvIGV4aXRzIGluZGVwZW5kZW50bHkuCiBhd2FpdCBuZXcgUHJvbWlzZSgocmVzb2x2ZSxyZWplY3QpPT57CiAgY29uc3QgY2hpbGQ9c3Bhd24ocGF0aC5qb2luKHNlcnZpY2UsJ2RhdGEvcmVhbDUwLTIwMjYxMTA5L3Bvc3RncmVzL2Jpbi9wZ19jdGwuZXhlJyksWyctRCcsZGF0YSwnLWwnLHBhdGguam9pbihzZXJ2aWNlLCdwb3N0Z3Jlcy5sb2cnKSwnLXcnLCctdCcsJzIwJywnc3RhcnQnXSx7CiAgIGRldGFjaGVkOnRydWUsd2luZG93c0hpZGU6dHJ1ZSxzdGRpbzonaWdub3JlJyxlbnY6ey4uLnByb2Nlc3MuZW52LFJVTk5FUl9UUkFDS0lOR19JRDonbmdpaXNldW0tcmV2aWV3LXBvc3RncmVzJ30sCiAgfSk7CiAgY29uc3QgdGltZXI9c2V0VGltZW91dCgoKT0+e2NoaWxkLmtpbGwoKTtyZWplY3QoRXJyb3IoJ0RBVEFCQVNFX1NUQVJUX0NPTlRST0xMRVJfVElNRU9VVCcpKTt9LDI1MDAwKTsKICBjaGlsZC5vbmNlKCdlcnJvcicsKCk9PntjbGVhclRpbWVvdXQodGltZXIpO3JlamVjdChFcnJvcignREFUQUJBU0VfU1RBUlRfQ09OVFJPTExFUl9VTkFWQUlMQUJMRScpKTt9KTsKICBjaGlsZC5vbmNlKCdleGl0Jyxjb2RlPT57Y2xlYXJUaW1lb3V0KHRpbWVyKTtjb2RlPT09MD9yZXNvbHZlKCk6cmVqZWN0KEVycm9yKCdEQVRBQkFTRV9TVEFSVF9GQUlMRURfU0VFX1BPU1RHUkVTX0xPRycpKTt9KTsKIH0pOwogaWYoIWF3YWl0IHJlYWR5KCkpdGhyb3cgRXJyb3IoJ0RBVEFCQVNFX05PVF9SRUFEWV9BRlRFUl9TVEFSVCcpOwp9CmNvbnN0IHJlcG9ydD17cmVhZHk6dHJ1ZSxyZXVzZWQscG9ydDo0OTMyNixkYXRhRGlyZWN0b3J5OmRhdGEsdmVyaWZpZWRBdDpuZXcgRGF0ZSgpLnRvSVNPU3RyaW5nKCl9Owphd2FpdCBmcy53cml0ZUZpbGUocGF0aC5qb2luKHNlcnZpY2UsJ3Bvc3RncmVzLXN0YXJ0Lmpzb24nKSxKU09OLnN0cmluZ2lmeShyZXBvcnQsbnVsbCwyKSk7CmNvbnNvbGUubG9nKEpTT04uc3RyaW5naWZ5KHJlcG9ydCkpOwo='))
+           $source | & node.exe --input-type=module
+           if($LASTEXITCODE -ne 0){throw 'Detached startup verification failed'}
+           $source | & node.exe --input-type=module
+           if($LASTEXITCODE -ne 0){throw 'Existing instance reuse verification failed'}
+           @'
+          import fs from 'node:fs/promises';import pg from 'pg';
+          const cfg=JSON.parse(await fs.readFile('D:/services/ngiiseum/postgres.local.json','utf8'));
+          const c=new pg.Client({...cfg,database:'postgres'});await c.connect();
+          try{const n=(await c.query("select count(*)::int n from pg_database where datname='ngiiseum_review_real50_20261109'")).rows[0].n;console.log(JSON.stringify({reviewDatabaseExists:n===1,checkedAt:new Date().toISOString()}));}finally{await c.end();}
+          '@ | & node.exe --input-type=module
+           if($LASTEXITCODE -ne 0){throw 'Empty import state verification failed'}
+          }finally{Pop-Location}
+          
