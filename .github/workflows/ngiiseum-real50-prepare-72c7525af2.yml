@@ -1,0 +1,27 @@
+name: NGII real50 prepare 72c7525af2
+on:
+  push:
+    branches: [codex/ngiiseum-real50-prepare-72c7525af2]
+    paths: [.github/workflows/ngiiseum-real50-prepare-72c7525af2.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  run:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 30
+    steps:
+      - name: prepare isolated real drawing review
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $ProgressPreference='SilentlyContinue'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'Server identity'}
+          $source='D:\services\ngiiseum\releases\72c7525af2959c27d34be4c991b8311bf38150e6'
+          try{
+          & (Join-Path $source 'deploy\real-review-release.ps1') -SourceRoot $source -SourceCommit '72c7525af2959c27d34be4c991b8311bf38150e6' -ExpectedPrevious '72c7525af2959c27d34be4c991b8311bf38150e6' -Mode 'prepare' -ArchiveSha 'dfbe176a964266a3c000af9d99394e93b26988f27784e0fb6220c5058464fd0c' -ArchiveBytes 1675534483
+            if($LASTEXITCODE -ne 0){throw 'Real review operation failed'}
+          }finally{
+          }
