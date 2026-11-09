@@ -1,0 +1,35 @@
+name: NGII Seumter server preflight
+on:
+  push:
+    branches: [codex/ngiiseum-preflight-20261109]
+    paths: [.github/workflows/ngiiseum-preflight-20261109.yml]
+permissions:
+  contents: read
+jobs:
+  preflight:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 3
+    steps:
+      - name: Read server capabilities without changing services
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'Unexpected server'}
+          $admin=([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+          $ports=@(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty LocalPort -Unique)
+          $report=[ordered]@{
+            machine=$env:COMPUTERNAME
+            admin=$admin
+            node=(& node --version)
+            webRoot=(Test-Path -LiteralPath 'D:\codesolution\kgeodata')
+            targetExists=(Test-Path -LiteralPath 'D:\codesolution\kgeodata\ngiiseum')
+            servicesRoot=(Test-Path -LiteralPath 'D:\services')
+            dFreeBytes=(Get-PSDrive D).Free
+            zDrivePresent=(Test-Path -LiteralPath 'Z:\')
+            postgresServices=@(Get-Service -Name '*postgres*' -ErrorAction SilentlyContinue | ForEach-Object {$_.Name+':'+$_.Status})
+            port4190Free=(-not ($ports -contains 4190))
+            port5432Free=(-not ($ports -contains 5432))
+            iisRewrite=(Test-Path -LiteralPath 'C:\Windows\System32\inetsrv\rewrite.dll')
+            iisARR=(Test-Path -LiteralPath 'C:\Program Files\IIS\Application Request Routing\requestRouter.dll')
+          }
+          $report | ConvertTo-Json -Depth 4 -Compress
