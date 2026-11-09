@@ -1,0 +1,59 @@
+name: NGII real50 stage 96f63d01c6
+on:
+  push:
+    branches: [codex/ngiiseum-real50-stage-96f63d01c6]
+    paths: [.github/workflows/ngiiseum-real50-stage-96f63d01c6.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  run:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 30
+    steps:
+      - name: stage isolated real drawing review
+        shell: powershell
+        env:
+          NGII_ARCHIVE: ${{ secrets.NGII_REAL50_STAGE_96F63D01C6 }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $ProgressPreference='SilentlyContinue'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'Server identity'}
+          $source='D:\services\ngiiseum\releases\96f63d01c6d793111217e48d9acfff52218a3c5b'
+          try{
+
+          $tempRoot=[IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\')
+          $work=[IO.Path]::GetFullPath((Join-Path $tempRoot ('ngiiseum-real50-'+[Guid]::NewGuid().ToString('N'))))
+          if(-not $work.StartsWith($tempRoot+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Temporary boundary'}
+          New-Item -ItemType Directory -Path $work | Out-Null
+          $zip=Join-Path $work 'source.zip'
+          try{Invoke-WebRequest -UseBasicParsing $env:NGII_ARCHIVE -OutFile $zip -TimeoutSec 90}catch{throw 'Source unavailable; URL withheld'}
+          $env:NGII_ARCHIVE=$null
+          if((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'c45e2e4200effca34194f052553120ca2732728876631f341ca9d75b3616a525'){throw 'Source hash'}
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $extractRoot=[IO.Path]::GetFullPath((Join-Path $work 'source')).TrimEnd('\')
+          $sourceZip=[IO.Compression.ZipFile]::OpenRead($zip)
+          try{
+            $seen=@{}
+            foreach($entry in $sourceZip.Entries){
+              $entryPath=[IO.Path]::GetFullPath((Join-Path $extractRoot $entry.FullName))
+              if(-not $entryPath.StartsWith($extractRoot+'\',[StringComparison]::OrdinalIgnoreCase) -or $seen.ContainsKey($entryPath)){throw 'Source entry boundary'}
+              $seen[$entryPath]=$true
+            }
+          }finally{$sourceZip.Dispose()}
+          Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $work 'source')
+          $roots=@(Get-ChildItem -LiteralPath (Join-Path $work 'source') -Directory)
+          if($roots.Count -ne 1){throw 'Source layout'}
+          $source=$roots[0].FullName
+          & (Join-Path $source 'deploy\real-review-release.ps1') -SourceRoot $source -SourceCommit '96f63d01c6d793111217e48d9acfff52218a3c5b' -ExpectedPrevious 'ac8454272a3247b9e5340ce635857f94347c0a2f' -Mode 'stage' -ArchiveSha 'dfbe176a964266a3c000af9d99394e93b26988f27784e0fb6220c5058464fd0c' -ArchiveBytes 1675534483
+            if($LASTEXITCODE -ne 0){throw 'Real review operation failed'}
+          }finally{
+            $env:NGII_ARCHIVE=$null
+            if($work -and (Test-Path -LiteralPath $work)){
+              $cleanup=[IO.Path]::GetFullPath($work)
+              if(-not $cleanup.StartsWith($tempRoot+'\',[StringComparison]::OrdinalIgnoreCase) -or -not ([IO.Path]::GetFileName($cleanup)).StartsWith('ngiiseum-real50-')){throw 'Cleanup boundary'}
+              Remove-Item -LiteralPath $cleanup -Recurse -Force
+            }
+          }
