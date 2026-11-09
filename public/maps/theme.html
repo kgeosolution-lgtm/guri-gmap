@@ -2599,6 +2599,14 @@ require(["esri/config","esri/Map","esri/Basemap","esri/WebMap","esri/views/MapVi
     catch(e){ try{ const f=cityFit(); view.center=f.center; view.zoom=f.zoom; }catch(e2){} }
     INIT_VIEW={center:[view.center.longitude,view.center.latitude],zoom:view.zoom};
     console.log('[시작 화면] 배율',INIT_VIEW.zoom,'| 축척 1:'+Math.round(view.scale),'| 좌표계',view.spatialReference&&view.spatialReference.wkid);
+    /* 한 프레임 뒤 같은 경로(goTo)로 한 번 더 — 모바일은 이때 지도 크기·padding 이 확정된다 */
+    requestAnimationFrame(()=>{ if(atInitView()) refitInit('시작 화면 확정'); });
+    /* 지도 크기가 바뀌면(모바일 주소창 접힘·회전 등) 시작 화면 그대로일 때만 다시 맞춘다 */
+    let lastSize=view.width+'x'+view.height;
+    reactiveUtils.watch(()=>[view.width,view.height],()=>{
+      const s=view.width+'x'+view.height; if(s===lastSize) return; lastSize=s;
+      if(atInitView()) refitInit('지도 크기 변경 '+s);
+    });
   });
 
   /* 웹맵 재시도 없음 */
@@ -2895,12 +2903,24 @@ function fitExtent(){
 function setCityBBox(e){
   if(!e||!isFinite(e.xmin)||e.xmax<=e.xmin||e.ymax<=e.ymin) return;
   cityBBox={xmin:e.xmin,ymin:e.ymin,xmax:e.xmax,ymax:e.ymax};
-  if(!view||!INIT_VIEW) return;
-  const c=view.center, same=c&&Math.abs(view.zoom-INIT_VIEW.zoom)<1e-6
+  if(atInitView()) refitInit('시 외곽선 범위');
+}
+/* 아직 시작 화면 그대로인가(사용자가 지도를 안 움직임) */
+function atInitView(){
+  if(!view||!INIT_VIEW) return false;
+  const c=view.center;
+  return !!c&&Math.abs(view.zoom-INIT_VIEW.zoom)<1e-6
     &&Math.abs(c.longitude-INIT_VIEW.center[0])<1e-6&&Math.abs(c.latitude-INIT_VIEW.center[1])<1e-6;
-  if(!same) return;
-  try{ view.extent=fitExtent(); INIT_VIEW={center:[view.center.longitude,view.center.latitude],zoom:view.zoom};
-       console.log('[시작 화면] 시 외곽선 범위로 다시 맞춤',+view.zoom.toFixed(2)); }catch(err){}
+}
+/* 시작 화면을 다시 맞춘다(애니메이션 없이, 나중 '처음 화면'과 같은 goTo 경로). 2026-11-09: 모바일에서 첫 화면만 축척이 달랐음 —
+ * 지도 크기가 확정되기 전의 한 번뿐인 맞춤 때문. 지도 크기가 바뀌어도 시작 화면 그대로면 다시 맞춘다 */
+let _refitBusy=false;
+function refitInit(why){
+  if(!view||_refitBusy) return; _refitBusy=true;
+  const done=()=>{ _refitBusy=false; INIT_VIEW={center:[view.center.longitude,view.center.latitude],zoom:view.zoom};
+    console.log('[시작 화면] 다시 맞춤:',why,'배율',+view.zoom.toFixed(2)); };
+  try{ view.goTo(fitExtent(),{animate:false}).then(done,()=>{ try{ view.extent=fitExtent(); }catch(e){} done(); }); }
+  catch(err){ try{ view.extent=fitExtent(); }catch(e){} done(); }
 }
 function ringsBBox(rings){
   let xmin=180,xmax=-180,ymin=90,ymax=-90;
