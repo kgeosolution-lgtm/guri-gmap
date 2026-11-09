@@ -1048,3 +1048,12 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 구리시 요청: 구리 동네소식(guri.kgeohub.com)은 12월에 오픈해 달라고 할 때 공개. 지금은 메뉴와 메인에서 안 보이게.
 - 조치: 유기동물 찾기와 같은 방식의 스위치 — `src/config/site.config.ts` `features.newsHub: false`. `shell-nav.json` 의 링크에 `"feature": "newsHub"` 를 달아 홈 헤더·푸터(`shellLinks()`)와 지도 4쪽 헤더(`sync-shell.mjs`, 주석으로 남김)에서 빠지고, 메인의 '함께 나누는 구리' 단락(`page.tsx` news-section)도 같은 플래그로 감쌈. 12월에 `true` 로만 바꾸고 배포하면 전부 다시 보인다.
 - 검증: 플래그 on/off 둘 다 sync-shell 로 확인, `npx tsc --noEmit`, prettier, `npm run build:deploy` 후 out 의 홈·지도 4쪽에 보이는 동네소식 링크 0건(주석만), `git diff --check` 통과. 브랜치 `work/kangmina-hide-news`.
+
+## 2026-11-09 구리시 변경요청(11-07) 4가지 반영 (담당: 강민아)
+
+1. **메인 하단 문의 문구**: `site.config.ts` contact → 경기도 구리시청 **정보통신과 031-550-2083**(토지정보과 031-550-8731 에서 변경). 메인 푸터·404 페이지·`/v1` 푸터가 같은 값을 쓴다.
+2. **메인 '우리동네 지도 열기' 단추**: 첫 화면을 **시즌·겨울** 그룹으로(`page.tsx`, 전엔 생활편의).
+3. **우리동네 찾기 첫 화면 축척**(`theme.html`): 시 끝(갈매동 북쪽·교문1동 남쪽)이 잘려 보임 → 여백 5%→10%(`FIT_MARGIN`), 시 외곽선(행정동 합집합 또는 시경계)을 받으면 그 실제 범위(`cityBBox`)를 `CITY.extent` 와 합쳐 맞춘다(`setCityBBox`: 사용자가 아직 지도를 안 움직였을 때만 다시 맞춤). '처음 화면' 단추·칩 변경·동 전체도 같은 범위.
+4. **모바일 첫 화면 위치**: 지도 범위를 아래 시트에 가리지 않는 부분에 맞추도록 `view.padding.bottom` 을 시트 높이(peek 206px / min 54px, CSS 와 같은 값 `SHEET_PEEK`·`SHEET_MIN`)로 둔다(`syncMapPadding`: 시작·시트 상태 변경·창 크기 변경 때). 구리시 전체가 시트 위 영역 가운데에 들어온다. PC 는 0.
+
+- 검증: 스텁 하네스 `pw/fit-test.js`(여백 10%, 외곽선 범위 합치기 1회, 사용자가 움직인 뒤엔 안 맞춤, 모바일 padding 206/54·PC 0), 기존 하네스, theme `node --check`, `npx tsc --noEmit`, prettier, `npm run build:deploy`(푸터·404 문구, 단추 주소 확인), `git diff --check` 통과. 브랜치 `work/kangmina-req-1107`. 실제 지도 화면은 배포 후 담당자 확인 필요(개발 환경에선 지도 서버 접근 불가).

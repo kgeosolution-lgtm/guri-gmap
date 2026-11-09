@@ -383,6 +383,9 @@ const CITY={
   basemapWebmapId:"",   /* 포털 웹맵으로 배경을 쓰려면 ID 입력 (지금은 위 벡터타일 3장으로 직접 구성) */
   vworldKey:""   /* 공식 브이월드 키 발급 시 입력 */
 };
+/* 시작 화면·전체보기 여백(10%)과 시 외곽선 실제 범위(fitExtent·setCityBBox 가 씀) — 아래쪽에서 쓰기 전에 먼저 선언 */
+const FIT_MARGIN=0.10;
+let cityBBox=null;
 
 /* ── 데이터 소스 (새 영어명 레이어) ── */
 const H="https://www.guri.go.kr/gmapsvr/rest/services/Hosted/";
@@ -2565,6 +2568,7 @@ require(["esri/config","esri/Map","esri/Basemap","esri/WebMap","esri/views/MapVi
       const polys=(r.features||[]).map(f=>f.geometry).filter(g=>g&&(g.rings||[]).length);
       if(!polys.length) throw new Error('행정동 도형 없음');
       const city=cleanOutline(geometryEngine.union(polys));
+      try{ setCityBBox(ringsBBox(city.rings)); }catch(x){}
       bndLayer.removeAll();
       bndLayer.add(new Graphic({geometry:city,symbol:{type:"simple-fill",color:[0,0,0,0],outline:{color:[255,255,255,.9],width:6}}}));
       bndLayer.add(new Graphic({geometry:city,symbol:{type:"simple-fill",color:[0,0,0,0],outline:{color:"#01573C",width:3}}}));
@@ -2576,6 +2580,7 @@ require(["esri/config","esri/Map","esri/Basemap","esri/WebMap","esri/views/MapVi
         const res=await fetch(`${CITY.boundaryUrl}/query?where=1%3D1&outFields=&returnGeometry=true&outSR=4326&maxAllowableOffset=0.0002&f=json`);
         const j=await res.json(); const rings=[];
         (j.features||[]).forEach(f=>((f.geometry&&f.geometry.rings)||[]).forEach(r=>rings.push(r)));
+        try{ setCityBBox(ringsBBox(rings)); }catch(x){}
         paintMask(rings);
       }catch(x){ console.warn('경계 마스크 실패',x); }
     }
@@ -2588,6 +2593,7 @@ require(["esri/config","esri/Map","esri/Basemap","esri/WebMap","esri/views/MapVi
   view=new MapView({container:"map",map,extent:CITY.extent,
     popupEnabled:false,ui:{components:[]},constraints:{minZoom:10,snapToZoom:false}});   /* 소수점 배율 허용(전체보기 맞춤) */
   view.when(()=>{                                  /* 시작 화면: 전체보기와 같은 범위로 맞춘 뒤 저장 */
+    syncMapPadding();                              /* 모바일: 아래 시트에 가리지 않는 부분에 맞춘다 */
     try{ view.extent=fitExtent(); }   /* Extent 도형 */
     catch(e){ try{ const f=cityFit(); view.center=f.center; view.zoom=f.zoom; }catch(e2){} }
     INIT_VIEW={center:[view.center.longitude,view.center.latitude],zoom:view.zoom};
@@ -2876,10 +2882,30 @@ async function resetView(why){
   try{ view.center=[cx,cy]; view.zoom=z; console.log('[전체보기] 직접지정',why); return true; }catch(e2){}
   return false;
 }
-/* 구리시 범위 + 여백 5% — 시작 화면·전체보기·동 전체가 함께 쓴다 (배경 타일 체계와 무관하게 범위를 맞춘다) */
+/* 구리시 범위 + 여백 — 시작 화면·전체보기·동 전체가 함께 쓴다 (배경 타일 체계와 무관하게 범위를 맞춘다).
+ * 2026-11-07 구리시 변경요청: 첫 화면에서 시 끝(갈매동 북쪽·교문1동 남쪽)이 잘려 보임 → 여백 5%→10%, 시 외곽선을 받으면
+ * 그 실제 범위(cityBBox)를 CITY.extent 와 합쳐 잘리지 않게. 모바일은 view.padding(아래 시트 높이)만큼 빼고 맞춘다(syncMapPadding) */
 function fitExtent(){
-  const e=CITY.extent, mx=(e.xmax-e.xmin)*0.05, my=(e.ymax-e.ymin)*0.05;
+  const c=CITY.extent, b=cityBBox||c;
+  const e={xmin:Math.min(c.xmin,b.xmin),ymin:Math.min(c.ymin,b.ymin),xmax:Math.max(c.xmax,b.xmax),ymax:Math.max(c.ymax,b.ymax)};
+  const mx=(e.xmax-e.xmin)*FIT_MARGIN, my=(e.ymax-e.ymin)*FIT_MARGIN;
   return asExtent({xmin:e.xmin-mx,xmax:e.xmax+mx,ymin:e.ymin-my,ymax:e.ymax+my});
+}
+/* 시 외곽선(행정동 합집합 또는 시경계)의 실제 범위를 기억하고, 아직 시작 화면 그대로면(사용자가 안 움직임) 그 범위로 다시 맞춘다 */
+function setCityBBox(e){
+  if(!e||!isFinite(e.xmin)||e.xmax<=e.xmin||e.ymax<=e.ymin) return;
+  cityBBox={xmin:e.xmin,ymin:e.ymin,xmax:e.xmax,ymax:e.ymax};
+  if(!view||!INIT_VIEW) return;
+  const c=view.center, same=c&&Math.abs(view.zoom-INIT_VIEW.zoom)<1e-6
+    &&Math.abs(c.longitude-INIT_VIEW.center[0])<1e-6&&Math.abs(c.latitude-INIT_VIEW.center[1])<1e-6;
+  if(!same) return;
+  try{ view.extent=fitExtent(); INIT_VIEW={center:[view.center.longitude,view.center.latitude],zoom:view.zoom};
+       console.log('[시작 화면] 시 외곽선 범위로 다시 맞춤',+view.zoom.toFixed(2)); }catch(err){}
+}
+function ringsBBox(rings){
+  let xmin=180,xmax=-180,ymin=90,ymax=-90;
+  (rings||[]).forEach(r=>r.forEach(p=>{ xmin=Math.min(xmin,p[0]);xmax=Math.max(xmax,p[0]);ymin=Math.min(ymin,p[1]);ymax=Math.max(ymax,p[1]); }));
+  return {xmin,ymin,xmax,ymax};
 }
 /* goTo 에 넘길 실제 Extent 도형 — 일반 객체는 goTo 가 이동 대상으로 인식하지 않아 지도가 움직이지 않는다 */
 function asExtent(o){
@@ -2891,7 +2917,8 @@ function cityFit(){
   const e=CITY.extent;
   const cx=(e.xmin+e.xmax)/2, cy=(e.ymin+e.ymax)/2;
   const dx=Math.max(e.xmax-e.xmin,1e-4), dy=Math.max(e.ymax-e.ymin,1e-4);
-  const W=(view&&view.width)||1200, H=(view&&view.height)||800, M=1.10;   /* 여백 10% */
+  const pad=(view&&view.padding&&view.padding.bottom)||0;   /* 모바일 아래 시트만큼 뺀 높이 */
+  const W=(view&&view.width)||1200, H=((view&&view.height)||800)-pad, M=1.10;   /* 여백 10% */
   const cos=Math.cos(cy*Math.PI/180);
   const zx=Math.log2(360*W/(256*dx*M));
   const zy=Math.log2(360*H*cos/(256*dy*M));
@@ -3710,12 +3737,23 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')hideInfo();});
 
 /* ── 모바일 바텀시트: peek(목록 살짝) / half / full 3단 스냅 ── */
 const isMobile=()=>matchMedia('(max-width:900px)').matches;
+/* 모바일 아래 시트가 지도를 가리는 높이(px) — CSS .panel(peek: 206px 보임)·.panel.min(54px) 과 같은 값 */
+const SHEET_PEEK=206, SHEET_MIN=54;
+function sheetVisible(){ const p=$('panel'); return p&&p.classList.contains('min')? SHEET_MIN : SHEET_PEEK; }
+/* 2026-11-07 구리시 변경요청(모바일 첫 화면 위치): 지도 범위를 '시트에 가리지 않는 부분'에 맞추도록 view.padding 을 시트 높이로.
+ * 시작 화면·전체보기·동 이동·선택 항목 가운데 맞춤이 모두 보이는 영역 기준이 된다. PC 는 0 */
+function syncMapPadding(){
+  if(!view) return;
+  try{ view.padding={top:0,left:0,right:0,bottom:isMobile()? sheetVisible() : 0}; }catch(e){}
+}
+window.addEventListener('resize',syncMapPadding);
 function setSheet(state){ /* 'min'(손잡이만)|'peek'(목록 살짝)|'half'|'full' */
   const p=$('panel'); if(!isMobile()) return;
   p.classList.remove('min','half','full','dragging'); p.style.transform='';
   if(state==='half') p.classList.add('half');
   else if(state==='full') p.classList.add('full');
   else if(state==='min') p.classList.add('min');
+  syncMapPadding();
 }
 (function sheetDrag(){
   const p=$('panel'), h=$('sheetHandle');
