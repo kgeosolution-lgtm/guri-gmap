@@ -1,0 +1,27 @@
+name: NGII NAS connectivity read-only
+on:
+  push:
+    branches: [codex/ngiiseum-nas-connectivity-20261109]
+    paths: [.github/workflows/ngiiseum-nas-connectivity-20261109.yml]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 3
+    steps:
+      - name: Check existing NAS HTTPS from server without credentials
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'Server identity'}
+          $status=$null
+          $failure=$null
+          try{
+            $request=[Net.HttpWebRequest]::Create('https://kgeohub.synology.me:5006/')
+            $request.Method='HEAD';$request.Timeout=15000;$request.AllowAutoRedirect=$false
+            $response=$request.GetResponse();$status=[int]$response.StatusCode;$response.Close()
+          }catch [Net.WebException]{
+            if($_.Exception.Response){$status=[int]$_.Exception.Response.StatusCode;$_.Exception.Response.Close()}else{$failure=[string]$_.Exception.Status}
+          }
+          [ordered]@{machine=$env:COMPUTERNAME;host='kgeohub.synology.me';port=5006;httpStatus=$status;transportError=$failure;tlsVerified=($null -ne $status);authenticated=$false;filesListed=$false;checkedAt=[DateTime]::UtcNow.ToString('o')}|ConvertTo-Json -Compress
