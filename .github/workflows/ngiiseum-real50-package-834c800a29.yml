@@ -1,0 +1,28 @@
+name: NGII real50 package 834c800a29
+on:
+  push:
+    branches: [codex/ngiiseum-real50-package-834c800a29]
+    paths: [.github/workflows/ngiiseum-real50-package-834c800a29.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  run:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 30
+    steps:
+      - name: package isolated real drawing review
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $ProgressPreference='SilentlyContinue'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'Server identity'}
+          $source='D:\services\ngiiseum\releases\834c800a292cea55445e01c457e9178d9f3970e7'
+          try{
+          $global:LASTEXITCODE=0
+          & node.exe ('D:\services\ngiiseum\releases\834c800a292cea55445e01c457e9178d9f3970e7\scripts\create-offline-kit.mjs') '834c800a292cea55445e01c457e9178d9f3970e7'
+            if($LASTEXITCODE -ne 0){throw 'Real review operation failed'}
+          }finally{
+          }
