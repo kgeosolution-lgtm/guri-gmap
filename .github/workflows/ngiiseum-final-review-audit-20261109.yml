@@ -1,0 +1,61 @@
+name: NGII final-review-audit
+on:
+  push:
+    branches: [codex/ngiiseum-final-review-audit-20261109]
+    paths: [.github/workflows/ngiiseum-final-review-audit-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: final-review-audit
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'Host boundary'}
+          $service='D:\services\ngiiseum'
+          $current=Get-Content -LiteralPath (Join-Path $service 'current.json') -Raw|ConvertFrom-Json
+          if($current.commit -ne '834c800a292cea55445e01c457e9178d9f3970e7'){throw 'Release changed'}
+          $auditFile=Join-Path $service 'final-review-audit-20261109.mjs'
+          $code=@'
+          import fs from 'node:fs/promises';
+          import path from 'node:path';
+          import {createReadStream} from 'node:fs';
+          import {createHash} from 'node:crypto';
+          import {pathToFileURL} from 'node:url';
+          const service='D:/services/ngiiseum',sha='834c800a292cea55445e01c457e9178d9f3970e7';
+          const {createReviewPilot}=await import(pathToFileURL(service+'/releases/'+sha+'/server/review-pilot.mjs'));
+          const config=JSON.parse(await fs.readFile(service+'/real-review.local.json','utf8'));
+          const pilot=await createReviewPilot(config);
+          try{
+           const root=path.resolve(service,'data/real50-20261109');
+           const manifest=JSON.parse(await fs.readFile(path.join(root,'review/manifest.json'),'utf8'));
+           const supplement=JSON.parse(await fs.readFile(path.join(root,'review/supplement.json'),'utf8'));
+           let matched=0;for(const file of [...manifest.files,...supplement.files]){
+            const p=path.resolve(root,file.path);if(!p.startsWith(root+path.sep))throw Error('File boundary');
+            const h=createHash('sha256');for await(const b of createReadStream(p))h.update(b);
+            if(h.digest('hex')!==file.sha256||(await fs.stat(p)).size!==file.bytes)throw Error('Manifest mismatch');matched++;
+           }
+           const db=pilot.store.db;
+           const active=(await db.query("select count(*)::int n from local_flow.job where status in ('queued','running')")).rows[0].n;
+           const receiving=(await db.query("select count(*)::int n from local_flow.folder where status='receiving'")).rows[0].n;
+           const audit=(await db.query('select is_test,count(*)::int n from online_review.audit group by is_test order by is_test')).rows;
+           const nonTestCounts={};for(const table of ['cad_selection','review_label','training_label','day_review'])nonTestCounts[table]=(await db.query('select count(*)::int n from local_flow.'+table+' where not is_test')).rows[0].n;
+           const sourceCounts={};for(const table of ['job','drawing','permit']){sourceCounts[table]=(await db.query('select count(*)::int n from local_flow.'+table)).rows[0].n;if(sourceCounts[table]!==manifest.counts[table])throw Error('Source count changed');}
+           const protections=(await db.query("select count(*)::int n from pg_trigger where tgname='review_source_immutable' and not tgisinternal")).rows[0].n;
+           if(active||receiving||protections!==3||audit.some(x=>!x.is_test&&x.n))throw Error('Unexpected final state');
+           const web=await(await fetch('https://kgeodata.com/app/ngiiseum/deployment.json')).json();
+           if(web.commit!==sha||!web.writesEnabled||web.reviewPilot?.drawings!==50)throw Error('Public state mismatch');
+           const result={checkedAt:new Date().toISOString(),commit:sha,drawings:manifest.selected.length,permits:new Set(manifest.selected.map(x=>x.permitId)).size,withPosition:manifest.selected.filter(x=>x.hasPosition).length,manifestFilesMatched:matched,activeJobs:active,receiving,sourceCounts,sourceProtectionTriggers:protections,audit,nonTestCounts,reviewWrites:true,actualHumanAcceptance:false};
+           await fs.writeFile(service+'/final-review-audit-20261109.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result));
+          }finally{await pilot.close();}
+          '@
+          [IO.File]::WriteAllText($auditFile,$code,(New-Object Text.UTF8Encoding($false)))
+          & node.exe $auditFile
+          if($LASTEXITCODE -ne 0){throw 'Final review audit failed'}
+          
