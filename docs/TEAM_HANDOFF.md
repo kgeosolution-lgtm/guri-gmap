@@ -1057,3 +1057,9 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 4. **모바일 첫 화면 위치**: 지도 범위를 아래 시트에 가리지 않는 부분에 맞추도록 `view.padding.bottom` 을 시트 높이(peek 206px / min 54px, CSS 와 같은 값 `SHEET_PEEK`·`SHEET_MIN`)로 둔다(`syncMapPadding`: 시작·시트 상태 변경·창 크기 변경 때). 구리시 전체가 시트 위 영역 가운데에 들어온다. PC 는 0.
 
 - 검증: 스텁 하네스 `pw/fit-test.js`(여백 10%, 외곽선 범위 합치기 1회, 사용자가 움직인 뒤엔 안 맞춤, 모바일 padding 206/54·PC 0), 기존 하네스, theme `node --check`, `npx tsc --noEmit`, prettier, `npm run build:deploy`(푸터·404 문구, 단추 주소 확인), `git diff --check` 통과. 브랜치 `work/kangmina-req-1107`. 실제 지도 화면은 배포 후 담당자 확인 필요(개발 환경에선 지도 서버 접근 불가).
+
+## 2026-11-09 첫 화면·주제·칩 변경 때 구리시가 지도에 꽉 차게 (변경요청 3·4번 재조정) (담당: 강민아)
+
+- 앞 항목(여백 5%→10%)은 요청과 반대였음 — 요청 그림은 구리시가 화면 높이를 꽉 채운 상태. `FIT_MARGIN=0`, `fitExtent()` 는 시 외곽선 실제 범위(`cityBBox`, 받기 전엔 `CITY.extent`)에 여백 없이 맞춘다(CITY.extent 와 합치지 않음 — 합치면 작아짐). 시작 화면·'처음 화면'·주제 변경·칩 변경·동 전체 모두 같은 범위, 모바일은 시트 위 영역 기준(padding 유지).
+- 더 키우고 싶으면 `FIT_MARGIN` 을 음수로(예: -0.03, 가장자리가 조금 잘림).
+- 검증: 스텁 하네스(`pw/fit-test.js`), theme `node --check`, `npm run build:deploy`, `git diff --check` 통과. 브랜치 `work/kangmina-fit-large`.

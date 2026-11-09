@@ -383,8 +383,9 @@ const CITY={
   basemapWebmapId:"",   /* 포털 웹맵으로 배경을 쓰려면 ID 입력 (지금은 위 벡터타일 3장으로 직접 구성) */
   vworldKey:""   /* 공식 브이월드 키 발급 시 입력 */
 };
-/* 시작 화면·전체보기 여백(10%)과 시 외곽선 실제 범위(fitExtent·setCityBBox 가 씀) — 아래쪽에서 쓰기 전에 먼저 선언 */
-const FIT_MARGIN=0.10;
+/* 시작 화면·전체보기 여백과 시 외곽선 실제 범위(fitExtent·setCityBBox 가 씀) — 아래쪽에서 쓰기 전에 먼저 선언.
+ * 2026-11-09 담당자 요청: 구리시가 지도에 꽉 차게 → 여백 0(시 범위가 화면 높이에 딱 맞음). 더 키우려면 음수(예: -0.03, 가장자리가 조금 잘림) */
+const FIT_MARGIN=0;
 let cityBBox=null;
 
 /* ── 데이터 소스 (새 영어명 레이어) ── */
@@ -2882,12 +2883,11 @@ async function resetView(why){
   try{ view.center=[cx,cy]; view.zoom=z; console.log('[전체보기] 직접지정',why); return true; }catch(e2){}
   return false;
 }
-/* 구리시 범위 + 여백 — 시작 화면·전체보기·동 전체가 함께 쓴다 (배경 타일 체계와 무관하게 범위를 맞춘다).
- * 2026-11-07 구리시 변경요청: 첫 화면에서 시 끝(갈매동 북쪽·교문1동 남쪽)이 잘려 보임 → 여백 5%→10%, 시 외곽선을 받으면
- * 그 실제 범위(cityBBox)를 CITY.extent 와 합쳐 잘리지 않게. 모바일은 view.padding(아래 시트 높이)만큼 빼고 맞춘다(syncMapPadding) */
+/* 구리시 범위 — 시작 화면·전체보기·동 전체·칩 변경이 함께 쓴다 (배경 타일 체계와 무관하게 범위를 맞춘다).
+ * 2026-11-07 구리시 변경요청(3·4번): 구리시가 지도에 크게 나오게 → 시 외곽선을 받으면 그 실제 범위(cityBBox)에 여백 없이(FIT_MARGIN=0)
+ * 딱 맞춘다(받기 전엔 CITY.extent). 모바일은 view.padding(아래 시트 높이)만큼 빼고 맞춘다(syncMapPadding) */
 function fitExtent(){
-  const c=CITY.extent, b=cityBBox||c;
-  const e={xmin:Math.min(c.xmin,b.xmin),ymin:Math.min(c.ymin,b.ymin),xmax:Math.max(c.xmax,b.xmax),ymax:Math.max(c.ymax,b.ymax)};
+  const e=cityBBox||CITY.extent;
   const mx=(e.xmax-e.xmin)*FIT_MARGIN, my=(e.ymax-e.ymin)*FIT_MARGIN;
   return asExtent({xmin:e.xmin-mx,xmax:e.xmax+mx,ymin:e.ymin-my,ymax:e.ymax+my});
 }
