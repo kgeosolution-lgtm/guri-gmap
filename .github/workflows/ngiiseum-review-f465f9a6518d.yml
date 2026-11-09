@@ -1,0 +1,49 @@
+name: NGII review release f465f9a6518d
+on:
+  push:
+    branches: [codex/ngiiseum-review-f465f9a6518d]
+    paths: [.github/workflows/ngiiseum-review-f465f9a6518d.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 15
+    steps:
+      - name: Stage and verify the exact review source before activation
+        shell: powershell
+        env:
+          NGIISEUM_ARCHIVE_URL: ${{ secrets.NGII_REVIEW_ARCHIVE_F465F9A6518D }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $ProgressPreference='SilentlyContinue'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'Unexpected server'}
+          $tempRoot=[IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\')
+          $work=[IO.Path]::GetFullPath((Join-Path $tempRoot ('ngiiseum-review-'+[Guid]::NewGuid().ToString('N'))))
+          if(-not $work.StartsWith($tempRoot+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Temporary boundary rejected'}
+          New-Item -ItemType Directory -Path $work | Out-Null
+          try{
+            $zip=Join-Path $work 'source.zip'
+            try{Invoke-WebRequest -UseBasicParsing -Uri $env:NGIISEUM_ARCHIVE_URL -OutFile $zip -TimeoutSec 60}catch{throw 'Private archive unavailable; address withheld'}
+            $env:NGIISEUM_ARCHIVE_URL=$null
+            if((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'e8a8c3b64a2267bd3f839cef0dbea74039e99ef9e850d7421d55aac4519205ba'){throw 'Archive checksum mismatch'}
+            $expanded=Join-Path $work 'source'
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            $archive=[IO.Compression.ZipFile]::OpenRead($zip)
+            try{
+              foreach($entry in $archive.Entries){
+                $dest=[IO.Path]::GetFullPath((Join-Path $expanded $entry.FullName))
+                if(-not $dest.StartsWith($expanded+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Archive path escape'}
+              }
+            }finally{$archive.Dispose()}
+            Expand-Archive -LiteralPath $zip -DestinationPath $expanded
+            $roots=@(Get-ChildItem -LiteralPath $expanded -Directory)
+            if($roots.Count -ne 1){throw 'Unexpected archive layout'}
+            & (Join-Path $roots[0].FullName 'deploy\review-release.ps1') -SourceRoot $roots[0].FullName -SourceCommit 'f465f9a6518d1679bb583c3e2c9078950b17a582' -ExpectedPrevious '959d083476e4be9e98a9ec2ac5fd8e598376d9b6'
+          }finally{
+            $env:NGIISEUM_ARCHIVE_URL=$null
+            if($work.StartsWith($tempRoot+'\',[StringComparison]::OrdinalIgnoreCase) -and (Test-Path -LiteralPath $work)){Remove-Item -LiteralPath $work -Recurse -Force}
+          }
