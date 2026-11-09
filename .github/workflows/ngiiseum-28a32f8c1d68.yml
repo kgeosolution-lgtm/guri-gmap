@@ -1,0 +1,49 @@
+name: NGII Seumter content deployment 28a32f8c1d68
+on:
+  push:
+    branches: [codex/ngiiseum-28a32f8c1d68]
+    paths: [.github/workflows/ngiiseum-28a32f8c1d68.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: Install the verified NGII Seumter archive in its separate IIS folder
+        shell: powershell
+        env:
+          NGIISEUM_ARCHIVE_URL: ${{ secrets.NGII_SEUMTER_ARCHIVE_28A32F8C1D68 }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $ProgressPreference='SilentlyContinue'
+          if ($env:COMPUTERNAME -ne 'KGO-GIS') { throw 'Unexpected server' }
+          $tempRoot=[IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\')
+          $work=[IO.Path]::GetFullPath((Join-Path $tempRoot ('ngiiseum-'+[Guid]::NewGuid().ToString('N'))))
+          if (-not $work.StartsWith($tempRoot+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Temporary path boundary failed' }
+          New-Item -ItemType Directory -Path $work | Out-Null
+          try {
+            $zip=Join-Path $work 'source.zip'
+            try { Invoke-WebRequest -UseBasicParsing -Uri $env:NGIISEUM_ARCHIVE_URL -OutFile $zip -TimeoutSec 60 } catch { throw 'Private archive download failed; no address logged' }
+            $env:NGIISEUM_ARCHIVE_URL=$null
+            if ((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne '0161175b73d0cc818192283cda5d9ecc835cf558c8e40d9561eabfb2ce82759e') { throw 'Source archive checksum mismatch' }
+            $expanded=Join-Path $work 'source'
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            $archive=[IO.Compression.ZipFile]::OpenRead($zip)
+            try {
+              foreach ($entry in $archive.Entries) {
+                $dest=[IO.Path]::GetFullPath((Join-Path $expanded $entry.FullName))
+                if (-not $dest.StartsWith($expanded+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Archive path escape' }
+              }
+            } finally { $archive.Dispose() }
+            Expand-Archive -LiteralPath $zip -DestinationPath $expanded
+            $roots=@(Get-ChildItem -LiteralPath $expanded -Directory)
+            if ($roots.Count -ne 1) { throw 'Unexpected archive layout' }
+            & (Join-Path $roots[0].FullName 'deploy\install-iis.ps1') -SourceRoot $roots[0].FullName -SourceCommit '28a32f8c1d682fece02599cd2e1366bfb0ae6286' -Apply
+          } finally {
+            $env:NGIISEUM_ARCHIVE_URL=$null
+            if ($work.StartsWith($tempRoot+'\',[StringComparison]::OrdinalIgnoreCase) -and (Test-Path -LiteralPath $work)) { Remove-Item -LiteralPath $work -Recurse -Force }
+          }
