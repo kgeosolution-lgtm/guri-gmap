@@ -24,8 +24,9 @@ export const siteConfig = {
     { label: '시민참여', href: '#participation' },
   ],
   contact: {
-    department: '경기도 구리시청 토지정보과',
-    phone: '031-550-8731',
+    department:
+      '경기도 구리시청 정보통신과' /* 2026-11-07 구리시 변경요청: 토지정보과 → 정보통신과 */,
+    phone: '031-550-2083',
     address: '경기도 구리시 아차산로 439',
   },
 };

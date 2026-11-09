@@ -67,7 +67,7 @@ export default function Home() {
                 <br />
                 구리의 생활정보를 한 장의 지도에서 살펴보세요.
               </p>
-              <a className="home-button" href={themeUrl('생활편의')}>
+              <a className="home-button" href={themeUrl('시즌·겨울')}>
                 우리 동네 지도 열기 <ArrowUpRight size={18} />
               </a>
               <a className="hero-text-link" href="#search">
