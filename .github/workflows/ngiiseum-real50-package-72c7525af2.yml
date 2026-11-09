@@ -1,0 +1,27 @@
+name: NGII real50 package 72c7525af2
+on:
+  push:
+    branches: [codex/ngiiseum-real50-package-72c7525af2]
+    paths: [.github/workflows/ngiiseum-real50-package-72c7525af2.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  run:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 30
+    steps:
+      - name: package isolated real drawing review
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $ProgressPreference='SilentlyContinue'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'Server identity'}
+          $source='D:\services\ngiiseum\releases\72c7525af2959c27d34be4c991b8311bf38150e6'
+          try{
+          & node.exe ('D:\services\ngiiseum\releases\72c7525af2959c27d34be4c991b8311bf38150e6\scripts\create-offline-kit.mjs') '72c7525af2959c27d34be4c991b8311bf38150e6'
+            if($LASTEXITCODE -ne 0){throw 'Real review operation failed'}
+          }finally{
+          }
