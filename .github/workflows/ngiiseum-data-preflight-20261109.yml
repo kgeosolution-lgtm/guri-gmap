@@ -1,0 +1,21 @@
+name: NGII isolated review database preflight
+on:
+  push:
+    branches: [codex/ngiiseum-data-preflight-20261109]
+    paths: [.github/workflows/ngiiseum-data-preflight-20261109.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 3
+    steps:
+      - name: Inspect isolated database prerequisites
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'Unexpected server'}
+          $pgRoots=@('C:\Program Files\PostgreSQL\18','D:\Program Files\PostgreSQL\18','D:\PostgreSQL\18')
+          $pg=@($pgRoots | Where-Object {Test-Path -LiteralPath (Join-Path $_ 'bin\pg_ctl.exe')} | ForEach-Object { [ordered]@{root=$_;version=(& (Join-Path $_ 'bin\postgres.exe') --version);postgis=(Test-Path -LiteralPath (Join-Path $_ 'share\extension\postgis.control'))} })
+          $listeners=@(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty LocalPort -Unique)
+          [ordered]@{machine=$env:COMPUTERNAME;checkedAt=[DateTime]::UtcNow.ToString('o');postgres=$pg;port49326Free=(-not ($listeners -contains 49326));port4191Free=(-not ($listeners -contains 4191));dFreeBytes=(Get-PSDrive D).Free;serviceRoot=(Test-Path -LiteralPath 'D:\services\ngiiseum');identity=[Security.Principal.WindowsIdentity]::GetCurrent().Name} | ConvertTo-Json -Depth 6 -Compress
