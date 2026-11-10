@@ -1,0 +1,30 @@
+name: NGII drawing-ingest-detach-1110
+on:
+  push:
+    branches: [codex/ngiiseum-drawing-ingest-detach-1110-20261109]
+    paths: [.github/workflows/ngiiseum-drawing-ingest-detach-1110-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: drawing-ingest-detach-1110
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'HOST_REJECTED'}
+          $root='D:\services\ngiiseum\drawing-ingest-20261110'
+          if((Get-FileHash (Join-Path $root 'manifest.json') -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'b9948b59ba0e9992702f3c803888835962e91ee1954eb079aafba100158f5ada'){throw 'MANIFEST_CHANGED'}
+          $active=@(Get-CimInstance Win32_Process | Where-Object {$_.CommandLine -and $_.Name -eq 'node.exe' -and $_.CommandLine -match [regex]::Escape((Join-Path $root 'ingest.mjs'))})
+          if($active.Count -or @(Get-NetTCPConnection -LocalPort 4193 -State Listen -ErrorAction SilentlyContinue).Count){throw 'EXISTING_INGEST_INSPECT_FIRST'}
+          $startup=New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{ShowWindow=[UInt16]0}
+          $exe=(Get-Command node.exe).Source
+          $result=Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{CommandLine=('"'+$exe+'" "'+(Join-Path $root 'ingest.mjs')+'"');CurrentDirectory=$root;ProcessStartupInformation=$startup}
+          if($result.ReturnValue -ne 0){throw 'INDEPENDENT_INGEST_START_FAILED'}
+          @{started=$true;pid=$result.ProcessId;independentProcess=$true;gatewayRestarted=$false;databaseChanged=$false}|ConvertTo-Json -Compress
+          
