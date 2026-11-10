@@ -1,0 +1,44 @@
+name: NGII drawing-ingest-cleanup-1110
+on:
+  push:
+    branches: [codex/ngiiseum-drawing-ingest-cleanup-1110-20261109]
+    paths: [.github/workflows/ngiiseum-drawing-ingest-cleanup-1110-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: drawing-ingest-cleanup-1110
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'HOST_REJECTED'}
+          $root='D:\services\ngiiseum\drawing-ingest-20261110'
+          $data='D:\services\ngiiseum\data\review-expansion-20261110'
+          $receipt=Get-Content (Join-Path $data 'activation-receipt.json') -Raw|ConvertFrom-Json
+          $extract=Get-Content (Join-Path $data 'extract-progress.json') -Raw|ConvertFrom-Json
+          if(-not $receipt.activated -or $receipt.drawings -ne 1018 -or $extract.phase -ne 'verified_extracted'){throw 'COMPLETION_REQUIRED'}
+          $web='D:\codesolution\kgeodata\ngiiseum\web.config'
+          [xml]$xml=Get-Content -LiteralPath $web -Raw
+          $rules=$xml.configuration.'system.webServer'.rewrite.rules
+          $owned=@($rules.rule | Where-Object {$_.name -eq 'NGII dedicated drawing intake 20261110'})
+          if($owned.Count -ne 1 -or $owned[0].match.url -ne '^_drawing-ingest/(.*)$' -or $owned[0].action.url -ne 'http://127.0.0.1:4193/_drawing-ingest/{R:1}'){throw 'OWNED_RULE_CHANGED'}
+          $state=Get-Content (Join-Path $root 'process.json') -Raw|ConvertFrom-Json
+          $p=Get-CimInstance Win32_Process -Filter ('ProcessId='+[int]$state.pid)
+          if($p -and ($p.Name -ne 'node.exe' -or $p.CommandLine -notmatch [regex]::Escape((Join-Path $root 'ingest.mjs')))){throw 'INGEST_PROCESS_CHANGED'}
+          $before=(Get-FileHash -LiteralPath $web -Algorithm SHA256).Hash
+          [void]$rules.RemoveChild($owned[0])
+          $temp=Join-Path $root 'web.config.cleanup-next'
+          $xml.Save($temp)
+          if((Get-FileHash -LiteralPath $web -Algorithm SHA256).Hash -ne $before){throw 'IIS_CHANGED_DURING_CLEANUP'}
+          [IO.File]::Replace($temp,$web,(Join-Path $root 'web.config.before-cleanup'))
+          if($p){Stop-Process -Id $state.pid}
+          $after=Invoke-RestMethod 'https://kgeodata.com/app/ngiiseum/deployment.json' -TimeoutSec 20
+          if($after.reviewPilot.drawings -ne 1018 -or -not $after.writesEnabled){throw 'LIVE_STATUS_CHANGED'}
+          @{cleaned=$true;ruleRemoved=$true;ingestStopped=-not [bool](Get-CimInstance Win32_Process -Filter ('ProcessId='+[int]$state.pid));archivesPreserved=$true;drawings=$after.reviewPilot.drawings;runtime=$after.commit;checkedAt=[DateTime]::UtcNow.ToString('o')}|ConvertTo-Json -Compress|Tee-Object -FilePath (Join-Path $root 'cleanup-receipt.json')
+          
