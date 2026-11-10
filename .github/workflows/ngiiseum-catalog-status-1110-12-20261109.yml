@@ -1,0 +1,86 @@
+name: NGII catalog-status-1110-12
+on:
+  push:
+    branches: [codex/ngiiseum-catalog-status-1110-12-20261109]
+    paths: [.github/workflows/ngiiseum-catalog-status-1110-12-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: catalog-status-1110-12
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $ProgressPreference='SilentlyContinue'
+          $expected='f6b674c7c5e4a3b9ce9496073921f9585d17d837'
+          if($env:COMPUTERNAME -ne 'KGO-GIS' -or $expected -cnotmatch '^[a-f0-9]{40}$'){throw 'CATALOG_HOST_OR_RELEASE_NOT_PINNED'}
+          $service='D:\services\ngiiseum'
+          $current=Get-Content -LiteralPath (Join-Path $service 'current.json') -Raw|ConvertFrom-Json
+          if($current.commit -cne $expected){throw 'CATALOG_RELEASE_CHANGED'}
+          $processes=@(Get-CimInstance Win32_Process|Where-Object {$_.CommandLine -and ($_.CommandLine -match 'catalog-import\.mjs["\s]+restore' -or ($_.Name -eq 'pg_restore.exe' -and $_.CommandLine -like '*ngiiseum_catalog_20261110*') -or ($_.Name -match '^python' -and $_.CommandLine -like '*catalog-extract.py*'))}|Select-Object ProcessId,ParentProcessId,Name)
+          @{catalogProcesses=$processes;checkedAt=[DateTime]::UtcNow.ToString('o')}|ConvertTo-Json -Depth 5 -Compress
+          $code=@'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import {createRequire} from 'node:module';
+          const service='D:/services/ngiiseum',expected='__CATALOG_RELEASE_SHA__',importerCommit='64e532da245d8a07e1f27a84a546151a5fe634d5';
+          const read=file=>JSON.parse(fs.readFileSync(file,'utf8'));
+          if(process.env.COMPUTERNAME!=='KGO-GIS'||read(service+'/current.json').commit!==expected)throw Error('CATALOG_RELEASE_CHANGED');
+          const require=createRequire(service+'/releases/'+importerCommit+'/package.json'),{Client}=require('pg');
+          const result={id:'catalog-20261110',commit:expected,importerCommit,checkedAt:new Date().toISOString(),readOnly:true};
+          const phases=new Set(['assemble_and_verify','extract','create_isolated_database','restore','analyze_snapshot','verify_counts_and_permissions','verify_reader','verified']);
+          if(fs.existsSync(service+'/catalog-import-progress.json')){
+           const p=read(service+'/catalog-import-progress.json');if(p.id!=='catalog-20261110'||!phases.has(p.phase))throw Error('CATALOG_PROGRESS_REJECTED');
+           result.progress={id:p.id,phase:p.phase,pid:p.pid,at:p.at};
+          }
+          if(fs.existsSync(service+'/catalog-import-launcher-20261110.json')){
+           const p=read(service+'/catalog-import-launcher-20261110.json');if(p.commit!==expected||p.importerCommit!==importerCommit||p.id!=='catalog-20261110')throw Error('CATALOG_LAUNCH_IDENTITY_REJECTED');
+           result.launch={pid:p.pid??null,status:['claimed','started','launch_failed_inspect_no_retry'].includes(p.status)?p.status:'unknown',startedAt:p.startedAt};
+          }
+          const cfg=read(service+'/postgres.local.json');
+          if(cfg.host!=='127.0.0.1'||cfg.port!==49326||cfg.user!=='ngiiseum_owner')throw Error('CATALOG_DATABASE_BOUNDARY');
+          const db=new Client({...cfg,database:'postgres',options:'-c default_transaction_read_only=on',connectionTimeoutMillis:5000,query_timeout:10000});
+          try{
+           await db.connect();
+           const identity=(await db.query("select current_user role,inet_server_port() port,current_setting('data_directory') directory,current_setting('default_transaction_read_only') read_only")).rows[0];
+           if(identity.role!==cfg.user||identity.port!==49326||identity.read_only!=='on'||path.resolve(identity.directory).toLowerCase()!==path.resolve(service,'postgres-data').toLowerCase())throw Error('CATALOG_CLUSTER_IDENTITY_MISMATCH');
+           result.databaseActivity=(await db.query("select datname,state,wait_event_type,count(*)::int connections from pg_stat_activity where datname in ('ngiiseum_catalog_20261110','ngiiseum_review_real50_20261109') group by datname,state,wait_event_type order by datname,state,wait_event_type")).rows;
+           result.catalogDatabaseExists=(await db.query("select 1 from pg_database where datname='ngiiseum_catalog_20261110'")).rowCount===1;
+           if(result.catalogDatabaseExists)result.catalogDatabaseBytes=Number((await db.query("select pg_database_size('ngiiseum_catalog_20261110') bytes")).rows[0].bytes);
+           result.indexProgress=(await db.query("select phase,count(*)::int workers,sum(blocks_total)::text blocks_total,sum(blocks_done)::text blocks_done from pg_stat_progress_create_index where datname='ngiiseum_catalog_20261110' group by phase")).rows;
+          }finally{await db.end();}
+          if(fs.existsSync(service+'/catalog-20261110-verification.json')){
+           const p=read(service+'/catalog-20261110-verification.json');if(p.catalogId!=='catalog-20261110')throw Error('CATALOG_VERIFICATION_IDENTITY_REJECTED');
+           result.verification={catalogId:p.catalogId,counts:p.counts,snapshot:p.snapshot,passed:p.passed===true,readOnly:p.readOnly===true,tables:Object.keys(p.counts??{}).length,existingReviewRecordsPreserved:p.existingReviewRecordsPreserved===true,verifiedAt:p.verifiedAt,configSha256:p.configSha256,manifestSha256:p.manifestSha256,transferManifestSha256:p.transferManifestSha256};
+          }
+          function tail(file){
+           if(!fs.existsSync(file))return '';
+           const fd=fs.openSync(file,'r');try{const bytes=fs.fstatSync(fd).size,length=Math.min(bytes,65536),buffer=Buffer.alloc(length);fs.readSync(fd,buffer,0,length,bytes-length);return buffer.toString('utf8');}finally{fs.closeSync(fd);}
+          }
+          const log=['catalog-import.stderr.log','catalog-import.private.log','catalog-launcher.stderr.log'].map(name=>tail(service+'/'+name)).join('\n');
+          const classes=[];
+          for(const [name,pattern] of [
+           ['AUTHENTICATION_FAILED',/password authentication failed|authentication failed/i],
+           ['PERMISSION_DENIED',/permission denied|access is denied|EACCES|EPERM/i],
+           ['DISK_FULL',/no space left|not enough space|ENOSPC/i],
+           ['RUNTIME_OR_FILE_UNAVAILABLE',/ENOENT|cannot find|not recognized|SUBPROCESS_UNAVAILABLE/i],
+           ['HASH_OR_CHECKSUM_MISMATCH',/HASH_MISMATCH|checksum|Bad CRC/i],
+           ['RESTORE_SUBPROCESS_FAILED',/pg_restore: error|CATALOG_SUBPROCESS_FAILED/i],
+           ['PREVIOUS_STATE_OR_DUPLICATE',/EXISTS_NO_OVERWRITE|EXISTS_NO_RETRY|EEXIST/],
+           ['VALIDATION_REJECTED',/CATALOG_[A-Z_]*(?:REJECTED|MISMATCH|FAILED|CHANGED)/],
+          ])if(pattern.test(log))classes.push(name);
+          if(log.trim()&&!classes.length)classes.push('PRIVATE_LOG_PRESENT_REQUIRES_INSPECTION');
+          result.errorClasses=classes;result.privateLogTextEmitted=false;result.automaticRetry=false;
+          console.log(JSON.stringify(result));
+          '@
+          $code=$code.Replace('__CATALOG_RELEASE_SHA__',$expected)
+          $codeFile=Join-Path $service ('catalog-import-status-'+[Guid]::NewGuid().ToString('N')+'.mjs')
+          [IO.File]::WriteAllText($codeFile,$code,(New-Object Text.UTF8Encoding($false)))
+          try{& node.exe $codeFile;if($LASTEXITCODE -ne 0){throw 'CATALOG_READ_ONLY_STATUS_FAILED'}}finally{Remove-Item -LiteralPath $codeFile -Force}
+          
