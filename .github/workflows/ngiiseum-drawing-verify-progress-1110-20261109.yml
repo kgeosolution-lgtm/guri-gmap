@@ -1,0 +1,24 @@
+name: NGII drawing-verify-progress-1110
+on:
+  push:
+    branches: [codex/ngiiseum-drawing-verify-progress-1110-20261109]
+    paths: [.github/workflows/ngiiseum-drawing-verify-progress-1110-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: drawing-verify-progress-1110
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'HOST_REJECTED'}
+          $root='D:\services\ngiiseum\data\review-expansion-20261110'
+          Get-Process node -ErrorAction SilentlyContinue | Select-Object Id,CPU,WorkingSet64,StartTime | ConvertTo-Json -Compress
+          foreach($name in @('verification.json','verification.private.log')){if(Test-Path (Join-Path $root $name)){Get-Content (Join-Path $root $name) -Tail 8}}
+          
