@@ -1,0 +1,127 @@
+name: NGII catalog-restore-start-1110
+on:
+  push:
+    branches: [codex/ngiiseum-catalog-restore-start-1110-20261109]
+    paths: [.github/workflows/ngiiseum-catalog-restore-start-1110-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: catalog-restore-start-1110
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $ProgressPreference='SilentlyContinue'
+          $expected='f6b674c7c5e4a3b9ce9496073921f9585d17d837'
+          $importerCommit='64e532da245d8a07e1f27a84a546151a5fe634d5'
+          if($env:COMPUTERNAME -ne 'KGO-GIS' -or $expected -cnotmatch '^[a-f0-9]{40}$'){throw 'CATALOG_HOST_OR_RELEASE_NOT_PINNED'}
+          $service='D:\services\ngiiseum'
+          $current=Get-Content -LiteralPath (Join-Path $service 'current.json') -Raw|ConvertFrom-Json
+          if($current.commit -cne $expected){throw 'CATALOG_RELEASE_CHANGED'}
+          $release=Join-Path $service ('releases\'+$importerCommit)
+          if(-not (Test-Path -LiteralPath (Join-Path $release 'scripts\catalog-import.mjs') -PathType Leaf) -or ((Get-Item -LiteralPath $release).Attributes -band [IO.FileAttributes]::ReparsePoint)){throw 'CATALOG_RELEASE_FILES_REJECTED'}
+          $stage=Get-Content -LiteralPath (Join-Path $release 'catalog-stage-result.json') -Raw|ConvertFrom-Json
+          $manifestFile=Join-Path $service 'catalog-transfer-20261110.json'
+          if(-not $stage.succeeded -or $stage.mode -ne 'stage' -or $stage.commit -cne $importerCommit -or -not $stage.transferEnabled -or -not $stage.pilotPreserved -or $stage.businessDataWritten -or $stage.manifestSha256 -cne 'd81fa85be48d297332393628e513bae8a05df3477d163379111bb466a8b04f1b' -or $stage.manifestSha256 -cne (Get-FileHash -LiteralPath $manifestFile -Algorithm SHA256).Hash.ToLowerInvariant()){throw 'CATALOG_STAGE_RECEIPT_REJECTED'}
+          $sourceHashes=@{
+           'scripts/catalog-import.mjs'='d77b1f5edec369f0dff2bc90d90f2a98664122c0c28eca8441b0cc32e0448191'
+           'scripts/catalog-extract.py'='c5dc9416c7b343ae997ec8182d47e24c846944d5655e7e4c3d93f505858d6abe'
+           'server/data-transfer-batch.mjs'='42adac7881f9238a413eb7e7111d6dfcd2308af8600a6b43a54e68589719961e'
+           'server/catalog-reader.mjs'='26e5f631890500b8f30673cdad449fed1b399a162a990a5c70abdf890304d2b4'
+          }
+          foreach($name in $sourceHashes.Keys){
+           $item=Get-Item -LiteralPath (Join-Path $release $name)
+           if($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -or (Get-FileHash -LiteralPath $item.FullName -Algorithm SHA256).Hash.ToLowerInvariant() -cne $sourceHashes[$name]){throw 'CATALOG_IMPORTER_SOURCE_HASH_REJECTED'}
+          }
+          if((Get-FileHash -LiteralPath (Join-Path $service 'catalog-archive-20261110.json') -Algorithm SHA256).Hash.ToLowerInvariant() -cne 'd77d31fbc22a922ffa0e672ee9645ea53712911eb3e720d5ea17d58212b659e4'){throw 'CATALOG_ARCHIVE_METADATA_REJECTED'}
+          $live=Invoke-RestMethod -Uri 'https://kgeodata.com/app/ngiiseum/deployment.json' -TimeoutSec 20
+          if($live.commit -cne $expected -or -not $live.authenticationReady -or -not $live.writesEnabled -or $live.dataMode -ne 'server-review-pilot' -or $live.reviewPilot.id -ne 'real50-20261109' -or $live.reviewPilot.drawings -ne 50 -or $live.catalogDatabaseMigrated){throw 'CATALOG_LIVE_PILOT_BOUNDARY_REJECTED'}
+          $manifest=Get-Content -LiteralPath $manifestFile -Raw|ConvertFrom-Json
+          if($manifest.id -ne 'catalog-20261110' -or $manifest.schemaVersion -ne 1 -or @($manifest.files).Count -ne 2 -or (($manifest.files|ForEach-Object {$_.id}) -join ',') -ne 'part-000,part-001'){throw 'CATALOG_TRANSFER_SCOPE_REJECTED'}
+          foreach($entry in $manifest.files){
+           if($entry.sha256 -cnotmatch '^[a-f0-9]{64}$' -or [long]$entry.bytes -lt 1 -or [long]$entry.bytes -gt 8589934592){throw 'CATALOG_PART_MANIFEST_REJECTED'}
+           $file=Join-Path $service ('incoming\catalog-20261110\'+$entry.id+'\'+$entry.sha256+'.zip')
+           $item=Get-Item -LiteralPath $file
+           if($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $item.Length -ne $entry.bytes){throw 'CATALOG_UPLOAD_INCOMPLETE'}
+          }
+          $running=@(Get-CimInstance Win32_Process|Where-Object {$_.CommandLine -and ($_.CommandLine -match 'catalog-import\.mjs["\s]+restore' -or ($_.Name -eq 'pg_restore.exe' -and $_.CommandLine -like '*ngiiseum_catalog_20261110*') -or ($_.Name -match '^python' -and $_.CommandLine -like '*catalog-extract.py*'))})
+          if($running.Count){throw 'CATALOG_RESTORE_ALREADY_ACTIVE'}
+          foreach($relative in @('catalog-import-claim.json','catalog-import-launcher-20261110.json','catalog-20261110-verification.json','catalog.local.json','data\catalog-20261110','incoming\catalog-20261110\catalog.zip','catalog-import-launcher-20261110.mjs','catalog-import-progress.json','catalog-review-baseline.private.json','catalog-import.stdout.log','catalog-import.stderr.log','catalog-import.private.log','catalog-launcher.stdout.log','catalog-launcher.stderr.log')){
+           if(Test-Path -LiteralPath (Join-Path $service $relative)){throw 'CATALOG_PRIOR_RESTORE_STATE_NO_RETRY'}
+          }
+          $code=@'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import {spawn} from 'node:child_process';
+          import {createRequire} from 'node:module';
+          import {createHash} from 'node:crypto';
+          const service='D:/services/ngiiseum',expected='__CATALOG_RELEASE_SHA__',importerCommit='64e532da245d8a07e1f27a84a546151a5fe634d5';
+          const read=file=>JSON.parse(fs.readFileSync(file,'utf8'));
+          const fail=message=>{throw Error(message);};
+          if(process.env.COMPUTERNAME!=='KGO-GIS'||!/^[a-f0-9]{40}$/.test(expected)||read(service+'/current.json').commit!==expected)fail('CATALOG_RELEASE_CHANGED');
+          const release=service+'/releases/'+importerCommit,require=createRequire(release+'/package.json'),{Client}=require('pg');
+          const hash=file=>createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+          const sourceHashes=__SOURCE_HASHES__;
+          const stage=read(release+'/catalog-stage-result.json');
+          function assertImporter(){
+           if(read(service+'/current.json').commit!==expected)fail('CATALOG_RELEASE_CHANGED');
+           for(const [file,sha] of Object.entries(sourceHashes))if(hash(release+'/'+file)!==sha)fail('CATALOG_IMPORTER_SOURCE_HASH_REJECTED');
+           if(!stage.succeeded||stage.mode!=='stage'||stage.commit!==importerCommit||!stage.transferEnabled||stage.manifestSha256!==hash(service+'/catalog-transfer-20261110.json')||stage.manifestSha256!=='d81fa85be48d297332393628e513bae8a05df3477d163379111bb466a8b04f1b')fail('CATALOG_STAGE_RECEIPT_REJECTED');
+           if(hash(service+'/catalog-archive-20261110.json')!=='d77d31fbc22a922ffa0e672ee9645ea53712911eb3e720d5ea17d58212b659e4')fail('CATALOG_ARCHIVE_METADATA_REJECTED');
+          }
+          assertImporter();
+          const cfg=read(service+'/postgres.local.json');
+          if(cfg.host!=='127.0.0.1'||cfg.port!==49326||cfg.user!=='ngiiseum_owner')fail('CATALOG_DATABASE_BOUNDARY');
+          const pilot=read(service+'/real-review.local.json');
+          if(pilot.database.database!=='ngiiseum_review_real50_20261109'||!fs.existsSync(pilot.python))fail('CATALOG_PILOT_RUNTIME_REJECTED');
+          const pilotConfigSha256=hash(service+'/real-review.local.json');
+          const db=new Client({...cfg,database:'postgres',options:'-c default_transaction_read_only=on',connectionTimeoutMillis:5000,query_timeout:10000});
+          try{
+           await db.connect();
+           const identity=(await db.query("select current_user role,inet_server_port() port,current_setting('data_directory') directory")).rows[0];
+           if(identity.role!==cfg.user||identity.port!==49326||path.resolve(identity.directory).toLowerCase()!==path.resolve(service,'postgres-data').toLowerCase())fail('CATALOG_CLUSTER_IDENTITY_MISMATCH');
+           if((await db.query("select 1 from pg_database where datname='ngiiseum_catalog_20261110'")).rowCount||(await db.query("select 1 from pg_roles where rolname='ngiiseum_catalog_reader'")).rowCount)fail('CATALOG_DATABASE_OR_ROLE_EXISTS_NO_RETRY');
+          }finally{await db.end();}
+          assertImporter();
+          if(hash(service+'/real-review.local.json')!==pilotConfigSha256)fail('CATALOG_PILOT_CONFIGURATION_CHANGED');
+          for(const relative of ['catalog-import-claim.json','catalog-import-progress.json','catalog.local.json','data/catalog-20261110','incoming/catalog-20261110/catalog.zip'])if(fs.existsSync(service+'/'+relative))fail('CATALOG_PRIOR_RESTORE_STATE_NO_RETRY');
+          const file=service+'/catalog-import-launcher-20261110.json';
+          const receipt={id:'catalog-20261110',commit:expected,importerCommit,sourceHashes,pilotConfigSha256,launcherPid:process.pid,status:'claimed',startedAt:new Date().toISOString()};
+          fs.writeFileSync(file,JSON.stringify(receipt,null,2)+'\n',{flag:'wx'});
+          let out,err;
+          try{
+           out=fs.openSync(service+'/catalog-import.stdout.log','ax');err=fs.openSync(service+'/catalog-import.stderr.log','ax');
+           const env={...process.env,RUNNER_TRACKING_ID:'ngiiseum-catalog-import-20261110'};
+           for(const key of ['GITHUB_TOKEN','GH_TOKEN','ACTIONS_RUNTIME_TOKEN','ACTIONS_ID_TOKEN_REQUEST_TOKEN','ACTIONS_ID_TOKEN_REQUEST_URL','PGPASSWORD'])delete env[key];
+           const child=spawn(process.execPath,[release+'/scripts/catalog-import.mjs','restore'],{cwd:release,env,detached:true,windowsHide:true,stdio:['ignore',out,err]});
+           await new Promise((resolve,reject)=>{child.once('error',()=>reject(Error('CATALOG_IMPORT_START_FAILED')));child.once('spawn',resolve);});
+           child.unref();receipt.pid=child.pid;receipt.status='started';fs.writeFileSync(file,JSON.stringify(receipt,null,2)+'\n');
+           console.log(JSON.stringify({...receipt,detached:true,automaticRetry:false,restoreCompleted:false}));
+          }catch{
+           receipt.status='launch_failed_inspect_no_retry';fs.writeFileSync(file,JSON.stringify(receipt,null,2)+'\n');process.exitCode=1;
+          }finally{if(out!==undefined)fs.closeSync(out);if(err!==undefined)fs.closeSync(err);}
+          '@
+          $code=$code.Replace('__CATALOG_RELEASE_SHA__',$expected)
+          $code=$code.Replace('__SOURCE_HASHES__',($sourceHashes|ConvertTo-Json -Compress))
+          $codeFile=Join-Path $service 'catalog-import-launcher-20261110.mjs'
+          $stream=[IO.File]::Open($codeFile,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
+          try{$bytes=(New-Object Text.UTF8Encoding($false)).GetBytes($code);$stream.Write($bytes,0,$bytes.Length)}finally{$stream.Dispose()}
+          $node=(Get-Command node.exe -ErrorAction Stop).Source
+          # The short-lived hidden launcher spawns a detached importer with file handles,
+          # not Actions pipes, and a distinct tracking ID. The gateway is not restarted.
+          $launcher=Start-Process -FilePath $node -ArgumentList @(('"'+$codeFile+'"')) -WorkingDirectory $service -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $service 'catalog-launcher.stdout.log') -RedirectStandardError (Join-Path $service 'catalog-launcher.stderr.log')
+          if(-not $launcher.WaitForExit(30000)){throw 'CATALOG_LAUNCHER_PENDING_INSPECT_NO_RETRY'}
+          if($launcher.ExitCode -ne 0){throw 'CATALOG_LAUNCHER_FAILED_INSPECT_NO_RETRY'}
+          $receipt=Get-Content -LiteralPath (Join-Path $service 'catalog-import-launcher-20261110.json') -Raw|ConvertFrom-Json
+          if($receipt.status -ne 'started' -or $receipt.commit -cne $expected -or $receipt.importerCommit -cne $importerCommit -or [int]$receipt.pid -le 0){throw 'CATALOG_START_RECEIPT_REJECTED'}
+          Start-Sleep -Seconds 2
+          $importer=Get-CimInstance Win32_Process -Filter ('ProcessId='+[int]$receipt.pid)
+          $active=[bool]($importer -and $importer.CommandLine -like ('*'+$importerCommit+'*catalog-import.mjs*restore*'))
+          @{id='catalog-20261110';commit=$expected;importerCommit=$importerCommit;sourceFilesVerified=$sourceHashes.Count;pid=$receipt.pid;launched=$true;processObserved=$active;automaticRetry=$false;restoreCompleted=$false;checkedAt=[DateTime]::UtcNow.ToString('o')}|ConvertTo-Json -Compress
+          
