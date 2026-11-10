@@ -1,0 +1,31 @@
+name: NGII wmi-review-runner-1110
+on:
+  push:
+    branches: [codex/ngiiseum-wmi-review-runner-1110-20261109]
+    paths: [.github/workflows/ngiiseum-wmi-review-runner-1110-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: wmi-review-runner-1110
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'Host boundary'}
+          $helper='D:\services\ngiiseum\start-review-runner.ps1'
+          if((Get-FileHash -LiteralPath $helper -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'eafa656c5a04477cb67cba67175c08078404c95f8f80114a0aaa27f13a86db9b'){throw 'Helper changed'}
+          $owned=@(Get-CimInstance Win32_Process | Where-Object {$_.ExecutablePath -like 'D:\services\ngiiseum-runner\*' -or ($_.Name -eq 'powershell.exe' -and $_.CommandLine -like '*\ngiiseum\start-review-runner.ps1*')})
+          if($owned.Count){throw 'Existing runner process must be inspected first'}
+          if(Test-Path -LiteralPath 'D:\services\ngiiseum-runner\stop.request'){throw 'Runner stopped by operator'}
+          $startup=New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{ShowWindow=[UInt16]0}
+          $command='C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -Command "& ''D:\services\ngiiseum\start-review-runner.ps1'' *> ''D:\services\ngiiseum\review-runner-wmi.log''"'
+          $result=Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{CommandLine=$command;CurrentDirectory='D:\services\ngiiseum';ProcessStartupInformation=$startup}
+          if($result.ReturnValue -ne 0){throw ('WMI independent startup rejected: '+$result.ReturnValue)}
+          [pscustomobject]@{created=$true;pid=$result.ProcessId;returnValue=$result.ReturnValue;gatewayRestarted=$false}|ConvertTo-Json -Compress
+          
