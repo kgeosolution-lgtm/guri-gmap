@@ -1,0 +1,42 @@
+name: NGII drawing-final-evidence2-1110
+on:
+  push:
+    branches: [codex/ngiiseum-drawing-final-evidence2-1110-20261109]
+    paths: [.github/workflows/ngiiseum-drawing-final-evidence2-1110-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: drawing-final-evidence2-1110
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'HOST_REJECTED'}
+          @'
+          const fs=require('node:fs/promises');const {pathToFileURL}=require('node:url');
+          (async()=>{
+          const service='D:/services/ngiiseum',root=service+'/data/review-expansion-20261110';
+          const read=async p=>{const b=await fs.readFile(p);return JSON.parse(b.toString(b[0]===255&&b[1]===254?'utf16le':'utf8').replace(/^\uFEFF/,''));};
+          const current=await read(service+'/current.json'),old=await read(service+'/real-review.local.json'),extra=await read(service+'/review-expansion.local.json');
+          const {default:pg}=await import(pathToFileURL(service+'/releases/'+current.commit+'/node_modules/pg/lib/index.js'));
+          const db=new pg.Client(old.database),newdb=new pg.Client(extra.database);await db.connect();await newdb.connect();
+          try{
+          const before=await read(root+'/baseline-history-before.json');let preserved=0;
+          for(const [table,rows]of Object.entries(before)){if(!/^(local_flow|online_review)\.[a-z_]+$/.test(table))throw Error('TABLE');const key=table==='local_flow.training_case'?'job_id':table==='local_flow.survey_feature'?'survey_id':'id';const now=new Map((await db.query(`select ${key}::text id,md5(to_jsonb(t)::text) hash from ${table} t`)).rows.map(r=>[r.id,r.hash]));if(rows.some(r=>now.get(r.id)!==r.hash))throw Error('BASELINE_CHANGED');preserved+=rows.length;}
+          const browser=(await newdb.query("select sequence,is_test,author,calculation->>'status' status from local_flow.cad_selection where job_id=$1 and sequence in (3,4) and is_test order by sequence",['d02f13c5-b320-4031-aa75-2b8dc1c6fb82'])).rows;
+          if(browser.length!==2||browser.some(r=>r.author!=='portaladmin'||!r.is_test))throw Error('BROWSER_TEST_RECORDS');
+          const audit=(await newdb.query('select is_test,count(*)::int count from online_review.audit group by is_test order by is_test')).rows;
+          if(audit.some(r=>r.is_test===false))throw Error('UNEXPECTED_NON_TEST_AUDIT');
+          const result={checkedAt:new Date().toISOString(),runtime:current.commit,existingHistoryRowsPreserved:preserved,existingHistoryTables:Object.keys(before).length,browserTestRecords:browser,additionalOnlineAudit:audit,activation:await read(root+'/activation-receipt.json'),verification:await read(root+'/verification.json'),restore:await read(root+'/restore-progress.json'),render:await read(root+'/preview-preparation/render-receipt.json'),cleanup:await read(service+'/drawing-ingest-20261110/cleanup-receipt.json')};
+          await fs.writeFile(root+'/completion-evidence.json',JSON.stringify(result,null,2),{flag:'wx'});console.log(JSON.stringify(result));
+          }finally{await db.end();await newdb.end();}
+          })().catch(e=>{console.error(e.message);process.exitCode=1;});
+          '@ | node.exe
+          if($LASTEXITCODE -ne 0){throw 'FINAL_EVIDENCE_FAILED'}
+          
