@@ -1,0 +1,26 @@
+name: NGII drawing-preview-runtime-1110
+on:
+  push:
+    branches: [codex/ngiiseum-drawing-preview-runtime-1110-20261109]
+    paths: [.github/workflows/ngiiseum-drawing-preview-runtime-1110-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: drawing-preview-runtime-1110
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'HOST_REJECTED'}
+          $python=(Get-Content 'D:\services\ngiiseum\real-review.local.json' -Raw|ConvertFrom-Json).python
+          & $python -c 'import json,ezdxf,numpy,shapely;print(json.dumps(dict(previewRuntimeReady=True,ezdxf=ezdxf.__version__)))'
+          if($LASTEXITCODE -ne 0){throw 'PREVIEW_RUNTIME_MISSING'}
+          $p=Get-Content 'D:\services\ngiiseum\data\review-expansion-20261110\extract-progress.json' -Raw|ConvertFrom-Json
+          @{phase=$p.phase;jobs=$p.jobs;bundles=$p.bundles;files=$p.files;bytes=$p.bytes;error=$p.error}|ConvertTo-Json -Compress
+          
