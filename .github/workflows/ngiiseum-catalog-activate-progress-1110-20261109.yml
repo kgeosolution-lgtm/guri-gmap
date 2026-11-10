@@ -1,0 +1,89 @@
+name: NGII catalog-activate-progress-1110
+on:
+  push:
+    branches: [codex/ngiiseum-catalog-activate-progress-1110-20261109]
+    paths: [.github/workflows/ngiiseum-catalog-activate-progress-1110-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: catalog-activate-progress-1110
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $ProgressPreference='SilentlyContinue'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'CATALOG_PROGRESS_HOST_REJECTED'}
+          $service='D:\services\ngiiseum'
+          $request='558cbc44cb620edd24217938627d58ac'
+          $expected='f6b674c7c5e4a3b9ce9496073921f9585d17d837'
+          $baseline=Join-Path $service ('catalog-baselines\'+$request)
+          foreach($item in @($service,$baseline)){
+           if((Test-Path -LiteralPath $item) -and ((Get-Item -LiteralPath $item).Attributes -band [IO.FileAttributes]::ReparsePoint)){throw 'CATALOG_PROGRESS_LINK_REJECTED'}
+          }
+          $stages=@()
+          foreach($name in @('stage','runtime')){
+           $folder=Join-Path $baseline $name
+           if((Test-Path -LiteralPath $folder) -and ((Get-Item -LiteralPath $folder).Attributes -band [IO.FileAttributes]::ReparsePoint)){throw 'CATALOG_PROGRESS_LINK_REJECTED'}
+           $stages+=@{name=$name;exists=(Test-Path -LiteralPath $folder -PathType Container);dependenciesPresent=(Test-Path -LiteralPath (Join-Path $folder 'node_modules') -PathType Container);onlineBuildPresent=(Test-Path -LiteralPath (Join-Path $folder 'dist\online\index.html') -PathType Leaf)}
+          }
+          $logFile=Join-Path $baseline 'reconstruction.log'
+          $logState=@{exists=$false;bytes=0;modifiedAt=$null;sampledBytes=0;fullLogEmitted=$false;npmInstallSuccessMarkers=0;onlineBuildSuccessMarkers=0;viteBuildSuccessMarkers=0;errorClasses=@()}
+          if(Test-Path -LiteralPath $logFile -PathType Leaf){
+           $metadata=Get-Item -LiteralPath $logFile
+           if($metadata.Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'CATALOG_PROGRESS_LINK_REJECTED'}
+           $logState.exists=$true;$logState.bytes=$metadata.Length;$logState.modifiedAt=$metadata.LastWriteTimeUtc.ToString('o')
+           $stream=[IO.File]::Open($logFile,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite)
+           try{
+            $length=[int][Math]::Min($stream.Length,262144)
+            $null=$stream.Seek(-$length,[IO.SeekOrigin]::End)
+            $buffer=New-Object byte[] $length
+            $read=0
+            while($read -lt $length){$count=$stream.Read($buffer,$read,$length-$read);if($count -eq 0){break};$read+=$count}
+            $text=[Text.Encoding]::UTF8.GetString($buffer,0,$read)
+            $logState.sampledBytes=$read
+            $logState.npmInstallSuccessMarkers=[Regex]::Matches($text,'(?m)^added \d+ packages').Count
+            $logState.onlineBuildSuccessMarkers=[Regex]::Matches($text,'Online UI built with /app/ngiiseum/ paths\.').Count
+            $logState.viteBuildSuccessMarkers=[Regex]::Matches($text,'built in [0-9.]+[ms]').Count
+            $classes=@()
+            foreach($entry in @(
+             @{name='NETWORK_OR_REGISTRY_UNAVAILABLE';pattern='ENOTFOUND|ECONNRESET|ETIMEDOUT|EAI_AGAIN|ECONNREFUSED|npm ERR! network|npm error network'},
+             @{name='FILE_OR_EXECUTABLE_UNAVAILABLE';pattern='ENOENT|cannot find|not recognized'},
+             @{name='PATH_LENGTH_REJECTED';pattern='ENAMETOOLONG|path.*too long'},
+             @{name='PERMISSION_DENIED';pattern='EACCES|EPERM|access is denied'},
+             @{name='DISK_FULL';pattern='ENOSPC|no space left|not enough space'},
+             @{name='NPM_ERROR_PRESENT';pattern='npm (?:ERR!|error)'},
+             @{name='BUILD_ERROR_PRESENT';pattern='error during build|Build failed|failed to resolve'},
+             @{name='CATALOG_VALIDATION_REJECTED';pattern='CATALOG_[A-Z_]*(?:REJECTED|MISMATCH|CHANGED|INCOMPLETE)'}
+            )){if([Regex]::IsMatch($text,$entry.pattern,[Text.RegularExpressions.RegexOptions]::IgnoreCase)){$classes+=$entry.name}}
+            $logState.errorClasses=$classes
+           }finally{$stream.Dispose()}
+          }
+          $all=@(Get-CimInstance Win32_Process)
+          $ids=New-Object 'System.Collections.Generic.HashSet[int]'
+          foreach($process in $all){if($process.CommandLine -and ($process.CommandLine -like ('*'+$request+'*') -or $process.CommandLine -like ('*'+$baseline+'*'))){$null=$ids.Add([int]$process.ProcessId)}}
+          do{
+           $added=$false
+           foreach($process in $all){if($ids.Contains([int]$process.ParentProcessId) -and -not $ids.Contains([int]$process.ProcessId)){$null=$ids.Add([int]$process.ProcessId);$added=$true}}
+          }while($added)
+          $related=@()
+          foreach($process in $all){
+           if(-not $ids.Contains([int]$process.ProcessId)){continue}
+           $cpu=$null
+           $live=Get-Process -Id $process.ProcessId -ErrorAction SilentlyContinue
+           if($live -and $null -ne $live.CPU){$cpu=[Math]::Round($live.CPU,2)}
+           $related+=@{pid=[int]$process.ProcessId;parentPid=[int]$process.ParentProcessId;name=$process.Name;cpuSeconds=$cpu;startedAt=if($process.CreationDate){$process.CreationDate.ToUniversalTime().ToString('o')}else{$null}}
+          }
+          $current=Get-Content -LiteralPath (Join-Path $service 'current.json') -Raw|ConvertFrom-Json
+          if($current.commit -cnotmatch '^[a-f0-9]{40}$'){throw 'CATALOG_PROGRESS_RELEASE_REJECTED'}
+          $config=Get-Content -LiteralPath (Join-Path $service 'online.local.json') -Raw|ConvertFrom-Json
+          $catalogConfigured=$false
+          if($config.catalogConfigFile){$catalogConfigured=[IO.Path]::GetFullPath($config.catalogConfigFile) -eq (Join-Path $service 'catalog.local.json')}
+          $transferPresent=$null -ne $config.PSObject.Properties['dataTransfer']
+          [ordered]@{checkedAt=[DateTime]::UtcNow.ToString('o');requestId=$request;readOnly=$true;baselineDirectoryPresent=(Test-Path -LiteralPath $baseline -PathType Container);baselineProofPresent=(Test-Path -LiteralPath (Join-Path $baseline 'baseline.json') -PathType Leaf);stages=$stages;reconstructionLog=$logState;relatedProcesses=$related;liveCommit=$current.commit;expectedRuntimeUnchanged=($current.commit -eq $expected);catalogConfigPresent=$catalogConfigured;transferConfigPresent=$transferPresent;catalogSwitched=($catalogConfigured -and -not $transferPresent);configurationValuesEmitted=$false;processCommandsEmitted=$false;stateChanged=$false}|ConvertTo-Json -Depth 7 -Compress
+          
