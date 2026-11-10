@@ -1,0 +1,34 @@
+name: NGII drawing-preview-import-1110
+on:
+  push:
+    branches: [codex/ngiiseum-drawing-preview-import-1110-20261109]
+    paths: [.github/workflows/ngiiseum-drawing-preview-import-1110-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: drawing-preview-import-1110
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'HOST_REJECTED'}
+          $python='D:\services\ngiiseum\data\real50-20261109\python\python.exe'
+          $code=@'
+          import sys,traceback,pathlib,json
+          try:
+           sys.path.insert(0,'D:/services/ngiiseum/data/review-expansion-20261110/preview-preparation/libs')
+           from ezdxf.addons.drawing import Frontend,RenderContext,svg,layout,config
+           print('DRAWING_IMPORT_OK')
+          except Exception:
+           print(traceback.format_exc())
+          work=pathlib.Path('D:/services/ngiiseum/data/review-expansion-20261110/preview-preparation/generated')
+          print(json.dumps({'generated':[{'files':[f.name for f in p.iterdir()]} for p in work.iterdir()]}))
+          '@
+          & $python -c $code
+          
