@@ -1,0 +1,25 @@
+name: NGII drawing-bounded-failure-1110
+on:
+  push:
+    branches: [codex/ngiiseum-drawing-bounded-failure-1110-20261109]
+    paths: [.github/workflows/ngiiseum-drawing-bounded-failure-1110-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: drawing-bounded-failure-1110
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'HOST_REJECTED'}
+          $work='D:\services\ngiiseum\data\review-expansion-20261110\preview-preparation'
+          Get-Content (Join-Path $work 'render-bounded.private.log') -Tail 12
+          Get-ChildItem (Join-Path $work 'generated-bounded') -Directory | ForEach-Object {if(Test-Path (Join-Path $_.FullName 'render.private.log')){Get-Content (Join-Path $_.FullName 'render.private.log') -Tail 14}}
+          Get-Content (Join-Path $work 'render-progress.json') -Raw
+          
