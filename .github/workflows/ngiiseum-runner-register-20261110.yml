@@ -1,0 +1,37 @@
+name: NGII dedicated runner registration
+on:
+  push:
+    branches: [codex/ngiiseum-runner-register-20261110]
+    paths: [.github/workflows/ngiiseum-runner-register-20261110.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  register:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: Register the NGII repository runner
+        shell: powershell
+        env:
+          NGII_RUNNER_REGISTRATION: ${{ secrets.NGII_RUNNER_REGISTRATION_20261110 }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $ProgressPreference='SilentlyContinue'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'Host boundary'}
+          $target='D:\services\ngiiseum-runner'
+          if(Test-Path -LiteralPath $target){throw 'Target already exists; inspect before continuing'}
+          New-Item -ItemType Directory -Path $target | Out-Null
+          $zip=Join-Path $env:RUNNER_TEMP 'ngiiseum-runner-package-20261110.zip'
+          Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/actions/runner/releases/download/v2.338.2/actions-runner-win-x64-2.338.2.zip' -OutFile $zip -TimeoutSec 180
+          if((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'a1f17aa987fc8158bc7521d284912267a0d01b7c2c4684b33c86783b5e8221cc'){throw 'Package checksum'}
+          Expand-Archive -LiteralPath $zip -DestinationPath $target
+          Push-Location $target
+          try{
+           & .\config.cmd --unattended --url https://github.com/kgeosolution-lgtm/ngiiseum --token $env:NGII_RUNNER_REGISTRATION --name kgeodata-ngiiseum --labels ngiiseum-review --work _work
+           if($LASTEXITCODE -ne 0){throw 'Runner registration failed'}
+          }finally{$env:NGII_RUNNER_REGISTRATION=$null;Pop-Location}
+          if(-not(Test-Path -LiteralPath (Join-Path $target '.runner'))){throw 'Runner configuration missing'}
+          [pscustomobject]@{registered=$true;name='kgeodata-ngiiseum';root=$target;serviceInstalled=$false;existingServicesChanged=$false}|ConvertTo-Json -Compress
