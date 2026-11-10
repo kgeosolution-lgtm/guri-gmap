@@ -1,0 +1,29 @@
+name: NGII drawing-acl-diagnostic-1110
+on:
+  push:
+    branches: [codex/ngiiseum-drawing-acl-diagnostic-1110-20261109]
+    paths: [.github/workflows/ngiiseum-drawing-acl-diagnostic-1110-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: drawing-acl-diagnostic-1110
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'HOST_REJECTED'}
+          $root=Join-Path $env:TEMP ('ngiiseum-acl-diagnostic-'+[guid]::NewGuid().ToString());[void](New-Item -ItemType Directory -Path $root)
+          try{
+          $a=Join-Path $root 'a';$b=Join-Path $root 'b';[IO.File]::WriteAllText($a,'a');[IO.File]::WriteAllText($b,'b')
+          $section=[Security.AccessControl.AccessControlSections]::Access
+          $s=(Get-Acl $a).GetSecurityDescriptorSddlForm($section)
+          $acl=New-Object Security.AccessControl.FileSecurity;$acl.SetSecurityDescriptorSddlForm($s,$section);Set-Acl $b $acl
+          @{before=$s;after=(Get-Acl $b).GetSecurityDescriptorSddlForm($section);sourceProtected=(Get-Acl $a).AreAccessRulesProtected;targetProtected=(Get-Acl $b).AreAccessRulesProtected}|ConvertTo-Json -Compress
+          }finally{Remove-Item -LiteralPath $a,$b -Force;Remove-Item -LiteralPath $root -Force}
+          
