@@ -1,0 +1,34 @@
+name: NGII remaining-preflight-1111
+on:
+  push:
+    branches: [codex/ngiiseum-remaining-preflight-1111-20261109]
+    paths: [.github/workflows/ngiiseum-remaining-preflight-1111-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: remaining-preflight-1111
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'HOST_REJECTED'}
+          @'
+          const fs=require('node:fs/promises');const path=require('node:path');
+          (async()=>{
+          const service='D:/services/ngiiseum';const read=async p=>JSON.parse((await fs.readFile(p,'utf8')).replace(/^\uFEFF/,''));
+          const current=await read(service+'/current.json'),online=await read(service+'/online.local.json');
+          const sets=[];
+          for(const name of ['real-review.local.json','review-expansion.local.json']){const c=await read(service+'/'+name);const root=c.datasetRoot;const entries=await fs.readdir(path.join(root,'.runtime/local-workflow/files'),{withFileTypes:true});const sources=[];for(const e of entries){if(!e.isFile()||e.isSymbolicLink())throw Error('SOURCE_TYPE');const s=await fs.stat(path.join(root,'.runtime/local-workflow/files',e.name));sources.push({key:'files/'+e.name,bytes:s.size});}sets.push({config:name,root,sources});}
+          const result={checkedAt:new Date().toISOString(),runtime:current.commit,dataTransfer:!!online.dataTransfer,sets};
+          const target=service+'/data/remaining-drawings-20261111';await fs.mkdir(target,{recursive:true});await fs.writeFile(target+'/preflight.json',JSON.stringify(result,null,2),{flag:'wx'});console.log(JSON.stringify(result));
+          })().catch(e=>{console.error(e.message);process.exitCode=1});
+          '@ | node.exe
+          if($LASTEXITCODE -ne 0){throw 'PREFLIGHT_FAILED'}
+          [ordered]@{disk=(Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='D:'"|Select-Object Size,FreeSpace);webConfigHash=(Get-FileHash 'D:\codesolution\kgeodata\ngiiseum\web.config' -Algorithm SHA256).Hash.ToLowerInvariant();port4193Free=(@(Get-NetTCPConnection -LocalPort 4193 -State Listen -ErrorAction SilentlyContinue).Count -eq 0)}|ConvertTo-Json -Compress
+          
