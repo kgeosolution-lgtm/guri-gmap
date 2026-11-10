@@ -1,0 +1,25 @@
+name: NGII drawing-preview-progress-1110
+on:
+  push:
+    branches: [codex/ngiiseum-drawing-preview-progress-1110-20261109]
+    paths: [.github/workflows/ngiiseum-drawing-preview-progress-1110-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: drawing-preview-progress-1110
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'HOST_REJECTED'}
+          $root='D:\services\ngiiseum\data\review-expansion-20261110'
+          $work=Join-Path $root 'preview-preparation'
+          $dirs=@(Get-ChildItem (Join-Path $work 'generated-recovery') -Directory -ErrorAction SilentlyContinue)
+          @{generated=$dirs.Count;ready=@($dirs|Where-Object {(Test-Path (Join-Path $_.FullName 'cad-objects.json')) -and (Test-Path (Join-Path $_.FullName 'source-color.svg'))}).Count;running=@(Get-CimInstance Win32_Process | Where-Object {$_.Name -eq 'python.exe' -and $_.CommandLine -match 'preview-preparation|run-preview-recovery'} | Select-Object ProcessId,ParentProcessId).Count;receipt=(Test-Path (Join-Path $work 'render-receipt.json'));checkedAt=[DateTime]::UtcNow.ToString('o')}|ConvertTo-Json -Compress
+          
