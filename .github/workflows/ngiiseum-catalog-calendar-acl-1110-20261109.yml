@@ -1,0 +1,60 @@
+name: NGII catalog-calendar-acl-1110
+on:
+  push:
+    branches: [codex/ngiiseum-catalog-calendar-acl-1110-20261109]
+    paths: [.github/workflows/ngiiseum-catalog-calendar-acl-1110-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: catalog-calendar-acl-1110
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $ProgressPreference='SilentlyContinue'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'HOST_REJECTED'}
+          $service='D:\services\ngiiseum'
+          $expected='f6b674c7c5e4a3b9ce9496073921f9585d17d837'
+          if((Get-Content -LiteralPath (Join-Path $service 'current.json') -Raw|ConvertFrom-Json).commit -cne $expected){throw 'CATALOG_RUNTIME_CHANGED'}
+          $code=@'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import {pathToFileURL} from 'node:url';
+          import {createHash} from 'node:crypto';
+          const service='D:/services/ngiiseum',expected='f6b674c7c5e4a3b9ce9496073921f9585d17d837';
+          const read=p=>JSON.parse(fs.readFileSync(p,'utf8'));
+          if(process.env.COMPUTERNAME!=='KGO-GIS'||read(service+'/current.json').commit!==expected)throw Error('CATALOG_RUNTIME_CHANGED');
+          const root=service+'/releases/'+expected,config=read(service+'/catalog.local.json');
+          if(config.snapshotId!=='catalog-20261110'||config.database.host!=='127.0.0.1'||config.database.port!==49326||config.database.user!=='ngiiseum_catalog_reader'||config.database.database!=='ngiiseum_catalog_20261110')throw Error('CATALOG_READER_BOUNDARY');
+          const {createCatalogReader}=await import(pathToFileURL(root+'/server/catalog-reader.mjs'));
+          const {sourceCalendar}=await import(pathToFileURL(root+'/packages/local-workflow/source-calendar-read.mjs'));
+          const reader=await createCatalogReader(config);
+          const out={id:'catalog-20261110',runtimeCommit:expected,checkedAt:new Date().toISOString(),diagnosisOnly:true,permissionsChanged:false,privateRowsEmitted:false};
+          try{
+           const db=reader.store.db;
+           const i=(await db.query("select current_user role,current_database() database,inet_server_port() port,current_setting('default_transaction_read_only') read_only,to_regprocedure('local_catalog.source_day_v1(text)')::text signature,has_function_privilege(current_user,to_regprocedure('local_catalog.source_day_v1(text)'),'EXECUTE') can_execute")).rows[0];
+           if(i.role!=='ngiiseum_catalog_reader'||i.database!=='ngiiseum_catalog_20261110'||i.port!==49326||i.read_only!=='on')throw Error('CATALOG_READER_IDENTITY');
+           out.identity={expectedRole:true,expectedDatabase:true,expectedPort:true,readOnly:true};
+           out.functionSignature=i.signature;out.readerCanExecute=i.can_execute===true;
+           const f=(await db.query("select n.nspname schema,p.proname name,pg_get_function_identity_arguments(p.oid) arguments,l.lanname language,r.rolname owner,p.provolatile volatility,p.prosecdef security_definer,p.proisstrict strict,p.proparallel parallel,p.proconfig config,p.prosrc source,p.proacl is not null explicit_acl,exists(select 1 from aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a where a.grantee=0 and a.privilege_type='EXECUTE') public_execute,has_schema_privilege(current_user,n.oid,'USAGE') schema_usage from pg_proc p join pg_namespace n on n.oid=p.pronamespace join pg_language l on l.oid=p.prolang join pg_roles r on r.oid=p.proowner where p.oid=to_regprocedure('local_catalog.source_day_v1(text)')")).rows[0];
+           if(!f)throw Error('CATALOG_FUNCTION_MISSING');
+           const bodySha256=createHash('sha256').update(f.source.replace(/\r\n/g,'\n')).digest('hex');
+           out.functionMetadata={schema:f.schema,name:f.name,arguments:f.arguments,language:f.language,owner:f.owner,volatility:f.volatility,securityDefiner:f.security_definer,strict:f.strict,parallel:f.parallel,searchPathIsPgCatalog:Array.isArray(f.config)&&f.config.includes('search_path=pg_catalog'),explicitAcl:f.explicit_acl,publicCanExecute:f.public_execute,readerSchemaUsage:f.schema_usage,bodySha256,bodyMatchesReviewedSnapshot:bodySha256==='81a6430039041dce86150635c7ea386accda50b5b7eaac3b2382305e6b09d251',containsSqlDmlOrDynamicExecution:/\b(?:SELECT|INSERT|UPDATE|DELETE|TRUNCATE|CREATE|ALTER|DROP|GRANT|REVOKE|EXECUTE|PERFORM|CALL)\b/i.test(f.source)};
+           out.functionMetadata.readOnlyBodyConfirmed=out.functionMetadata.bodyMatchesReviewedSnapshot&&!out.functionMetadata.containsSqlDmlOrDynamicExecution&&f.volatility==='i'&&!f.security_definer;
+           const safeError=e=>({succeeded:false,sqlstate:/^[A-Z0-9]{5}$/.test(e.code??'')?e.code:null,permissionDenied:/permission denied/i.test(e.message??''),sourceDayFunctionNamed:/source_day_v1/.test(e.message??'')});
+           try{await db.query("select local_catalog.source_day_v1('20261110')");out.literalProbe={succeeded:true};}catch(e){out.literalProbe=safeError(e);}
+           try{const calendar=await sourceCalendar(reader.store,{table:'KCR_PMSRGST',month:'2026-11',day:'',drawings:'0',q:'',offset:'0',limit:'25'});out.calendar={succeeded:true,month:calendar.month??null,status:calendar.status??null};}catch(e){out.calendar=safeError(e);}
+           out.runtimeUnchanged=read(service+'/current.json').commit===expected;
+           console.log(JSON.stringify(out));
+          }finally{await reader.close();}
+          '@
+          $file=Join-Path $service ('catalog-calendar-diagnosis-'+[Guid]::NewGuid().ToString('N')+'.mjs')
+          [IO.File]::WriteAllText($file,$code,(New-Object Text.UTF8Encoding($false)))
+          try{& node.exe $file;if($LASTEXITCODE -ne 0){throw 'CATALOG_CALENDAR_DIAGNOSIS_FAILED'}}finally{Remove-Item -LiteralPath $file -Force}
+          
