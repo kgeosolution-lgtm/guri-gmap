@@ -42,6 +42,36 @@
   #hval { font:11px 'IBM Plex Mono',monospace; color:var(--accent); background:var(--panel); padding:3px 8px; border-radius:3px; display:none; }
   .bl { flex-direction:column; align-items:flex-start; }
   .embedded .bl { bottom:84px; }
+  /* 균열 자동 분석: 목록 패널 (폭 구간 범례·요약·균열별 길이·최대폭) */
+  #crackPanel { position:absolute; top:48px; right:10px; width:290px; max-height:58%; overflow:auto; z-index:2; display:none;
+                background:var(--panel); border:1px solid var(--line); border-radius:4px; font:11px 'IBM Plex Mono',monospace; }
+  .embedded #crackPanel { top:auto; bottom:48px; right:52px; max-height:46%; width:270px; }
+  #crackPanel .hd { display:flex; justify-content:space-between; align-items:center; padding:6px 8px; border-bottom:1px solid var(--line); color:var(--text); font-weight:600; }
+  #crackPanel .hd a { color:var(--accent); text-decoration:none; font-weight:400; }
+  #crackPanel .sum { padding:5px 8px; color:var(--muted); line-height:1.5; }
+  #crackPanel .bins { display:flex; flex-wrap:wrap; gap:4px 8px; padding:0 8px 6px; color:var(--muted); }
+  #crackPanel .bins i { display:inline-block; width:14px; height:3px; margin-right:3px; vertical-align:middle; }
+  #crackPanel table { width:100%; border-collapse:collapse; }
+  #crackPanel td, #crackPanel th { padding:3px 6px; text-align:right; white-space:nowrap; }
+  #crackPanel th { color:var(--muted); font-weight:400; border-bottom:1px solid var(--line); position:sticky; top:0; background:#0d1117; }
+  #crackPanel td:first-child, #crackPanel th:first-child { text-align:left; }
+  #crackPanel tr.row { cursor:pointer; }
+  #crackPanel tr.row:hover, #crackPanel tr.sel { background:rgba(56,189,248,.14); }
+  #crackPanel .note { padding:6px 8px; color:var(--muted); font-family:'Pretendard','Malgun Gothic',sans-serif; line-height:1.45; }
+  /* 위험요소 패널: 균열 패널과 같은 모양, 왼쪽 위 (임베드면 왼쪽 아래 위) */
+  #hzPanel { position:absolute; top:70px; left:10px; width:300px; max-height:56%; overflow:auto; z-index:2; display:none;
+             background:var(--panel); border:1px solid var(--line); border-radius:4px; font:11px 'IBM Plex Mono',monospace; }
+  .embedded #hzPanel { top:auto; bottom:120px; left:10px; max-height:40%; width:270px; }
+  #hzPanel .hd { display:flex; justify-content:space-between; align-items:center; padding:6px 8px; border-bottom:1px solid var(--line); font-weight:600; }
+  #hzPanel .sum { padding:5px 8px; color:var(--muted); line-height:1.5; font-family:'Pretendard','Malgun Gothic',sans-serif; }
+  #hzPanel table { width:100%; border-collapse:collapse; }
+  #hzPanel td, #hzPanel th { padding:3px 6px; text-align:left; white-space:nowrap; }
+  #hzPanel td.r, #hzPanel th.r { text-align:right; }
+  #hzPanel th { color:var(--muted); font-weight:400; border-bottom:1px solid var(--line); position:sticky; top:0; background:#0d1117; }
+  #hzPanel tr.row { cursor:pointer; }
+  #hzPanel tr.row:hover, #hzPanel tr.sel { background:rgba(56,189,248,.14); }
+  #hzPanel .st { display:inline-block; padding:0 4px; border-radius:2px; font-size:10px; color:#0d1117; }
+  #hzPanel .note { padding:6px 8px; color:var(--muted); font-family:'Pretendard','Malgun Gothic',sans-serif; line-height:1.45; }
 </style>
 </head>
 <body>
@@ -51,6 +81,8 @@
   <div class="info" id="meta"></div>
 </div>
 <div class="bar tr">
+  <button id="btnHazards" title="위험요소: 균열·변색(백태·누수·녹물)·요철(패임·돌출)·변형 + 이전 점검과 변화" style="display:none">⚠ 위험요소</button>
+  <button id="btnCracks" title="균열 자동 분석: 위치·길이·폭 (폭 구간별 색)" style="display:none">⚡ 균열</button>
   <button id="btnHeight" title="높이(바닥) / 벽면 앞뒤(벽) 색 지도" style="display:none">▤ 높이</button>
   <button id="btnMeasure" title="두 점을 눌러 거리 재기 (여러 개 남음)">📏 측정</button>
   <button id="btnClear" title="측정 모두 지우기" style="display:none">✕ 지우기</button>
@@ -64,6 +96,8 @@
   <div id="scale"><span id="scaleText">—</span><div id="scaleBar"></div></div>
 </div>
 <div id="measure"></div>
+<div id="crackPanel"></div>
+<div id="hzPanel" class="crackPanelLike"></div>
 <div id="msg">정사영상 불러오는 중...</div>
 
 <script>
@@ -79,6 +113,10 @@ if (window.parent !== window) document.documentElement.classList.add("embedded")
   let userMoved = false;                          // 사용자가 움직이기 전에는 창 크기가 바뀔 때마다 전체 보기로 다시 맞춘다
   // 높이 지도: int16 mm (행 우선, -32768 = 없음), 격자 한 칸 = 정사영상 step 픽셀. 바닥 = 기준면(가장 넓은 면) 대비 높이, 벽 = 평면 대비 앞뒤
   let H = null, hImg = null, showHeight = false;
+  // 균열: <job>_ortho_cracks.json (cracks[].segments[].polyline 정사영상 px, bin = 폭 구간). selCrack = 목록·화면에서 고른 균열 id
+  let CR = null, showCracks = false, selCrack = null;
+  // 위험요소: <job>_hazards.json (items[]: crack·stain·relief·deformation, 정사영상 px) + <job>_changes.json (직전 점검과 비교)
+  let HZ = null, CH = null, showHz = false, selHz = null;
 
   function heightAt(p) {                          // 정사영상 픽셀 좌표 → mm (없으면 null)
     if (!H || !H.data) return null;
@@ -128,6 +166,8 @@ if (window.parent !== window) document.documentElement.classList.add("embedded")
     } else {
       ctx.drawImage(img, ox, oy, img.width * scale, img.height * scale);
     }
+    if (showHz) drawHazards(ctx, p => [p[0] * scale + ox, p[1] * scale + oy]);
+    if (showCracks) drawCracks(ctx, p => [p[0] * scale + ox, p[1] * scale + oy]);
     drawMeasures(ctx, p => [p[0] * scale + ox, p[1] * scale + oy]);
     // 축척 막대: 화면 80~160 px 에 맞는 깔끔한 길이
     const mPerScreenPx = gsd / scale;
@@ -161,6 +201,285 @@ if (window.parent !== window) document.documentElement.classList.add("embedded")
     pts.forEach(p => { const q = toScreen(p); c.fillStyle = "#facc15"; c.beginPath(); c.arc(q[0], q[1], 4, 0, Math.PI * 2); c.fill(); });
     c.restore();
   }
+  // ── 균열 ──
+  const fmtW = mm => mm < 1 ? mm.toFixed(2) + " mm" : mm.toFixed(1) + " mm";
+  function crackText(c) {
+    return `C${c.id} · 길이 ${fmtLen(c.length_mm / 1000)} · 최대폭 ${fmtW(c.width_max_mm)} (중앙 ${fmtW(c.width_median_mm)}, ${c.width_source === "photo" ? "원본 사진" : "정사영상"}) · ${c.kind}`;
+  }
+  function drawCracks(c, toScreen) {
+    if (!CR) return;
+    const cols = CR.bins.colors;
+    c.save();
+    c.lineCap = "round"; c.lineJoin = "round";
+    for (const k of CR.cracks) {
+      const sel = k.id === selCrack;
+      for (const sg of k.segments) {
+        if (sg.polyline.length < 2) continue;
+        c.beginPath();
+        sg.polyline.forEach((p, i) => { const q = toScreen(p); i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]); });
+        if (sel) { c.strokeStyle = "rgba(255,255,255,.9)"; c.lineWidth = 6; c.stroke(); }
+        c.strokeStyle = cols[sg.bin]; c.lineWidth = sel ? 3 : 2.2; c.stroke();
+      }
+      const t = toScreen([k.bbox[0], k.bbox[1]]);
+      if (sel || scale * (k.bbox[2] - k.bbox[0] + k.bbox[3] - k.bbox[1]) > 60) {   // 화면에서 너무 작으면 번호 생략
+        const s = `C${k.id} ${fmtW(k.width_max_mm)}`;
+        c.font = "600 11px 'IBM Plex Mono', monospace";
+        const tw = c.measureText(s).width;
+        c.fillStyle = "rgba(8,11,15,.8)"; c.fillRect(t[0] - 2, t[1] - 15, tw + 6, 15);
+        c.fillStyle = sel ? "#fff" : cols[k.bin]; c.fillText(s, t[0] + 1, t[1] - 4);
+      }
+    }
+    if (CR.scale_card) {                           // 기준 카드 자리 (균열 분석에서 뺀 곳)
+      for (const cc of (CR.scale_card.cards && CR.scale_card.cards.length ? CR.scale_card.cards : [CR.scale_card])) {
+        const b = cc.card_px_bbox, a = toScreen([b[0], b[1]]), z = toScreen([b[2], b[3]]);
+        c.setLineDash([6, 4]); c.strokeStyle = "#67e8f9"; c.lineWidth = 1.5;
+        c.strokeRect(a[0], a[1], z[0] - a[0], z[1] - a[1]); c.setLineDash([]);
+        c.font = "600 11px 'IBM Plex Mono', monospace"; c.fillStyle = "#67e8f9";
+        c.fillText(`기준 카드 ${cc.card} (${cc.scale_error_pct > 0 ? "+" : ""}${cc.scale_error_pct.toFixed(2)}%)`, a[0] + 3, a[1] - 5);
+      }
+    }
+    for (const m of (CR.marks || [])) {            // 앱에서 탭한 균열 표시
+      c.fillStyle = "#e879f9"; c.strokeStyle = "#e879f9"; c.lineWidth = 2;
+      if (m.kind === "crack_line") {
+        const a = toScreen(m.p0), b = toScreen(m.p1);
+        c.setLineDash([5, 4]); c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke(); c.setLineDash([]);
+      } else {
+        const q = toScreen(m.px);
+        c.beginPath(); c.arc(q[0], q[1] - 9, 5, 0, Math.PI * 2); c.fill();
+        c.beginPath(); c.moveTo(q[0] - 4, q[1] - 7); c.lineTo(q[0], q[1]); c.lineTo(q[0] + 4, q[1] - 7); c.fill();
+      }
+    }
+    c.restore();
+  }
+  function crackAt(p) {                            // 정사영상 px 근처(화면 8 px)의 균열
+    if (!CR || !showCracks) return null;
+    const tol = 8 / scale;
+    let best = null, bd = tol;
+    for (const k of CR.cracks) {
+      if (p[0] < k.bbox[0] - tol || p[0] > k.bbox[2] + tol || p[1] < k.bbox[1] - tol || p[1] > k.bbox[3] + tol) continue;
+      for (const sg of k.segments) for (let i = 1; i < sg.polyline.length; i++) {
+        const a = sg.polyline[i - 1], b = sg.polyline[i], dx = b[0] - a[0], dy = b[1] - a[1];
+        const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)));
+        const d = Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
+        if (d < bd) { bd = d; best = k; }
+      }
+    }
+    return best;
+  }
+  function selectCrack(k, zoom) {
+    selCrack = k ? k.id : null;
+    document.querySelectorAll("#crackPanel tr.row").forEach(tr => tr.classList.toggle("sel", +tr.dataset.id === selCrack));
+    $("measure").textContent = k ? crackText(k) : "";
+    $("measure").style.display = k || measuring ? "block" : "none";
+    if (k && zoom) {
+      const w = cv.clientWidth, h = cv.clientHeight, bw = k.bbox[2] - k.bbox[0], bh = k.bbox[3] - k.bbox[1];
+      scale = Math.min(Math.min(w / (bw * 1.6 + 40), h / (bh * 1.6 + 40)), 40);
+      ox = w / 2 - (k.bbox[0] + bw / 2) * scale; oy = h / 2 - (k.bbox[1] + bh / 2) * scale; userMoved = true;
+    }
+    draw();
+  }
+  function buildCrackPanel() {
+    const d = CR, el = $("crackPanel");
+    const bins = d.bins.labels.map((l, i) => `<span><i style="background:${d.bins.colors[i]}"></i>${l}</span>`).join("");
+    const rows = d.cracks.map(k => `<tr class="row" data-id="${k.id}"><td style="color:${d.bins.colors[k.bin]}">C${k.id}</td>` +
+      `<td>${fmtLen(k.length_mm / 1000)}</td><td>${fmtW(k.width_max_mm)}${k.width_source === "photo" ? "" : "*"}</td><td>${k.kind}</td></tr>`).join("");
+    const dxf = meta.files.cracks_dxf && sameOrigin(meta.files.cracks_dxf) ? `<a href="${meta.files.cracks_dxf}" download>⬇ DXF</a>` : "";
+    const sc = d.scale_card;                       // 균열 기준 카드(AprilTag): 축척 오차·보정 + 게이지 선 폭 자체 검증
+    let card = `<div class="sum">기준 카드 없음 — 카드를 균열 옆에 붙여 찍으면 축척과 폭을 검증합니다</div>`;
+    if (sc) {
+      const gp = (sc.gauge_photo || []).filter(g => g.measured_mm != null);
+      card = `<div class="sum" style="color:#67e8f9">기준 카드 ${sc.card} · 축척 오차 ${sc.scale_error_pct > 0 ? "+" : ""}${sc.scale_error_pct.toFixed(2)} %` +
+        `${d.scale_factor_applied && d.scale_factor_applied !== 1 ? " → 보정함" : ""}` +
+        (gp.length ? `<br>폭 검증(카드 눈금선, 원본 사진): ${gp.map(g => `${g.nominal_mm}→${g.measured_mm.toFixed(2)}`).join(" · ")} mm` : "") + `</div>`;
+    }
+    el.innerHTML = `<div class="hd"><span>균열 ${d.count}개</span>${dxf}</div>` +
+      `<div class="sum">총 길이 ${fmtLen(d.total_length_mm / 1000)} · 최대폭 ${d.count ? fmtW(d.max_width_mm) : "—"}</div>` + card +
+      `<div class="bins">폭 ${bins}</div>` +
+      (d.count ? `<table><tr><th>번호</th><th>길이</th><th>최대폭</th><th>모양</th></tr>${rows}</table>` : "") +
+      `<div class="note">자동 분석 결과입니다. 폭은 원본 사진에서 잰 값이고, *는 정사영상에서 잰 값입니다(해상도가 낮음). ` +
+      `0.2 mm 미만은 추정치이고, 균열 깊이는 겉 사진으로 알 수 없습니다. 줄눈·그림자·전선 등이 섞일 수 있으니 확인해 주세요.</div>`;
+    el.querySelectorAll("tr.row").forEach(tr => tr.onclick = () => selectCrack(d.cracks.find(k => k.id === +tr.dataset.id), true));
+  }
+  function loadCracks(show) {
+    fetch(meta.files.cracks, { cache: "no-store" }).then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); }).then(d => {
+      CR = d;
+      $("btnCracks").textContent = `⚡ 균열 ${d.count}`;
+      $("btnCracks").style.display = "";
+      buildCrackPanel();
+      if (show) toggleCracks(true);
+    }).catch(() => {});
+  }
+  function toggleCracks(on) {
+    showCracks = on;
+    $("btnCracks").classList.toggle("on", on);
+    $("crackPanel").style.display = on ? "block" : "none";
+    if (!on) selectCrack(null); else draw();
+  }
+
+  // ── 위험요소 (균열 외: 변색·요철·변형) + 변화 ──
+  const HZ_COL = { efflorescence: "#f1f5f9", water: "#60a5fa", rust: "#fb923c", unknown: "#cbd5e1",
+                   spall: "#f43f5e", depression: "#f43f5e", protrusion: "#a78bfa", crack: "#facc15" };
+  const ST_COL = { new: "#ef4444", grown: "#f97316", stable: "#22c55e", shrunk: "#38bdf8", repaired: "#94a3b8", unmatched: "#64748b" };
+  const ST_KO = { new: "신규", grown: "진행", stable: "안정", shrunk: "줄어듦", repaired: "보수됨", unmatched: "비교 불가" };
+  const TYPE_KO = { crack: "균열", stain: "변색", relief: "요철", deformation: "변형" };
+  // 변화 항목: cur_id 또는 cur_ids(갈라짐·이어짐) 로 이번 항목과 이어진다. confidence=low 는 측정 잡음 수준이라 "?" 를 붙인다
+  function chOf(id) { return CH && CH.items ? CH.items.find(c => c.cur_id === id || (c.cur_ids || []).includes(id)) : null; }
+  function stText(ch) { return (ST_KO[ch.status] || ch.status) + (ch.confidence === "low" ? "?" : ""); }
+  function hzMetric(it) {
+    const m = it.metrics || {};
+    if (it.type === "crack") return `${fmtW(m.width_max_mm)} · ${fmtLen(m.length_mm / 1000)}`;
+    if (it.type === "stain") return `${(m.area_mm2 / 100).toFixed(0)} cm²`;
+    if (it.type === "relief") return `${m.depth_max_mm > 0 ? "+" : ""}${m.depth_max_mm} mm · ${(m.area_mm2 / 100).toFixed(0)} cm²`;
+    if (m.lean_deg != null) return `기울기 ${m.lean_deg}° · 평탄 ±${m.flatness_rms_mm} mm`;
+    if (m.slope_deg != null) return `경사 ${m.slope_deg}° · 평탄 ±${m.flatness_rms_mm} mm`;
+    return "";
+  }
+  function drawHazards(c, toScreen) {
+    if (!HZ) return;
+    c.save();
+    for (const it of HZ.items) {
+      if (it.geom && it.geom.type === "polyline" && !(showCracks && CR)) {   // 균열 레이어가 꺼져 있으면 여기서 (변화 상태 색)
+        const ch = chOf(it.id), sel = it.id === selHz;
+        c.lineCap = "round"; c.lineJoin = "round";
+        for (const pl of it.geom.parts) {
+          c.beginPath(); pl.forEach((p, i) => { const q = toScreen(p); i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]); });
+          if (sel) { c.strokeStyle = "#fff"; c.lineWidth = 6; c.stroke(); }
+          c.strokeStyle = ch ? (ST_COL[ch.status] || "#facc15") : "#facc15"; c.lineWidth = 2.4; c.stroke();
+        }
+        continue;
+      }
+      if (!it.geom || it.geom.type !== "polygon") continue;      // 균열은 균열 레이어가 그린다
+      const sel = it.id === selHz, ch = chOf(it.id), col = HZ_COL[it.subtype] || "#cbd5e1";
+      for (const ring of it.geom.rings) {
+        c.beginPath();
+        ring.forEach((p, i) => { const q = toScreen(p); i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]); });
+        c.closePath();
+        c.fillStyle = col + "33"; c.fill();
+        if (sel) { c.strokeStyle = "#fff"; c.lineWidth = 4; c.stroke(); }
+        c.setLineDash(it.type === "relief" ? [6, 3] : []); c.strokeStyle = col; c.lineWidth = 2; c.stroke(); c.setLineDash([]);
+      }
+      const t = toScreen([it.bbox[0], it.bbox[1]]);
+      const s = `${it.id} ${it.label || it.subtype}` + (ch ? ` · ${stText(ch)}` : "");
+      c.font = "600 11px 'Pretendard','Malgun Gothic',sans-serif";
+      const tw = c.measureText(s).width;
+      c.fillStyle = "rgba(8,11,15,.8)"; c.fillRect(t[0] - 2, t[1] - 15, tw + 6, 15);
+      c.fillStyle = ch ? (ST_COL[ch.status] || col) : col; c.fillText(s, t[0] + 1, t[1] - 4);
+    }
+    if (CH && CH.items) {                         // 보수됨(직전에만 있던 것): prev_geom 을 회색 점선으로
+      c.setLineDash([5, 4]); c.strokeStyle = ST_COL.repaired; c.lineWidth = 2;
+      for (const ch of CH.items) {
+        const g = ch.status === "repaired" && ch.prev_geom;
+        if (!g) continue;
+        for (const pl of (g.parts || g.rings || [])) {
+          c.beginPath(); pl.forEach((p, i) => { const q = toScreen(p); i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]); });
+          if (g.rings) c.closePath();
+          c.stroke();
+        }
+      }
+      c.setLineDash([]);
+    }
+    if (CH && CH.items) {                         // 균열의 변화 상태 표시 (균열 선은 균열 레이어)
+      for (const ch of CH.items) {
+        const it = ch.cur_id && HZ.items.find(i => i.id === ch.cur_id);
+        if (!it || it.type !== "crack" || !it.bbox) continue;
+        const t = toScreen([it.bbox[2], it.bbox[3]]);
+        const s = stText(ch) + (ch.delta && ch.delta.width_max_mm ? ` ${ch.delta.width_max_mm > 0 ? "+" : ""}${ch.delta.width_max_mm.toFixed(2)}mm` : "");
+        c.font = "600 11px 'Pretendard','Malgun Gothic',sans-serif";
+        const tw = c.measureText(s).width;
+        c.fillStyle = ST_COL[ch.status] || "#cbd5e1"; c.fillRect(t[0] + 2, t[1] - 2, tw + 6, 15);
+        c.fillStyle = "#0d1117"; c.fillText(s, t[0] + 5, t[1] + 9);
+      }
+    }
+    c.restore();
+  }
+  function hzAt(p) {                               // 다각형 안(또는 균열 선 가까이)을 누른 위험요소
+    if (!HZ || !showHz) return null;
+    const tol = 8 / scale;
+    for (const it of HZ.items) {
+      if (!it.geom || it.geom.type !== "polyline" || !it.bbox) continue;
+      if (p[0] < it.bbox[0] - tol || p[0] > it.bbox[2] + tol || p[1] < it.bbox[1] - tol || p[1] > it.bbox[3] + tol) continue;
+      for (const pl of it.geom.parts) for (let i = 1; i < pl.length; i++) {
+        const a = pl[i - 1], b = pl[i], dx = b[0] - a[0], dy = b[1] - a[1];
+        const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)));
+        if (Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy) < tol) return it;
+      }
+    }
+    for (const it of HZ.items) {
+      if (!it.geom || it.geom.type !== "polygon") continue;
+      if (p[0] < it.bbox[0] || p[0] > it.bbox[2] || p[1] < it.bbox[1] || p[1] > it.bbox[3]) continue;
+      for (const r of it.geom.rings) {
+        let inside = false;
+        for (let i = 0, j = r.length - 1; i < r.length; j = i++)
+          if ((r[i][1] > p[1]) !== (r[j][1] > p[1]) && p[0] < (r[j][0] - r[i][0]) * (p[1] - r[i][1]) / (r[j][1] - r[i][1]) + r[i][0]) inside = !inside;
+        if (inside) return it;
+      }
+    }
+    return null;
+  }
+  function selectHz(it, zoom) {
+    const k = it && it.type === "crack" && CR ? CR.cracks.find(k => k.id === it.src_id) : null;
+    if (k) {                                       // 균열 상세(폭 구간)가 있으면 균열 레이어로 보여 준다
+      if (!showCracks) toggleCracks(true);
+      selectCrack(k, zoom);
+      selHz = it.id; document.querySelectorAll("#hzPanel tr.row").forEach(tr => tr.classList.toggle("sel", tr.dataset.id === selHz));
+      return;
+    }
+    selHz = it ? it.id : null;
+    document.querySelectorAll("#hzPanel tr.row").forEach(tr => tr.classList.toggle("sel", tr.dataset.id === selHz));
+    const ch = it && chOf(it.id);
+    $("measure").textContent = it ? `${it.id} · ${it.label || TYPE_KO[it.type]} · ${hzMetric(it)}` + (ch ? ` · ${stText(ch)}` : "") + (it.note ? ` (${it.note})` : "") : "";
+    $("measure").style.display = it || measuring ? "block" : "none";
+    if (it && it.bbox && zoom) {
+      const w = cv.clientWidth, h = cv.clientHeight, b = it.bbox, bw = b[2] - b[0], bh = b[3] - b[1];
+      scale = Math.min(Math.min(w / (bw * 1.8 + 60), h / (bh * 1.8 + 60)), 40);
+      ox = w / 2 - (b[0] + bw / 2) * scale; oy = h / 2 - (b[1] + bh / 2) * scale; userMoved = true;
+    }
+    draw();
+  }
+  function buildHzPanel() {
+    const d = HZ, el = $("hzPanel"), cnt = (d.summary && d.summary.counts) || {};
+    const counts = Object.keys(TYPE_KO).filter(k => cnt[k]).map(k => `${TYPE_KO[k]} ${cnt[k]}`).join(" · ") || "없음";
+    let site = "";
+    if (meta.site) site = `<div class="sum">관리 대상: <b>${meta.site.name || meta.site.site_id}</b></div>`;
+    let chs = "";
+    if (CH) {
+      const s = CH.summary || {}, r = CH.registration || {};
+      chs = `<div class="sum">이전 점검(${(CH.prev_captured_at || "").slice(0, 10)})과 비교: ` +
+        ["new", "grown", "shrunk", "stable", "repaired", "unmatched"].filter(k => s[k]).map(k => `<span class="st" style="background:${ST_COL[k]}">${ST_KO[k]} ${s[k]}</span>`).join(" ") +
+        (r.ok === false ? `<br>⚠ 두 점검을 정확히 겹치지 못해 변화 판정이 불확실합니다` : r.method ? `<br>정렬: ${r.method === "markers" ? "고정 표식" : "사진 특징점"}${r.rms_mm != null ? ` (±${r.rms_mm.toFixed(2)} mm)` : ""}` : "") + `</div>`;
+    } else if (meta.site) chs = `<div class="sum">이 장소의 첫 점검이거나 이전 점검과 비교 결과가 없습니다</div>`;
+    const rows = d.items.map(it => {
+      const ch = chOf(it.id), col = it.type === "crack" ? "#facc15" : (HZ_COL[it.subtype] || "#cbd5e1");
+      return `<tr class="row" data-id="${it.id}"><td style="color:${col}">${it.id}</td><td>${it.label || TYPE_KO[it.type]}</td><td class="r">${hzMetric(it)}</td>` +
+        `<td>${ch ? `<span class="st" style="background:${ST_COL[ch.status] || "#64748b"}">${stText(ch)}</span>` : ""}</td></tr>`;
+    }).join("");
+    const rep = CH && CH.items ? CH.items.filter(c => c.status === "repaired").map(c => `<tr><td style="color:#94a3b8">${c.prev_id || (c.prev_ids || []).join(",")}</td><td>${TYPE_KO[c.type] || c.type}</td><td class="r">(이전에만)</td>` +
+      `<td><span class="st" style="background:${ST_COL.repaired}">보수됨</span></td></tr>`).join("") : "";
+    el.innerHTML = `<div class="hd"><span>위험요소 ${d.items.length}개</span><span style="color:var(--muted);font-weight:400">${counts}</span></div>` + site + chs +
+      `<table><tr><th>번호</th><th>종류</th><th class="r">값</th><th>변화</th></tr>${rows}${rep}</table>` +
+      `<div class="note">자동 검출 결과(안내용)입니다. 변색은 색만 보므로 벽에 붙은 물건·그림자가 섞일 수 있고, 요철(패임·돌출)은 LiDAR 정밀도(약 ±1 cm) 한계가 있습니다. 균열 폭은 ⚡ 균열에서 자세히 봅니다.</div>`;
+    el.querySelectorAll("tr.row").forEach(tr => tr.onclick = () => selectHz(d.items.find(i => i.id === tr.dataset.id), true));
+  }
+  function loadHazards() {
+    fetch(meta.files.hazards, { cache: "no-store" }).then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); }).then(d => {
+      HZ = d;
+      const n = d.items.filter(i => i.type !== "deformation").length;
+      $("btnHazards").textContent = `⚠ 위험요소 ${n}`;
+      $("btnHazards").style.display = "";
+      const done = () => buildHzPanel();
+      if (meta.files.changes && sameOrigin(meta.files.changes))
+        fetch(meta.files.changes, { cache: "no-store" }).then(r => r.ok ? r.json() : null).then(c => { CH = c; done(); if (showHz) draw(); }).catch(done);
+      else done();
+    }).catch(() => {});
+  }
+  function toggleHz(on) {
+    showHz = on;
+    $("btnHazards").classList.toggle("on", on);
+    $("hzPanel").style.display = on ? "block" : "none";
+    if (!on) { selHz = null; if (!selCrack) { $("measure").style.display = measuring ? "block" : "none"; } }
+    draw();
+  }
+
   function zoomAt(sx, sy, f) {
     userMoved = true;
     const ns = Math.min(Math.max(scale * f, 0.02), 40);
@@ -199,12 +518,20 @@ if (window.parent !== window) document.documentElement.classList.add("embedded")
         }
         $("measure").style.display = "block"; draw();
       }
+    } else if (!measuring && moved < 6 && downAt && active.size === 0 && (showCracks || showHz)) {   // 균열 선·위험요소 영역을 누르면 정보
+      const p = toImg(downAt[0], downAt[1]);
+      const k = showCracks ? crackAt(p) : null;
+      if (k) selectCrack(k, false);
+      else if (showHz) selectHz(hzAt(p), false);
+      else selectCrack(null, false);
     }
     downAt = null;
   };
   cv.addEventListener("pointerup", up); cv.addEventListener("pointercancel", up);
   cv.addEventListener("wheel", e => { e.preventDefault(); zoomAt(e.offsetX, e.offsetY, e.deltaY < 0 ? 1.2 : 1 / 1.2); }, { passive: false });
   $("btnFit").onclick = () => { userMoved = false; fit(); };
+  $("btnCracks").onclick = () => toggleCracks(!showCracks);
+  $("btnHazards").onclick = () => toggleHz(!showHz);
   $("btnHeight").onclick = () => {
     showHeight = !showHeight;
     $("btnHeight").classList.toggle("on", showHeight);
@@ -237,7 +564,7 @@ if (window.parent !== window) document.documentElement.classList.add("embedded")
   // 보고서용 이미지: 지금 보이는 화면(측정선·값 포함) + 아래 띠(제목·정보·날짜·축척 막대·범례)
   $("btnSave").onclick = () => {
     if (!img) return;
-    const r = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight, foot = 58;
+    const r = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight, foot = showCracks && CR ? 66 : 58;
     const out = document.createElement("canvas");
     out.width = cv.width; out.height = cv.height + Math.round(foot * r);
     const c = out.getContext("2d");
@@ -248,6 +575,17 @@ if (window.parent !== window) document.documentElement.classList.add("embedded")
     c.fillText((params.get("title") || "kgeoScan") + " · " + $("title").textContent, 12, h + 22);
     c.fillStyle = "#8b98a8"; c.font = "11px 'IBM Plex Mono', monospace";
     c.fillText($("meta").textContent + " · 저장 " + new Date().toLocaleString("ko-KR"), 12, h + 42);
+    if (showCracks && CR) {                       // 균열 요약 + 폭 구간 범례
+      c.fillStyle = "#e6edf6";
+      const s = `균열 ${CR.count}개 · 총 ${fmtLen(CR.total_length_mm / 1000)} · 최대폭 ${CR.count ? fmtW(CR.max_width_mm) : "—"}` + (selCrack ? " · " + crackText(CR.cracks.find(k => k.id === selCrack)) : "");
+      c.fillText(s, 12, h + 56 - 2);
+      let lx = 12 + c.measureText(s).width + 14;
+      CR.bins.labels.forEach((l, i) => {
+        if (lx > w - 260) return;
+        c.fillStyle = CR.bins.colors[i]; c.fillRect(lx, h + 49, 14, 3);
+        c.fillStyle = "#8b98a8"; c.fillText(l, lx + 17, h + 54); lx += 17 + c.measureText(l).width + 10;
+      });
+    }
     const bw = parseFloat($("scaleBar").style.width) || 80, x1 = w - 16, x0 = x1 - bw, y = h + 40;
     c.strokeStyle = "#e6edf6"; c.lineWidth = 2;
     c.beginPath(); c.moveTo(x0, y - 7); c.lineTo(x0, y); c.lineTo(x1, y); c.lineTo(x1, y - 7); c.stroke();
@@ -291,6 +629,8 @@ if (window.parent !== window) document.documentElement.classList.add("embedded")
       $("legendMid").textContent = fmtH((H.display_range_mm[0] + H.display_range_mm[1]) / 2, true);
       loadHeight();                               // 측정·커서 값용 (사진 모드에서도 높이차를 보여 준다)
     }
+    if (m.files.cracks && sameOrigin(m.files.cracks)) loadCracks(params.get("cracks") !== "0" && (m.cracks ? m.cracks.count > 0 : true));
+    if (m.files.hazards && sameOrigin(m.files.hazards)) loadHazards();
     img = new Image();
     img.onload = () => { $("msg").style.display = "none"; resize(); };
     img.onerror = () => fail("이미지를 불러오지 못했습니다");

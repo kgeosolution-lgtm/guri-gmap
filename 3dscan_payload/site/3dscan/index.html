@@ -85,6 +85,7 @@ canvas { display: block; }
   <div class="sep"></div>
   <div class="header-sub">LiDAR · 3D Scan Viewer</div>
   <div class="header-right">
+    <a class="hbtn" id="btnCapture" href="capture.html" style="text-decoration:none" title="LiDAR 없이 아무 폰 카메라로 — 사진 여러 장 또는 영상으로 3D 현장조사">📷 폰으로 촬영</a>
     <div id="uploadBtnWrap">
       <button class="hbtn primary" id="btnUpload" onclick="openModal()">
         <span id="btnUploadIcon">＋</span>
@@ -188,6 +189,7 @@ canvas { display: block; }
           <button type="button" class="vtab active" id="vtabGlb" onclick="setViewMode('glb')" title="LiDAR 메시 — 치수 측정 가능">◈ 메시</button>
           <button type="button" class="vtab" id="vtabSplat" onclick="setViewMode('splat')" title="가우시안 스플랫 — 사진처럼 보이는 기록">✦ 스플랫</button>
           <button type="button" class="vtab" id="vtabOrtho" onclick="setViewMode('ortho')" title="정사영상 — 위/정면에서 본 실측 고해상도 사진">▦ 정사영상</button>
+          <button type="button" class="vtab" id="vtabUtil" style="display:none" onclick="setViewMode('util')" title="굴착 기록 — 드러난 관·케이블 3D X-ray, 깊이·측점·조서">⛏ 지하시설물</button>
         </div>
       </div>
       <!-- 우상단: 측정 · 평면 · 씬으로 보기 -->
@@ -196,6 +198,7 @@ canvas { display: block; }
         <button class="vctrl" id="btnTop" title="위에서 내려다보기 (평면)" onclick="viewTop()">⬇ 평면</button>
         <button class="vctrl" id="btnSplatOpen" style="display:none" title="새 탭에서 크게" onclick="openSplatPage()">↗ 크게</button>
         <button class="vctrl" id="btnOrthoMap" style="display:none" title="정사영상을 지도 위 제자리에 겹쳐 보기" onclick="toggleOrthoOverlay()">🗺 지도에 겹치기</button>
+        <button class="vctrl" id="btnUtilReport" style="display:none" title="굴착 조서(별표 38)·DXF·LandXML·GeoJSON·제출 동영상" onclick="openUtilReport()">📄 조서·산출물</button>
         <button class="vctrl" title="Portal Scene Viewer 새 탭" onclick="openSceneViewer()">⧉ 씬</button>
       </div>
       <!-- 측정 결과 -->
@@ -446,6 +449,6 @@ canvas { display: block; }
   <div class="toast-step" id="tStep"></div>
 </div>
 
-<script src="viewer.js?v=1cea8c5f96"></script>
+<script src="viewer.js?v=fe8953d1ff"></script>
 </body>
 </html>

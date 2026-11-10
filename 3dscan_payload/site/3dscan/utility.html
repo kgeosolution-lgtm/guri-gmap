@@ -1,0 +1,2126 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>kgeoScan 굴착 3D 기록</title>
+<!--
+  굴착 3D 기록 · 지하시설물 X-ray 뷰어 (ES 모듈, three 0.165 — splat.html 과 같은 CDN·버전)
+
+  주소: utility.html?meta=<utilities.json 주소>&glb=<굴착 GLB 주소>&title=<제목>
+        meta 필수, 같은 사이트(origin) 파일만. glb 를 빼면 utilities.json 의 local.glb 를 meta 기준 상대 경로로 쓴다.
+        선택: &sel=U3 (처음 고를 관)  &sta=2.0 (그 굴착 측점 m 에서 단면 열기)  &backfill=1 (되메운 뒤 보기로 시작)
+              &splat=<job>.splat (같은 작업의 가우시안 스플랫 → "✦ 스플랫" 배경 토글, 없으면 utilities.json 의 local.splat)
+  보기: 메시는 램버트 음영 + 부드러운 그림자(PCF) + Neutral 톤 매핑, "☀ 음영"을 끄면 텍스처 그대로(무조명).
+        관은 클리어코트 광택 + 화면 픽셀 두께 외곽선(선택 시 흰색). 첫 화면은 멀리서 굴착 전체로 날아 들어간다.
+  계약: docs/utility_contract.md v0.2 — utilities[].centerline_local·ground_local_z, trench.outline_local·ground_plane_local,
+        stations[], clearances[]. 측점·이격에 UTM 만 있으면 관 중심선 짝(centerline ↔ centerline_local)으로
+        로컬↔UTM 변환을 맞춰 3D 에 놓는다. centerline_local 이 없으면 UTM 으로만 그리고 메시는 정렬할 수 없어 띄우지 않는다.
+  좌표: GLB 와 같은 ARKit 로컬 프레임(m, Y 위). 관 튜브 반지름 = diameter_mm / 2. 다발은 count 가닥을 옆으로 나란히.
+  기능: 종류별 색 튜브·범례(누르면 숨김) · 1 m 간격 토피 라벨과 점선 · 되메운 뒤 보기(반투명 지표 + 투시) · 단면 슬라이서
+        (메시 단면·관 원·토피·이격 mm, DXF R12 저장) · 시설물/측점/이격 목록과 종류 수정(메모리, JSON 내보내기) ·
+        두 점 거리(관 표면·메시에 붙음, UTM 표시) · PNG 저장(제목·날짜·범례·축척·방위) · 휴대폰 화면·터치
+  임베드: window.parent !== window 면 <html class="embedded"> — 부모의 좌상단·우상단·우하단을 비워 둔다(ortho.html 과 같음).
+          부모에 postMessage({type:'kgeo-utility', state:'loaded'|'error', ...}, location.origin).
+-->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230d1117'/%3E%3Cpath d='M5 12h22' stroke='%238b98a8' stroke-width='2'/%3E%3Ccircle cx='11' cy='20' r='4' fill='%23facc15'/%3E%3Ccircle cx='21' cy='21' r='3' fill='%2338bdf8'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+  :root { --bg:#080b0f; --panel:rgba(13,17,23,.9); --panel2:#0d1117; --line:rgba(255,255,255,.12); --line2:rgba(255,255,255,.22);
+          --text:#e6edf6; --muted:#8b98a8; --dim:#5b6675; --accent:#38bdf8; --mark:#facc15; --warn:#f87171; --ok:#4ade80; --amber:#fbbf24;
+          --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+          --sans:'Pretendard Variable','Pretendard',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif; }
+  * { box-sizing:border-box; }
+  [hidden] { display:none !important; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--text); font-family:var(--sans); font-size:13px; overflow:hidden; }
+  body { position:fixed; inset:0; -webkit-tap-highlight-color:transparent; }
+  button, select, input { font-family:inherit; }
+  .mono { font-family:var(--mono); }
+  #view { position:absolute; inset:0; background:radial-gradient(120% 90% at 50% 0%, #111823 0%, #080b0f 60%); }
+  #gl { position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none; outline:none; }
+  #gl.measuring { cursor:crosshair; }
+  #gl.hoverPipe { cursor:pointer; }
+  #labels { position:absolute; inset:0; pointer-events:none; overflow:hidden; }
+  .lb { position:absolute; left:0; top:0; white-space:nowrap; font:600 11px/1.3 var(--mono); color:var(--text); background:rgba(8,11,15,.82);
+        border-left:3px solid var(--c,#9ca3af); padding:1px 6px 1px 5px; border-radius:2px; visibility:hidden; will-change:transform; }
+  .lb.name { background:var(--c); color:#0b0f14; border:none; border-radius:9px; padding:1px 8px; font-weight:700; font-family:var(--sans); font-size:11.5px;
+             box-shadow:0 0 0 1px rgba(0,0,0,.35), 0 2px 8px rgba(0,0,0,.45); }
+  .lb.dep.bad { color:#fecaca; border-left-color:var(--warn); }
+  .lb.mea { border-left-color:var(--mark); color:var(--mark); font-size:12px; }
+  .lb.clr { border-left-color:var(--warn); color:#fecaca; }
+  .lb.clr.ok { border-left-color:var(--muted); color:var(--muted); }
+  .lb.sta { border-left-color:#f472b6; color:#fbcfe8; font-family:var(--sans); }
+  .lb.sel { outline:1px solid rgba(255,255,255,.55); }
+
+  /* 좌상단: 제목·요약·범례 */
+  #hud { position:absolute; top:12px; left:12px; z-index:3; display:flex; flex-direction:column; gap:6px; max-width:min(520px, calc(100% - 880px)); pointer-events:none; }
+  #hud > * { pointer-events:auto; }
+  .badges { display:flex; gap:5px; }
+  .pill { font:600 10px var(--mono); letter-spacing:.5px; padding:3px 8px; border:1px solid rgba(56,189,248,.3); border-radius:2px; background:rgba(8,11,15,.78); color:var(--accent); white-space:nowrap; }
+  .pill.o { border-color:rgba(251,146,60,.4); color:#fb923c; }
+  #title { font-size:18px; font-weight:700; letter-spacing:-.2px; text-shadow:0 1px 8px rgba(0,0,0,.8); line-height:1.25; }
+  #sub { font:11px/1.5 var(--mono); color:var(--muted); text-shadow:0 1px 6px rgba(0,0,0,.9); }
+  #chips { display:flex; flex-wrap:wrap; gap:5px; }
+  .chip { font-size:11.5px; padding:3px 8px; border-radius:11px; border:1px solid var(--line); background:rgba(13,17,23,.85); color:var(--text); cursor:pointer; white-space:nowrap; }
+  .chip.bad { border-color:rgba(248,113,113,.55); color:#fecaca; }
+  .chip.am { border-color:rgba(251,191,36,.5); color:#fde68a; }
+  .chip.okc { border-color:rgba(74,222,128,.45); color:#bbf7d0; }
+  #legend { display:flex; flex-direction:column; gap:2px; background:rgba(13,17,23,.78); border:1px solid var(--line); border-radius:4px; padding:5px 6px; width:max-content; }
+  .lg { display:flex; align-items:center; gap:7px; padding:2px 4px; border-radius:3px; cursor:pointer; font-size:12px; user-select:none; }
+  .lg:hover { background:rgba(255,255,255,.06); }
+  .lg i { width:22px; height:7px; border-radius:4px; background:var(--c); box-shadow:0 0 8px var(--c); }
+  .lg b { font:600 11px var(--mono); color:var(--muted); margin-left:auto; padding-left:8px; }
+  .lg.off { opacity:.38; }
+  .lg.off i { box-shadow:none; }
+
+  /* 우상단: 도구 */
+  #tools { position:absolute; top:12px; right:12px; z-index:4; display:flex; gap:5px; align-items:center; flex-wrap:wrap; justify-content:flex-end; max-width:calc(100% - 24px); }
+  .tb { height:32px; padding:0 10px; border:1px solid var(--line2); border-radius:4px; background:rgba(13,17,23,.9); color:var(--text); font-size:12.5px; cursor:pointer;
+        white-space:nowrap; display:inline-flex; align-items:center; gap:5px; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); flex:0 0 auto; }
+  .tb:hover { border-color:var(--accent); }
+  .tb.on { border-color:var(--mark); color:var(--mark); background:rgba(250,204,21,.08); }
+  .tb .k { font:10px var(--mono); color:var(--dim); }
+  .tb.on .k { color:rgba(250,204,21,.6); }
+  #opWrap { display:none; align-items:center; gap:6px; height:32px; padding:0 8px; border:1px solid rgba(250,204,21,.4); border-radius:4px; background:rgba(13,17,23,.9); font:11px var(--mono); color:var(--muted); flex:0 0 auto; }
+  #opWrap.show { display:inline-flex; }
+  #opRange { width:92px; accent-color:var(--mark); }
+
+  /* 오른쪽: 목록 패널 */
+  #side { position:absolute; top:54px; right:12px; bottom:12px; width:368px; z-index:3; display:flex; flex-direction:column; background:var(--panel); border:1px solid var(--line);
+          border-radius:6px; overflow:hidden; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); max-height:calc(100% - 66px); height:max-content; }
+  #side.collapsed .side-body { display:none; }
+  .side-hd { display:flex; align-items:center; gap:2px; padding:4px 4px 0; border-bottom:1px solid var(--line); flex:0 0 auto; }
+  .tab { border:none; background:none; color:var(--muted); font-size:13px; padding:8px 10px 9px; cursor:pointer; border-bottom:2px solid transparent; white-space:nowrap; }
+  .tab i { font:600 10.5px var(--mono); font-style:normal; color:var(--dim); margin-left:3px; }
+  .tab.on { color:var(--text); border-bottom-color:var(--accent); }
+  .tab .wn { color:var(--warn); }
+  .side-hd .sp { flex:1; }
+  #sideTog { border:none; background:none; color:var(--muted); font-size:14px; width:34px; height:32px; cursor:pointer; }
+  .side-body { overflow:auto; flex:1 1 auto; overscroll-behavior:contain; }
+  .pane { padding:8px 10px 12px; }
+  .stats { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; margin-bottom:8px; }
+  .st { background:rgba(255,255,255,.035); border:1px solid var(--line); border-radius:4px; padding:5px 7px; }
+  .st span { display:block; font-size:10.5px; color:var(--muted); }
+  .st b { font:600 13px var(--mono); }
+  .st b small { font-size:10px; color:var(--muted); font-weight:400; }
+  .row { display:flex; align-items:center; gap:6px; margin:6px 0 8px; font-size:12px; color:var(--muted); }
+  .row input[type=number] { width:68px; height:26px; background:#0b1016; color:var(--text); border:1px solid var(--line2); border-radius:3px; padding:0 6px; font:12px var(--mono); }
+  .card { border:1px solid var(--line); border-radius:5px; padding:7px 8px 7px 10px; margin-bottom:6px; cursor:pointer; position:relative; background:rgba(255,255,255,.02); }
+  .card::before { content:""; position:absolute; left:0; top:6px; bottom:6px; width:3px; border-radius:2px; background:var(--c); box-shadow:0 0 8px var(--c); }
+  .card:hover { border-color:var(--line2); }
+  .card.sel { border-color:var(--accent); background:rgba(56,189,248,.07); }
+  .card.hid { opacity:.45; }
+  .card .r1 { display:flex; align-items:center; gap:7px; }
+  .card .id { font:700 13px var(--mono); }
+  .card select { height:26px; background:#0b1016; color:var(--text); border:1px solid var(--line2); border-radius:3px; font-size:12.5px; padding:0 4px; cursor:pointer; }
+  .card select.ed { border-color:var(--mark); color:var(--mark); }
+  .card .kd { font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .card .conf { margin-left:auto; display:flex; align-items:center; gap:5px; font:600 11px var(--mono); color:var(--muted); }
+  .card .conf s { display:block; width:38px; height:5px; border-radius:3px; background:rgba(255,255,255,.1); overflow:hidden; text-decoration:none; }
+  .card .conf s i { display:block; height:100%; }
+  .card .r2 { font:11.5px/1.5 var(--mono); color:var(--muted); margin-top:4px; }
+  .card .r2 b { color:var(--text); font-weight:600; }
+  .card .r2 b.bad { color:var(--warn); }
+  .card .nt { font-size:11.5px; color:#cbd5e1; margin-top:3px; line-height:1.45; }
+  .card .nt.c { color:var(--muted); }
+  em.ed { font-style:normal; font-size:10.5px; color:#0b0f14; background:var(--mark); border-radius:2px; padding:0 4px; }
+  .foot { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+  .btn { height:30px; padding:0 10px; border:1px solid var(--line2); border-radius:4px; background:#0f141b; color:var(--text); font-size:12.5px; cursor:pointer; }
+  .btn:hover:not(:disabled) { border-color:var(--accent); }
+  .btn:disabled { opacity:.4; cursor:default; }
+  .btn.pri { border-color:rgba(250,204,21,.6); color:var(--mark); }
+  table.tb2 { width:100%; border-collapse:collapse; font-size:12px; }
+  .tb2 th { text-align:left; font-weight:400; color:var(--muted); font-size:11px; padding:4px 5px; border-bottom:1px solid var(--line); position:sticky; top:0; background:#0d1117; }
+  .tb2 td { padding:5px 5px; border-bottom:1px solid rgba(255,255,255,.05); vertical-align:top; }
+  .tb2 td.r, .tb2 th.r { text-align:right; }
+  .tb2 tr.rw { cursor:pointer; }
+  .tb2 tr.rw:hover { background:rgba(255,255,255,.04); }
+  .tb2 tr.sel { background:rgba(56,189,248,.1); }
+  .tb2 .u { display:inline-flex; align-items:center; gap:5px; font:600 12px var(--mono); }
+  .tb2 .u i { width:8px; height:8px; border-radius:50%; background:var(--c); }
+  .tb2 .utm { display:block; font:10.5px var(--mono); color:var(--dim); margin-top:1px; white-space:nowrap; }
+  .tag { display:inline-block; font-size:10.5px; padding:0 5px; border-radius:2px; border:1px solid var(--c); color:var(--c); white-space:nowrap; }
+  .tag.bad { border-color:var(--warn); color:#0b0f14; background:var(--warn); }
+  .tag.okt { border-color:rgba(74,222,128,.5); color:var(--ok); }
+  .note { color:var(--muted); font-size:11.5px; line-height:1.5; margin-top:8px; }
+
+  /* 왼쪽 아래: 측정 결과 · 단면 · 축척 */
+  #bl { position:absolute; left:12px; bottom:12px; z-index:3; display:flex; flex-direction:column; align-items:flex-start; gap:8px; width:min(640px, calc(100% - 410px)); pointer-events:none; }
+  #bl > * { pointer-events:auto; }
+  #meaOut { background:var(--panel); border:1px solid rgba(250,204,21,.45); border-radius:5px; padding:6px 9px; font:12px/1.55 var(--mono); color:var(--text); max-width:100%; }
+  #meaOut .h { color:var(--mark); font-weight:600; }
+  #meaOut .d { color:var(--muted); font-size:11px; }
+  #meaOut .x { float:right; margin-left:10px; cursor:pointer; color:var(--muted); font-family:var(--sans); }
+  #sec { width:100%; background:var(--panel); border:1px solid var(--line); border-radius:6px; overflow:hidden; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
+  .sec-hd { display:flex; align-items:center; gap:6px; padding:5px 6px 5px 10px; border-bottom:1px solid var(--line); }
+  .sec-hd b { font-size:13px; }
+  .sec-hd .sp { flex:1; }
+  #secSta { font:600 12px var(--mono); color:var(--accent); }
+  #secInfo { font:11px var(--mono); color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sb { height:28px; padding:0 9px; border:1px solid var(--line2); border-radius:3px; background:#0f141b; color:var(--text); font-size:12px; cursor:pointer; white-space:nowrap; }
+  .sb:hover { border-color:var(--accent); }
+  .sb.pri { border-color:rgba(56,189,248,.55); color:var(--accent); }
+  #secCv { display:block; width:100%; height:330px; background:#0a0e13; }
+  .sec-sl { position:relative; padding:14px 12px 8px; }
+  #secTicks { position:absolute; left:12px; right:12px; top:3px; height:10px; }
+  #secTicks button { position:absolute; top:0; width:9px; height:10px; margin-left:-4.5px; padding:0; border:none; cursor:pointer; background:var(--c); clip-path:polygon(50% 100%, 0 0, 100% 0); opacity:.9; }
+  #secTicks button:hover, #secTicks button.sel { transform:scale(1.5); opacity:1; }
+  #secRange { width:100%; margin:0; accent-color:var(--accent); height:22px; }
+  #scaleBox { display:flex; align-items:flex-end; gap:10px; }
+  #scale { display:flex; flex-direction:column; gap:3px; font:11px var(--mono); color:var(--text); background:rgba(13,17,23,.8); padding:5px 8px 6px; border-radius:3px; }
+  #scaleBar { height:6px; border:2px solid var(--text); border-top:none; }
+  #scale small { color:var(--dim); font-size:9.5px; }
+  #compass { width:40px; height:40px; border-radius:50%; background:rgba(13,17,23,.8); border:1px solid var(--line); position:relative; }
+  #compass svg { position:absolute; inset:0; transition:transform .08s linear; }
+  #help { position:absolute; left:50%; bottom:12px; transform:translateX(-50%); z-index:2; pointer-events:none; background:rgba(0,0,0,.55); color:#cbd5e1; font-size:11px;
+          padding:5px 12px; border-radius:20px; white-space:nowrap; transition:opacity .6s; }
+  #tip { position:absolute; z-index:6; pointer-events:none; background:rgba(8,11,15,.92); border:1px solid var(--line2); border-left:3px solid var(--c,#9ca3af); border-radius:3px;
+         padding:4px 8px; font:11.5px/1.45 var(--mono); color:var(--text); white-space:nowrap; display:none; }
+  #tip b { font-family:var(--sans); }
+  #toast { position:absolute; left:50%; top:62px; transform:translateX(-50%); z-index:8; background:rgba(13,17,23,.95); border:1px solid var(--line2); border-radius:5px;
+           padding:7px 14px; font-size:12.5px; opacity:0; transition:opacity .3s; pointer-events:none; max-width:calc(100% - 24px); }
+  #toast.show { opacity:1; }
+  #load { position:absolute; inset:0; z-index:9; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; background:var(--bg); transition:opacity .45s; }
+  #load.done { opacity:0; pointer-events:none; }
+  .spin { width:30px; height:30px; border-radius:50%; border:3px solid rgba(56,189,248,.22); border-top-color:var(--accent); animation:spin .9s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  #loadText { font:11px var(--mono); color:var(--muted); }
+  #meshPill { position:absolute; left:50%; top:12px; transform:translateX(-50%); z-index:5; }
+  #err { position:absolute; inset:0; z-index:20; display:none; align-items:center; justify-content:center; padding:24px; text-align:center; color:#f87171; background:var(--bg); font-size:13px; line-height:1.7; }
+
+  /* ── 좁은 화면(휴대폰)·사이드바 임베드: 도구는 아래 한 줄, 목록은 접히는 아래 시트 ── */
+  .compact #hud { top:10px; left:10px; max-width:calc(100% - 130px); gap:5px; }
+  .compact #title { font-size:15px; }
+  .compact #sub { font-size:10.5px; }
+  .compact .badges { display:none; }
+  .compact #legend { flex-direction:row; flex-wrap:wrap; padding:3px 4px; gap:0; }
+  .compact .lg { font-size:11px; gap:5px; padding:2px 5px; }
+  .compact .lg i { width:14px; height:6px; }
+  .compact .lg b { padding-left:3px; }
+  .compact #tools { top:auto; bottom:0; left:0; right:0; max-width:none; flex-wrap:nowrap; justify-content:flex-start; overflow-x:auto; overflow-y:hidden;
+                    padding:6px 8px calc(6px + env(safe-area-inset-bottom)); background:linear-gradient(rgba(8,11,15,0), rgba(8,11,15,.94) 35%); scrollbar-width:none; }
+  .compact #tools::-webkit-scrollbar { display:none; }
+  .compact .tb { height:36px; padding:0 10px; font-size:12.5px; }
+  .compact .tb .k { display:none; }
+  .compact #side { top:auto; left:8px; right:8px; width:auto; bottom:calc(50px + env(safe-area-inset-bottom)); max-height:48vh; }
+  .compact .tab { padding:7px 9px 8px; font-size:12.5px; }
+  .compact #bl { left:8px; right:8px; width:auto; bottom:calc(96px + env(safe-area-inset-bottom)); }
+  .compact.sheet-open #bl { display:none; }
+  .compact #secCv { height:200px; }
+  .compact #secInfo { display:none; }
+  .compact #scaleBox { position:fixed; top:10px; right:10px; flex-direction:column-reverse; align-items:flex-end; gap:6px; }
+  .compact #help { display:none; }
+  .compact #meshPill { top:auto; bottom:calc(140px + env(safe-area-inset-bottom)); }
+  .embedded #hud { top:48px; }
+  .embedded .badges, .embedded #title { display:none; }
+  .embedded #scaleBox { top:48px; }
+  .embedded #tools { padding-right:52px; }
+  .embedded #toast { top:96px; }
+</style>
+<script type="importmap">
+{ "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/",
+    "@mkkellogg/gaussian-splats-3d": "https://cdn.jsdelivr.net/npm/@mkkellogg/gaussian-splats-3d@0.4.7/build/gaussian-splats-3d.module.js"
+} }
+</script>
+</head>
+<body>
+<div id="view">
+  <div id="labels"></div>
+  <div id="tip"></div>
+</div>
+
+<div id="hud">
+  <div class="badges"><span class="pill">굴착 3D 기록</span><span class="pill o">X-RAY · 지하시설물</span></div>
+  <div id="title">굴착 3D 기록</div>
+  <div id="sub"></div>
+  <div id="chips"></div>
+  <div id="legend"></div>
+</div>
+
+<div id="tools">
+  <button class="tb" id="bBack" title="되메운 뒤 보기: 지표를 반투명하게 덮고 땅속 관을 투시 (B)">◐ 되메운 뒤 <span class="k">B</span></button>
+  <span id="opWrap" title="지표 불투명도">지표 <input type="range" id="opRange" min="0" max="1" step="0.01" value="0.62"> <span id="opVal">62%</span></span>
+  <button class="tb on" id="bXray" title="투시: 흙·벽에 가린 관 윤곽을 비쳐 보기 (X)">◎ 투시 <span class="k">X</span></button>
+  <button class="tb on" id="bLit" title="입체 음영: 부드러운 조명·그림자로 굴착 면을 입체적으로 (끄면 사진 텍스처 그대로)">☀ 음영</button>
+  <button class="tb" id="bSplat" title="스플랫 배경: 같은 작업의 가우시안 스플랫(사진 같은 3D)으로 바꿔 보기" hidden>✦ 스플랫</button>
+  <button class="tb" id="bSec" title="단면 슬라이서: 굴착 축을 따라 자르고 치수·DXF (S)">▥ 단면 <span class="k">S</span></button>
+  <button class="tb" id="bMea" title="두 점을 눌러 거리 재기 — 관 표면·메시에 붙음 (M)">📏 측정 <span class="k">M</span></button>
+  <button class="tb on" id="bLab" title="토피 라벨·관 이름·측점 표시 (L)">🏷 라벨 <span class="k">L</span></button>
+  <button class="tb" id="bPng" title="지금 화면을 제목·날짜·범례·축척과 함께 PNG 로 저장">⬇ PNG</button>
+  <button class="tb" id="bFit" title="처음 시점 (R)">⤢ 전체 <span class="k">R</span></button>
+  <button class="tb" id="bList" title="시설물·측점·이격 목록">☰ 목록</button>
+</div>
+
+<aside id="side">
+  <div class="side-hd">
+    <button class="tab on" data-tab="util">시설물 <i id="nUtil">0</i></button>
+    <button class="tab" data-tab="sta">측점 <i id="nSta">0</i></button>
+    <button class="tab" data-tab="clr">이격 <i id="nClr">0</i></button>
+    <span class="sp"></span>
+    <button id="sideTog" title="접기/펴기">▾</button>
+  </div>
+  <div class="side-body">
+    <div class="pane" data-pane="util">
+      <div class="stats" id="stats"></div>
+      <div class="row">얕은 매설 기준 <input type="number" id="thrDep" min="0" max="5" step="0.05" value="0.60"> m 미만 빨강</div>
+      <div id="utilList"></div>
+      <div class="foot">
+        <button class="btn pri" id="bExport" disabled>수정 내보내기 (JSON)</button>
+        <button class="btn" id="bRevert" disabled>되돌리기</button>
+      </div>
+      <div class="note" id="utilNote"></div>
+    </div>
+    <div class="pane" data-pane="sta" hidden>
+      <table class="tb2"><thead><tr><th>관</th><th>측점</th><th>구분</th><th class="r">토피 m</th></tr></thead><tbody id="staBody"></tbody></table>
+      <div class="note">측점은 관 중심선을 따라 잰 거리(공공측량 작업규정 제184·185조: 20 m 이하 간격 + 변곡·관경 변화·교차·끝점). 누르면 그 자리 단면을 엽니다.</div>
+    </div>
+    <div class="pane" data-pane="clr" hidden>
+      <div class="row">이격 기준 <input type="number" id="thrClr" min="0" max="5000" step="10" value="300"> mm 미만 경고</div>
+      <table class="tb2"><thead><tr><th>관</th><th class="r">최소 이격</th><th>판정</th></tr></thead><tbody id="clrBody"></tbody></table>
+      <div class="note" id="clrNote">관 표면 사이 최소 거리. 누르면 그 자리로 갑니다.</div>
+    </div>
+  </div>
+</aside>
+
+<div id="bl">
+  <div id="meaOut" hidden></div>
+  <div id="sec" hidden>
+    <div class="sec-hd">
+      <b>단면</b><span id="secSta">STA 0+000.00</span><span id="secInfo"></span><span class="sp"></span>
+      <button class="sb" id="secFlip" title="잘라낼 쪽 바꾸기">⇄ 뒤집기</button>
+      <button class="sb pri" id="secDxf" title="이 단면을 DXF(R12, mm)로 저장">DXF 저장</button>
+      <button class="sb" id="secClose" title="단면 닫기">✕</button>
+    </div>
+    <canvas id="secCv"></canvas>
+    <div class="sec-sl"><div id="secTicks"></div><input type="range" id="secRange" min="0" max="1" step="0.005" value="0"></div>
+  </div>
+  <div id="scaleBox">
+    <div id="scale"><span id="scaleText">—</span><div id="scaleBar"></div><small>화면 중심 기준</small></div>
+    <div id="compass" title="북쪽" hidden><svg viewBox="0 0 40 40" id="compassSvg"><path d="M20 5 L25 21 L20 18 L15 21 Z" fill="#f87171"/><path d="M20 35 L25 21 L20 24 L15 21 Z" fill="#64748b"/><text x="20" y="11.5" text-anchor="middle" font-size="0" fill="#fff">N</text></svg></div>
+  </div>
+</div>
+
+<div id="help">왼쪽 끌기: 회전 · 오른쪽 끌기: 이동 · 휠: 확대 · 더블클릭: 그 점에 초점 · 관 클릭: 선택</div>
+<div class="pill" id="meshPill" hidden>메시 불러오는 중…</div>
+<div id="toast"></div>
+<div id="load"><div class="spin"></div><div id="loadText">굴착 기록 불러오는 중...</div></div>
+<div id="err"></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { Line2 } from 'three/addons/lines/Line2.js';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
+import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
+
+// ═════════════════════════════ 기본 도구 ═════════════════════════════
+const $ = id => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+const EMB = window.parent !== window;
+if (EMB) document.documentElement.classList.add('embedded');            // 사이드바 iframe 안
+const post = msg => { try { if (EMB) window.parent.postMessage(Object.assign({ type: 'kgeo-utility' }, msg), location.origin); } catch (e) {} };
+const sameOrigin = u => { try { return new URL(u, location.href).origin === location.origin; } catch (e) { return false; } };
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const num = (v, d = null) => (typeof v === 'number' && Number.isFinite(v)) ? v : d;
+const V = a => new THREE.Vector3(a[0], a[1], a[2]);
+const UP = new THREE.Vector3(0, 1, 0);
+const fmtSta = m => { const km = Math.floor(m / 1000 + 1e-9); return km + '+' + (m - km * 1000).toFixed(2).padStart(6, '0'); };
+const fmm = mm => Math.round(mm).toLocaleString('ko-KR');
+const fmtLen = m => Math.abs(m) >= 1 ? m.toFixed(3) + ' m' : (m * 1000).toFixed(0) + ' mm';
+
+// 종류(class) → [이름, 색, DXF 색 번호]. 사용자 요구: 가스 황 · 상수 청 · 전력 적 · 통신 주황 · 하수 녹 · 미상 회색
+const CLS = { gas: ['가스', '#facc15', 2], water: ['상수', '#3b82f6', 5], sewer: ['하수', '#22c55e', 3], power: ['전력', '#ef4444', 1],
+              telecom: ['통신', '#fb923c', 30], heat: ['난방', '#d946ef', 6], unknown: ['미상', '#9ca3af', 8] };
+const CLS_ORDER = ['gas', 'water', 'sewer', 'power', 'telecom', 'heat', 'unknown'];
+const KIND = { pipe: '관', cable: '케이블', conduit: '관로', bundle: '케이블 다발', unknown: '형태 미상' };
+const STA_KIND = { regular: ['정규', '#e2e8f0'], bend: ['변곡', '#a78bfa'], change: ['관경 변화', '#fbbf24'], cross: ['교차', '#f472b6'], end: ['끝점', '#94a3b8'] };
+const COLOR_KO = { yellow: '황색', orange: '주황', red: '적색', green: '녹색', blue: '청색', purple: '보라', black: '흑색', gray: '회색', white: '백색' };
+const QWARN = { low_coverage: '굴착 면 촬영이 부족함', no_trench: '굴착을 찾지 못함', rim_sparse: '굴착 둘레 지면이 적게 찍힘',
+  high_noise: '점 잡음이 큼 (흔들림·거리 확인)', multiple_pits: '구덩이가 여럿 — 가장 큰 곳만 분석', mesh_las_offset: '메시와 점군 위치가 어긋남',
+  georef_unreadable: '위치 정보를 읽지 못함', no_georef_local: '로컬 좌표 없음 — 메시와 겹치지 않음',
+  soil_arc_rejected: '흙색 둥근 면 {n}곳 제외 (흙색 관이면 확인)', user_mark_unmatched: '앱에서 탭한 관 종류 {n}개는 가까운 관이 없음' };
+const qwarnText = w => { const [k, n] = String(w).split(':'); return QWARN[k] ? QWARN[k].replace('{n}', n || '') : String(w); };
+
+function toast(t, ms = 2600) { const e = $('toast'); e.textContent = t; e.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => e.classList.remove('show'), ms); }
+function fail(t) {
+  $('load').classList.add('done');
+  const e = $('err'); e.style.display = 'flex'; e.textContent = t;
+  post({ state: 'error', message: t });
+}
+function download(blob, name) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+}
+function stamp(d = new Date()) {
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
+}
+function fmtDate(iso) {
+  const d = iso ? new Date(iso) : null;
+  if (!d || isNaN(d)) return '';
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+// ═════════════════════════════ 상태 ═════════════════════════════
+const S = {
+  meta: null, title: '', frame: 'local', xf: null, utils: [], byId: {}, stations: [], clr: [], T: null,
+  sel: null, selSta: -1, selClr: -1, hidden: new Set(), edits: new Map(),
+  backfill: false, lidOpacity: 0.62, xray: true, labels: true, lit: true,
+  thrClr: 300, thrDep: 0.60, clrFromViewer: false,
+};
+const groundPlane = { n: new THREE.Vector3(0, 1, 0), d: 0 };              // n·p + d = 0 (n 위쪽, 정규화)
+const groundY = (x, z) => -(groundPlane.d + groundPlane.n.x * x + groundPlane.n.z * z) / groundPlane.n.y;
+
+// ═════════════════════════════ 렌더러·장면 ═════════════════════════════
+const view = $('view');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setClearColor(0x000000, 0);
+renderer.localClippingEnabled = true;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.NeutralToneMapping;                       // 기본색을 지키는 톤 매핑(Khronos PBR Neutral)
+renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.domElement.id = 'gl';
+view.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 400);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.09; controls.screenSpacePanning = true;
+controls.rotateSpeed = 0.75; controls.zoomSpeed = 1.1; controls.minDistance = 0.05; controls.maxDistance = 80;
+controls.zoomToCursor = true;
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+const hemi = new THREE.HemisphereLight(0xeef4ff, 0x6e5c48, 2.25); scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xfff2e0, 1.35); sun.position.set(3, 8, 4); sun.castShadow = true; scene.add(sun, sun.target);
+const fillL = new THREE.DirectionalLight(0x9db8ff, 0.35); fillL.position.set(-4, -2, -3); scene.add(fillL);
+// 그림자: 굴착 둘레만 덮는 직교 카메라, 부드러운 PCF
+function fitShadow() {
+  const T = S.T, c = T.origin.clone().add(new THREE.Vector3(0, -T.dmax * 0.5, 0));
+  const R = 0.5 * Math.hypot(T.s1 - T.s0, T.l1 - T.l0, T.dmax) + 1.0;
+  const dir = T.lat.clone().multiplyScalar(-0.42).addScaledVector(T.axis, -0.28).add(new THREE.Vector3(0, 1, 0)).normalize();
+  sun.position.copy(c).addScaledVector(dir, R * 3); sun.target.position.copy(c); sun.target.updateMatrixWorld();
+  const sc = sun.shadow.camera; sc.left = -R; sc.right = R; sc.top = R; sc.bottom = -R; sc.near = 0.05; sc.far = R * 7; sc.updateProjectionMatrix();
+  const big = !(EMB || window.innerWidth < 760);
+  sun.shadow.mapSize.set(big ? 2048 : 1024, big ? 2048 : 1024);
+  sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.012; sun.shadow.radius = 3.5;
+}
+
+const meshClip = [], pipeClip = [], lidClip = [];                       // 재질이 함께 쓰는 자르기 평면 배열
+const secPlane = new THREE.Plane(), backPlane = new THREE.Plane();
+const meshMats = [], clipMats = { pipe: [], lid: [] };
+const utilGroup = new THREE.Group(), depthGroup = new THREE.Group(), staGroup = new THREE.Group(), clrGroup = new THREE.Group();
+const backGroup = new THREE.Group(), secGroup = new THREE.Group(), meaGroup = new THREE.Group();
+scene.add(utilGroup, depthGroup, staGroup, clrGroup, backGroup, secGroup, meaGroup);
+backGroup.visible = false; secGroup.visible = false;
+let meshRoot = null, meshPick = [], SL = null, lid = null, grid = null;
+
+// 선(두께 있는 선): 해상도를 창 크기에 맞춘다
+const lineMats = new Set();
+function lmat(o) {
+  const m = new LineMaterial(Object.assign({ linewidth: 2, transparent: true, worldUnits: false }, o));
+  m.resolution.set(view.clientWidth || 1, view.clientHeight || 1);
+  lineMats.add(m); return m;
+}
+function line2(pts, mat, closed = false) {
+  const a = [];
+  for (const p of pts) a.push(p.x, p.y, p.z);
+  if (closed && pts.length) a.push(pts[0].x, pts[0].y, pts[0].z);
+  const g = new LineGeometry(); g.setPositions(a);
+  const l = new Line2(g, mat); l.computeLineDistances(); return l;
+}
+function segs2(arr, mat) {
+  const g = new LineSegmentsGeometry(); g.setPositions(arr);
+  const l = new LineSegments2(g, mat); l.computeLineDistances(); return l;
+}
+function setClips(arr, planes, mats) {
+  const changed = arr.length !== planes.length;
+  arr.length = 0; arr.push(...planes);
+  if (changed) mats.forEach(m => { m.needsUpdate = true; });
+}
+
+// 관 재질
+const EM = 0.1, EM_SEL = 0.42;                                         // 관 자체 발광 (평소 · 선택)
+function pipeMat(hex) {
+  const c = new THREE.Color(hex);
+  const m = new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.34, metalness: 0.0, clearcoat: 0.75, clearcoatRoughness: 0.18,
+    emissive: c.clone().multiplyScalar(EM), side: THREE.DoubleSide, envMapIntensity: 0.75,
+    // 스캔 메시의 관 표면과 거의 겹치므로(같은 면) 깊이를 살짝 앞으로 당겨 줄무늬(z-fighting)를 없앤다
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -6 });
+  m.clippingPlanes = pipeClip; m.clipShadows = true; clipMats.pipe.push(m); return m;
+}
+// 외곽선: 법선 방향으로 화면 픽셀만큼 부풀린 뒷면(inverted hull) — 두께가 거리와 무관하게 일정
+const outlineMats = new Set();
+const lighten = hex => new THREE.Color(hex).lerp(new THREE.Color(0xffffff), 0.5);
+function outlineMat(hex) {
+  const m = new THREE.ShaderMaterial({
+    uniforms: { uColor: { value: lighten(hex) }, uWidth: { value: 1.5 }, uRes: { value: new THREE.Vector2(view.clientWidth || 1, view.clientHeight || 1) } },
+    vertexShader: `#include <common>
+#include <clipping_planes_pars_vertex>
+uniform float uWidth; uniform vec2 uRes;
+void main() {
+  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+  vec4 clip = projectionMatrix * mvPosition;
+  vec3 n = normalize(normalMatrix * normal);
+  vec2 d = (projectionMatrix * vec4(n, 0.0)).xy;
+  d = length(d) > 1e-6 ? normalize(d) : vec2(0.0);
+  clip.xy += d * uWidth * 2.0 / uRes * clip.w;
+  gl_Position = clip;
+#include <clipping_planes_vertex>
+}`,
+    fragmentShader: `#include <common>
+#include <clipping_planes_pars_fragment>
+uniform vec3 uColor;
+void main() {
+#include <clipping_planes_fragment>
+  gl_FragColor = vec4(uColor, 1.0);
+#include <tonemapping_fragment>
+#include <colorspace_fragment>
+}`,
+    side: THREE.BackSide, clipping: true,
+  });
+  m.clippingPlanes = pipeClip; clipMats.pipe.push(m); outlineMats.add(m); return m;
+}
+// 투시(X-ray): 가장자리가 빛나는 프레넬 — 깊이 검사 없이 덧그려 흙·벽 너머 관이 비친다
+function xrayMat(hex) {
+  const m = new THREE.ShaderMaterial({
+    uniforms: { uColor: { value: new THREE.Color(hex) }, uK: { value: 1.0 } },
+    vertexShader: `#include <common>
+#include <clipping_planes_pars_vertex>
+varying vec3 vN; varying vec3 vV;
+void main() {
+  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+  vN = normalize(normalMatrix * normal); vV = normalize(-mvPosition.xyz);
+  gl_Position = projectionMatrix * mvPosition;
+#include <clipping_planes_vertex>
+}`,
+    fragmentShader: `#include <common>
+#include <clipping_planes_pars_fragment>
+uniform vec3 uColor; uniform float uK; varying vec3 vN; varying vec3 vV;
+void main() {
+#include <clipping_planes_fragment>
+  float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
+  float a = (0.07 + 0.8 * pow(f, 2.4)) * uK;
+  gl_FragColor = vec4(uColor * a, a);
+#include <colorspace_fragment>
+}`,
+    transparent: true, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, clipping: true,
+  });
+  m.clippingPlanes = pipeClip; clipMats.pipe.push(m); return m;
+}
+// 되메운 지표: 반투명 + 0.5 m 격자 + 가장자리 흐림
+function lidMat() {
+  const m = new THREE.ShaderMaterial({
+    uniforms: { uOpacity: { value: S.lidOpacity }, uSize: { value: new THREE.Vector2(1, 1) }, uColor: { value: new THREE.Color('#2b3038') }, uGrid: { value: new THREE.Color('#7dd3fc') } },
+    vertexShader: `#include <common>
+#include <clipping_planes_pars_vertex>
+varying vec2 vM;
+void main() { vM = uv; vec4 mvPosition = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mvPosition;
+#include <clipping_planes_vertex>
+}`,
+    fragmentShader: `#include <common>
+#include <clipping_planes_pars_fragment>
+uniform float uOpacity; uniform vec2 uSize; uniform vec3 uColor; uniform vec3 uGrid; varying vec2 vM;
+void main() {
+#include <clipping_planes_fragment>
+  vec2 q = vM / 0.5; vec2 g = abs(fract(q - 0.5) - 0.5) / fwidth(q);
+  float ln = 1.0 - min(min(g.x, g.y), 1.0);
+  vec2 e = min(vM, uSize - vM); float edge = smoothstep(0.0, 0.3, min(e.x, e.y));
+  vec3 col = mix(uColor, uGrid, ln * 0.45);
+  float a = uOpacity * mix(0.25, 1.0, edge) + ln * 0.10 * edge;
+  gl_FragColor = vec4(col, clamp(a, 0.0, 1.0));
+#include <colorspace_fragment>
+}`,
+    transparent: true, depthWrite: false, side: THREE.DoubleSide, clipping: true,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  });
+  m.clippingPlanes = lidClip; clipMats.lid.push(m); return m;
+}
+
+// ═════════════════════════════ 화면 그리기(필요할 때만) ═════════════════════════════
+let frames = 0, raf = 0;
+const anims = new Set();                                                 // 매 프레임 부르는 함수: true 를 돌려주면 계속
+function invalidate(n = 2) { frames = Math.max(frames, n); if (!raf) raf = requestAnimationFrame(tick); }
+function tick(t) {
+  raf = 0;
+  const moving = controls.update();
+  let busy = false;
+  for (const f of [...anims]) { if (f(t)) busy = true; else anims.delete(f); }
+  render();
+  frames--;
+  if (frames > 0 || moving || busy) raf = requestAnimationFrame(tick);
+}
+controls.addEventListener('change', () => invalidate());
+function render() {
+  const d = camera.position.distanceTo(controls.target);
+  if (MEA.marker.visible) MEA.marker.scale.setScalar(camera.position.distanceTo(MEA.marker.position) * 0.011);
+  staGroup.children.forEach(m => { m.scale.setScalar(Math.max(0.12, camera.position.distanceTo(m.position) * 0.085) * (m.userData.sel ? 1.7 : 1)); });
+  renderer.render(scene, camera);
+  layoutLabels();
+  updateScale(d);
+}
+function resize() {
+  const w = view.clientWidth || 1, h = view.clientHeight || 1;
+  renderer.setSize(w, h, false);
+  layoutMode();
+  // 오른쪽 목록 패널이 열려 있으면(넓은 화면) 장면 중심을 남은 영역 가운데로 옮긴다
+  const side = $('side'), pw = (!document.documentElement.classList.contains('compact') && !side.classList.contains('collapsed') && !SPL.on) ? side.offsetWidth + 12 : 0;
+  S.panelW = pw;
+  camera.aspect = (w + pw) / h;
+  if (pw) camera.setViewOffset(w + pw, h, pw, 0, w, h); else camera.clearViewOffset();
+  camera.updateProjectionMatrix();
+  lineMats.forEach(m => m.resolution.set(w, h));
+  outlineMats.forEach(m => m.uniforms.uRes.value.set(w, h));
+  if (SEC.on) drawSection();
+  invalidate();
+}
+function layoutMode() {
+  const compact = EMB || window.innerWidth < 1100;
+  const root = document.documentElement;
+  if (root.classList.contains('compact') !== compact) {
+    root.classList.toggle('compact', compact);
+    $('side').classList.toggle('collapsed', compact);
+    root.classList.remove('sheet-open');
+    $('sideTog').textContent = compact ? '▴' : '▾';
+  }
+}
+
+// ═════════════════════════════ 라벨(HTML) ═════════════════════════════
+const labels = [];
+const _v = new THREE.Vector3();
+function addLabel(o) {
+  const el = document.createElement('div');
+  el.className = 'lb ' + (o.cls || '');
+  el.textContent = o.text;
+  if (o.color) el.style.setProperty('--c', o.color);
+  $('labels').appendChild(el);
+  const L = Object.assign({ el, w: 0, h: 0, dx: 0, dy: 0, ax: 0, ay: -0.5, prio: 1, shown: false, x: 0, y: 0, on: () => true }, o);
+  labels.push(L); return L;
+}
+function setLabelText(L, t) { if (L.text !== t) { L.text = t; L.el.textContent = t; L.w = 0; } }
+function removeLabel(L) { const i = labels.indexOf(L); if (i >= 0) labels.splice(i, 1); L.el.remove(); }
+function layoutLabels() {
+  const w = view.clientWidth, h = view.clientHeight;
+  const placed = [];
+  const list = labels.filter(L => { const ok = S.labels || L.always; return ok && L.on(); }).sort((a, b) => b.prio - a.prio);
+  const show = new Set();
+  for (const L of list) {
+    if (L.clip && SEC.on && secPlane.distanceToPoint(L.pos) < 0) continue;      // 단면으로 잘라낸 쪽
+    _v.copy(L.pos).project(camera);
+    if (_v.z < -1 || _v.z > 1) continue;
+    const sx = (_v.x * 0.5 + 0.5) * w, sy = (-_v.y * 0.5 + 0.5) * h;
+    if (sx < -60 || sx > w - (S.panelW || 0) - 8 || sy < -30 || sy > h + 30) continue;
+    if (!L.w) { L.w = L.el.offsetWidth; L.h = L.el.offsetHeight; }
+    const x = sx + L.dx + L.ax * L.w, y = sy + L.dy + L.ay * L.h;
+    const r = [x - 2, y - 1, x + L.w + 2, y + L.h + 1];
+    if (!L.force && placed.some(q => r[0] < q[2] && r[2] > q[0] && r[1] < q[3] && r[3] > q[1])) continue;
+    placed.push(r);
+    L.x = x; L.y = y;
+    L.el.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
+    show.add(L);
+  }
+  for (const L of labels) {
+    const s = show.has(L);
+    if (s !== L.shown) { L.el.style.visibility = s ? 'visible' : 'hidden'; L.shown = s; }
+  }
+}
+
+// ═════════════════════════════ 축척 · 방위 ═════════════════════════════
+function niceLen(px, mpp) {
+  const nice = [0.01, 0.02, 0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 5, 10, 20, 50];
+  for (const n of nice) if (n / mpp >= px) return n;
+  return nice[nice.length - 1];
+}
+function metersPerPx(d) { return 2 * d * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) / (view.clientHeight || 1); }
+function updateScale(d) {
+  const mpp = metersPerPx(d);
+  const L = niceLen(70, mpp);
+  $('scaleBar').style.width = Math.round(L / mpp) + 'px';
+  $('scaleText').textContent = L >= 1 ? L + ' m' : Math.round(L * 1000) + ' mm';
+  if (S.xf && S.xf.north) {
+    const a = compassAngle();
+    $('compassSvg').style.transform = `rotate(${a}rad)`;
+  }
+}
+function compassAngle() {
+  const t = controls.target, n = S.xf.north;
+  const d = camera.position.distanceTo(t) * 0.25;
+  const a = t.clone().project(camera), b = t.clone().addScaledVector(n, d).project(camera);
+  return Math.atan2((b.x - a.x) * view.clientWidth, (b.y - a.y) * view.clientHeight);
+}
+
+// ═════════════════════════════ 자료 읽기 · 좌표 ═════════════════════════════
+// 로컬(ARKit) ↔ UTM: e,n = R·(x,z) + t (회전 또는 반사), h = y + dh. 관 중심선 짝으로 최소제곱 맞춤.
+function fitXf(pairs) {
+  if (pairs.length < 2) return null;
+  let cx = 0, cz = 0, ce = 0, cn = 0, dh = 0;
+  for (const [p, q] of pairs) { cx += p[0]; cz += p[2]; ce += q[0]; cn += q[1]; dh += q[2] - p[1]; }
+  const n = pairs.length; cx /= n; cz /= n; ce /= n; cn /= n; dh /= n;
+  let best = null;
+  for (const sg of [1, -1]) {
+    let a = 0, b = 0;
+    for (const [p, q] of pairs) { const X = p[0] - cx, Z = sg * (p[2] - cz), E = q[0] - ce, N = q[1] - cn; a += X * E + Z * N; b += X * N - Z * E; }
+    const th = Math.atan2(b, a), c = Math.cos(th), s = Math.sin(th);
+    let ss = 0;
+    for (const [p, q] of pairs) { const X = p[0] - cx, Z = sg * (p[2] - cz); ss += (c * X - s * Z + ce - q[0]) ** 2 + (s * X + c * Z + cn - q[1]) ** 2 + (p[1] + dh - q[2]) ** 2; }
+    const rms = Math.sqrt(ss / n);
+    if (!best || rms < best.rms) best = { c, s, sg, rms };
+  }
+  return makeXf(cx, cz, ce, cn, dh, best.c, best.s, best.sg, best.rms);
+}
+function makeXf(cx, cz, ce, cn, dh, c, s, sg, rms) {
+  return {
+    rms,
+    toUTM(v) { const X = v.x - cx, Z = sg * (v.z - cz); return [c * X - s * Z + ce, s * X + c * Z + cn, v.y + dh]; },
+    toLocal(u) { const E = u[0] - ce, N = u[1] - cn; const X = c * E + s * N, Z = -s * E + c * N; return new THREE.Vector3(X + cx, u[2] - dh, sg * Z + cz); },
+    north: new THREE.Vector3(s, 0, sg * c).normalize(),
+  };
+}
+const fmtUTM = u => `E ${u[0].toFixed(3)}  N ${u[1].toFixed(3)}  H ${u[2].toFixed(3)}`;
+
+function colorOf(U) { return (CLS[U.cls] || CLS.unknown)[1]; }
+function clsName(k) { return (CLS[k] || CLS.unknown)[0]; }
+function diaText(U) { return U.count > 1 ? `${U.count}×Ø${U.dmm}` : `Ø${U.dmm}`; }
+function polyLen(P) { let s = 0; for (let i = 1; i < P.length; i++) s += P[i].distanceTo(P[i - 1]); return s; }
+
+function prepare(meta) {
+  S.meta = meta;
+  const raw = Array.isArray(meta.utilities) ? meta.utilities : [];
+  const hasLocal = raw.length > 0 && raw.every(u => Array.isArray(u.centerline_local) && u.centerline_local.length >= 2);
+  S.frame = hasLocal || !raw.length ? 'local' : 'utm';
+  const T = meta.trench || {};
+  // ── 로컬 ↔ UTM
+  if (S.frame === 'local') {
+    const pairs = [];
+    for (const u of raw) {
+      const a = u.centerline_local, b = u.centerline;
+      if (Array.isArray(a) && Array.isArray(b) && a.length === b.length) for (let i = 0; i < a.length; i++) pairs.push([a[i], b[i]]);
+    }
+    if (Array.isArray(T.outline_local) && Array.isArray(T.outline) && T.outline_local.length === T.outline.length)
+      for (let i = 0; i < T.outline.length; i++) pairs.push([T.outline_local[i], T.outline[i]]);
+    S.xf = fitXf(pairs);
+    if (S.xf && S.xf.rms > 0.05) { console.warn('local↔UTM fit rms', S.xf.rms); S.xf.bad = true; }
+  } else {
+    // 로컬 좌표가 없다: UTM 을 Y 위 로컬로 (x = e − e0, y = h − h0, z = −(n − n0))
+    let e0 = 0, n0 = 0, h0 = 0, k = 0;
+    for (const u of raw) for (const p of (u.centerline || [])) { e0 += p[0]; n0 += p[1]; h0 += p[2]; k++; }
+    k = Math.max(1, k); e0 /= k; n0 /= k; h0 /= k;
+    S.xf = makeXf(0, 0, e0, n0, h0, 1, 0, -1, 0);
+  }
+  // ── 원지반
+  const gp = T.ground_plane_local;
+  if (S.frame === 'local' && gp && Array.isArray(gp.normal) && Number.isFinite(gp.d)) {
+    const n = V(gp.normal); const L = n.length() || 1; let d = gp.d / L; n.divideScalar(L);
+    if (n.y < 0) { n.negate(); d = -d; }
+    groundPlane.n.copy(n); groundPlane.d = d;
+  } else {
+    // 관마다 땅 높이(ground_local_z) → 평면 맞춤, 없으면 ground.z_ref
+    const pts = [];
+    for (const u of raw) if (S.frame === 'local' && Array.isArray(u.ground_local_z)) u.centerline_local.forEach((p, i) => pts.push([p[0], u.ground_local_z[i], p[2]]));
+    if (pts.length >= 3) {
+      const P = new THREE.Vector3(); pts.forEach(p => P.add(V(p))); P.divideScalar(pts.length);
+      // y = a x + b z + c 최소제곱
+      let sxx = 0, sxz = 0, szz = 0, sxy = 0, szy = 0;
+      for (const p of pts) { const x = p[0] - P.x, z = p[2] - P.z, y = p[1] - P.y; sxx += x * x; sxz += x * z; szz += z * z; sxy += x * y; szy += z * y; }
+      const det = sxx * szz - sxz * sxz;
+      const a = Math.abs(det) > 1e-9 ? (sxy * szz - szy * sxz) / det : 0, b = Math.abs(det) > 1e-9 ? (szy * sxx - sxy * sxz) / det : 0;
+      const n = new THREE.Vector3(-a, 1, -b).normalize();
+      groundPlane.n.copy(n); groundPlane.d = -n.dot(P);
+    } else {
+      const zr = meta.ground && num(meta.ground.z_ref);
+      const y = zr != null && S.xf ? S.xf.toLocal([0, 0, zr]).y : 0;
+      groundPlane.n.set(0, 1, 0); groundPlane.d = -y;
+    }
+  }
+  // ── 시설물
+  S.utils = []; S.byId = {};
+  raw.forEach((u, i) => {
+    let pts;
+    if (S.frame === 'local') pts = u.centerline_local.map(V);
+    else pts = (u.centerline || []).map(q => S.xf.toLocal(q));
+    if (pts.length < 2) return;
+    const dmm = num(u.diameter_mm, 100);
+    const cls = CLS[u.class] ? u.class : 'unknown';
+    const U = {
+      i, id: String(u.id || 'U' + (i + 1)), raw: u, cls, orig: cls, kind: KIND[u.kind] ? u.kind : 'unknown', dmm, r: Math.max(0.004, dmm / 2000),
+      count: Math.max(1, Math.round(num(u.count, 1))), widthMm: num(u.width_mm), conf: clamp(num(u.confidence, 0), 0, 1), pts,
+      tubes: [], xr: [], marks: [], labels: [],
+    };
+    // 원지반 높이: ground_local_z → 없으면 평면. (UTM 모드에서 top_depth_m.mean 으로 보정)
+    let g = (S.frame === 'local' && Array.isArray(u.ground_local_z) && u.ground_local_z.length === pts.length) ? u.ground_local_z.map(Number) : pts.map(p => groundY(p.x, p.z));
+    if (S.frame !== 'local' && u.top_depth_m && num(u.top_depth_m.mean) != null) {
+      const m = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+      g = pts.map(p => p.y - m + m + U.r + u.top_depth_m.mean);
+    }
+    U.g = g;
+    U.ch = [0]; for (let k = 1; k < pts.length; k++) U.ch.push(U.ch[k - 1] + pts[k].distanceTo(pts[k - 1]));
+    U.len = U.ch[U.ch.length - 1];
+    U.depth = pts.map((p, k) => g[k] - (p.y + U.r));
+    // 다발: 가닥을 수평으로 나란히
+    U.strands = [pts];
+    if (U.kind === 'bundle' && U.count > 1) {
+      const sp = Math.max(U.dmm / 1000, (U.widthMm || 0) / 1000 / U.count);
+      U.strands = [];
+      for (let k = 0; k < U.count; k++) {
+        const off = (k - (U.count - 1) / 2) * sp;
+        U.strands.push(pts.map((p, j) => {
+          const a = pts[Math.max(0, j - 1)], b = pts[Math.min(pts.length - 1, j + 1)];
+          const t = new THREE.Vector3(b.x - a.x, 0, b.z - a.z).normalize();
+          return p.clone().add(new THREE.Vector3(-t.z, 0, t.x).multiplyScalar(off));
+        }));
+      }
+    }
+    S.utils.push(U); S.byId[U.id] = U;
+  });
+  // ── 굴착 축(단면 슬라이서): outline_local 주성분, 없으면 관 점
+  let opts = [];
+  if (S.frame === 'local' && Array.isArray(T.outline_local) && T.outline_local.length >= 3) opts = T.outline_local.map(V);
+  else if (Array.isArray(T.outline) && T.outline.length >= 3) opts = T.outline.map(q => S.xf.toLocal(q));
+  const src = opts.length ? opts : S.utils.flatMap(U => U.pts);
+  if (!src.length) src.push(new THREE.Vector3());
+  let mx = 0, mz = 0; src.forEach(p => { mx += p.x; mz += p.z; }); mx /= src.length; mz /= src.length;
+  let sxx = 0, sxz = 0, szz = 0; src.forEach(p => { const x = p.x - mx, z = p.z - mz; sxx += x * x; sxz += x * z; szz += z * z; });
+  const ang = 0.5 * Math.atan2(2 * sxz, sxx - szz);
+  const axis = new THREE.Vector3(Math.cos(ang), 0, Math.sin(ang));
+  if (S.xf) { const a = S.xf.toUTM(new THREE.Vector3(mx, 0, mz)), b = S.xf.toUTM(new THREE.Vector3(mx + axis.x, 0, mz + axis.z)); const de = b[0] - a[0], dn = b[1] - a[1]; if (de < -1e-6 || (Math.abs(de) < 1e-6 && dn < 0)) axis.negate(); }
+  else if (axis.x < 0) axis.negate();
+  const lat = new THREE.Vector3(-axis.z, 0, axis.x);                    // STA 증가 방향으로 볼 때 오른쪽
+  const origin = new THREE.Vector3(mx, groundY(mx, mz), mz);
+  let s0 = 1e9, s1 = -1e9, l0 = 1e9, l1 = -1e9;
+  src.forEach(p => { const d = p.clone().sub(origin); const s = d.dot(axis), l = d.dot(lat); s0 = Math.min(s0, s); s1 = Math.max(s1, s); l0 = Math.min(l0, l); l1 = Math.max(l1, l); });
+  if (!opts.length) { s0 -= 0.2; s1 += 0.2; l0 -= 0.3; l1 += 0.3; }
+  let dmax = num(T.depth_max_m, 0);
+  for (const U of S.utils) U.pts.forEach((p, k) => { dmax = Math.max(dmax, U.g[k] - (p.y - U.r)); });
+  S.T = { axis, lat, origin, s0, s1, l0, l1, outline: opts, dmax: Math.max(0.5, dmax) };
+  // ── 측점: xyz_local → UTM 변환 → 관 중심선 측점 거리 순
+  S.stations = (Array.isArray(meta.stations) ? meta.stations : []).map((s, i) => {
+    const U = S.byId[s.utility_id];
+    let p = null;
+    if (Array.isArray(s.xyz_local)) p = V(s.xyz_local);
+    else if (Array.isArray(s.xyz_utm) && S.xf && !S.xf.bad) p = S.xf.toLocal(s.xyz_utm);
+    let c = null;
+    if (U) { c = p ? nearestChain(U, p).c : clamp(num(s.station_m, 0), 0, U.len); }
+    const q = U ? atChain(U, c) : null;
+    const pos = q ? q.p.clone().add(new THREE.Vector3(0, U.r + 0.025, 0)) : p;
+    if (!pos) return null;
+    return { i, raw: s, U, kind: STA_KIND[s.kind] ? s.kind : 'regular', c, pos, dep: num(s.top_depth_m, q ? q.g - (q.p.y + U.r) : null), ts: pos.clone().sub(S.T.origin).dot(axis) };
+  }).filter(Boolean);
+  // ── 이격
+  let cl = Array.isArray(meta.clearances) ? meta.clearances : null;
+  S.clrFromViewer = !cl;
+  if (!cl) cl = computeClearances();
+  S.clr = cl.map((c, i) => {
+    const A = S.byId[c.a], B = S.byId[c.b];
+    if (!A || !B) return null;
+    const k = closestBetween(A, B);
+    return { i, raw: c, A, B, mm: num(c.min_mm, k.d * 1000), pa: k.pa, pb: k.pb };
+  }).filter(Boolean).sort((a, b) => a.mm - b.mm);
+}
+
+function atChain(U, c) {
+  const ch = U.ch, P = U.pts; c = clamp(c, 0, U.len);
+  let k = 0; while (k < ch.length - 2 && ch[k + 1] < c) k++;
+  const seg = (ch[k + 1] - ch[k]) || 1e-9, f = clamp((c - ch[k]) / seg, 0, 1);
+  return { p: P[k].clone().lerp(P[k + 1], f), g: U.g[k] + (U.g[k + 1] - U.g[k]) * f, t: P[k + 1].clone().sub(P[k]).normalize(), k, f };
+}
+function nearestChain(U, q) {
+  let best = { d: 1e9, c: 0 };
+  const P = U.pts, ab = new THREE.Vector3(), aq = new THREE.Vector3();
+  for (let k = 0; k < P.length - 1; k++) {
+    ab.subVectors(P[k + 1], P[k]); aq.subVectors(q, P[k]);
+    const L2 = ab.lengthSq() || 1e-12, f = clamp(aq.dot(ab) / L2, 0, 1);
+    const d = aq.addScaledVector(ab, -f).length();
+    if (d < best.d) best = { d, c: U.ch[k] + f * Math.sqrt(L2) };
+  }
+  return best;
+}
+// 두 선분 사이 최근접점 (Ericson, Real-Time Collision Detection 5.1.9)
+function segSeg(p1, q1, p2, q2) {
+  const d1 = q1.clone().sub(p1), d2 = q2.clone().sub(p2), r = p1.clone().sub(p2);
+  const a = d1.dot(d1), e = d2.dot(d2), f = d2.dot(r), EPS = 1e-12;
+  let s = 0, t = 0;
+  if (a <= EPS && e <= EPS) { s = t = 0; }
+  else if (a <= EPS) { t = clamp(f / e, 0, 1); }
+  else {
+    const c = d1.dot(r);
+    if (e <= EPS) { s = clamp(-c / a, 0, 1); }
+    else {
+      const b = d1.dot(d2), den = a * e - b * b;
+      s = den > EPS ? clamp((b * f - c * e) / den, 0, 1) : 0;
+      t = (b * s + f) / e;
+      if (t < 0) { t = 0; s = clamp(-c / a, 0, 1); } else if (t > 1) { t = 1; s = clamp((b - c) / a, 0, 1); }
+    }
+  }
+  const c1 = p1.clone().addScaledVector(d1, s), c2 = p2.clone().addScaledVector(d2, t);
+  return { c1, c2, d: c1.distanceTo(c2) };
+}
+function closestBetween(A, B) {
+  let best = { d: 1e9 };
+  for (const sa of A.strands) for (const sb of B.strands)
+    for (let i = 0; i < sa.length - 1; i++) for (let j = 0; j < sb.length - 1; j++) {
+      const k = segSeg(sa[i], sa[i + 1], sb[j], sb[j + 1]);
+      if (k.d < best.d) best = k;
+    }
+  const dir = best.c2.clone().sub(best.c1); const L = dir.length() || 1; dir.divideScalar(L);
+  return { d: L - A.r - B.r, pa: best.c1.clone().addScaledVector(dir, A.r), pb: best.c2.clone().addScaledVector(dir, -B.r) };
+}
+function computeClearances() {
+  const out = [];
+  for (let i = 0; i < S.utils.length; i++) for (let j = i + 1; j < S.utils.length; j++) {
+    const k = closestBetween(S.utils[i], S.utils[j]);
+    if (k.d < 1.0) out.push({ a: S.utils[i].id, b: S.utils[j].id, min_mm: Math.max(0, Math.round(k.d * 1000)) });
+  }
+  return out;
+}
+
+// ═════════════════════════════ 3D 만들기 ═════════════════════════════
+const depthLineMat = lmat({ color: 0xe2e8f0, linewidth: 1.4, dashed: true, dashSize: 0.035, gapSize: 0.025, opacity: 0.8, depthTest: false });
+const depthLineMatBad = lmat({ color: 0xf87171, linewidth: 1.6, dashed: true, dashSize: 0.035, gapSize: 0.025, opacity: 0.9, depthTest: false });
+const ringMat = lmat({ color: 0xe2e8f0, linewidth: 1.4, opacity: 0.85, depthTest: false });
+function buildUtil(U) {
+  const g = new THREE.Group(); g.name = U.id;
+  U.mat = pipeMat(colorOf(U)); U.xmat = xrayMat(colorOf(U)); U.omat = outlineMat(colorOf(U));
+  for (const st of U.strands) {
+    const curve = st.length > 2 ? new THREE.CatmullRomCurve3(st, false, 'centripetal') : new THREE.LineCurve3(st[0], st[1]);
+    const geo = new THREE.TubeGeometry(curve, Math.max(8, Math.ceil(polyLen(st) / 0.03)), U.r, 24, false);
+    const m = new THREE.Mesh(geo, U.mat); m.userData.U = U; m.renderOrder = 1; m.castShadow = true; m.receiveShadow = true;
+    const o = new THREE.Mesh(geo, U.omat); o.renderOrder = 1; o.raycast = () => {};
+    const x = new THREE.Mesh(geo, U.xmat); x.renderOrder = 30; x.raycast = () => {};
+    g.add(m, o, x); U.tubes.push(m); U.xr.push(x);
+  }
+  utilGroup.add(g); U.group = g;
+  // 1 m 간격 토피: 원지반 점 ↔ 관 윗면 점선 + 라벨
+  const cs = []; for (let c = 0; c <= U.len + 1e-6; c += 1) cs.push(c);
+  if (U.len - cs[cs.length - 1] > 0.35) cs.push(U.len);
+  const mg = new THREE.Group(); depthGroup.add(mg); U.markGroup = mg;
+  for (const c of cs) {
+    const q = atChain(U, c);
+    const top = q.p.clone(); top.y += U.r;
+    const gp = new THREE.Vector3(q.p.x, q.g, q.p.z);
+    const dep = q.g - top.y;
+    const ln = line2([gp, top], depthLineMat); ln.renderOrder = 26; mg.add(ln);
+    const ring = []; for (let k = 0; k < 20; k++) { const a = k / 20 * Math.PI * 2; ring.push(new THREE.Vector3(gp.x + Math.cos(a) * 0.028, gp.y, gp.z + Math.sin(a) * 0.028)); }
+    const rl = line2(ring, ringMat, true); rl.renderOrder = 26; mg.add(rl);
+    const lb = addLabel({ text: '토피 ' + dep.toFixed(2) + ' m', cls: 'dep', color: colorOf(U), pos: gp.clone(), prio: 2 + (c === 0 ? 0.1 : 0), dx: 7, ay: -0.5, clip: true,
+                          on: () => !S.hidden.has(U.cls) });
+    U.marks.push({ ln, lb, dep, c }); U.labels.push(lb);
+  }
+  const mid = atChain(U, U.len / 2);
+  U.nameLb = addLabel({ text: `${U.id} ${clsName(U.cls)} ${diaText(U)}`, cls: 'name', color: colorOf(U), pos: mid.p.clone().add(new THREE.Vector3(0, U.r + 0.02, 0)),
+                        prio: 4, ax: -0.5, ay: -1, dy: -6, clip: true, on: () => !S.hidden.has(U.cls) });
+  U.labels.push(U.nameLb);
+  // 되메운 뒤: 지표 위 관 위치 표시(도색처럼)
+  const paint = U.pts.map(p => new THREE.Vector3(p.x, groundY(p.x, p.z) + 0.009, p.z));
+  U.paintMat = lmat({ color: new THREE.Color(colorOf(U)), linewidth: 4, dashed: true, dashSize: 0.16, gapSize: 0.07, opacity: 0.95 });
+  U.paintMat.clippingPlanes = pipeClip; clipMats.pipe.push(U.paintMat);
+  U.paint = line2(paint, U.paintMat); U.paint.renderOrder = 12; backGroup.add(U.paint);
+}
+function applyDepthStyle() {
+  for (const U of S.utils) for (const mk of U.marks) {
+    const bad = mk.dep < S.thrDep;
+    mk.ln.material = bad ? depthLineMatBad : depthLineMat;
+    mk.lb.el.classList.toggle('bad', bad);
+  }
+}
+function applyColor(U) {
+  const c = new THREE.Color(colorOf(U));
+  U.mat.color.copy(c); U.mat.emissive.copy(c).multiplyScalar(S.sel === U.id ? EM_SEL : EM);
+  U.omat.uniforms.uColor.value.copy(S.sel === U.id ? new THREE.Color(0xffffff) : lighten(colorOf(U)));
+  U.xmat.uniforms.uColor.value.copy(c);
+  U.paintMat.color.copy(c);
+  U.labels.forEach(L => L.el.style.setProperty('--c', colorOf(U)));
+  setLabelText(U.nameLb, `${U.id} ${clsName(U.cls)} ${diaText(U)}`);
+  invalidate();
+}
+function applyVisibility() {
+  for (const U of S.utils) {
+    const on = !S.hidden.has(U.cls);
+    U.group.visible = on; U.markGroup.visible = on && S.labels; U.paint.visible = on;
+  }
+  S.stations.forEach(st => { if (st.mesh) st.mesh.visible = (!st.U || !S.hidden.has(st.U.cls)) && S.labels; });
+  S.clr.forEach(c => { if (c.line) c.line.visible = !S.hidden.has(c.A.cls) && !S.hidden.has(c.B.cls) && (c.mm < S.thrClr || c.i === S.selClr); });
+  if (SEC.on) updateSection();
+  invalidate();
+}
+function buildStations() {
+  const geo = new THREE.OctahedronGeometry(0.06, 0);
+  S.stations.forEach((st, i) => {
+    const sm = new THREE.MeshBasicMaterial({ color: STA_KIND[st.kind][1], depthTest: false, transparent: true, opacity: 0.95 });
+    sm.clippingPlanes = pipeClip; clipMats.pipe.push(sm);
+    const m = new THREE.Mesh(geo, sm);
+    m.position.copy(st.pos); m.renderOrder = 28; m.userData.sta = i; staGroup.add(m); st.mesh = m;
+    st.lb = addLabel({ text: '', cls: 'sta', pos: st.pos, prio: 9, dx: 9, ay: -0.5, force: true, always: true, clip: true, on: () => S.selSta === i });
+  });
+}
+const clrMat = lmat({ color: 0xf87171, linewidth: 2.2, dashed: true, dashSize: 0.02, gapSize: 0.015, depthTest: false, opacity: 0.95 });
+const clrMatOk = lmat({ color: 0x94a3b8, linewidth: 1.8, dashed: true, dashSize: 0.02, gapSize: 0.015, depthTest: false, opacity: 0.9 });
+[depthLineMat, depthLineMatBad, ringMat, clrMat, clrMatOk].forEach(m => { m.clippingPlanes = pipeClip; clipMats.pipe.push(m); });
+function buildClearances() {
+  clrGroup.clear();
+  for (const c of S.clr) {
+    const warn = c.mm < S.thrClr;
+    c.line = line2([c.pa, c.pb], warn ? clrMat : clrMatOk); c.line.renderOrder = 29; clrGroup.add(c.line);
+    const mid = c.pa.clone().add(c.pb).multiplyScalar(0.5);
+    if (c.lb) removeLabel(c.lb);
+    c.lb = addLabel({ text: `${warn ? '⚠ ' : ''}이격 ${fmm(c.mm)} mm`, cls: 'clr' + (warn ? '' : ' ok'), pos: mid, prio: warn ? 6 : 5.5, dx: 8, ay: -0.5, clip: true,
+                      on: () => c.line.visible });
+  }
+  applyVisibility();
+}
+function buildLid() {
+  const T = S.T, m = 0.4;
+  const a0 = T.s0 - m, a1 = T.s1 + m, b0 = T.l0 - m, b1 = T.l1 + m;
+  const P = [], UV = [];
+  const nx = 16, ny = 8;
+  for (let j = 0; j <= ny; j++) for (let i = 0; i <= nx; i++) {
+    const s = a0 + (a1 - a0) * i / nx, l = b0 + (b1 - b0) * j / ny;
+    const p = T.origin.clone().addScaledVector(T.axis, s).addScaledVector(T.lat, l);
+    P.push(p.x, groundY(p.x, p.z) + 0.004, p.z); UV.push(s - a0, l - b0);
+  }
+  const I = [];
+  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) { const a = j * (nx + 1) + i; I.push(a, a + nx + 1, a + 1, a + 1, a + nx + 1, a + nx + 2); }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(UV, 2)); g.setIndex(I);
+  const mat = lidMat(); mat.uniforms.uSize.value.set(a1 - a0, b1 - b0);
+  lid = new THREE.Mesh(g, mat); lid.renderOrder = 10; backGroup.add(lid);
+  // 굴착 윤곽(되메운 자리)
+  if (T.outline.length >= 3) {
+    const ol = T.outline.map(p => new THREE.Vector3(p.x, groundY(p.x, p.z) + 0.012, p.z));
+    const l = line2(ol, lmat({ color: 0xffffff, linewidth: 1.6, dashed: true, dashSize: 0.1, gapSize: 0.06, opacity: 0.7 }), true); l.renderOrder = 11; backGroup.add(l);
+  }
+}
+function buildGrid() {
+  const T = S.T;
+  grid = new THREE.GridHelper(24, 48, 0x38bdf8, 0x38bdf8);
+  grid.material.transparent = true; grid.material.opacity = 0.07; grid.material.depthWrite = false;
+  grid.rotation.y = -Math.atan2(T.axis.z, T.axis.x);
+  grid.position.copy(T.origin).add(new THREE.Vector3(0, -0.015, 0));
+  // 지면 기울기 반영
+  grid.quaternion.premultiply(new THREE.Quaternion().setFromUnitVectors(UP, groundPlane.n));
+  scene.add(grid);
+}
+
+// ═════════════════════════════ 메시(GLB) ═════════════════════════════
+function loadMesh(url) {
+  $('meshPill').hidden = false;
+  new GLTFLoader().load(url, gltf => {
+    const root = gltf.scene;
+    root.updateMatrixWorld(true);
+    const maxAniso = renderer.capabilities.getMaxAnisotropy();
+    const chunks = [];
+    root.traverse(o => {
+      if (!o.isMesh) return;
+      const geom = o.geometry, hasVC = !!geom.attributes.color;
+      if (!geom.attributes.normal) geom.computeVertexNormals();          // 음영에 필요
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      const lits = [], flats = [];
+      mats.forEach(m => {
+        const map = m && m.map ? m.map : null;
+        if (map) { map.anisotropy = maxAniso; map.minFilter = THREE.LinearFilter; map.magFilter = THREE.LinearFilter; map.generateMipmaps = false; map.needsUpdate = true; }
+        const base = { map, vertexColors: hasVC, color: (map || hasVC) ? 0xffffff : (m && m.color ? m.color : 0xa89880), side: THREE.DoubleSide };
+        const f = new THREE.MeshBasicMaterial(base); f.toneMapped = false; f.clippingPlanes = meshClip;
+        const l = new THREE.MeshLambertMaterial(base); l.clippingPlanes = meshClip; l.clipShadows = true;
+        meshMats.push(f, l); flats.push(f); lits.push(l);
+      });
+      const arr = Array.isArray(o.material);
+      o.userData.mats = { lit: arr ? lits : lits[0], flat: arr ? flats : flats[0] };
+      o.material = S.lit ? o.userData.mats.lit : o.userData.mats.flat;
+      o.castShadow = true; o.receiveShadow = true;
+      o.renderOrder = 0;
+      meshPick.push(o);
+      // 단면용 삼각형: 월드 좌표를 굴착 축·옆·높이로 미리 바꿔 둔다
+      const pos = geom.attributes.position, n = pos.count;
+      const A = new Float32Array(n), Lt = new Float32Array(n), Y = new Float32Array(n);
+      const v = new THREE.Vector3(), T = S.T;
+      for (let i = 0; i < n; i++) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld).sub(T.origin);
+        A[i] = v.dot(T.axis); Lt[i] = v.dot(T.lat); Y[i] = v.y + T.origin.y;
+      }
+      let I = geom.index ? geom.index.array : null;
+      if (!I) { I = new Uint32Array(n); for (let i = 0; i < n; i++) I[i] = i; }
+      chunks.push({ A, Lt, Y, I });
+    });
+    SL = chunks;
+    meshRoot = root; root.visible = !SPL.on; scene.add(root);
+    applyClips();
+    $('meshPill').hidden = true;
+    if (SEC.on) updateSection();
+    invalidate();
+    const nt = chunks.reduce((s, c) => s + c.I.length / 3, 0);
+    S.meshTris = nt;
+    post({ state: 'mesh', triangles: nt });
+  }, ev => {
+    if (ev.lengthComputable && ev.total) $('meshPill').textContent = `메시 불러오는 중… ${Math.round(ev.loaded / ev.total * 100)}%`;
+  }, err => {
+    console.error(err);
+    $('meshPill').hidden = false; $('meshPill').textContent = '메시(GLB)를 불러오지 못했습니다 — 관만 표시';
+    setTimeout(() => { $('meshPill').hidden = true; }, 6000);
+  });
+}
+
+// ═════════════════════════════ 자르기 평면 ═════════════════════════════
+function applyClips() {
+  const mp = [], pp = [], lp = [];
+  if (SEC.on) { mp.push(secPlane); pp.push(secPlane); lp.push(secPlane); }
+  if (S.backfill) mp.push(backPlane);
+  setClips(meshClip, mp, meshMats); setClips(pipeClip, pp, clipMats.pipe); setClips(lidClip, lp, clipMats.lid);
+  invalidate();
+}
+function setBackfill(on) {
+  S.backfill = on;
+  $('bBack').classList.toggle('on', on);
+  $('opWrap').classList.toggle('show', on);
+  backGroup.visible = on;
+  // 원지반 6 cm 아래까지만 메시를 남긴다(도로면만 보이고 굴착 안은 지표로 덮임)
+  backPlane.set(groundPlane.n, groundPlane.d + 0.06);
+  if (on && !S.xray) setXray(true, true);
+  applyClips();
+}
+function setXray(on, quiet) {
+  S.xray = on; $('bXray').classList.toggle('on', on);
+  S.utils.forEach(U => U.xr.forEach(x => { x.visible = on; }));
+  if (!quiet) toast(on ? '투시: 흙·벽 너머 관 윤곽을 비춥니다' : '투시 끔');
+  invalidate();
+}
+
+function setLit(on) {
+  S.lit = on; $('bLit').classList.toggle('on', on);
+  meshPick.forEach(o => { if (o.userData.mats) o.material = on ? o.userData.mats.lit : o.userData.mats.flat; });
+  toast(on ? '입체 음영: 부드러운 조명과 그림자' : '사진 그대로: 텍스처 원래 밝기');
+  invalidate();
+}
+// 스플랫 배경: @mkkellogg/gaussian-splats-3d DropInViewer 를 같은 장면에 넣는다(splat.html 과 같은 라이브러리).
+// 스플랫은 GLB 와 같은 ARKit 로컬 프레임. 자르기 평면은 스플랫에 적용되지 않는다(메시·관에만).
+const SPL = { url: null, on: false, viewer: null, loading: false };
+async function setSplat(on) {
+  if (!SPL.url || SPL.loading) return;
+  if (on && !SPL.viewer) {
+    SPL.loading = true;
+    const pill = $('meshPill'); pill.hidden = false; pill.textContent = '스플랫 불러오는 중…';
+    try {
+      const GS = await import('@mkkellogg/gaussian-splats-3d');
+      const small = EMB || window.innerWidth < 760;
+      const v = new GS.DropInViewer({ sharedMemoryForWorkers: false, gpuAcceleratedSort: false, sphericalHarmonicsDegree: 0,
+        halfPrecisionCovariancesOnGPU: small, sceneRevealMode: GS.SceneRevealMode.Instant, logLevel: GS.LogLevel.None });
+      await v.addSplatScene(SPL.url, { splatAlphaRemovalThreshold: 5, showLoadingUI: false, progressiveLoad: false,
+        onProgress: pct => { if (Number.isFinite(pct)) pill.textContent = `스플랫 불러오는 중… ${Math.round(pct)}%`; } });
+      SPL.viewer = v; scene.add(v);
+    } catch (e) {
+      console.error(e); toast('스플랫을 불러오지 못했습니다 — 메시로 봅니다', 4000);
+      SPL.loading = false; pill.hidden = true; return;
+    }
+    SPL.loading = false; pill.hidden = true;
+  }
+  SPL.on = on;
+  if (SPL.viewer) SPL.viewer.visible = on;
+  if (meshRoot) meshRoot.visible = !on;
+  $('bSplat').classList.toggle('on', on);
+  if (on) { anims.add(() => SPL.on); toast('스플랫 배경 (사진 같은 3D) — 단면·되메움 자르기는 메시에만 적용됩니다', 4000); }
+  resize(); invalidate();
+}
+
+// ═════════════════════════════ 선택 · 카메라 ═════════════════════════════
+function ease(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+let flyAnim = null;
+function flyTo(target, dist, dir, dur = 700) {
+  const t0 = performance.now();
+  const fromT = controls.target.clone(), off = camera.position.clone().sub(controls.target);
+  const r0 = Math.max(1e-3, off.length()), d0 = off.divideScalar(r0);
+  const d1 = dir ? dir.clone().normalize() : d0.clone();
+  const q = new THREE.Quaternion().setFromUnitVectors(d0, d1), qi = new THREE.Quaternion(), qk = new THREE.Quaternion(), dv = new THREE.Vector3();
+  if (flyAnim) anims.delete(flyAnim);
+  const f = now => {
+    const k = ease(clamp((now - t0) / dur, 0, 1));
+    controls.target.lerpVectors(fromT, target, k);
+    qk.slerpQuaternions(qi, q, k);
+    camera.position.copy(controls.target).addScaledVector(dv.copy(d0).applyQuaternion(qk), r0 * Math.pow(dist / r0, k));
+    if (k >= 1 && flyAnim === f) flyAnim = null;
+    return k < 1;
+  };
+  flyAnim = f; anims.add(f); invalidate();
+}
+controls.addEventListener('start', () => { if (flyAnim) { anims.delete(flyAnim); flyAnim = null; } });
+// 첫 화면: 멀리 비스듬한 곳에서 굴착 전체가 보이는 시점으로 날아 들어간다
+function intro() {
+  const h = homeView();
+  const d = h.dir.clone().applyAxisAngle(UP, -0.75); d.y += 0.55; d.normalize();
+  controls.target.copy(h.target); camera.position.copy(h.target).addScaledVector(d, h.dist * 2.2); controls.update();
+  flyTo(h.target, h.dist, h.dir, 1800);
+}
+function fitDist(radius) { return Math.max(0.35, radius / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2)) * 1.05); }
+function homeView() {
+  const T = S.T;
+  const L = Math.max(1.2, T.s1 - T.s0), Wd = Math.max(0.5, T.l1 - T.l0);
+  const target = T.origin.clone().add(new THREE.Vector3(0, -T.dmax * 0.45, 0));
+  // 보이는 영역(오른쪽 패널 제외)의 가로세로 비. 세로 화면이면 굴착 축을 화면 세로로 둔다
+  const aspect = Math.max(0.3, ((view.clientWidth || 1) - (S.panelW || 0)) / (view.clientHeight || 1));
+  const portrait = aspect < 0.9;
+  const dir = portrait
+    ? T.axis.clone().multiplyScalar(-1).addScaledVector(T.lat, -0.3).add(new THREE.Vector3(0, 1.45, 0)).normalize()
+    : T.lat.clone().multiplyScalar(-1).addScaledVector(T.axis, -0.34).add(new THREE.Vector3(0, 1.55, 0)).normalize();
+  const tv = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)), th = tv * aspect;
+  const Rh = portrait ? 0.5 * (Wd + T.dmax * 0.5) + 0.35 : 0.5 * L + 0.3;
+  const Rv = portrait ? 0.5 * L + 0.3 : 0.5 * (Wd + T.dmax) + 0.3;
+  return { target, dist: Math.max(Rh / th, Rv / tv) * 1.04, dir };
+}
+function goHome(instant) {
+  const h = homeView();
+  if (instant) { controls.target.copy(h.target); camera.position.copy(h.target).addScaledVector(h.dir, h.dist); controls.update(); invalidate(); }
+  else flyTo(h.target, h.dist, h.dir);
+}
+function selectUtil(id, fly) {
+  const prev = S.sel;
+  S.sel = id;
+  for (const U of S.utils) {
+    const on = U.id === id;
+    U.mat.emissive.copy(new THREE.Color(colorOf(U))).multiplyScalar(on ? EM_SEL : EM);
+    U.omat.uniforms.uColor.value.copy(on ? new THREE.Color(0xffffff) : lighten(colorOf(U)));
+    U.omat.uniforms.uWidth.value = on ? 2.6 : 1.5;
+    U.xmat.uniforms.uK.value = on ? 1.8 : 1.0;
+    U.nameLb.prio = on ? 8 : 4; U.nameLb.el.classList.toggle('sel', on);
+    U.marks.forEach(m => { m.lb.prio = on ? 7 : 2; });
+  }
+  document.querySelectorAll('.card').forEach(c => c.classList.toggle('sel', c.dataset.id === id));
+  if (id && fly) {
+    const U = S.byId[id];
+    const box = new THREE.Box3(); U.tubes.forEach(t => { t.geometry.computeBoundingBox(); box.union(t.geometry.boundingBox); });
+    const sph = box.getBoundingSphere(new THREE.Sphere());
+    flyTo(sph.center, fitDist(sph.radius + 0.25));
+  }
+  if (id && id !== prev) {
+    const U = S.byId[id], t0 = performance.now();
+    anims.add(now => { const k = (now - t0) / 1400; if (k >= 1 || S.sel !== id) { if (S.sel === id) U.mat.emissive.copy(new THREE.Color(colorOf(U))).multiplyScalar(EM_SEL); return false; }
+      U.mat.emissive.copy(new THREE.Color(colorOf(U))).multiplyScalar(EM_SEL + 0.4 * Math.sin(k * Math.PI * 3) ** 2); return true; });
+    const card = document.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
+    if (card) card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+  invalidate();
+}
+
+// ═════════════════════════════ 고르기(레이캐스트) ═════════════════════════════
+const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+function pick(ev, opt = { pipes: true, mesh: true, lid: false }) {
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const objs = [];
+  if (opt.pipes) S.utils.forEach(U => { if (U.group.visible) objs.push(...U.tubes); });
+  if (opt.mesh && meshRoot) objs.push(...meshPick);
+  if (opt.lid && lid && S.backfill) objs.push(lid);
+  const hits = ray.intersectObjects(objs, false);
+  const ok = h => {
+    const pl = h.object.userData.U ? pipeClip : (h.object === lid ? lidClip : meshClip);
+    return !pl.some(p => p.distanceToPoint(h.point) < -1e-4);
+  };
+  const valid = hits.filter(ok);
+  if (!valid.length) return null;
+  let h = valid[0];
+  if (!h.object.userData.U) {
+    // 메시 바로 뒤(3 cm 안)에 관 면이 있으면 관에 붙인다. 투시 중에는 흙 너머로 보이는 관을 먼저 잡는다
+    const ph = valid.find(x => x.object.userData.U && (x.distance < h.distance + 0.03 || (opt.preferPipe && S.xray)));
+    if (ph) h = ph;
+  }
+  return { point: h.point.clone(), U: h.object.userData.U || null, kind: h.object.userData.U ? 'pipe' : (h.object === lid ? 'lid' : 'mesh') };
+}
+
+// ═════════════════════════════ 측정 ═════════════════════════════
+const MEA = { on: false, pts: [], list: [], marker: null, tmp: null, lastHover: 0 };
+MEA.marker = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 12), new THREE.MeshBasicMaterial({ color: 0xfacc15, depthTest: false, transparent: true, opacity: 0.9 }));
+MEA.marker.renderOrder = 40; MEA.marker.visible = false; meaGroup.add(MEA.marker);
+const meaMat = lmat({ color: 0xfacc15, linewidth: 2.5, depthTest: false });
+function setMeasure(on) {
+  MEA.on = on; $('bMea').classList.toggle('on', on);
+  renderer.domElement.classList.toggle('measuring', on);
+  MEA.marker.visible = false; MEA.pts = [];
+  if (on) toast(S.xray ? '두 점을 누르세요 — 투시 중에는 흙 너머 관 표면에 먼저 붙습니다 (투시 끄면 메시 면) · Esc 취소' : '두 점을 누르세요 — 관 표면·메시에 붙습니다 · Esc 취소', 4200);
+  invalidate();
+}
+function addMeasurePoint(hit) {
+  const dot = new THREE.Mesh(new THREE.SphereGeometry(0.5, 14, 10), new THREE.MeshBasicMaterial({ color: 0xfacc15, depthTest: false }));
+  dot.position.copy(hit.point); dot.renderOrder = 41; dot.scale.setScalar(0.012); meaGroup.add(dot);
+  MEA.pts.push({ p: hit.point.clone(), dot, hit });
+  if (MEA.pts.length < 2) { invalidate(); return; }
+  const [a, b] = MEA.pts; MEA.pts = [];
+  const ln = line2([a.p, b.p], meaMat); ln.renderOrder = 40; meaGroup.add(ln);
+  const d = a.p.distanceTo(b.p), dv = b.p.y - a.p.y, dh = Math.hypot(b.p.x - a.p.x, b.p.z - a.p.z);
+  const n = MEA.list.length + 1;
+  const lb = addLabel({ text: `${n}) ${fmtLen(d)}`, cls: 'mea', pos: a.p.clone().add(b.p).multiplyScalar(0.5), prio: 10, force: true, always: true, dx: 8, ay: -0.5 });
+  MEA.list.push({ a, b, ln, lb, d, dv, dh });
+  showMeasureOut();
+  invalidate();
+}
+function hitName(h) { return h.U ? `${h.U.id} ${clsName(h.U.cls)} 표면` : h.kind === 'lid' ? '지표' : '메시'; }
+function showMeasureOut() {
+  const m = MEA.list[MEA.list.length - 1], box = $('meaOut');
+  if (!m) { box.hidden = true; return; }
+  const ua = S.xf ? S.xf.toUTM(m.a.p) : null, ub = S.xf ? S.xf.toUTM(m.b.p) : null;
+  box.innerHTML = `<span class="x" id="meaClr" title="측정 모두 지우기">✕ 지우기</span><span class="h">${MEA.list.length}) ${fmtLen(m.d)}</span>` +
+    ` · 수평 ${fmtLen(m.dh)} · 수직 ${m.dv >= 0 ? '+' : '−'}${fmtLen(Math.abs(m.dv))}<br>` +
+    `<span class="d">A ${esc(hitName(m.a.hit))}${ua ? ' · ' + fmtUTM(ua) : ''}</span><br><span class="d">B ${esc(hitName(m.b.hit))}${ub ? ' · ' + fmtUTM(ub) : ''}</span>`;
+  box.hidden = false;
+  $('meaClr').onclick = clearMeasures;
+}
+function clearMeasures() {
+  MEA.list.forEach(m => { meaGroup.remove(m.ln, m.a.dot, m.b.dot); removeLabel(m.lb); });
+  MEA.pts.forEach(p => meaGroup.remove(p.dot));
+  MEA.list = []; MEA.pts = []; $('meaOut').hidden = true; invalidate();
+}
+
+// ═════════════════════════════ 단면 ═════════════════════════════
+const SEC = { on: false, s: 0, flip: false, model: null, plane: null, contour: null, rings: [], win: null };
+const secContourMat = lmat({ color: 0xfacc15, linewidth: 2.2, depthTest: false, opacity: 0.95 });
+const secEdgeMat = lmat({ color: 0x38bdf8, linewidth: 1.5, opacity: 0.8, depthTest: false });
+const secQuadMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.07, side: THREE.DoubleSide, depthWrite: false });
+function setSection(on) {
+  if (on && !S.T) return;
+  SEC.on = on; $('bSec').classList.toggle('on', on); $('sec').hidden = !on; secGroup.visible = on;
+  if (on) {
+    // 카메라 반대쪽을 남겨 잘린 면이 보이게
+    SEC.s = clamp(SEC.s, S.T.s0, S.T.s1);
+    const camS = camera.position.clone().sub(S.T.origin).dot(S.T.axis);
+    SEC.flip = camS > SEC.s;
+    const T = S.T;
+    SEC.win = { l0: T.l0 - 0.45, l1: T.l1 + 0.45, y0: -(T.dmax + 0.28), y1: 0.26 };
+    $('secRange').min = 0; $('secRange').max = (T.s1 - T.s0).toFixed(3); $('secRange').value = (SEC.s - T.s0).toFixed(3);
+    buildTicks();
+    if (document.documentElement.classList.contains('compact')) setSheet(false);
+    sizeSecCanvas();
+    updateSection();
+  }
+  applyClips();
+}
+function setSecS(s) {
+  SEC.s = clamp(s, S.T.s0, S.T.s1);
+  $('secRange').value = (SEC.s - S.T.s0).toFixed(3);
+  if (SEC.on) { updateSection(); applyClips(); }
+}
+function buildTicks() {
+  const box = $('secTicks'); box.innerHTML = '';
+  const T = S.T, span = Math.max(1e-6, T.s1 - T.s0);
+  S.stations.forEach((st, i) => {
+    if (st.U && S.hidden.has(st.U.cls)) return;
+    const f = clamp((st.ts - T.s0) / span, 0, 1);
+    const b = document.createElement('button');
+    b.style.left = `calc(7px + (100% - 14px) * ${f.toFixed(4)})`;
+    b.style.setProperty('--c', STA_KIND[st.kind][1]);
+    b.title = `${st.U ? st.U.id : ''} ${STA_KIND[st.kind][0]} · 관 측점 ${fmtSta(st.c || 0)}`;
+    b.dataset.i = i; b.className = i === S.selSta ? 'sel' : '';
+    b.onclick = () => goStation(i, false);
+    box.appendChild(b);
+  });
+}
+function sizeSecCanvas() {
+  const cv = $('secCv'), r = window.devicePixelRatio || 1;
+  cv.width = Math.round(cv.clientWidth * r); cv.height = Math.round(cv.clientHeight * r);
+}
+// 메시 삼각형을 단면 평면으로 자른 선분 (굴착 옆 거리, 높이)
+function sliceMesh(s) {
+  const out = [];
+  if (!SL) return out;
+  const w = SEC.win, lo = w.l0 - 0.2, hi = w.l1 + 0.2;
+  for (const c of SL) {
+    const { A, Lt, Y, I } = c;
+    for (let t = 0; t < I.length; t += 3) {
+      const i0 = I[t], i1 = I[t + 1], i2 = I[t + 2];
+      const a0 = A[i0] - s, a1 = A[i1] - s, a2 = A[i2] - s;
+      const p0 = a0 >= 0, p1 = a1 >= 0, p2 = a2 >= 0;
+      if (p0 === p1 && p1 === p2) continue;
+      if (Lt[i0] < lo && Lt[i1] < lo && Lt[i2] < lo) continue;
+      if (Lt[i0] > hi && Lt[i1] > hi && Lt[i2] > hi) continue;
+      let k = 0; const q = [0, 0, 0, 0];
+      const edge = (ia, ib, da, db) => { const f = da / (da - db); q[k++] = Lt[ia] + (Lt[ib] - Lt[ia]) * f; q[k++] = Y[ia] + (Y[ib] - Y[ia]) * f; };
+      if (p0 !== p1) edge(i0, i1, a0, a1);
+      if (p1 !== p2) edge(i1, i2, a1, a2);
+      if (k < 4 && p2 !== p0) edge(i2, i0, a2, a0);
+      if (k === 4) out.push(q[0], q[1], q[2], q[3]);
+    }
+  }
+  return out;
+}
+// 관 단면: 평면을 지나는 선분마다 타원(원 둘레를 관 방향으로 평면에 투영), 평면과 거의 나란하면 띠
+function pipeSection(U, s) {
+  const T = S.T, n = T.axis, w = T.origin.dot(n) + s, out = [];
+  const to2 = q => { const d = q.clone().sub(T.origin); return [d.dot(T.lat), q.y]; };
+  U.strands.forEach((P, si) => {
+    for (let k = 0; k < P.length - 1; k++) {
+      const d0 = P[k].dot(n) - w, d1 = P[k + 1].dot(n) - w;
+      const t = P[k + 1].clone().sub(P[k]); const segL = t.length() || 1e-9; t.divideScalar(segL);
+      const cosA = Math.abs(t.dot(n));
+      if ((d0 < 0) !== (d1 < 0) && cosA > 0.22) {
+        const f = d0 / (d0 - d1), c = P[k].clone().lerp(P[k + 1], f);
+        const e1 = new THREE.Vector3().crossVectors(t, Math.abs(t.y) < 0.9 ? UP : new THREE.Vector3(1, 0, 0)).normalize();
+        const e2 = new THREE.Vector3().crossVectors(t, e1).normalize();
+        const pts = [];
+        for (let j = 0; j < 64; j++) {
+          const a = j / 64 * Math.PI * 2;
+          const q = c.clone().addScaledVector(e1, Math.cos(a) * U.r).addScaledVector(e2, Math.sin(a) * U.r);
+          q.addScaledVector(t, -(q.dot(n) - w) / t.dot(n));
+          pts.push(to2(q));
+        }
+        const chain = U.ch[k] + f * segL;
+        const gq = U.g[k] + (U.g[k + 1] - U.g[k]) * f;
+        out.push({ U, si, type: 'ring', pts, c2: to2(c), c3: c, chain, g: gq, cosA, perp: cosA > 0.985 });
+      } else if (cosA <= 0.22 && Math.abs(d0) < U.r && Math.abs(d1) < U.r) {
+        const a2 = to2(P[k].clone().addScaledVector(n, -d0)), b2 = to2(P[k + 1].clone().addScaledVector(n, -d1));
+        const tx = b2[0] - a2[0], ty = b2[1] - a2[1], tl = Math.hypot(tx, ty) || 1e-9, px = -ty / tl, py = tx / tl;
+        const h0 = Math.sqrt(Math.max(0, U.r * U.r - d0 * d0)), h1 = Math.sqrt(Math.max(0, U.r * U.r - d1 * d1));
+        const pts = [[a2[0] + px * h0, a2[1] + py * h0], [b2[0] + px * h1, b2[1] + py * h1], [b2[0] - px * h1, b2[1] - py * h1], [a2[0] - px * h0, a2[1] - py * h0]];
+        const gq = (U.g[k] + U.g[k + 1]) / 2;
+        out.push({ U, si, type: 'band', pts, c2: [(a2[0] + b2[0]) / 2, (a2[1] + b2[1]) / 2], chain: U.ch[k], g: gq });
+      }
+    }
+  });
+  // 띠 조각은 하나로 합친다(관 하나 = 단면 하나)
+  const bands = out.filter(o => o.type === 'band');
+  if (bands.length > 1) {
+    const top = [], bot = [];
+    bands.forEach(b => { top.push(b.pts[0], b.pts[1]); bot.push(b.pts[3], b.pts[2]); });
+    const merged = { U, type: 'band', pts: top.concat(bot.reverse()), c2: bands[Math.floor(bands.length / 2)].c2, chain: bands[0].chain, g: bands.reduce((s, b) => s + b.g, 0) / bands.length };
+    return out.filter(o => o.type !== 'band').concat([merged]);
+  }
+  return out;
+}
+function computeSection(s) {
+  const T = S.T;
+  const c3 = T.origin.clone().addScaledVector(T.axis, s);
+  const g0 = groundY(c3.x, c3.z);
+  const segs = sliceMesh(s);
+  const shapes = [];
+  for (const U of S.utils) if (!S.hidden.has(U.cls)) shapes.push(...pipeSection(U, s));
+  for (const sh of shapes) {
+    let ti = 0; sh.pts.forEach((p, i) => { if (p[1] > sh.pts[ti][1]) ti = i; });
+    sh.top = sh.pts[ti];
+    // 토피: 관 측 원지반(ground_local_z 보간) − 윗면
+    sh.dep = sh.g - sh.top[1];
+  }
+  // 굴착 가장자리·바닥(메시 단면에서)
+  let eL = null, eR = null, fl = null;
+  for (let i = 0; i < segs.length; i += 2) {
+    const l = segs[i], y = segs[i + 1] - (groundY(T.origin.x + T.axis.x * s + T.lat.x * l, T.origin.z + T.axis.z * s + T.lat.z * l));
+    if (y < -0.05 && y > -0.2) { eL = eL == null ? l : Math.min(eL, l); eR = eR == null ? l : Math.max(eR, l); }
+  }
+  if (eL != null) for (let i = 0; i < segs.length; i += 2) { const l = segs[i], y = segs[i + 1] - g0; if (l > eL && l < eR && (fl == null || y < fl.y)) fl = { l, y }; }
+  // 단면 안 관 사이 이격 (각 관에서 가장 가까운 다른 관 하나)
+  const pairs = [];
+  const groups = {};
+  shapes.forEach(sh => { (groups[sh.U.id] = groups[sh.U.id] || []).push(sh); });
+  const ids = Object.keys(groups);
+  const dense = sh => sh.type === 'ring' ? sh.pts : densify(sh.pts);
+  for (const ia of ids) {
+    let best = null;
+    for (const ib of ids) {
+      if (ia === ib) continue;
+      for (const A of groups[ia]) for (const B of groups[ib]) {
+        const pa = dense(A), pb = dense(B);
+        for (const p of pa) for (const q of pb) { const d = Math.hypot(p[0] - q[0], p[1] - q[1]); if (!best || d < best.d) best = { d, p, q, a: ia, b: ib }; }
+      }
+    }
+    if (best && best.d < 1.0 && !pairs.some(x => (x.a === best.b && x.b === best.a))) pairs.push(best);
+  }
+  return { s, sta: s - T.s0, c3, g0, segs, shapes, eL, eR, fl, pairs, utm: S.xf ? S.xf.toUTM(c3) : null };
+}
+function densify(poly) {
+  const out = [];
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 0.01));
+    for (let k = 0; k < n; k++) out.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]);
+  }
+  return out;
+}
+function updateSection() {
+  if (!SEC.on) return;
+  const T = S.T, w = T.origin.dot(T.axis) + SEC.s;
+  if (!SEC.flip) secPlane.set(T.axis, -w); else secPlane.set(T.axis.clone().negate(), w);
+  const M = SEC.model = computeSection(SEC.s);
+  // 3D: 평면 테두리 · 메시 단면선 · 관 단면 고리
+  secGroup.children.forEach(o => { if (o.geometry) o.geometry.dispose(); });
+  secGroup.clear();
+  const P3 = (l, y) => T.origin.clone().addScaledVector(T.axis, SEC.s).addScaledVector(T.lat, l).setY(y);
+  const W = SEC.win, yA = M.g0 + W.y0, yB = M.g0 + W.y1;
+  const corners = [P3(W.l0, yA), P3(W.l1, yA), P3(W.l1, yB), P3(W.l0, yB)];
+  const qg = new THREE.BufferGeometry().setFromPoints([corners[0], corners[1], corners[2], corners[0], corners[2], corners[3]]);
+  const quad = new THREE.Mesh(qg, secQuadMat);
+  quad.renderOrder = 15; secGroup.add(quad);
+  const edge = line2(corners, secEdgeMat, true); edge.renderOrder = 16; secGroup.add(edge);
+  if (M.segs.length) {
+    const arr = new Float32Array(M.segs.length / 4 * 6);
+    for (let i = 0, j = 0; i < M.segs.length; i += 4, j += 6) {
+      const a = P3(M.segs[i], M.segs[i + 1]), b = P3(M.segs[i + 2], M.segs[i + 3]);
+      arr[j] = a.x; arr[j + 1] = a.y; arr[j + 2] = a.z; arr[j + 3] = b.x; arr[j + 4] = b.y; arr[j + 5] = b.z;
+    }
+    const c = segs2(arr, secContourMat); c.renderOrder = 17; secGroup.add(c);
+  }
+  for (const sh of M.shapes) {
+    const pts = sh.pts.map(p => P3(p[0], p[1]));
+    const m = sh.U.secMat || (sh.U.secMat = lmat({ color: new THREE.Color(colorOf(sh.U)), linewidth: 3, depthTest: false }));
+    m.color.set(colorOf(sh.U));
+    const l = line2(pts, m, true); l.renderOrder = 18; secGroup.add(l);
+  }
+  $('secSta').textContent = 'STA ' + fmtSta(M.sta);
+  $('secInfo').textContent = M.utm ? `E ${M.utm[0].toFixed(2)} N ${M.utm[1].toFixed(2)}` : '';
+  drawSection();
+  invalidate();
+}
+
+// 2D 단면 그림 (같은 축척 1:1, 단위 mm)
+function drawSection(ctxOverride, Wd, Ht) {
+  const M = SEC.model; if (!M) return;
+  const cv = $('secCv');
+  const r = window.devicePixelRatio || 1;
+  const c = ctxOverride || cv.getContext('2d');
+  const W = Wd || cv.clientWidth, H = Ht || cv.clientHeight;
+  if (W < 40 || H < 40) return;
+  if (!ctxOverride) { if (cv.width !== Math.round(W * r)) sizeSecCanvas(); c.setTransform(r, 0, 0, r, 0, 0); }
+  const T = S.T, win = SEC.win;
+  const ml = 46, mr = 12, mt = 14, mb = 22;
+  const sc = Math.min((W - ml - mr) / (win.l1 - win.l0), (H - mt - mb) / (win.y1 - win.y0));
+  const ox = ml + ((W - ml - mr) - (win.l1 - win.l0) * sc) / 2, oy = mt + ((H - mt - mb) - (win.y1 - win.y0) * sc) / 2;
+  const X = l => ox + (l - win.l0) * sc, Y = y => oy + (win.y1 - (y - M.g0)) * sc;   // y: 절대 높이
+  const gyAt = l => { const q = M.c3.clone().addScaledVector(T.lat, l); return groundY(q.x, q.z); };
+  c.save();
+  c.fillStyle = '#0a0e13'; c.fillRect(0, 0, W, H);
+  // 격자 100 mm / 500 mm
+  for (let k = Math.ceil(win.l0 * 10); k <= win.l1 * 10; k++) { c.strokeStyle = k % 5 ? 'rgba(255,255,255,.035)' : 'rgba(255,255,255,.08)'; c.beginPath(); c.moveTo(X(k / 10), mt); c.lineTo(X(k / 10), H - mb); c.stroke(); }
+  for (let k = Math.ceil(win.y0 * 10); k <= win.y1 * 10; k++) { const y = Y(M.g0 + k / 10); c.strokeStyle = k % 5 ? 'rgba(255,255,255,.035)' : 'rgba(255,255,255,.08)'; c.beginPath(); c.moveTo(ml, y); c.lineTo(W - mr, y); c.stroke(); }
+  // 왼쪽 깊이 자: 원지반(단면 중심) 기준 mm
+  c.font = '10px "IBM Plex Mono", monospace'; c.fillStyle = '#8b98a8'; c.textAlign = 'right'; c.textBaseline = 'middle';
+  for (let k = 0; k >= Math.floor(win.y0 * 2); k--) { const y = Y(M.g0 + k / 2); c.fillText(k === 0 ? '0' : fmm(-k * 500), ml - 6, y); c.strokeStyle = '#8b98a8'; c.beginPath(); c.moveTo(ml - 3, y); c.lineTo(ml, y); c.stroke(); }
+  c.save(); c.translate(11, (mt + H - mb) / 2); c.rotate(-Math.PI / 2); c.textAlign = 'center'; c.fillText('깊이 (mm)', 0, 0); c.restore();
+  // 메시 단면(흙·관 표면)
+  c.strokeStyle = '#dcc49b'; c.lineWidth = 1.8; c.lineJoin = 'round'; c.beginPath();
+  for (let i = 0; i < M.segs.length; i += 4) { c.moveTo(X(M.segs[i]), Y(M.segs[i + 1])); c.lineTo(X(M.segs[i + 2]), Y(M.segs[i + 3])); }
+  c.stroke();
+  // 원지반 선
+  c.setLineDash([7, 4]); c.strokeStyle = '#e2e8f0'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(X(win.l0), Y(gyAt(win.l0))); c.lineTo(X(win.l1), Y(gyAt(win.l1))); c.stroke(); c.setLineDash([]);
+  c.textAlign = 'left'; c.textBaseline = 'bottom'; c.fillStyle = '#e2e8f0'; c.font = '600 10.5px Pretendard, sans-serif';
+  c.fillText('원지반', X(win.l0) + 4, Y(gyAt(win.l0)) - 3);
+  // 관 · 토피 · 이름 · 이격 (글자 상자는 서로·관과 겹치지 않게 후보 자리 중 빈 곳에)
+  const boxes = [];
+  const hitBox = r => boxes.some(q => r[0] < q[2] && r[2] > q[0] && r[1] < q[3] && r[3] > q[1]) || r[0] < ml || r[2] > W - mr || r[1] < 2 || r[3] > H - mb;
+  const tag = (text, cands, col, font, bar) => {
+    c.font = font; const tw = c.measureText(text).width + (bar ? 10 : 7), th = 15;
+    let pick = null;
+    for (const [x, y, al] of cands) {
+      const x0 = al === 'l' ? x - tw : al === 'c' ? x - tw / 2 : x, r = [x0, y - th / 2, x0 + tw, y + th / 2];
+      if (!hitBox(r)) { pick = r; break; }
+      if (!pick) pick = r;
+    }
+    boxes.push(pick);
+    c.fillStyle = 'rgba(8,11,15,.88)'; c.fillRect(pick[0], pick[1], tw, th);
+    if (bar) { c.fillStyle = bar; c.fillRect(pick[0], pick[1], 2.5, th); }
+    c.fillStyle = col; c.textAlign = 'left'; c.textBaseline = 'middle'; c.fillText(text, pick[0] + (bar ? 6 : 3.5), pick[1] + th / 2 + 0.5);
+    return pick;
+  };
+  const groups = {};
+  M.shapes.forEach(sh => { (groups[sh.U.id] = groups[sh.U.id] || []).push(sh); });
+  const info = [];
+  for (const id in groups) {
+    const G = groups[id], U = G[0].U, col = colorOf(U);
+    let bx0 = 1e9, by0 = 1e9, bx1 = -1e9, by1 = -1e9;
+    for (const sh of G) {
+      c.beginPath(); sh.pts.forEach((p, i) => { const x = X(p[0]), y = Y(p[1]); bx0 = Math.min(bx0, x); bx1 = Math.max(bx1, x); by0 = Math.min(by0, y); by1 = Math.max(by1, y); i ? c.lineTo(x, y) : c.moveTo(x, y); }); c.closePath();
+      c.fillStyle = hexA(col, 0.3); c.fill(); c.strokeStyle = col; c.lineWidth = 2; c.stroke();
+      if (sh.type === 'ring') { c.fillStyle = col; c.fillRect(X(sh.c2[0]) - 1.5, Y(sh.c2[1]) - 1.5, 3, 3); }
+    }
+    boxes.push([bx0 - 2, by0 - 2, bx1 + 2, by1 + 2]);
+    info.push({ G, U, col, bx0, by0, bx1, by1, top: G.reduce((a, b) => (b.top[1] > a.top[1] ? b : a)) });
+  }
+  // 굴착 폭·깊이 (메시 단면에서)
+  const MF = '600 10.5px "IBM Plex Mono", monospace';
+  const dimLine = (x0, y0, x1, y1, col) => {
+    const dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy) || 1, px = -dy / L * 4, py = dx / L * 4;
+    c.strokeStyle = col; c.lineWidth = 1.2; c.setLineDash([]);
+    c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.moveTo(x0 - px, y0 - py); c.lineTo(x0 + px, y0 + py); c.moveTo(x1 - px, y1 - py); c.lineTo(x1 + px, y1 + py); c.stroke();
+  };
+  if (M.eL != null && M.eR - M.eL > 0.1) {
+    const y = Y(M.g0) - 12, x0 = X(M.eL), x1 = X(M.eR);
+    dimLine(x0, y, x1, y, '#7dd3fc');
+    tag(`굴착 폭 ${fmm((M.eR - M.eL) * 1000)}`, [[(x0 + x1) / 2, y - 1, 'c'], [(x0 + x1) / 2, y - 14, 'c']], '#7dd3fc', MF);
+    if (M.fl) {
+      const x = Math.min(x1 + 16, W - mr - 70), ya = Y(gyAt(M.fl.l)), yb = Y(M.fl.y + M.g0);
+      dimLine(x, ya, x, yb, '#7dd3fc');
+      const t = `굴착 깊이 ${fmm((gyAt(M.fl.l) - (M.fl.y + M.g0)) * 1000)}`;
+      tag(t, [[x + 5, (ya + yb) / 2, 'r'], [x + 5, ya + (yb - ya) * 0.3, 'r'], [x + 5, ya + (yb - ya) * 0.7, 'r'], [x + 5, ya + 20, 'r'], [x - 5, (ya + yb) / 2, 'l']], '#7dd3fc', MF);
+    }
+  }
+  // 토피 치수선: 관 윗점 ↔ 원지반 (관 색, 기준 미만 빨강)
+  for (const o of info) {
+    const x = X(o.top.top[0]), y0 = Y(o.top.g), y1 = Y(o.top.top[1]), bad = o.top.dep < S.thrDep;
+    c.strokeStyle = bad ? '#f87171' : o.col; c.lineWidth = 1.2; c.setLineDash([]);
+    c.beginPath(); c.moveTo(x, y0); c.lineTo(x, y1); c.moveTo(x - 4, y0); c.lineTo(x + 4, y0); c.moveTo(x - 4, y1); c.lineTo(x + 4, y1); c.stroke();
+  }
+  for (const o of info) {
+    const x = X(o.top.top[0]), y0 = Y(o.top.g), y1 = Y(o.top.top[1]), bad = o.top.dep < S.thrDep;
+    const cands = [];
+    for (const f of [0.5, 0.3, 0.7, 0.15, 0.85]) { const y = y0 + (y1 - y0) * f; cands.push([x - 5, y, 'l'], [x + 5, y, 'r']); }
+    cands.push([x, y0 - 10, 'c']);
+    tag(`${bad ? '⚠ ' : ''}토피 ${fmm(o.top.dep * 1000)}`, cands, bad ? '#fecaca' : o.col, MF, bad ? '#f87171' : null);
+  }
+  for (const o of info) {
+    const t = `${o.U.id} ${clsName(o.U.cls)} ${diaText(o.U)}${o.G[0].type === 'band' ? ' (나란함)' : ''}`;
+    const cy = (o.by0 + o.by1) / 2;
+    tag(t, [[o.bx1 + 6, cy, 'r'], [o.bx0 - 6, cy, 'l'], [o.bx1 + 6, o.by1 + 9, 'r'], [o.bx0 - 6, o.by1 + 9, 'l'], [(o.bx0 + o.bx1) / 2, o.by1 + 10, 'c'],
+            [o.bx1 + 6, o.by0 - 9, 'r'], [o.bx1 + 6, cy + 17, 'r'], [o.bx0 - 6, cy + 17, 'l'], [o.bx1 + 6, cy + 34, 'r']], '#e6edf6', '600 11px Pretendard, sans-serif', o.col);
+  }
+  // 관 사이 이격
+  for (const p of M.pairs) {
+    const bad = p.d * 1000 < S.thrClr, col = bad ? '#f87171' : '#94a3b8';
+    c.strokeStyle = col; c.lineWidth = 1.3; c.setLineDash([3, 2]);
+    c.beginPath(); c.moveTo(X(p.p[0]), Y(p.p[1])); c.lineTo(X(p.q[0]), Y(p.q[1])); c.stroke(); c.setLineDash([]);
+    const mx = (X(p.p[0]) + X(p.q[0])) / 2, my = (Y(p.p[1]) + Y(p.q[1])) / 2;
+    const cands = [];
+    for (const k of [0, 16, 32, 48]) cands.push([mx + 5 + k * 0.5, my - k, 'r'], [mx - 5 - k * 0.5, my - k, 'l'], [mx + 5 + k * 0.5, my + k, 'r'], [mx - 5 - k * 0.5, my + k, 'l']);
+    const r = tag(`${bad ? '⚠ 이격 ' : '이격 '}${fmm(p.d * 1000)}`, cands, col, MF);
+    const cx = clamp(mx, r[0], r[2]), cy = clamp(my, r[1], r[3]);
+    if (Math.hypot(cx - mx, cy - my) > 8) { c.strokeStyle = col; c.lineWidth = 0.8; c.beginPath(); c.moveTo(mx, my); c.lineTo(cx, cy); c.stroke(); }
+  }
+  // 축척 막대 + 방향
+  const L = niceLen(60, 1 / sc), bw = L * sc;
+  c.strokeStyle = '#e6edf6'; c.lineWidth = 2; c.beginPath(); c.moveTo(W - mr - bw, H - 8); c.lineTo(W - mr, H - 8); c.moveTo(W - mr - bw, H - 12); c.lineTo(W - mr - bw, H - 8); c.moveTo(W - mr, H - 12); c.lineTo(W - mr, H - 8); c.stroke();
+  c.fillStyle = '#e6edf6'; c.textAlign = 'right'; c.textBaseline = 'bottom'; c.font = '10px "IBM Plex Mono", monospace';
+  c.fillText(fmm(L * 1000) + ' mm', W - mr - bw - 6, H - 4);
+  c.textAlign = 'left'; c.fillStyle = '#5b6675'; c.fillText('STA 증가 방향으로 본 단면 · 1:1', ml, H - 4);
+  c.restore();
+}
+function hexA(hex, a) { const c = new THREE.Color(hex); return `rgba(${Math.round(c.r * 255)},${Math.round(c.g * 255)},${Math.round(c.b * 255)},${a})`; }
+function dimV(c, x, y0, y1, text, col, side) {
+  c.strokeStyle = col; c.fillStyle = col; c.lineWidth = 1.2;
+  c.beginPath(); c.moveTo(x, y0); c.lineTo(x, y1); c.moveTo(x - 4, y0); c.lineTo(x + 4, y0); c.moveTo(x - 4, y1); c.lineTo(x + 4, y1); c.stroke();
+  c.font = '600 10.5px "IBM Plex Mono", monospace';
+  const tw = c.measureText(text).width + 6, my = (y0 + y1) / 2, lx = side === 'left' ? x - tw - 4 : x + 4;
+  const ty = Math.abs(y1 - y0) < 16 ? Math.min(y0, y1) - 9 : my;
+  c.fillStyle = 'rgba(8,11,15,.82)'; c.fillRect(lx, ty - 7, tw, 14);
+  c.fillStyle = col; c.textAlign = 'left'; c.textBaseline = 'middle'; c.fillText(text, lx + 3, ty);
+}
+function dimH(c, x0, x1, y, text, col) {
+  c.strokeStyle = col; c.fillStyle = col; c.lineWidth = 1.2;
+  c.beginPath(); c.moveTo(x0, y); c.lineTo(x1, y); c.moveTo(x0, y - 4); c.lineTo(x0, y + 4); c.moveTo(x1, y - 4); c.lineTo(x1, y + 4); c.stroke();
+  c.font = '600 10.5px "IBM Plex Mono", monospace';
+  const tw = c.measureText(text).width + 6, mx = (x0 + x1) / 2;
+  c.fillStyle = 'rgba(8,11,15,.82)'; c.fillRect(mx - tw / 2, y - 8, tw, 14); c.fillStyle = col; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(text, mx, y - 1);
+}
+
+// ── DXF R12 (ASCII, mm). X = 굴착 옆 거리, Y = 단면 중심 원지반 기준 높이. 한글은 \U+XXXX 로 적는다.
+function dxfSection() {
+  const M = SEC.model; if (!M) return null;
+  const T = S.T, E = [], f = v => (Math.round(v * 1000) / 1000).toString();
+  let x0 = 1e18, y0 = 1e18, x1 = -1e18, y1 = -1e18;
+  const ext = (x, y) => { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); };
+  const enc = s => String(s).replace(/[^\x20-\x7e]/g, ch => '\\U+' + ch.codePointAt(0).toString(16).toUpperCase().padStart(4, '0'));
+  const g = (code, v) => { E.push(String(code), String(v)); };
+  const mmX = l => l * 1000, mmY = y => (y - M.g0) * 1000;
+  const line = (ly, ax, ay, bx, by) => { g(0, 'LINE'); g(8, ly); g(10, f(ax)); g(20, f(ay)); g(30, 0); g(11, f(bx)); g(21, f(by)); g(31, 0); ext(ax, ay); ext(bx, by); };
+  const circle = (ly, x, y, r) => { g(0, 'CIRCLE'); g(8, ly); g(10, f(x)); g(20, f(y)); g(30, 0); g(40, f(r)); ext(x - r, y - r); ext(x + r, y + r); };
+  const poly = (ly, pts, closed) => { g(0, 'POLYLINE'); g(8, ly); g(66, 1); g(10, 0); g(20, 0); g(30, 0); g(70, closed ? 1 : 0); for (const p of pts) { g(0, 'VERTEX'); g(8, ly); g(10, f(p[0])); g(20, f(p[1])); g(30, 0); ext(p[0], p[1]); } g(0, 'SEQEND'); g(8, ly); };
+  const text = (ly, x, y, h, s, al = 0, va = 0) => { g(0, 'TEXT'); g(8, ly); g(10, f(x)); g(20, f(y)); g(30, 0); g(40, f(h)); g(1, enc(s)); if (al || va) { g(72, al); g(11, f(x)); g(21, f(y)); g(31, 0); if (va) g(73, va); } ext(x, y); };
+  const W = SEC.win;
+  const gyAt = l => { const q = M.c3.clone().addScaledVector(T.lat, l); return groundY(q.x, q.z); };
+  // 원지반
+  line('KG_GROUND', mmX(W.l0), mmY(gyAt(W.l0)), mmX(W.l1), mmY(gyAt(W.l1)));
+  text('KG_GROUND', mmX(W.l0) + 20, mmY(gyAt(W.l0)) + 20, 35, '원지반');
+  // 메시 단면
+  for (let i = 0; i < M.segs.length; i += 4) line('KG_TRENCH', mmX(M.segs[i]), mmY(M.segs[i + 1]), mmX(M.segs[i + 2]), mmY(M.segs[i + 3]));
+  // 관
+  const layers = new Set();
+  const groups = {};
+  M.shapes.forEach(sh => { (groups[sh.U.id] = groups[sh.U.id] || []).push(sh); });
+  for (const id in groups) {
+    const G = groups[id], U = G[0].U, ly = 'KG_UTIL_' + U.cls.toUpperCase(); layers.add(U.cls);
+    for (const sh of G) {
+      if (sh.type === 'ring' && sh.perp) circle(ly, mmX(sh.c2[0]), mmY(sh.c2[1]), U.r * 1000);
+      else poly(ly, sh.pts.map(p => [mmX(p[0]), mmY(p[1])]), true);
+      if (sh.type === 'ring') { const cx = mmX(sh.c2[0]), cy = mmY(sh.c2[1]), k = 15; line(ly, cx - k, cy, cx + k, cy); line(ly, cx, cy - k, cx, cy + k); }
+    }
+    const top = G.reduce((a, b) => (b.top[1] > a.top[1] ? b : a));
+    const tx = mmX(top.top[0]), ty0 = mmY(top.g), ty1 = mmY(top.top[1]);
+    line('KG_DIM', tx, ty0, tx, ty1); line('KG_DIM', tx - 25, ty0, tx + 25, ty0); line('KG_DIM', tx - 25, ty1, tx + 25, ty1);
+    text('KG_DIM', tx - 30, (ty0 + ty1) / 2, 30, `토피 ${Math.round(top.dep * 1000)}`, 2, 2);
+    let xr = -1e18; G.forEach(sh => sh.pts.forEach(p => { xr = Math.max(xr, mmX(p[0])); }));
+    text(ly, xr + 30, mmY(G[0].c2[1]), 35, `${U.id} ${clsName(U.cls)} ${diaText(U)}`, 0, 2);
+  }
+  for (const p of M.pairs) {
+    line('KG_DIM', mmX(p.p[0]), mmY(p.p[1]), mmX(p.q[0]), mmY(p.q[1]));
+    text('KG_DIM', (mmX(p.p[0]) + mmX(p.q[0])) / 2 + 20, (mmY(p.p[1]) + mmY(p.q[1])) / 2, 28, `이격 ${Math.round(p.d * 1000)}`, 0, 2);
+  }
+  if (M.eL != null && M.eR - M.eL > 0.1) {
+    const y = 120;
+    line('KG_DIM', mmX(M.eL), y, mmX(M.eR), y); line('KG_DIM', mmX(M.eL), y - 25, mmX(M.eL), y + 25); line('KG_DIM', mmX(M.eR), y - 25, mmX(M.eR), y + 25);
+    text('KG_DIM', (mmX(M.eL) + mmX(M.eR)) / 2, y + 30, 30, `굴착 폭 ${Math.round((M.eR - M.eL) * 1000)}`, 1, 0);
+    if (M.fl) {
+      const x = mmX(M.eR) + 160, ya = mmY(gyAt(M.fl.l)), yb = M.fl.y * 1000;
+      line('KG_DIM', x, ya, x, yb); line('KG_DIM', x - 25, ya, x + 25, ya); line('KG_DIM', x - 25, yb, x + 25, yb);
+      text('KG_DIM', x + 30, (ya + yb) / 2, 30, `굴착 깊이 ${Math.round(ya - yb)}`, 0, 2);
+    }
+  }
+  // 표제
+  const hx = mmX(W.l0), hy = mmY(M.g0 + W.y0) - 80;
+  const dt = fmtDate(S.meta.created_at || S.meta.captured_at) || fmtDate(new Date().toISOString());
+  text('KG_TEXT', hx, hy, 50, `${S.title} — 단면 STA ${fmtSta(M.sta)}`);
+  text('KG_TEXT', hx, hy - 75, 30, `작업 ${S.meta.job_id || '-'} · ${dt} · 단위 mm · 원지반(단면 중심) = 0 · STA 증가 방향으로 봄`);
+  if (M.utm) text('KG_TEXT', hx, hy - 125, 30, `단면 중심 UTM52N E ${M.utm[0].toFixed(3)} N ${M.utm[1].toFixed(3)} H ${M.utm[2].toFixed(3)}`);
+  // 문서
+  const H = [];
+  const h = (code, v) => { H.push(String(code), String(v)); };
+  h(0, 'SECTION'); h(2, 'HEADER');
+  h(9, '$ACADVER'); h(1, 'AC1009');
+  h(9, '$DWGCODEPAGE'); h(3, 'ANSI_949');
+  h(9, '$INSBASE'); h(10, 0); h(20, 0); h(30, 0);
+  h(9, '$EXTMIN'); h(10, f(x0)); h(20, f(y0)); h(30, 0);
+  h(9, '$EXTMAX'); h(10, f(x1)); h(20, f(y1)); h(30, 0);
+  h(0, 'ENDSEC');
+  h(0, 'SECTION'); h(2, 'TABLES');
+  h(0, 'TABLE'); h(2, 'LTYPE'); h(70, 1);
+  h(0, 'LTYPE'); h(2, 'CONTINUOUS'); h(70, 0); h(3, 'Solid line'); h(72, 65); h(73, 0); h(40, 0.0);
+  h(0, 'ENDTAB');
+  const lay = [['0', 7], ['KG_GROUND', 7], ['KG_TRENCH', 9], ['KG_DIM', 4], ['KG_TEXT', 7], ...[...layers].map(k => ['KG_UTIL_' + k.toUpperCase(), (CLS[k] || CLS.unknown)[2]])];
+  h(0, 'TABLE'); h(2, 'LAYER'); h(70, lay.length);
+  for (const [n, col] of lay) { h(0, 'LAYER'); h(2, n); h(70, 0); h(62, col); h(6, 'CONTINUOUS'); }
+  h(0, 'ENDTAB');
+  h(0, 'TABLE'); h(2, 'STYLE'); h(70, 1);
+  h(0, 'STYLE'); h(2, 'STANDARD'); h(70, 0); h(40, 0.0); h(41, 1.0); h(50, 0.0); h(71, 0); h(42, 2.5); h(3, 'malgun.ttf'); h(4, '');
+  h(0, 'ENDTAB');
+  h(0, 'ENDSEC');
+  h(0, 'SECTION'); h(2, 'ENTITIES');
+  const tail = ['0', 'ENDSEC', '0', 'EOF'];
+  return H.concat(E, tail).join('\r\n') + '\r\n';
+}
+function saveDxf() {
+  const s = dxfSection();
+  if (!s) return;
+  const name = `${S.meta.job_id || 'excavation'}_section_STA${SEC.model.sta.toFixed(2).replace('.', '_')}.dxf`;
+  download(new Blob([s], { type: 'application/dxf' }), name);
+  toast(`DXF 저장: ${name} (R12, mm)`);
+}
+
+// ═════════════════════════════ 목록 패널 ═════════════════════════════
+function renderSummary() {
+  const T = S.meta.trench || {}, G = S.meta.ground || {}, Q = S.meta.quality || {};
+  const st = (k, v, u = '') => `<div class="st"><span>${k}</span><b>${v}${u ? ' <small>' + u + '</small>' : ''}</b></div>`;
+  const n = v => (num(v) != null ? v.toFixed(2) : '–');
+  $('stats').innerHTML = st('굴착 길이', n(T.length_m), 'm') + st('폭', n(T.width_m), 'm') + st('최대 깊이', n(T.depth_max_m), 'm') +
+    st('체적', n(T.volume_m3), 'm³') + st('원지반', G.method === 'rim_tin' ? '곡면' : G.method === 'rim_plane' ? '평면' : '–', num(G.rms_mm) != null ? '±' + G.rms_mm.toFixed(0) + ' mm' : '') +
+    st('면 촬영', num(Q.trench_coverage_pct) != null ? Q.trench_coverage_pct.toFixed(0) : '–', '%');
+}
+function renderUtils() {
+  const box = $('utilList');
+  box.innerHTML = '';
+  if (!S.utils.length) { box.innerHTML = '<div class="note">검출된 지하시설물이 없습니다.</div>'; }
+  for (const U of S.utils) {
+    const u = U.raw, col = colorOf(U), edited = S.edits.has(U.id);
+    const dmin = Math.min(...U.depth), dmax = Math.max(...U.depth);
+    const t = u.top_depth_m || {};
+    const d0 = num(t.min, dmin), d1 = num(t.max, dmax);
+    const cc = U.conf >= 0.75 ? '#4ade80' : U.conf >= 0.5 ? '#fbbf24' : '#f87171';
+    const card = document.createElement('div');
+    card.className = 'card' + (S.sel === U.id ? ' sel' : '') + (S.hidden.has(U.cls) ? ' hid' : '');
+    card.dataset.id = U.id; card.style.setProperty('--c', col);
+    const opts = CLS_ORDER.map(k => `<option value="${k}"${k === U.cls ? ' selected' : ''}>${CLS[k][0]}</option>`).join('');
+    const cand = Array.isArray(u.class_candidates) && u.class_candidates.length ? u.class_candidates.map(clsName).join('·') : '';
+    const colorNote = u.color_name ? `색 ${COLOR_KO[u.color_name] || u.color_name}${cand ? ' → 후보 ' + cand : ''}${num(u.class_confidence) != null ? ` (${Math.round(u.class_confidence * 100)}%)` : ''}` : '';
+    const src = U.cls !== U.orig ? '사용자 수정' : u.class_source === 'user' ? '사용자 확정' : u.class_source === 'color' ? '색 추정' : '미확정';
+    card.innerHTML =
+      `<div class="r1"><span class="id">${esc(U.id)}</span><select title="종류 수정 (${esc(src)})" class="${edited ? 'ed' : ''}">${opts}</select>` +
+      `<span class="kd">${esc(KIND[U.kind])} · ${esc(diaText(U))}${U.count > 1 && U.widthMm ? ` · 폭 ${U.widthMm}` : ''}</span>${edited ? '<em class="ed">수정</em>' : ''}` +
+      `<span class="conf" title="신뢰도 (원통 맞춤·보이는 호·길이)"><s><i style="width:${(U.conf * 100).toFixed(0)}%;background:${cc}"></i></s>${U.conf.toFixed(2)}</span></div>` +
+      `<div class="r2">토피 <b class="${d0 < S.thrDep ? 'bad' : ''}">${d0.toFixed(2)}–${d1.toFixed(2)} m</b> · 길이 <b>${U.len.toFixed(2)}</b> m` +
+      `${num(u.slope_pct) != null ? ` · 경사 ${u.slope_pct > 0 ? '+' : ''}${u.slope_pct.toFixed(1)}%` : ''}${num(u.visible_arc_deg) != null ? ` · 호 ${u.visible_arc_deg}°` : ''}</div>` +
+      (colorNote ? `<div class="nt c">${esc(colorNote)} · ${esc(src)}</div>` : '') +
+      (u.notes ? `<div class="nt">${esc(u.notes)}</div>` : '');
+    const sel = card.querySelector('select');
+    sel.addEventListener('click', e => e.stopPropagation());
+    sel.addEventListener('change', e => { e.stopPropagation(); setClass(U, sel.value); });
+    card.addEventListener('click', () => selectUtil(U.id, true));
+    box.appendChild(card);
+  }
+  $('nUtil').textContent = S.utils.length;
+  $('bExport').disabled = !S.edits.size; $('bRevert').disabled = !S.edits.size;
+  $('bExport').textContent = S.edits.size ? `수정 내보내기 (JSON · ${S.edits.size}건)` : '수정 내보내기 (JSON)';
+  const xf = S.xf;
+  $('utilNote').innerHTML = esc(`좌표 UTM 52N (${S.meta.crs || 'EPSG:32652'})`) +
+    (S.frame === 'local' ? (xf ? esc(` · 로컬↔UTM 맞춤 잔차 ${(xf.rms * 1000).toFixed(1)} mm`) + (xf.bad ? ' <b style="color:#f87171">(맞지 않음 — 측점 위치는 중심선 거리로)</b>' : '') : '')
+      : ' · <b style="color:#fbbf24">centerline_local 이 없어 UTM 으로 그림 (메시 정렬 안 됨)</b>') +
+    '<br>종류는 색으로 추정한 후보입니다(국내 통일 색 기준 없음, 가스만 황색). 현장에서 확정해 주세요. 수정은 이 화면에만 남고 JSON 으로 내보냅니다.';
+}
+function renderStations() {
+  const tb = $('staBody'); tb.innerHTML = '';
+  S.stations.forEach((st, i) => {
+    const tr = document.createElement('tr');
+    tr.className = 'rw' + (i === S.selSta ? ' sel' : '');
+    const col = st.U ? colorOf(st.U) : '#9ca3af', u = st.raw.xyz_utm;
+    const bad = st.dep != null && st.dep < S.thrDep;
+    tr.innerHTML = `<td><span class="u" style="--c:${col}"><i></i>${esc(st.U ? st.U.id : st.raw.utility_id)}</span></td>` +
+      `<td class="mono">${fmtSta(num(st.raw.station_m, st.c || 0))}${Array.isArray(u) ? `<span class="utm">E ${u[0].toFixed(3)} N ${u[1].toFixed(3)} H ${u[2].toFixed(3)}</span>` : ''}</td>` +
+      `<td><span class="tag" style="--c:${STA_KIND[st.kind][1]}">${STA_KIND[st.kind][0]}</span></td>` +
+      `<td class="r mono" style="${bad ? 'color:#f87171' : ''}">${st.dep != null ? st.dep.toFixed(3) : '–'}</td>`;
+    tr.onclick = () => goStation(i, true);
+    tb.appendChild(tr);
+  });
+  if (!S.stations.length) tb.innerHTML = '<tr><td colspan="4" class="note">측점 자료가 없습니다 (stations).</td></tr>';
+  $('nSta').textContent = S.stations.length;
+}
+function renderClearances() {
+  const tb = $('clrBody'); tb.innerHTML = '';
+  let nb = 0;
+  S.clr.forEach((c, i) => {
+    const warn = c.mm < S.thrClr; if (warn) nb++;
+    const tr = document.createElement('tr');
+    tr.className = 'rw' + (i === S.selClr ? ' sel' : '');
+    tr.innerHTML = `<td><span class="u" style="--c:${colorOf(c.A)}"><i></i>${esc(c.A.id)} ${esc(clsName(c.A.cls))}</span> – <span class="u" style="--c:${colorOf(c.B)}"><i></i>${esc(c.B.id)} ${esc(clsName(c.B.cls))}</span></td>` +
+      `<td class="r mono" style="${warn ? 'color:#f87171;font-weight:600' : ''}">${fmm(c.mm)} mm</td>` +
+      `<td>${warn ? '<span class="tag bad">⚠ 부족</span>' : '<span class="tag okt">충족</span>'}</td>`;
+    tr.onclick = () => goClearance(i);
+    tb.appendChild(tr);
+  });
+  if (!S.clr.length) tb.innerHTML = '<tr><td colspan="3" class="note">이격 자료가 없습니다.</td></tr>';
+  $('nClr').innerHTML = nb ? `<span class="wn">${nb}</span>/${S.clr.length}` : String(S.clr.length);
+  $('clrNote').textContent = (S.clrFromViewer ? '서버 이격 자료(clearances)가 없어 뷰어가 중심선·관경으로 계산했습니다. ' : '') + '관 표면 사이 최소 거리. 누르면 그 자리로 갑니다. 기준값은 발주처·관리기관 기준에 맞춰 바꾸세요.';
+}
+function renderChips() {
+  const box = $('chips'); box.innerHTML = '';
+  const nClr = S.clr.filter(c => c.mm < S.thrClr).length;
+  const shallow = S.utils.filter(U => Math.min(...U.depth) < S.thrDep);
+  const lowc = S.utils.filter(U => U.conf < 0.5);
+  const add = (cls, t, fn) => { const b = document.createElement('button'); b.className = 'chip ' + cls; b.textContent = t; b.onclick = fn; box.appendChild(b); };
+  add('okc', `관 ${S.utils.length}개`, () => { openTab('util'); setSheet(true); });
+  if (nClr) add('bad', `⚠ 이격 부족 ${nClr}`, () => { openTab('clr'); setSheet(true); const i = S.clr.findIndex(c => c.mm < S.thrClr); if (i >= 0) goClearance(i); });
+  if (shallow.length) add('bad', `⚠ 얕은 매설 ${shallow.length}`, () => { openTab('util'); setSheet(true); selectUtil(shallow[0].id, true); });
+  if (lowc.length) add('am', `신뢰도 낮음 ${lowc.length}`, () => { openTab('util'); setSheet(true); selectUtil(lowc[0].id, true); });
+  const unk = S.utils.filter(U => U.cls === 'unknown').length;
+  if (unk) add('am', `종류 미확정 ${unk}`, () => { openTab('util'); setSheet(true); const U = S.utils.find(x => x.cls === 'unknown'); if (U) selectUtil(U.id, true); });
+  ((S.meta.quality || {}).warnings || []).forEach(w => add('am', qwarnText(w), () => {}));
+}
+function renderLegend() {
+  const box = $('legend'); box.innerHTML = '';
+  const cnt = {}; S.utils.forEach(U => { cnt[U.cls] = (cnt[U.cls] || 0) + 1; });
+  const ks = CLS_ORDER.filter(k => cnt[k]);
+  for (const k of ks) {
+    const d = document.createElement('div');
+    d.className = 'lg' + (S.hidden.has(k) ? ' off' : ''); d.style.setProperty('--c', CLS[k][1]);
+    d.innerHTML = `<i></i>${CLS[k][0]}<b>${cnt[k]}</b>`; d.title = '눌러서 보이기/숨기기';
+    d.onclick = () => { if (S.hidden.has(k)) S.hidden.delete(k); else S.hidden.add(k); renderLegend(); renderUtils(); applyVisibility(); if (SEC.on) buildTicks(); };
+    box.appendChild(d);
+  }
+  box.hidden = !ks.length;
+}
+function renderAll() { renderSummary(); renderUtils(); renderStations(); renderClearances(); renderChips(); renderLegend(); }
+function setClass(U, k) {
+  if (U.cls === k) return;
+  if (S.hidden.has(U.cls) && !S.utils.some(x => x !== U && x.cls === U.cls)) S.hidden.delete(U.cls);
+  U.cls = k;
+  if (k === U.orig) S.edits.delete(U.id); else S.edits.set(U.id, { id: U.id, from: U.orig, to: k, at: new Date().toISOString() });
+  applyColor(U); renderAll(); applyVisibility();
+  if (SEC.on) updateSection();
+  toast(`${U.id} → ${clsName(k)}${k === U.orig ? ' (원래대로)' : ' · 수정됨'}`);
+}
+function exportEdits() {
+  const doc = editedDoc();
+  download(new Blob([JSON.stringify(doc, null, 1)], { type: 'application/json' }), `${S.meta.job_id || 'excavation'}_utilities_edited_${stamp()}.json`);
+  toast(`수정 ${S.edits.size}건을 JSON 으로 내보냈습니다 (서버 저장은 다음 단계)`);
+}
+// 원본 utilities.json + 종류 수정 반영(class, class_source="user") + edits[] 기록
+function editedDoc() {
+  const doc = JSON.parse(JSON.stringify(S.meta));
+  const now = new Date().toISOString();
+  for (const u of doc.utilities || []) {
+    const e = S.edits.get(String(u.id));
+    if (e) { u.class = e.to; u.class_source = 'user'; }
+  }
+  doc.edits = [...S.edits.values()].map(e => ({ id: e.id, field: 'class', from: e.from, to: e.to, at: e.at }));
+  doc.edited_at = now; doc.edited_with = 'utility.html';
+  return doc;
+}
+function openTab(t) {
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  document.querySelectorAll('.pane').forEach(p => { p.hidden = p.dataset.pane !== t; });
+}
+function setSheet(open) {
+  const side = $('side'), compact = document.documentElement.classList.contains('compact');
+  side.classList.toggle('collapsed', !open);
+  document.documentElement.classList.toggle('sheet-open', compact && open);
+  $('sideTog').textContent = open ? (compact ? '▾' : '▴') : (compact ? '▴' : '▾');
+  $('bList').classList.toggle('on', open && compact);
+  if (!compact) resize();
+}
+function goStation(i, fly) {
+  const st = S.stations[i]; if (!st) return;
+  S.stations.forEach((x, j) => { if (x.mesh) x.mesh.userData.sel = j === i; });
+  S.selSta = i;
+  if (st.lb) setLabelText(st.lb, `${st.U ? st.U.id + ' ' : ''}${STA_KIND[st.kind][0]} · ${fmtSta(num(st.raw.station_m, st.c || 0))}${st.dep != null ? ' · 토피 ' + st.dep.toFixed(2) + ' m' : ''}`);
+  renderStations();
+  if (!SEC.on) { SEC.s = st.ts; setSection(true); } else setSecS(st.ts);
+  if (SEC.on) buildTicks();
+  if (fly) flyTo(st.pos.clone(), Math.max(0.9, Math.min(2.2, camera.position.distanceTo(controls.target))));
+  if (st.U) selectUtil(st.U.id, false);
+  invalidate();
+}
+function goClearance(i) {
+  const c = S.clr[i]; if (!c) return;
+  S.selClr = i; renderClearances(); applyVisibility();
+  const mid = c.pa.clone().add(c.pb).multiplyScalar(0.5);
+  flyTo(mid, 1.1);
+  toast(`${c.A.id}–${c.B.id} 최소 이격 ${fmm(c.mm)} mm${c.mm < S.thrClr ? ' — 기준 ' + S.thrClr + ' mm 미만' : ''}`);
+}
+
+// ═════════════════════════════ PNG ═════════════════════════════
+function savePNG() {
+  const out = composePNG();
+  out.toBlob(b => { if (b) { download(b, `${S.meta.job_id || 'excavation'}_utility_${stamp()}.png`); toast('PNG 저장'); } }, 'image/png');
+}
+function composePNG() {
+  renderer.render(scene, camera); layoutLabels();
+  // 넓은 화면에서 오른쪽 목록 패널 뒤(장면이 비켜 그려진 곳)는 잘라낸다
+  const src = renderer.domElement, k = src.width / (view.clientWidth || 1);
+  const vw = Math.max(200, (view.clientWidth || 1) - (S.panelW || 0)), vh = view.clientHeight;
+  const W = Math.round(vw * k), H = src.height;
+  const head = Math.round(62 * k), foot = Math.round(26 * k);
+  const out = document.createElement('canvas'); out.width = W; out.height = H + head + foot;
+  const c = out.getContext('2d');
+  const bg = c.createLinearGradient(0, 0, 0, out.height); bg.addColorStop(0, '#0f151e'); bg.addColorStop(1, '#080b0f');
+  c.fillStyle = bg; c.fillRect(0, 0, W, out.height);
+  c.drawImage(src, 0, 0, W, H, 0, head, W, H);
+  c.save(); c.translate(0, head); c.scale(k, k);
+  for (const L of labels) if (L.shown) drawLabel(c, L);
+  // 범례
+  const cnt = {}; S.utils.forEach(U => { if (!S.hidden.has(U.cls)) cnt[U.cls] = (cnt[U.cls] || 0) + 1; });
+  const ks = CLS_ORDER.filter(x => cnt[x]);
+  let y = vh - 12 - (ks.length * 18 + 30);
+  c.fillStyle = 'rgba(13,17,23,.85)'; roundRect(c, 12, y, 128, ks.length * 18 + 18, 4); c.fill();
+  c.font = '600 11px Pretendard, sans-serif'; c.fillStyle = '#8b98a8'; c.textBaseline = 'middle'; c.textAlign = 'left'; c.fillText('범례', 20, y + 10);
+  ks.forEach((x, i) => { const yy = y + 26 + i * 18; c.fillStyle = CLS[x][1]; roundRect(c, 20, yy - 4, 22, 8, 4); c.fill(); c.fillStyle = '#e6edf6'; c.font = '12px Pretendard, sans-serif'; c.fillText(`${CLS[x][0]}  ${cnt[x]}`, 50, yy); });
+  // 축척
+  const mpp = metersPerPx(camera.position.distanceTo(controls.target)), Lm = niceLen(80, mpp), bw = Lm / mpp;
+  const sx = 152, sy = vh - 22;
+  c.strokeStyle = '#e6edf6'; c.lineWidth = 2; c.beginPath(); c.moveTo(sx, sy - 5); c.lineTo(sx, sy); c.lineTo(sx + bw, sy); c.lineTo(sx + bw, sy - 5); c.stroke();
+  c.fillStyle = '#e6edf6'; c.font = '600 11px "IBM Plex Mono", monospace'; c.textBaseline = 'bottom';
+  c.fillText((Lm >= 1 ? Lm + ' m' : Math.round(Lm * 1000) + ' mm') + ' (화면 중심 기준)', sx, sy - 7);
+  // 방위
+  if (S.xf && S.xf.north && !S.xf.bad) {
+    const a = compassAngle(), cx = vw - 34, cy = 34;
+    c.save(); c.translate(cx, cy); c.fillStyle = 'rgba(13,17,23,.85)'; c.beginPath(); c.arc(0, 0, 20, 0, Math.PI * 2); c.fill();
+    c.rotate(a); c.fillStyle = '#f87171'; c.beginPath(); c.moveTo(0, -15); c.lineTo(5, 1); c.lineTo(0, -2); c.lineTo(-5, 1); c.closePath(); c.fill();
+    c.fillStyle = '#64748b'; c.beginPath(); c.moveTo(0, 15); c.lineTo(5, 1); c.lineTo(0, 4); c.lineTo(-5, 1); c.closePath(); c.fill();
+    c.restore(); c.fillStyle = '#e6edf6'; c.font = '600 10px "IBM Plex Mono", monospace'; c.textAlign = 'center'; c.textBaseline = 'top'; c.fillText('N', cx, cy + 22);
+  }
+  // 단면 끼워 넣기
+  if (SEC.on && SEC.model) {
+    const iw = Math.min(460, vw * 0.45), ih = iw * 0.56, ix = vw - iw - 12, iy = vh - ih - 12;
+    c.save(); c.translate(ix, iy);
+    c.fillStyle = '#0a0e13'; c.fillRect(0, 0, iw, ih + 20);
+    c.fillStyle = '#38bdf8'; c.font = '600 11px "IBM Plex Mono", monospace'; c.textAlign = 'left'; c.textBaseline = 'middle'; c.fillText('단면 STA ' + fmtSta(SEC.model.sta), 8, 10);
+    c.translate(0, 20); drawSection(c, iw, ih);
+    c.restore();
+    c.strokeStyle = 'rgba(255,255,255,.25)'; c.lineWidth = 1; c.strokeRect(ix, iy, iw, ih + 20);
+  }
+  c.restore();
+  // 머리글
+  const s = k;
+  c.fillStyle = 'rgba(8,11,15,.92)'; c.fillRect(0, 0, W, head);
+  c.fillStyle = '#38bdf8'; c.fillRect(0, head - 2 * s, W, 2 * s);
+  c.textBaseline = 'alphabetic'; c.textAlign = 'left';
+  c.fillStyle = '#e6edf6'; c.font = `700 ${19 * s}px Pretendard, sans-serif`; c.fillText(S.title, 14 * s, 27 * s);
+  const T = S.meta.trench || {};
+  const dt = fmtDate(S.meta.created_at || S.meta.captured_at);
+  const sub = [`굴착 3D 기록 · ${S.meta.job_id || ''}`, dt ? '촬영 ' + dt : '', `저장 ${fmtDate(new Date().toISOString())}`,
+    num(T.length_m) != null ? `굴착 ${T.length_m.toFixed(2)}×${num(T.width_m, 0).toFixed(2)}×${num(T.depth_max_m, 0).toFixed(2)} m` : '', `관 ${S.utils.length}개`].filter(Boolean).join('  ·  ');
+  c.fillStyle = '#8b98a8'; c.font = `${11.5 * s}px "IBM Plex Mono", monospace`; c.fillText(sub, 14 * s, 47 * s);
+  const nb = S.clr.filter(x => x.mm < S.thrClr).length, sh = S.utils.filter(U => Math.min(...U.depth) < S.thrDep).length;
+  c.textAlign = 'right'; c.font = `600 ${12 * s}px Pretendard, sans-serif`;
+  c.fillStyle = nb || sh ? '#fca5a5' : '#86efac';
+  c.fillText(nb || sh ? `⚠ 이격 부족 ${nb} · 얕은 매설 ${sh} (기준 ${S.thrClr} mm · ${S.thrDep.toFixed(2)} m)` : '이격·토피 기준 충족', W - 14 * s, 27 * s);
+  // 꼬리글
+  c.fillStyle = '#5b6675'; c.font = `${10.5 * s}px "IBM Plex Mono", monospace`; c.textAlign = 'left';
+  c.fillText('kgeoScan · 굴착 3D 기록 (자동 추출 — 종류·깊이는 현장 확인 필요)', 14 * s, H + head + 17 * s);
+  c.textAlign = 'right'; c.fillText(S.xf ? 'UTM 52N (EPSG:32652)' : '', W - 14 * s, H + head + 17 * s);
+  return out;
+}
+function roundRect(c, x, y, w, h, r) { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
+function drawLabel(c, L) {
+  const cs = getComputedStyle(L.el);
+  const col = L.el.style.getPropertyValue('--c') || '#9ca3af';
+  c.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  c.textBaseline = 'middle'; c.textAlign = 'left';
+  if (L.el.classList.contains('name')) {
+    c.fillStyle = col; roundRect(c, L.x, L.y, L.w, L.h, L.h / 2); c.fill();
+    c.fillStyle = '#0b0f14'; c.fillText(L.text, L.x + 8, L.y + L.h / 2 + 0.5);
+  } else {
+    c.fillStyle = 'rgba(8,11,15,.85)'; c.fillRect(L.x, L.y, L.w, L.h);
+    c.fillStyle = cs.borderLeftColor; c.fillRect(L.x, L.y, 3, L.h);
+    c.fillStyle = cs.color; c.fillText(L.text, L.x + 8, L.y + L.h / 2 + 0.5);
+  }
+}
+
+// ═════════════════════════════ 입력 ═════════════════════════════
+const cvEl = renderer.domElement;
+let down = null, lastTap = { t: 0, x: 0, y: 0 }, hoverT = 0;
+cvEl.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY, t: performance.now(), type: e.pointerType }; $('help').style.opacity = 0; });
+cvEl.addEventListener('pointerup', e => {
+  if (!down) return;
+  const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y), dt = performance.now() - down.t;
+  const d0 = down; down = null;
+  if (moved > 6 || dt > 600 || e.button > 0) return;
+  // 터치 두 번 누름 = 초점
+  if (d0.type === 'touch') {
+    const now = performance.now();
+    if (now - lastTap.t < 320 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 30) { lastTap.t = 0; focusAt(e); return; }
+    lastTap = { t: now, x: e.clientX, y: e.clientY };
+  }
+  onClick(e);
+});
+cvEl.addEventListener('dblclick', e => focusAt(e));
+cvEl.addEventListener('pointermove', e => {
+  if (down || e.pointerType === 'touch') return;
+  const now = performance.now();
+  if (now - hoverT < (MEA.on ? 45 : 70)) return;
+  hoverT = now;
+  if (MEA.on) {
+    const h = pick(e, { pipes: true, mesh: true, lid: true, preferPipe: true });
+    MEA.marker.visible = !!h;
+    if (h) { MEA.marker.position.copy(h.point); MEA.marker.material.color.set(h.U ? colorOf(h.U) : 0xfacc15); showTip(e, h.U ? `<b>${esc(h.U.id)} 관 표면</b>에 붙음` : h.kind === 'lid' ? '지표' : '메시', h.U ? colorOf(h.U) : '#facc15'); }
+    else hideTip();
+    invalidate(); return;
+  }
+  const h = pick(e, { pipes: true, mesh: false });
+  cvEl.classList.toggle('hoverPipe', !!(h && h.U));
+  if (h && h.U) {
+    const U = h.U, nc = nearestChain(U, h.point), q = atChain(U, nc.c), dep = q.g - (q.p.y + U.r);
+    showTip(e, `<b>${esc(U.id)} ${esc(clsName(U.cls))}</b> ${esc(KIND[U.kind])} ${esc(diaText(U))}<br>토피 ${dep.toFixed(3)} m · 관 측점 ${fmtSta(nc.c)}`, colorOf(U));
+  } else hideTip();
+});
+cvEl.addEventListener('pointerleave', () => { hideTip(); if (MEA.marker.visible) { MEA.marker.visible = false; invalidate(); } });
+function showTip(e, html, col) {
+  const t = $('tip'), r = view.getBoundingClientRect();
+  t.innerHTML = html; t.style.setProperty('--c', col); t.style.display = 'block';
+  const x = e.clientX - r.left + 14, y = e.clientY - r.top + 14;
+  t.style.left = Math.min(x, r.width - t.offsetWidth - 6) + 'px'; t.style.top = Math.min(y, r.height - t.offsetHeight - 6) + 'px';
+}
+function hideTip() { $('tip').style.display = 'none'; }
+function onClick(e) {
+  if (MEA.on) { const h = pick(e, { pipes: true, mesh: true, lid: true, preferPipe: true }); if (h) addMeasurePoint(h); return; }
+  // 측점 표식
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const sh = staGroup.visible ? ray.intersectObjects(staGroup.children.filter(m => m.visible), false) : [];
+  if (sh.length) { goStation(sh[0].object.userData.sta, false); openTab('sta'); return; }
+  const h = pick(e, { pipes: true, mesh: false });
+  if (h && h.U) { selectUtil(h.U.id, false); openTab('util'); }
+  else if (S.sel) selectUtil(null, false);
+}
+function focusAt(e) {
+  const h = pick(e, { pipes: true, mesh: true, lid: true });
+  if (!h) return;
+  const d = camera.position.distanceTo(controls.target);
+  flyTo(h.point, clamp(d * 0.6, 0.35, 6));
+}
+window.addEventListener('keydown', e => {
+  if (e.target && ['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) return;
+  const k = e.key.toLowerCase();
+  if (k === 'escape') { if (MEA.pts.length) { MEA.pts.forEach(p => meaGroup.remove(p.dot)); MEA.pts = []; invalidate(); } else if (MEA.on) setMeasure(false); else if (SEC.on) setSection(false); }
+  else if (k === 'b') setBackfill(!S.backfill);
+  else if (k === 'x') setXray(!S.xray);
+  else if (k === 's') setSection(!SEC.on);
+  else if (k === 'm') setMeasure(!MEA.on);
+  else if (k === 'l') setLabels(!S.labels);
+  else if (k === 'r') goHome(false);
+  else if (SEC.on && (k === 'arrowleft' || k === 'arrowright')) { e.preventDefault(); setSecS(SEC.s + (k === 'arrowright' ? 1 : -1) * (e.shiftKey ? 0.1 : 0.01)); }
+});
+function setLabels(on) {
+  S.labels = on; $('bLab').classList.toggle('on', on);
+  staGroup.visible = on;
+  applyVisibility();
+}
+
+// 버튼
+$('bBack').onclick = () => setBackfill(!S.backfill);
+$('opRange').oninput = e => { S.lidOpacity = +e.target.value; $('opVal').textContent = Math.round(S.lidOpacity * 100) + '%'; if (lid) lid.material.uniforms.uOpacity.value = S.lidOpacity; invalidate(); };
+$('bXray').onclick = () => setXray(!S.xray);
+$('bLit').onclick = () => setLit(!S.lit);
+$('bSplat').onclick = () => setSplat(!SPL.on);
+$('bSec').onclick = () => setSection(!SEC.on);
+$('bMea').onclick = () => setMeasure(!MEA.on);
+$('bLab').onclick = () => setLabels(!S.labels);
+$('bPng').onclick = () => savePNG();
+$('bFit').onclick = () => goHome(false);
+$('bList').onclick = () => { const open = $('side').classList.contains('collapsed'); setSheet(open); };
+$('sideTog').onclick = () => { const open = $('side').classList.contains('collapsed'); setSheet(open); };
+document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => { openTab(b.dataset.tab); if ($('side').classList.contains('collapsed')) setSheet(true); }));
+$('secClose').onclick = () => setSection(false);
+$('secFlip').onclick = () => { SEC.flip = !SEC.flip; updateSection(); applyClips(); };
+$('secDxf').onclick = () => saveDxf();
+let secRaf = 0;
+$('secRange').oninput = e => { const v = +e.target.value; if (!secRaf) secRaf = requestAnimationFrame(() => { secRaf = 0; setSecS(S.T.s0 + +$('secRange').value); }); void v; };
+$('thrClr').onchange = e => { S.thrClr = Math.max(0, +e.target.value || 0); buildClearances(); renderClearances(); renderChips(); if (SEC.on) drawSection(); };
+$('thrDep').onchange = e => { S.thrDep = Math.max(0, +e.target.value || 0); applyDepthStyle(); renderUtils(); renderStations(); renderChips(); if (SEC.on) drawSection(); invalidate(); };
+$('bExport').onclick = exportEdits;
+$('bRevert').onclick = () => { for (const U of S.utils) if (U.cls !== U.orig) { U.cls = U.orig; applyColor(U); } S.edits.clear(); renderAll(); applyVisibility(); toast('종류 수정을 모두 되돌렸습니다'); };
+window.addEventListener('resize', resize);
+new ResizeObserver(() => resize()).observe(view);
+
+// ═════════════════════════════ 시작 ═════════════════════════════
+async function main() {
+  layoutMode();
+  const metaP = params.get('meta');
+  if (!metaP) return fail('?meta=<utilities.json 주소> 가 필요합니다');
+  if (!sameOrigin(metaP)) return fail('같은 사이트의 utilities.json 만 열 수 있습니다');
+  const metaUrl = new URL(metaP, location.href);
+  let meta;
+  try {
+    const r = await fetch(metaUrl, { cache: 'no-store', credentials: 'same-origin' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    meta = await r.json();
+  } catch (e) { return fail('utilities.json 을 불러오지 못했습니다: ' + e.message); }
+  try { prepare(meta); } catch (e) { console.error(e); return fail('utilities.json 형식을 읽지 못했습니다: ' + e.message); }
+  S.title = params.get('title') || meta.title || `굴착 ${meta.job_id || ''}`.trim();
+  document.title = S.title + ' · kgeoScan 굴착 3D 기록';
+  $('title').textContent = S.title;
+  const T = meta.trench || {};
+  const dt = fmtDate(meta.created_at || meta.captured_at);
+  $('sub').textContent = [meta.job_id, dt, num(T.length_m) != null ? `굴착 ${T.length_m.toFixed(2)}×${num(T.width_m, 0).toFixed(2)}×${num(T.depth_max_m, 0).toFixed(2)} m` : '', num(T.volume_m3) != null ? `${T.volume_m3.toFixed(2)} m³` : ''].filter(Boolean).join(' · ');
+  if (S.xf && !S.xf.bad) $('compass').hidden = false;
+  S.utils.forEach(buildUtil);
+  buildStations(); buildClearances(); buildLid(); buildGrid(); fitShadow();
+  applyDepthStyle(); setXray(true, true);
+  renderAll();
+  resize(); goHome(true);
+  $('load').classList.add('done');
+  setTimeout(() => { $('help').style.opacity = 0; }, 7000);
+  // 메시
+  let glbP = params.get('glb');
+  if (!glbP && meta.local && meta.local.glb) glbP = new URL(meta.local.glb, metaUrl).href;
+  if (glbP && S.frame === 'local') {
+    if (!sameOrigin(glbP)) toast('다른 사이트의 GLB 는 열 수 없습니다 — 관만 표시');
+    else loadMesh(new URL(glbP, location.href).href);
+  } else if (glbP) toast('centerline_local 이 없어 메시와 정렬할 수 없습니다 — 관만 표시', 5000);
+  // 스플랫(선택): &splat= 또는 utilities.json 의 local.splat (같은 사이트만)
+  let splP = params.get('splat');
+  if (!splP && meta.local && meta.local.splat) splP = new URL(meta.local.splat, metaUrl).href;
+  if (splP && S.frame === 'local' && sameOrigin(splP)) { SPL.url = new URL(splP, location.href).href; $('bSplat').hidden = false; }
+  // 주소 선택값 (없으면 첫 화면 날아들기)
+  const sel = params.get('sel'); if (sel && S.byId[sel]) selectUtil(sel, true);
+  const sta = num(parseFloat(params.get('sta'))); if (sta != null) { SEC.s = S.T.s0 + sta; setSection(true); }
+  if (!(sel && S.byId[sel])) intro();
+  if (params.get('backfill') === '1') setBackfill(true);
+  // 점검용 손잡이 (화면이 숨겨져 requestAnimationFrame 이 멈춘 경우 renderNow 로 바로 그린다)
+  const renderNow = () => { for (const f of [...anims]) { if (!f(performance.now() + 1e6)) anims.delete(f); } controls.update(); render(); };
+  window.__uv = { S, SEC, MEA, scene, camera, controls, renderer, dxfSection, computeSection, setSection, setSecS, setBackfill, setMeasure, setXray, setLit, setSplat, SPL, savePNG, composePNG, editedDoc, selectUtil, goStation, goClearance, invalidate, renderNow, pick };
+  window.__loaded = true;
+  post({ state: 'loaded', utilities: S.utils.length, stations: S.stations.length, clearances: S.clr.length });
+  invalidate();
+}
+main();
+</script>
+</body>
+</html>

@@ -114,14 +114,15 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data")
     ap.add_argument("--zip")
+    ap.add_argument("--video", help="영상 파일 하나 (웹 3D 현장조사: 기본 카메라 영상, 자세 정보 없음)")
     ap.add_argument("--out", required=True)
     ap.add_argument("--samples", type=int, default=12)
     ap.add_argument("--size", type=int, default=640)
     ap.add_argument("--quality", type=int, default=82)
     ap.add_argument("--convention", choices=["cv", "arkit"], default="cv")
     args = ap.parse_args()
-    if not args.data and not args.zip:
-        raise SystemExit("--data 또는 --zip 이 필요")
+    if not args.data and not args.zip and not args.video:
+        raise SystemExit("--data, --zip 또는 --video 가 필요")
 
     tmp = None
     data = args.data
@@ -129,13 +130,13 @@ def main():
         if args.zip:
             tmp = tempfile.mkdtemp(prefix="thumb_", dir=os.path.dirname(os.path.abspath(args.out)) or None)
             data = extract_from_zip(args.zip, tmp)
-        video = os.path.join(data, "rgb.mp4")
+        video = args.video or os.path.join(data, "rgb.mp4")
         if not os.path.exists(video):
-            raise SystemExit("rgb.mp4 없음: " + data)
-        idx, frame, sharp, n = pick_frame(video, args.samples)
+            raise SystemExit("영상 없음: " + video)
+        idx, frame, sharp, n = pick_frame(video, args.samples)      # 폰 영상의 회전 메타데이터는 OpenCV 가 적용한다
         rot, R = None, None
-        odo = os.path.join(data, "odometry.csv")
-        if os.path.exists(odo):
+        odo = os.path.join(data, "odometry.csv") if data else ""
+        if odo and os.path.exists(odo):
             rots = read_rotations(odo)
             if rots:
                 key = idx if idx in rots else min(rots, key=lambda k: abs(k - idx))

@@ -1,0 +1,267 @@
+{
+ "name": "kgeoScan crack reference card",
+ "title_ko": "kgeoScan 균열 기준 카드",
+ "version": 1,
+ "units": "mm",
+ "frame": "origin = center of tag slot 0 (tag_ids[0]); +x toward the slot-1 tag center; +y down (image convention). Tag corner order TL,TR,BR,BL as cv2.aruco returns them.",
+ "dictionary": "DICT_APRILTAG_36h11",
+ "tag_size_mm": 20.0,
+ "tag_size_definition": "outer edge of the black border (8 modules = 6 data + 2 border); white quiet zone >= 3.5 mm around each tag",
+ "tag_modules": 8,
+ "tag_center_distance_mm": 80.0,
+ "variants": [
+  {
+   "label": "A",
+   "tag_ids": [
+    0,
+    1
+   ]
+  },
+  {
+   "label": "B",
+   "tag_ids": [
+    2,
+    3
+   ]
+  }
+ ],
+ "tag_centers_mm": [
+  [
+   0.0,
+   0.0
+  ],
+  [
+   80.0,
+   0.0
+  ]
+ ],
+ "tag_corners_mm": [
+  [
+   [
+    -10.0,
+    -10.0
+   ],
+   [
+    10.0,
+    -10.0
+   ],
+   [
+    10.0,
+    10.0
+   ],
+   [
+    -10.0,
+    10.0
+   ]
+  ],
+  [
+   [
+    70.0,
+    -10.0
+   ],
+   [
+    90.0,
+    -10.0
+   ],
+   [
+    90.0,
+    10.0
+   ],
+   [
+    70.0,
+    10.0
+   ]
+  ]
+ ],
+ "card_outline_mm": [
+  [
+   -25.0,
+   -30.0
+  ],
+  [
+   105.0,
+   55.0
+  ]
+ ],
+ "gauge_lines": [
+  {
+   "nominal_mm": 0.1,
+   "p0_mm": [
+    20.0,
+    -15.0
+   ],
+   "p1_mm": [
+    20.0,
+    15.0
+   ],
+   "length_mm": 30.0,
+   "axis": "y"
+  },
+  {
+   "nominal_mm": 0.2,
+   "p0_mm": [
+    28.0,
+    -15.0
+   ],
+   "p1_mm": [
+    28.0,
+    15.0
+   ],
+   "length_mm": 30.0,
+   "axis": "y"
+  },
+  {
+   "nominal_mm": 0.3,
+   "p0_mm": [
+    36.0,
+    -15.0
+   ],
+   "p1_mm": [
+    36.0,
+    15.0
+   ],
+   "length_mm": 30.0,
+   "axis": "y"
+  },
+  {
+   "nominal_mm": 0.5,
+   "p0_mm": [
+    44.0,
+    -15.0
+   ],
+   "p1_mm": [
+    44.0,
+    15.0
+   ],
+   "length_mm": 30.0,
+   "axis": "y"
+  },
+  {
+   "nominal_mm": 1.0,
+   "p0_mm": [
+    52.0,
+    -15.0
+   ],
+   "p1_mm": [
+    52.0,
+    15.0
+   ],
+   "length_mm": 30.0,
+   "axis": "y"
+  },
+  {
+   "nominal_mm": 2.0,
+   "p0_mm": [
+    60.0,
+    -15.0
+   ],
+   "p1_mm": [
+    60.0,
+    15.0
+   ],
+   "length_mm": 30.0,
+   "axis": "y"
+  }
+ ],
+ "gauge_measure_span": [
+  0.1,
+  0.9
+ ],
+ "gauge_note": "black lines on white, centered on p0-p1, width = nominal_mm across x",
+ "ruler": {
+  "start_mm": [
+   -10.0,
+   23.0
+  ],
+  "end_mm": [
+   90.0,
+   23.0
+  ],
+  "length_mm": 100.0,
+  "baseline_thickness_mm": 0.25,
+  "tick_width_mm": 0.15,
+  "tick_length_mm": {
+   "1": 2.0,
+   "5": 3.0,
+   "10": 4.0
+  },
+  "ticks_go": "+y from the baseline bottom edge"
+ },
+ "scale_bar_50mm": {
+  "rect_mm": [
+   [
+    -10.0,
+    34.0
+   ],
+   [
+    40.0,
+    40.0
+   ]
+  ],
+  "length_mm": 50.0
+ },
+ "black_ref_rect_mm": [
+  [
+   -7.0,
+   36.0
+  ],
+  [
+   37.0,
+   38.0
+  ]
+ ],
+ "white_ref_rect_mm": [
+  [
+   -7.0,
+   41.6
+  ],
+  [
+   37.0,
+   43.6
+  ]
+ ],
+ "layout": {
+  "card_size_mm": [
+   130.0,
+   85.0
+  ],
+  "tag0_center_from_card_top_left_mm": [
+   25.0,
+   30.0
+  ],
+  "page": "A4",
+  "page_size_mm": [
+   210.0,
+   297.0
+  ],
+  "png_dpi": 300,
+  "cards_on_page": [
+   {
+    "label": "A",
+    "tag_ids": [
+     0,
+     1
+    ],
+    "card_top_left_on_page_mm": [
+     40.0,
+     28.0
+    ]
+   },
+   {
+    "label": "B",
+    "tag_ids": [
+     2,
+     3
+    ],
+    "card_top_left_on_page_mm": [
+     40.0,
+     128.0
+    ]
+   }
+  ]
+ },
+ "files": {
+  "pdf": "kgeoscan_crack_card.pdf",
+  "png": "kgeoscan_crack_card.png"
+ }
+}

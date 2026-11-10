@@ -31,7 +31,10 @@ from common import load_config, respond  # noqa: E402
 
 MAX_TITLE = 100
 MAX_BODY = 1024 * 1024 * 1024  # 1 GB (web.config 의 maxAllowedContentLength 와 맞춤)
-ALLOWED = {"scan_zip": (".zip",), "las_file": (".las", ".laz"), "glb_file": (".glb", ".gltf")}
+ALLOWED = {"scan_zip": (".zip",), "las_file": (".las", ".laz"), "glb_file": (".glb", ".gltf"),
+           "video_file": (".mp4", ".mov", ".m4v", ".webm", ".3gp"),   # video: 웹 3D 현장조사 (기본 카메라 영상 → GPU 스플랫)
+           "photo_files": (".jpg", ".jpeg", ".png", ".heic", ".heif", ".webp")}   # photos: 같은 현장조사의 사진 여러 장 (화질 권장)
+MIN_PHOTOS, MAX_PHOTOS = 10, 300
 
 
 def parse_multipart():
@@ -53,7 +56,8 @@ def parse_multipart():
         filename = part.get_filename()
         payload = part.get_payload(decode=True) or b""
         if filename:
-            files[name] = (filename, payload)
+            files.setdefault(name, (filename, payload))        # 같은 이름이 여러 개면 첫 파일 (기존 호출 그대로)
+            files.setdefault(name + "*", []).append((filename, payload))   # 전부 (사진 모드 photo_files)
         else:
             fields[name] = payload.decode("utf-8", "replace").strip()
     return fields, files
@@ -141,19 +145,51 @@ def main():
         return respond({"error": "제목을 입력해 주세요"}, "400 Bad Request")
     note = (fields.get("note") or "")[:500]
     mode = (fields.get("mode") or "legacy").lower()
-    if mode not in ("stray", "legacy", "objcap"):
-        return respond({"error": "mode는 stray, objcap 또는 legacy"}, "400 Bad Request")
-    scan_type = (fields.get("scan_type") or "home").lower()
+    if mode not in ("stray", "legacy", "objcap", "video", "photos"):
+        return respond({"error": "mode는 stray, objcap, video, photos 또는 legacy"}, "400 Bad Request")
+    web3d = mode in ("video", "photos")                  # 웹 3D 현장조사 (기본 카메라, LiDAR 없음)
+    scan_type = (fields.get("scan_type") or ("survey" if web3d else "home")).lower()
     if scan_type not in ("home", "survey"):
         return respond({"error": "scan_type은 home 또는 survey"}, "400 Bad Request")
-    splat_requested = (fields.get("splat") or "").lower() in ("1", "true", "yes", "on")
+    splat_requested = web3d or (fields.get("splat") or "").lower() in ("1", "true", "yes", "on")
     obj = parse_object_fields(fields)
     area = None
     if (fields.get("area_mode") or "").strip().lower() in ("1", "true", "yes", "on"):
         surf = (fields.get("area_surface") or "auto").strip().lower()
         area = {"mode": 1, "surface": surf if surf in ("auto", "floor", "wall") else "auto"}
+    # 굴착 기록: 드러난 배관·케이블 → 서버가 관 자동 추출 (docs/utility_contract.md). 위에서 본 정사영상·깊이 지도도 같이 만든다
+    trench = None
+    if (fields.get("trench_mode") or "").strip().lower() in ("1", "true", "yes", "on"):
+        trench = {"mode": 1}
+        area = area or {"mode": 1, "surface": "floor"}
 
-    source_name = (files.get("scan_zip") or files.get("las_file") or ("", b""))[0] or ""
+    # 관리 대상(장소): site_id 가 있으면 그 장소, 없고 site_name 만 있으면(앱이 오프라인에서 고른 새 장소) 여기서 만든다
+    site_id = None
+    try:
+        from sites import safe_site_id, sites_dir
+        sid = safe_site_id(fields.get("site_id"))
+        if sid and os.path.exists(os.path.join(sites_dir(cfg), sid + ".json")):
+            site_id = sid
+        elif not sid and (fields.get("site_name") or "").strip():
+            def _num(v, lo, hi):
+                try:
+                    x = float(v)
+                    return x if lo <= x <= hi else None
+                except (TypeError, ValueError):
+                    return None
+            s_ = {"site_id": "s_" + uuid.uuid4().hex[:8], "name": fields["site_name"].strip()[:60],
+                  "lat": _num(fields.get("lat"), -90, 90), "lon": _num(fields.get("lon"), -180, 180), "note": "",
+                  "created_at": time.strftime("%Y-%m-%d %H:%M:%S"), "marker_ids": [], "scans": []}
+            sp = os.path.join(sites_dir(cfg), s_["site_id"] + ".json")
+            with open(sp, "w", encoding="utf-8") as f:
+                json.dump(s_, f, ensure_ascii=False, indent=2)
+            site_id = s_["site_id"]
+    except Exception:
+        site_id = None                                     # 장소 연결은 부가 기능 — 업로드는 막지 않는다
+
+    source_name = (files.get("scan_zip") or files.get("video_file") or files.get("photo_files") or files.get("las_file") or ("", b""))[0] or ""
+    if mode == "photos":                                   # 사진 모드: 첫 파일 이름 + 장수로 중복 판정
+        source_name = f"{source_name}+{len(files.get('photo_files*', []))}"
     client_id = (fields.get("client_id") or "")[:64]
     dup = find_recent_duplicate(cfg, title, mode, source_name, client_id)
     if dup:
@@ -167,10 +203,40 @@ def main():
     meta = {
         "job_id": job_id, "title": title, "note": note, "mode": mode, "scan_type": scan_type, "job_dir": job_dir,
         "author": cfg.get("portal_user", ""), "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "splat_requested": splat_requested, "object": obj, "area": area,
+        "splat_requested": splat_requested, "object": obj, "area": area, "site_id": site_id, "trench": trench,
     }
     try:
-        if mode in ("stray", "objcap"):      # objcap: Apple Object Capture zip (model/ OBJ + images/ + poses.json)
+        if web3d:                            # 웹 3D 현장조사: 영상 하나 또는 사진 여러 장 (LiDAR·포즈 없음) → GPU 워커가 SfM + 스플랫
+            lon, lat = fields.get("lon"), fields.get("lat")
+            if not lon or not lat:
+                raise ValueError("촬영 위치(lon, lat)가 필요합니다. 위치 권한을 허용하거나 좌표를 입력해 주세요")
+            meta["georef"] = {
+                "lon": float(lon), "lat": float(lat),
+                "elev": float(fields.get("elev") or cfg.get("default_elev", 0.0)),
+                "heading": float(fields.get("heading") or 0.0),
+            }
+            if mode == "video":
+                meta["video_path"] = save_upload(files.get("video_file"), job_dir, "video_file")
+                if not meta["video_path"]:
+                    raise ValueError("영상 파일을 선택해 주세요")
+            else:
+                photos = files.get("photo_files*") or []
+                if len(photos) < MIN_PHOTOS:
+                    raise ValueError(f"사진이 {len(photos)}장입니다. 3D 를 만들려면 {MIN_PHOTOS}장 이상(권장 40~80장) 필요합니다")
+                if len(photos) > MAX_PHOTOS:
+                    raise ValueError(f"사진은 최대 {MAX_PHOTOS}장까지 올릴 수 있습니다 ({len(photos)}장)")
+                pdir = os.path.join(job_dir, "photos")
+                os.makedirs(pdir, exist_ok=True)
+                for i, (fn, payload) in enumerate(photos, 1):
+                    ext = os.path.splitext(fn)[1].lower()
+                    if ext not in ALLOWED["photo_files"]:
+                        raise ValueError(f"사진 형식이 아닙니다: {fn}")
+                    if not payload:
+                        raise ValueError(f"빈 사진 파일: {fn}")
+                    with open(os.path.join(pdir, f"{i:04d}{ext}"), "wb") as out:
+                        out.write(payload)
+                meta["photos_dir"], meta["photo_count"] = pdir, len(photos)
+        elif mode in ("stray", "objcap"):    # objcap: Apple Object Capture zip (model/ OBJ + images/ + poses.json)
             lon, lat = fields.get("lon"), fields.get("lat")
             if not lon or not lat:
                 raise ValueError("스캔 위치(lon, lat)가 필요합니다. 지도에서 위치를 찍어 주세요")
@@ -194,11 +260,11 @@ def main():
         json.dump(meta, f, ensure_ascii=False, indent=2)
     queue = {"job_id": job_id, "title": title, "job_dir": job_dir, "mode": mode, "scan_type": scan_type,
              "source_name": source_name, "client_id": client_id, "app": (fields.get("app") or "")[:60],
-             "splat_requested": splat_requested, "object": obj, "area": area,
+             "splat_requested": splat_requested, "object": obj, "area": area, "site_id": site_id, "trench": trench,
              "status": "pending", "step": 0, "message": "대기 중", "created_at": meta["created_at"]}
     with open(os.path.join(cfg["jobs_dir"], job_id + ".json"), "w", encoding="utf-8") as f:
         json.dump(queue, f, ensure_ascii=False, indent=2)
-    respond({"job_id": job_id, "mode": mode, "scan_type": scan_type, "object_mode": bool(obj)})
+    respond({"job_id": job_id, "mode": mode, "scan_type": scan_type, "object_mode": bool(obj), "site_id": site_id})
 
 
 if __name__ == "__main__":

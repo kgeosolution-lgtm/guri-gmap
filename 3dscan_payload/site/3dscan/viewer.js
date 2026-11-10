@@ -72,8 +72,10 @@ require([
   const _ms = { on: false, pts: [], objs: [], text: "" };   // 거리 측정 상태
   let _viewMode   = "glb";                  // 사이드바 뷰어 모드: "glb"(메시) | "splat"(가우시안 스플랫 iframe)
   let _splatFrame = null;                   // splat.html iframe
-  const ORTHO_PAGE = "ortho.html?v=fdc4958fc6";                       // 배포(deploy.mjs stampAssets)가 ?v=해시 를 붙인다
+  const ORTHO_PAGE = "ortho.html?v=123ae7a46f";                       // 배포(deploy.mjs stampAssets)가 ?v=해시 를 붙인다
   const SPLAT_PAGE = "splat.html?v=da8f1ec908";          // 배포(deploy.mjs stampAssets)가 ?v=해시 를 붙인다
+  const UTILITY_PAGE = "utility.html?v=807d30ed93";                   // 굴착 기록 3D X-ray (배포가 ?v=해시 를 붙인다)
+  let _utilInfo = null;                                  // 현재 스캔의 굴착 기록 {url, report} (utilities.json 이 있을 때만)
 
   /* ── MapView ── */
   const webmap = new WebMap({ portalItem: { id: WEBMAP_ID } });
@@ -286,13 +288,15 @@ require([
     const glbUrl = attrs.glb_url || null;
     if (glbUrl) {
       loadGLBViewer(glbUrl);
+    } else if (attrs.splat_url) {
+      setViewMode("splat");                 // 웹 3D 현장조사(영상): 메시 없이 스플랫만
     } else {
-      // glb_url 필드 없으면 로딩 실패 표시
+      // 메시가 없음: 영상 현장조사는 GPU 가 스플랫을 만드는 중일 수 있다
       const loadingEl = document.getElementById("sceneLoading");
       const loadText  = document.querySelector(".scene-load-text");
       loadingEl.classList.remove("done");
-      loadText.textContent = "GLB 파일 정보 없음";
-      setTimeout(() => loadingEl.classList.add("done"), 1000);
+      loadText.textContent = attrs.scan_type === "survey" ? "3D 생성 중이거나 3D 파일이 없습니다 (영상 현장조사는 GPU 처리 후 ✦ 스플랫으로 나타남)" : "GLB 파일 정보 없음";
+      setTimeout(() => loadingEl.classList.add("done"), 2500);
     }
 
     setListActive(attrs.scene_item_id || attrs.OBJECTID || attrs.objectid);
@@ -705,29 +709,66 @@ require([
     return ORTHO_PAGE + (ORTHO_PAGE.includes("?") ? "&" : "?") + "meta=" + encodeURIComponent(url) +
       (currentAttrs && currentAttrs.scan_title ? "&title=" + encodeURIComponent(currentAttrs.scan_title) : "");
   }
+  /* ── 굴착 기록(지하시설물): 서버가 <job>_utilities.json 을 GLB 옆에 둔다 (레이어 필드 없이 GLB 주소로 찾는다) ── */
+  function utilitiesUrlFor(a) {
+    const g = a && a.glb_url;
+    return g && /\.glb(\?|$)/.test(g) ? g.replace(/\.glb(\?.*)?$/, "_utilities.json") : "";
+  }
+  function utilityPageUrl() {
+    const a = currentAttrs || {}, q = UTILITY_PAGE.includes("?") ? "&" : "?";
+    return UTILITY_PAGE + q + "meta=" + encodeURIComponent(_utilInfo.url) +
+      (a.scan_title ? "&title=" + encodeURIComponent(a.scan_title) : "") +
+      (a.splat_url ? "&splat=" + encodeURIComponent(a.splat_url) : "");
+  }
+  async function probeUtilities(attrs) {
+    if (attrs.scan_type && attrs.scan_type !== "survey") return;      // 굴착 기록은 현장조사(survey)로만 올라온다
+    const url = utilitiesUrlFor(attrs);
+    if (!url) return;
+    let j;
+    try { const r = await fetch(url, { cache: "no-store" }); if (!r.ok) return; j = await r.json(); } catch (e) { return; }
+    if (currentAttrs !== attrs || !j || !((j.utilities || []).length || j.trench)) return;   // 굴착·관을 못 찾은 기록은 탭을 내지 않는다
+    let report = url.replace(/_utilities\.json$/, "_util/report.html");
+    try { const r = await fetch(report, { method: "HEAD", cache: "no-store" }); if (!r.ok) report = ""; } catch (e) { report = ""; }
+    if (currentAttrs !== attrs) return;
+    _utilInfo = { url, report, count: (j.utilities || []).length };
+    const g = id => document.getElementById(id);
+    if (g("viewerTabs")) g("viewerTabs").style.display = "flex";
+    if (g("vtabUtil")) { g("vtabUtil").style.display = ""; g("vtabUtil").textContent = `⛏ 지하시설물 ${_utilInfo.count}`; }
+    applyViewMode();
+  }
+  window.openUtilReport = function() {
+    if (_utilInfo && _utilInfo.report) window.open(_utilInfo.report, "_blank");
+  };
   function setupViewerTabs(attrs) {
     removeSplatFrame();
     removeOrthoOverlay();
     _viewMode = "glb";
+    _utilInfo = null;
     const g = id => document.getElementById(id);
     const tabs = g("viewerTabs");
     if (tabs) tabs.style.display = (attrs.splat_url || attrs.ortho_url) ? "flex" : "none";
+    if (g("vtabGlb")) g("vtabGlb").style.display = attrs.glb_url ? "" : "none";    // 영상 현장조사는 메시가 없다
     if (g("vtabSplat")) g("vtabSplat").style.display = attrs.splat_url ? "" : "none";
     if (g("vtabOrtho")) g("vtabOrtho").style.display = attrs.ortho_url ? "" : "none";
+    if (g("vtabUtil")) g("vtabUtil").style.display = "none";
     applyViewMode();
+    probeUtilities(attrs);
   }
   function applyViewMode() {
-    const splat = _viewMode === "splat", ortho = _viewMode === "ortho", glb = _viewMode === "glb";
+    const splat = _viewMode === "splat", ortho = _viewMode === "ortho", glb = _viewMode === "glb", util = _viewMode === "util";
     const g = id => document.getElementById(id);
     if (g("vtabGlb"))      g("vtabGlb").classList.toggle("active", glb);
     if (g("vtabSplat"))    g("vtabSplat").classList.toggle("active", splat);
     if (g("vtabOrtho"))    g("vtabOrtho").classList.toggle("active", ortho);
+    if (g("vtabUtil"))     g("vtabUtil").classList.toggle("active", util);
     if (g("btnMeasure"))   g("btnMeasure").style.display   = glb ? "" : "none";
     if (g("btnTop"))       g("btnTop").style.display       = glb ? "" : "none";
     if (g("btnSplatOpen")) g("btnSplatOpen").style.display = glb ? "none" : "";
     if (g("btnOrthoMap"))  g("btnOrthoMap").style.display  = ortho ? "" : "none";
+    if (g("btnUtilReport")) g("btnUtilReport").style.display = _utilInfo && _utilInfo.report ? "" : "none";
     const badge = document.querySelector(".viewer-badge");
-    if (badge) badge.textContent = splat ? "Gaussian Splat · 3DGS Viewer" : ortho ? "Orthophoto · 정사영상" : "3D Object · GLB Viewer";
+    if (badge) badge.textContent = splat ? "Gaussian Splat · 3DGS Viewer" : ortho ? "Orthophoto · 정사영상" :
+      util ? "Underground Utilities · 지하시설물" : "3D Object · GLB Viewer";
   }
   /* ── 정사영상: 지도 위 제자리에 겹치기 (바닥 정사영상만 좌표가 있음) ── */
   let _orthoLayer = null;
@@ -760,22 +801,23 @@ require([
     if (!currentAttrs) return;
     if (mode === "splat" && !currentAttrs.splat_url) return;
     if (mode === "ortho" && !currentAttrs.ortho_url) return;
+    if (mode === "util" && !_utilInfo) return;
     if (mode === _viewMode) return;
     if (mode !== "ortho") removeOrthoOverlay();
     _viewMode = mode;
     applyViewMode();
     const sceneDiv = document.getElementById("sceneDiv"), loadingEl = document.getElementById("sceneLoading");
-    if (mode === "splat" || mode === "ortho") {
+    if (mode === "splat" || mode === "ortho" || mode === "util") {
       destroyGLB();                                   // 폰 GPU 메모리를 아끼려 메시 뷰어를 내리고 한 가지만 띄운다
       removeSplatFrame();
       sceneDiv.style.display = "none";
       loadingEl.style.display = "none";
       const f = document.createElement("iframe");
       f.id = "splatFrame";
-      f.title = mode === "ortho" ? "Orthophoto Viewer" : "Gaussian Splat Viewer";
+      f.title = mode === "ortho" ? "Orthophoto Viewer" : mode === "util" ? "Underground Utility Viewer" : "Gaussian Splat Viewer";
       f.setAttribute("allow", "fullscreen");
       f.allowFullscreen = true;
-      f.src = mode === "ortho" ? orthoPageUrl(currentAttrs.ortho_url) : splatPageUrl(currentAttrs.splat_url);
+      f.src = mode === "ortho" ? orthoPageUrl(currentAttrs.ortho_url) : mode === "util" ? utilityPageUrl() : splatPageUrl(currentAttrs.splat_url);
       sceneDiv.parentNode.insertBefore(f, sceneDiv);
       _splatFrame = f;
     } else {
@@ -785,6 +827,7 @@ require([
   };
   window.openSplatPage = function() {
     if (_viewMode === "ortho" && currentAttrs?.ortho_url) { window.open(orthoPageUrl(currentAttrs.ortho_url), "_blank"); return; }
+    if (_viewMode === "util" && _utilInfo) { window.open(utilityPageUrl(), "_blank"); return; }
     if (!currentAttrs?.splat_url) return;
     window.open(splatPageUrl(currentAttrs.splat_url), "_blank");
   };
@@ -1151,6 +1194,7 @@ function updateProgressPopup(step, title, pct, msg) {
 /* ── 완료 팝업 ── */
 let _doneSceneId = null;
 let _doneGlbUrl  = null;
+let _doneOid     = null;                          // 영상 현장조사: Scene·GLB 없이 점만 있어 objectid 로 찾는다
 window.closeDoneModal = function() {
   document.getElementById("doneModal").classList.remove("show");
 };
@@ -1162,6 +1206,7 @@ window.viewDoneScene = async function() {
     const q = pointLayer.createQuery();
     if (_doneSceneId)      q.where = `scene_item_id = '${_doneSceneId}'`;
     else if (_doneGlbUrl)  q.where = `glb_url = '${_doneGlbUrl}'`;
+    else if (_doneOid)     { q.where = "1=1"; q.objectIds = [_doneOid]; }
     else return;
     q.outFields      = ["*"];
     q.returnGeometry = true;
@@ -1325,15 +1370,18 @@ async function trackJob(jobId, title) {
         setUploadState("done", title, LAST_STEP, 100, "");
         _doneSceneId = sd.scene_item_id || null;
         _doneGlbUrl  = sd.glb_url || null;
+        _doneOid     = sd.objectid || null;
         setTimeout(() => {
           const dm = document.getElementById("doneModal");
           if (dm) {
             document.getElementById("doneModalTitle").textContent = "✓ 처리 완료!";
             document.getElementById("doneModalMsg").innerHTML =
               `<strong style="color:var(--text)">${esc(title)}</strong> 스캔이 처리되어 지도에 등록되었습니다.` +
-              (sd.scene_item_id ? "" : "<br><span style='color:var(--text3)'>Scene 레이어(SLPK)는 생성되지 않아 GLB 뷰어로만 볼 수 있습니다.</span>") +
-              (sd.splat_status === "pending" || sd.splat_status === "processing"
+              (sd.mode === "video" ? "<br><span style='color:var(--acc-o)'>📱 영상 현장조사: 3D(스플랫)는 GPU 가 카메라 위치를 계산한 뒤 만듭니다(보통 10~30분). 끝나면 목록에서 열어 ✦ 스플랫으로 봅니다.</span>"
+                : sd.scene_item_id ? "" : "<br><span style='color:var(--text3)'>Scene 레이어(SLPK)는 생성되지 않아 GLB 뷰어로만 볼 수 있습니다.</span>") +
+              (sd.mode !== "video" && (sd.splat_status === "pending" || sd.splat_status === "processing")
                 ? "<br><span style='color:var(--acc-o)'>✦ 사진 기반 스플랫은 GPU 워커가 몇 분 뒤 추가합니다. 끝나면 목록에서 다시 열어 ✦ 스플랫 탭을 누르세요.</span>" : "") +
+              (sd.utilities_url ? "<br><span style='color:var(--accent)'>⛏ 굴착 기록: 목록에서 열어 ⛏ 지하시설물 탭으로 관 위치·깊이를 보고, 📄 조서·산출물을 내려받습니다.</span>" : "") +
               (sd.message && sd.message !== "처리 완료" ? `<br><span style='color:var(--text3)'>${esc(sd.message)}</span>` : "");
             dm.classList.add("show");
           } else {

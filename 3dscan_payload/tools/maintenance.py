@@ -142,6 +142,10 @@ def redo_ortho(job_id):
         if proc.returncode != 0:
             raise RuntimeError("orthophoto.py 실패: " + proc.stderr.strip()[-600:])
         print(f"redo-ortho {job_id}: {pl.step_ortho(out_dir, job_id)}")
+        try:                                               # 위험요소 목록·장소 기록·변화 비교도 새 결과로
+            print(f"redo-ortho {job_id} hazards: {pl.step_hazards(meta, out_dir, job_id)}")
+        except Exception as e:
+            print(f"redo-ortho {job_id} hazards skipped: {e}")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -234,11 +238,25 @@ def delete_scan(objectid=None, title=None):
         for name in (os.path.basename(glb), base + ".jpg", base + ".splat", base + ".splat.json", base + ".spz", base + ".spz.json",
                      base + "_full.splat", base + "_full.splat.json",    # 서빙 GLB + 썸네일 + 스플랫(물체 모드는 자르기 전 _full 도)
                      base + "_ortho.json", base + "_ortho.jpg", base + "_ortho.png", base + "_ortho.jgw", base + "_ortho.prj",
-                     base + "_ortho_h.bin", base + "_ortho_h.jpg"):  # 정사영상 + 높이 지도
+                     base + "_ortho_h.bin", base + "_ortho_h.jpg",
+                     base + "_ortho_cracks.json", base + "_ortho_cracks.dxf",
+                     base + "_hazards.json", base + "_changes.json"):  # 정사영상 + 높이 지도 + 균열 분석 + 위험요소·변화
             p = os.path.join(CFG["glb_serve_dir"], name)
             if os.path.exists(p):
                 os.remove(p)
                 print(f"  삭제: {p}")
+        sd = os.path.join(CFG["data_root"], "sites")       # 관리 대상(장소)의 점검 이력에서도 뺀다
+        for n in (os.listdir(sd) if os.path.isdir(sd) else []):
+            if not n.endswith(".json"):
+                continue
+            sp = os.path.join(sd, n)
+            s = json.load(open(sp, "r", encoding="utf-8"))
+            keep = [x for x in s.get("scans", []) if x.get("job_id") != base]
+            if len(keep) != len(s.get("scans", [])):
+                s["scans"] = keep
+                with open(sp, "w", encoding="utf-8") as f:
+                    json.dump(s, f, ensure_ascii=False, indent=2)
+                print(f"  장소 {s.get('site_id')} 이력에서 {base} 뺌")
     out = http_json(CFG["points_layer_url"] + "/deleteFeatures", {"objectIds": str(objectid), "f": "json", "token": stoken})
     print("  점 삭제:", out.get("deleteResults"))
 

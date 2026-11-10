@@ -182,12 +182,17 @@ def height_map(P, valid, surface, nrm, d0, px_m, out_dir, log, max_side=1024):
         # 평탄도: 주 벽면(±10 cm 안) 점에 기울기까지 맞춘 평면을 빼서 국부 굴곡만 남긴다.
         # (수직 가정 평면 그대로면 ARKit 중력 오차 0.4° 정도가 위아래 ±18 mm 기울기로 보였다 — 벽 시험 ee6c8922)
         yy, xx = np.nonzero(vs & (np.abs(rel) < 0.10))
+        fit = None
         if len(yy) > 100:
             pick = np.random.default_rng(0).choice(len(yy), min(len(yy), 200_000), replace=False)
             A = np.c_[xx[pick] * step * px_m, yy[pick] * step * px_m, np.ones(len(pick))]
             coef = np.linalg.lstsq(A, rel[yy[pick], xx[pick]], rcond=None)[0]
             gy_, gx_ = np.mgrid[0:rel.shape[0], 0:rel.shape[1]]
             rel = rel - (coef[0] * gx_ * step * px_m + coef[1] * gy_ * step * px_m + coef[2])
+            # 벽 기울기: 아래로 갈수록 앞(+)이면 윗부분이 뒤로 누운 것 → lean = 위가 카메라 쪽(+)으로 기운 각도
+            res = rel[yy[pick], xx[pick]]
+            fit = dict(lean_deg=round(float(np.degrees(np.arctan(-coef[1]))), 3),
+                       flatness_rms_mm=round(float(np.sqrt(np.mean(res[np.abs(res) < 0.05] ** 2)) * 1000), 2))
         ref = float(d0)
         kind = "relief"
     mm = np.full(rel.shape, -32768, np.int16)
@@ -213,9 +218,12 @@ def height_map(P, valid, surface, nrm, d0, px_m, out_dir, log, max_side=1024):
     img[~vs] = 24
     cv2.imwrite(os.path.join(out_dir, "ortho_height.jpg"), img, [cv2.IMWRITE_JPEG_QUALITY, 88])
     log(f"height map ({kind}): {mm.shape[1]}x{mm.shape[0]} (step {step}), range {lo * 1000:.0f}..{hi * 1000:.0f} mm")
-    return dict(kind=kind, width=int(mm.shape[1]), height=int(mm.shape[0]), step=step, units="mm", nodata=-32768,
-                reference="dominant_level" if kind == "height" else "wall_plane", reference_value_m=round(ref, 4),
-                display_range_mm=[round(lo * 1000, 1), round(hi * 1000, 1)])
+    out = dict(kind=kind, width=int(mm.shape[1]), height=int(mm.shape[0]), step=step, units="mm", nodata=-32768,
+               reference="dominant_level" if kind == "height" else "wall_plane", reference_value_m=round(ref, 4),
+               display_range_mm=[round(lo * 1000, 1), round(hi * 1000, 1)])
+    if kind == "relief" and fit:
+        out["fit"] = fit                                   # 벽 기울기·평탄도 (위험요소 '변형' 항목에 씀)
+    return out
 
 
 def estimate_gains(views, P, Nn, valid, scene, log, n_samples=150_000, slots=6, sigma_n=10.0, sigma_g=0.1):
@@ -319,6 +327,8 @@ def main():
     ap.add_argument("--jpeg-quality", type=int, default=90)
     ap.add_argument("--no-gain-comp", dest="gain_comp", action="store_false", help="사진별 밝기 맞춤 끄기")
     ap.add_argument("--blend-power", type=float, default=4.0, help="저주파 섞기 지수 (0 = 점수 1등 사진만, 클수록 1등 사진 쪽으로)")
+    ap.add_argument("--no-cracks", dest="cracks", action="store_false", help="균열 자동 분석 끄기")
+    ap.add_argument("--crack-mask", help="딥러닝 균열 확률 PNG (이 정사영상과 같은 격자, 0~255) — 영상처리 후보와 합친다")
     a = ap.parse_args()
 
     t0 = time.time()
@@ -576,6 +586,63 @@ def main():
         meta["files"]["height_bin"], meta["files"]["height_image"] = "ortho_height.bin", "ortho_height.jpg"
     except Exception as e:                                 # 높이 지도는 부가 기능 — 실패해도 정사영상은 낸다
         log(f"height map skipped: {e}")
+    # 픽셀 (j, i) 중심의 표면점 = (origin_u + (j+.5)·gsd)·ex + (origin_v + (i+.5)·gsd)·ey + 광선 방향 성분 (앱 표시점 → 픽셀 변환에 씀)
+    meta["grid"] = dict(origin_uv=[float(origin_uv[0]), float(origin_uv[1])], ex=np.round(ex, 6).tolist(), ey=np.round(ey, 6).tolist())
+    if a.cracks:
+        try:
+            from crack_analysis import analyze, marks_to_px, surface_mask_from_height, DEFAULTS as CRACK_DEFAULTS
+            on_surface = None                              # 높이 지도 기준면 ±2 cm 밖(물건·가구·식탁 위)은 균열 분석에서 뺀다
+            hb = os.path.join(a.out, "ortho_height.bin")
+            if meta.get("height_map") and os.path.exists(hb):
+                on_surface = surface_mask_from_height(meta["height_map"], np.fromfile(hb, np.int16), (Hh, W), CRACK_DEFAULTS["surface_tol_mm"])
+            mp = os.path.join(a.data, "marks.json")
+            mj = json.load(open(mp, encoding="utf-8")) if os.path.exists(mp) else None
+            ctx = dict(P=P, Nn=Nn, views=views, scene=scene, ex=ex, ey=ey, load_rgb=load_rgb, view_depth=view_depth)
+            dl = cv2.imdecode(np.fromfile(a.crack_mask, np.uint8), cv2.IMREAD_GRAYSCALE) if a.crack_mask and os.path.exists(a.crack_mask) else None
+            sc = None                                      # 균열 기준 카드(AprilTag): 있으면 축척 검증·보정, 카드 자리는 균열 분석에서 뺌
+            try:
+                from scale_target import check_scale, DEFAULT_CARD_JSON
+                cj = os.path.join(os.path.dirname(os.path.abspath(__file__)), "crack_card.json")   # 서버: worker 폴더에 같이 배포
+                sc = check_scale(cv2.cvtColor(out_img, cv2.COLOR_RGB2BGR), {"gsd_m": gsd}, cj if os.path.exists(cj) else DEFAULT_CARD_JSON)
+                log(f"scale card: {'found ' + str(sc.get('card')) + ', error ' + str(sc.get('scale_error_pct')) + '%' if sc.get('found') else 'none (' + str(sc.get('reason')) + ')'}")
+                if sc.get("found"):
+                    meta["scale_check"] = {k: sc[k] for k in ("card", "scale_error_pct", "scale_factor", "gsd_mm_corrected", "fit_rms_px", "gauge", "card_px_bbox", "cards") if k in sc}
+            except Exception as e:
+                log(f"scale card check skipped: {e}")
+            meta["cracks"] = analyze(out_img, covered, gsd, a.out, log, photo_ctx=ctx,
+                                     marks_px=marks_to_px(mj, meta["grid"], gsd), surface=surface, dl_mask=dl, on_surface=on_surface,
+                                     scale_card=sc)
+            meta["files"]["cracks"], meta["files"]["cracks_dxf"] = "ortho_cracks.json", "ortho_cracks.dxf"
+        except Exception as e:                             # 균열 분석도 부가 기능
+            log(f"crack analysis skipped: {e}")
+        ctx = None                                         # P·Nn memmap 참조를 놓아야 아래에서 임시 폴더가 지워진다
+        # 위험요소 공통 목록(hazards.json): 균열 + 변색 + 요철 + 변형 (docs/hazards_contract.md)
+        try:
+            from hazard_detect import build as build_hazards
+            hm_, grid_ = meta.get("height_map"), None
+            hb = os.path.join(a.out, "ortho_height.bin")
+            if hm_ and os.path.exists(hb):
+                grid_ = np.fromfile(hb, np.int16).reshape(hm_["height"], hm_["width"])
+            cp_ = os.path.join(a.out, "ortho_cracks.json")
+            cdoc = json.load(open(cp_, encoding="utf-8")) if os.path.exists(cp_) else None
+            card_ex = None                                 # 기준 카드 자리는 변색·요철 검출에서도 뺀다
+            for cc in ((cdoc or {}).get("scale_card") or {}).get("cards") or []:
+                if card_ex is None:
+                    card_ex = np.zeros((Hh, W), bool)
+                x0_, y0_, x1_, y1_ = [int(round(v)) for v in cc["card_px_bbox"]]
+                card_ex[max(0, y0_ - 8):y1_ + 9, max(0, x0_ - 8):x1_ + 9] = True
+            markers = []
+            try:                                           # 장소 고정 표식(AprilTag ID ≥ 4; 0~3 은 기준 카드)
+                import scale_target
+                if hasattr(scale_target, "detect_markers"):
+                    markers = [m_ for m_ in scale_target.detect_markers(cv2.cvtColor(out_img, cv2.COLOR_RGB2BGR), gsd) if int(m_["id"]) >= 4]
+            except Exception as e:
+                log(f"markers skipped: {e}")
+            meta["hazards"] = build_hazards(meta, out_img, covered, locals().get("on_surface"), hm_, grid_, a.out, log,
+                                            cracks_doc=cdoc, markers=markers, exclude=card_ex)
+            meta["files"]["hazards"] = "hazards.json"
+        except Exception as e:
+            log(f"hazard detection skipped: {e}")
     meta["seconds"] = round(time.time() - t0, 1)
     json.dump(meta, open(os.path.join(a.out, "ortho.json"), "w", encoding="utf-8"), indent=2, ensure_ascii=False)
     # memmap 과 그 조각(bt, ct)이 하나라도 살아 있으면 Windows 에서 파일이 안 지워져 작업마다 ~150 MB 가 남는다

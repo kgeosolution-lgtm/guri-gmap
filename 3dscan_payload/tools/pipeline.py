@@ -18,6 +18,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
+import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CFG = json.load(open(os.environ.get("KGEOSCAN_CONFIG", r"D:\kgeoHub\config\kgeoscan.json"), "r", encoding="utf-8"))
@@ -188,7 +189,8 @@ def step_ortho(out_dir, job_id):
     m = json.load(open(meta_p, "r", encoding="utf-8"))
     base = f"{job_id}_ortho"
     names = {"ortho.jpg": base + ".jpg", "ortho_overlay.png": base + ".png", "ortho.jgw": base + ".jgw", "ortho.prj": base + ".prj",
-             "ortho_height.bin": base + "_h.bin", "ortho_height.jpg": base + "_h.jpg"}
+             "ortho_height.bin": base + "_h.bin", "ortho_height.jpg": base + "_h.jpg",
+             "ortho_cracks.json": base + "_cracks.json", "ortho_cracks.dxf": base + "_cracks.dxf"}
     for a, b in names.items():
         if os.path.exists(os.path.join(src, a)):
             shutil.copy2(os.path.join(src, a), os.path.join(CFG["glb_serve_dir"], b))
@@ -197,6 +199,12 @@ def step_ortho(out_dir, job_id):
     if hm and os.path.exists(os.path.join(src, "ortho_height.bin")):   # 높이 지도 (int16 mm) + 색 미리보기
         files["height_bin"] = f"{CFG['glb_serve_url']}/{base}_h.bin"
         files["height_image"] = f"{CFG['glb_serve_url']}/{base}_h.jpg"
+    if os.path.exists(os.path.join(src, "ortho_cracks.json")):            # 균열 자동 분석 (목록 JSON + 외관조사망도 DXF)
+        files["cracks"] = f"{CFG['glb_serve_url']}/{base}_cracks.json"
+        if os.path.exists(os.path.join(src, "ortho_cracks.dxf")):
+            files["cracks_dxf"] = f"{CFG['glb_serve_url']}/{base}_cracks.dxf"
+    if os.path.exists(os.path.join(src, "hazards.json")):                # 위험요소 공통 목록 (step_hazards 가 작업 정보를 채워 둔다)
+        files["hazards"] = f"{CFG['glb_serve_url']}/{job_id}_hazards.json"
     m["files"] = files
     if m.get("georef"):
         m["georef"]["world_file_url"] = f"{CFG['glb_serve_url']}/{base}.jgw"
@@ -205,6 +213,240 @@ def step_ortho(out_dir, job_id):
     url = f"{CFG['glb_serve_url']}/{base}.json"
     log(f"정사영상: {url} ({m.get('surface')} {m.get('width')}x{m.get('height')}, {m.get('gsd_m', 0) * 1000:.2f} mm/px)")
     return url
+
+
+# ── 위험요소 이력: 관리 대상(장소) + 직전 점검과 변화 비교 (docs/hazards_contract.md) ─────────────────────
+def sites_dir():
+    d = os.path.join(CFG["data_root"], "sites")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def site_load(site_id):
+    p = os.path.join(sites_dir(), f"{site_id}.json")
+    if not site_id or not os.path.exists(p):
+        return None
+    with open(p, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def site_save(site):
+    p = os.path.join(sites_dir(), f"{site['site_id']}.json")
+    with open(p + ".tmp", "w", encoding="utf-8") as f:
+        json.dump(site, f, ensure_ascii=False, indent=2)
+    os.replace(p + ".tmp", p)
+
+
+def step_hazards(meta, out_dir, job_id):
+    """워커의 out/ortho/hazards.json 에 작업 정보를 채워 서빙 폴더에 두고, 장소(site)에 이 점검을 기록한 뒤
+    같은 장소의 직전 점검과 변화를 비교한다 → (hazards_url, changes_url, site_id). 장소는 업로드의 site_id, 없으면 고정 표식 ID 로 찾는다"""
+    src = os.path.join(out_dir, "ortho", "hazards.json")
+    if not os.path.exists(src):
+        return "", "", None
+    serve, url = CFG["glb_serve_dir"], CFG["glb_serve_url"]
+    doc = json.load(open(src, "r", encoding="utf-8"))
+    mids = sorted({int(m["id"]) for m in doc.get("markers", []) if int(m.get("id", 0)) >= 10})
+    site = site_load(meta.get("site_id"))
+    if site is None and mids:                              # 자동 묶기: 고정 표식 ID 가 가장 많이 겹치는 장소
+        best = (0, None)
+        for n in os.listdir(sites_dir()):
+            if n.endswith(".json"):
+                try:
+                    s_ = json.load(open(os.path.join(sites_dir(), n), "r", encoding="utf-8"))
+                except Exception:
+                    continue
+                k = len(set(s_.get("marker_ids", [])) & set(mids))
+                if k > best[0]:
+                    best = (k, s_)
+        site = best[1]
+        if site:
+            log(f"장소 자동 묶기: 표식 {mids} → {site['site_id']} ({site.get('name')})")
+    doc.update(job_id=job_id, site_id=site["site_id"] if site else None, captured_at=meta.get("created_at"))
+    doc["frame"]["image"] = f"{url}/{job_id}_ortho.jpg"
+    with open(os.path.join(serve, f"{job_id}_hazards.json"), "w", encoding="utf-8") as f:
+        json.dump(doc, f, ensure_ascii=False)
+    hazards_url = f"{url}/{job_id}_hazards.json"
+    log(f"위험요소: {doc.get('summary', {}).get('counts')} → {hazards_url}")
+    changes_url = ""
+    if site:
+        scans = [s_ for s_ in site.get("scans", []) if s_.get("job_id") != job_id]
+        prev = next((s_ for s_ in sorted(scans, key=lambda s_: s_.get("captured_at") or "", reverse=True)
+                     if os.path.exists(os.path.join(serve, f"{s_['job_id']}_hazards.json"))), None)
+        if prev:
+            pj = prev["job_id"]
+            out_p = os.path.join(out_dir, "changes.json")
+            cmd = [CFG["worker_python"], "-I", os.path.join(CFG["worker_dir"], "hazard_change.py"),
+                   "--prev", os.path.join(serve, f"{pj}_hazards.json"), "--prev-img", os.path.join(serve, f"{pj}_ortho.jpg"),
+                   "--cur", os.path.join(serve, f"{job_id}_hazards.json"), "--cur-img", os.path.join(serve, f"{job_id}_ortho.jpg"),
+                   "--out", out_p]
+            if not os.path.exists(cmd[2]):
+                log("변화 비교 모듈(hazard_change.py)이 아직 없음 → 건너뜀")
+            else:
+                proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=900)
+                if proc.returncode == 0 and os.path.exists(out_p):
+                    ch = json.load(open(out_p, "r", encoding="utf-8"))
+                    ch.update(site_id=site["site_id"], prev_job=pj, cur_job=job_id,
+                              prev_captured_at=prev.get("captured_at"), cur_captured_at=meta.get("created_at"))
+                    with open(os.path.join(serve, f"{job_id}_changes.json"), "w", encoding="utf-8") as f:
+                        json.dump(ch, f, ensure_ascii=False)
+                    changes_url = f"{url}/{job_id}_changes.json"
+                    log(f"변화 비교 ({pj} → {job_id}): {ch.get('summary')}")
+                else:
+                    log("변화 비교 실패: " + (proc.stderr or proc.stdout or "")[-500:])
+        entry = dict(job_id=job_id, captured_at=meta.get("created_at"), title=meta.get("title"), hazards_url=hazards_url,
+                     ortho_url=f"{url}/{job_id}_ortho.json", changes_url=changes_url or None,
+                     thumb_url=f"{url}/{job_id}_thumb.jpg", counts=doc.get("summary", {}).get("counts"))
+        site["scans"] = scans + [entry]
+        site["marker_ids"] = sorted(set(site.get("marker_ids", [])) | set(mids))
+        site["last_scan_at"], site["last_job_id"] = meta.get("created_at"), job_id
+        site_save(site)
+        # 정사영상 메타에도 위험요소·변화 주소를 적어 뷰어가 바로 찾게 한다
+        op = os.path.join(serve, f"{job_id}_ortho.json")
+        if os.path.exists(op):
+            m = json.load(open(op, "r", encoding="utf-8"))
+            m.setdefault("files", {})["hazards"] = hazards_url
+            if changes_url:
+                m["files"]["changes"] = changes_url
+            m["site"] = dict(site_id=site["site_id"], name=site.get("name"))
+            with open(op, "w", encoding="utf-8") as f:
+                json.dump(m, f, ensure_ascii=False, indent=2)
+    return hazards_url, changes_url, site["site_id"] if site else None
+
+
+# ── 굴착 기록: 드러난 지하시설물 자동 추출 + 산출물 (docs/utility_contract.md) ─────────────────────
+def _extract_dataset(zip_path, dest):
+    """산출물(제출 동영상·사진 쪽)과 관 종류 표시용 Stray 원본을 푼다 (process_scan 은 다 쓴 뒤 지운다). confidence/ 는 뺀다.
+    → odometry.csv 가 있는 데이터 폴더 또는 None"""
+    if not zip_path or not os.path.exists(zip_path):
+        return None
+    shutil.rmtree(dest, ignore_errors=True)
+    try:
+        with zipfile.ZipFile(zip_path) as zf:   # extractall 은 절대 경로·'..' 을 걸러 낸다
+            zf.extractall(dest, members=[n for n in zf.namelist() if "/confidence/" not in "/" + n.replace("\\", "/")])
+    except (zipfile.BadZipFile, OSError) as e:
+        log(f"굴착 기록: 원본 zip 풀기 실패 ({e}) → 동영상·사진·관 종류 표시 없이 진행")
+        return None
+    for root, dirs, files in os.walk(dest):
+        if "odometry.csv" in files:
+            return root
+    return None
+
+
+def _dist_polyline(p, line):
+    """점 p 와 3D 폴리라인 사이 최소 거리 (m)"""
+    best = float("inf")
+    if not line:
+        return best
+    for a, b in list(zip(line, line[1:])) or [(line[0], line[0])]:
+        ab = [b[i] - a[i] for i in range(3)]
+        ap = [p[i] - a[i] for i in range(3)]
+        L2 = sum(v * v for v in ab)
+        t = max(0.0, min(1.0, sum(ab[i] * ap[i] for i in range(3)) / L2)) if L2 > 0 else 0.0
+        best = min(best, sum((ap[i] - t * ab[i]) ** 2 for i in range(3)) ** 0.5)
+    return best
+
+
+def apply_user_marks(u, marks_path):
+    """앱 미리보기에서 관을 탭해 고른 종류(marks.json kind=utility, ARKit 월드 = centerline_local 좌표)를 가장 가까운 관에 입힌다.
+    색 추정보다 우선한다 (class_source="user"). 관 표면을 탭하므로 축에서 반지름 + 0.2 m 안이면 그 관이다. → (맞춘 수, 못 맞춘 수)"""
+    try:
+        marks = (json.load(open(marks_path, "r", encoding="utf-8")) or {}).get("marks") or []
+    except (OSError, ValueError):
+        return 0, 0
+    marks = [m for m in marks if m.get("kind") == "utility" and m.get("class")
+             and all(isinstance(m.get(k), (int, float)) for k in ("x", "y", "z"))]
+    hit = miss = 0
+    for m in marks:                                                 # 같은 관에 여러 번 탭하면 마지막 것이 이긴다
+        p = (m["x"], m["y"], m["z"])
+        best = None
+        for x in u.get("utilities", []):
+            line = x.get("centerline_local") or []
+            if not line:
+                continue
+            d = _dist_polyline(p, line)
+            if d <= (x.get("diameter_mm") or 100) / 2000 + 0.20 and (best is None or d < best[0]):
+                best = (d, x)
+        if best is None:
+            miss += 1
+            u.setdefault("user_marks_unmatched", []).append({"class": m["class"], "local": [round(v, 4) for v in p]})
+            continue
+        x = best[1]
+        if x.get("class") != m["class"] and x.get("class_source") != "user":
+            x["class_auto"] = x.get("class")                      # 자동 추정값은 남겨 둔다 (뷰어·보고서 비교용)
+        x.update({"class": m["class"], "class_source": "user", "class_confidence": 1.0})
+        if x.get("kind") == "pipe" and m["class"] in ("power", "telecom"):
+            x["kind"] = "conduit"                                    # 전력·통신은 관이 아니라 관로 (엔진 _kind_for 와 같은 규칙)
+        elif x.get("kind") == "conduit" and m["class"] not in ("power", "telecom", "unknown"):
+            x["kind"] = "pipe"
+        hit += 1
+    if miss:
+        u.setdefault("quality", {}).setdefault("warnings", []).append(f"user_mark_unmatched:{miss}")
+    return hit, miss
+
+
+def step_utilities(meta, out_dir, job_id):
+    """굴착 기록(trench) 작업: utility_extract.py → utilities.json, utility_report.py → 조서·DXF·LandXML·GeoJSON·제출 동영상.
+    서빙: <job>_utilities.json, <job>_util/<파일>. 모듈이 아직 없으면 건너뛴다 → (utilities_url, report_url)"""
+    if not (meta.get("trench") or {}).get("mode"):
+        return "", ""
+    wd = CFG["worker_dir"]
+    ext_py, rep_py = os.path.join(wd, "utility_extract.py"), os.path.join(wd, "utility_report.py")
+    if not os.path.exists(ext_py):
+        log("굴착 기록: 추출 모듈(utility_extract.py)이 아직 없음 → 건너뜀")
+        return "", ""
+    udir = os.path.join(out_dir, "utilities")
+    os.makedirs(udir, exist_ok=True)
+    jm = os.path.join(meta["job_dir"], "job.json")
+    mesh = os.path.join(out_dir, "mesh_full.ply") if os.path.exists(os.path.join(out_dir, "mesh_full.ply")) else os.path.join(out_dir, "mesh.ply")
+    cmd = [CFG["worker_python"], "-I", ext_py, "--las", os.path.join(out_dir, "scan.las"), "--georef", jm, "--out", udir]
+    if os.path.exists(mesh):                                        # 메시가 있으면 메시 경로(천장 구분·밀도 고름), 없으면 LAS
+        cmd += ["--mesh", mesh]
+    with open(os.path.join(out_dir, "utility_stdout.log"), "a", encoding="utf-8") as lf:
+        proc = subprocess.run(cmd, stdout=lf, stderr=subprocess.STDOUT, text=True, timeout=1800)
+    up = os.path.join(udir, "utilities.json")
+    if proc.returncode != 0 or not os.path.exists(up):
+        log("굴착 기록: 관 추출 실패 (utility_stdout.log 확인)")
+        return "", ""
+    u = json.load(open(up, "r", encoding="utf-8"))
+    data = _extract_dataset(meta.get("scan_zip"), os.path.join(udir, "_data"))
+    if data and os.path.exists(os.path.join(data, "marks.json")):
+        hit, miss = apply_user_marks(u, os.path.join(data, "marks.json"))
+        if hit or miss:
+            log(f"굴착 기록: 앱에서 고른 관 종류 {hit}개 반영" + (f", {miss}개는 가까운 관 없음" if miss else ""))
+    u["job_id"] = job_id
+    u.setdefault("local", {})["glb"] = f"{job_id}.glb"             # utilities.json 과 같은 폴더 기준 상대 주소 (계약 v0.2)
+    if meta.get("title"):
+        u["title"] = meta["title"]
+    serve, url = CFG["glb_serve_dir"], CFG["glb_serve_url"]
+    for path in (up, os.path.join(serve, f"{job_id}_utilities.json")):   # 산출물 생성기도 같은 내용을 읽게 한다
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(u, f, ensure_ascii=False)
+    util_url = f"{url}/{job_id}_utilities.json"
+    log(f"굴착 기록: 관 {len(u.get('utilities', []))}개 → {util_url}")
+    report_url = ""
+    if not u.get("utilities") and not u.get("trench"):
+        log("굴착 기록: 굴착·관을 찾지 못함 → 산출물 생략")       # 조서에 쓸 내용이 없다 (실패 아님)
+    elif os.path.exists(rep_py):
+        rdir = os.path.join(udir, "report")
+        cmd = [CFG["worker_python"], "-I", rep_py, "--utilities", up, "--job-dir", meta["job_dir"], "--out", rdir]
+        if data:
+            cmd += ["--data", data]                                 # 제출 동영상(rgb.mp4)·현장 사진(hires/)
+        if meta.get("title"):
+            cmd += ["--title", meta["title"]]
+        with open(os.path.join(out_dir, "utility_stdout.log"), "a", encoding="utf-8") as lf:
+            proc = subprocess.run(cmd, stdout=lf, stderr=subprocess.STDOUT, text=True, timeout=1800)
+        if proc.returncode == 0 and os.path.isdir(rdir):
+            dest = os.path.join(serve, f"{job_id}_util")
+            shutil.rmtree(dest, ignore_errors=True)
+            shutil.copytree(rdir, dest)
+            if os.path.exists(os.path.join(dest, "report.html")):
+                report_url = f"{url}/{job_id}_util/report.html"
+            log(f"굴착 기록: 산출물 {sorted(os.listdir(dest))}")
+        else:
+            log("굴착 기록: 산출물 생성 실패 (utility_stdout.log 확인)")
+    if data:
+        shutil.rmtree(os.path.join(udir, "_data"), ignore_errors=True)   # 원본은 scan zip 에 그대로 있다
+    return util_url, report_url
 
 
 def step_slpk(glb_path, out_dir, las_info, service_name, heading=0.0):
@@ -409,9 +651,9 @@ def step_register(meta, las_info, glb_url, slpk_item_id, scene_item_id, scene_ur
 def splat_wanted(meta):
     """GPU 스플랫 워커에 넘길 작업인가: 설정 splat.enabled, Stray 원본, 유형이 splat.scan_types 에 있거나 업로드 때 splat=1 요청"""
     sp = CFG.get("splat") or {}
-    if not sp.get("enabled") or meta.get("mode") not in ("stray", "objcap"):
+    if not sp.get("enabled") or meta.get("mode") not in ("stray", "objcap", "video", "photos"):
         return False
-    if meta.get("splat_requested"):
+    if meta.get("splat_requested") or meta.get("mode") in ("video", "photos"):
         return True
     return (meta.get("scan_type") or "home") in (sp.get("scan_types") or ["survey"])
 
@@ -422,8 +664,58 @@ def splat_fields(meta, q):
         return {}
     if splat_wanted(meta):
         log("스플랫: GPU 워커 대기열에 등록 (splat_status=pending)")
+        if meta.get("mode") in ("video", "photos"):        # 영상·사진만 있음: 워커가 카메라 위치(SfM)부터 계산한다
+            return {"splat_status": "pending", "splat_kind": "video", "splat_message": "3D 생성 대기 중 (GPU: 카메라 위치 계산 → 스플랫)"}
         return {"splat_status": "pending", "splat_message": "스플랫 대기 중 (GPU 워커)"}
+    if meta.get("mode") in ("video", "photos"):
+        log("스플랫이 꺼져 있어(splat.enabled=false) 영상 3D 를 만들 수 없음")
+        return {"splat_status": "failed", "splat_message": "3D 생성 기능이 꺼져 있습니다 (서버 설정)"}
     return {}
+
+
+def video_job(meta, q, out_dir, job_id):
+    """mode=video (웹 3D 현장조사): 영상 썸네일 → GPS 위치에 지도 점 등록 → GPU 스플랫 대기열.
+    서버는 융합·GLB·SLPK 를 만들지 않는다 (LiDAR·카메라 자세가 없어서 GPU 워커가 SfM 부터 한다, docs/video3d_contract.md)"""
+    is_video = meta.get("mode") == "video"
+    q.update(step=1, message=("영상" if is_video else "사진") + " 품질 검사 중")
+    thumb = os.path.join(out_dir, "thumb.jpg")
+    # 업로드 직후 품질 검사 (흔들림·속도·겹침·밝기) → 큐의 quality 로 바로 알린다: 촬영 페이지가 "다시 찍기"를 권할 수 있게
+    qp = os.path.join(out_dir, "quality.json")
+    src = ["--video", meta["video_path"]] if is_video else ["--photos", meta.get("photos_dir", "")]
+    try:
+        with open(os.path.join(out_dir, "worker_stdout.log"), "a", encoding="utf-8") as lf:
+            subprocess.run([CFG["worker_python"], "-I", os.path.join(CFG["worker_dir"], "media_check.py")] + src + ["--out", qp, "--thumb", thumb],
+                           stdout=lf, stderr=subprocess.STDOUT, text=True, timeout=600)
+        quality = json.load(open(qp, "r", encoding="utf-8"))
+        q.update(quality=quality)
+        log(f"품질 검사: {quality.get('grade')} ({quality.get('score')}) {quality.get('summary')}")
+    except Exception as e:
+        log(f"품질 검사 생략: {e}")
+    if not os.path.exists(thumb) and is_video and meta.get("video_path") and os.path.exists(meta["video_path"]):
+        cmd = [CFG["worker_python"], "-I", os.path.join(CFG["worker_dir"], "thumbnail.py"), "--video", meta["video_path"], "--out", thumb]
+        try:
+            with open(os.path.join(out_dir, "worker_stdout.log"), "a", encoding="utf-8") as lf:
+                subprocess.run(cmd, stdout=lf, stderr=subprocess.STDOUT, text=True, timeout=300)
+        except Exception as e:
+            log(f"영상 썸네일 생략: {e}")
+    thumb_url = step_thumb(meta, out_dir, job_id)
+    g = meta["georef"]
+    from pyproj import Transformer
+    x, y = Transformer.from_crs("EPSG:4326", f"EPSG:{CFG.get('utm_epsg', 32652)}", always_xy=True).transform(g["lon"], g["lat"])
+    z = float(g.get("elev", 0.0))
+    las_info = dict(points=0, coord_x=x, coord_y=y, coord_z=z, bbox=[x, y, z, x, y, z])
+    oid = None
+    if CFG.get("portal_enabled", True):
+        q.update(step=6, message="지도에 등록 중", thumb_url=thumb_url or None)
+        oid = step_register(meta, las_info, "", "", "", "", thumb_url)
+    extra = {"objectid": oid} if oid else {}
+    extra.update(splat_fields(meta, q))
+    with open(os.path.join(out_dir, "pipeline_result.json"), "w", encoding="utf-8") as f:
+        json.dump(dict(job_id=job_id, mode=meta.get("mode"), thumb_url=thumb_url, objectid=oid, seconds=round(time.time() - T0, 1)), f, ensure_ascii=False, indent=2)
+    what = "영상" if is_video else f"사진 {meta.get('photo_count', '')}장"
+    q.update(step=7, status="done", message=f"{what} 등록 완료 — 3D 생성 대기(GPU)" if extra.get("splat_status") == "pending" else f"{what} 등록 완료",
+             thumb_url=thumb_url or None, **extra)
+    log(f"웹 3D 작업 완료 {round(time.time() - T0, 1)}s")
 
 
 def rebuild_glb(meta, q):
@@ -457,6 +749,8 @@ def main():
         return rebuild_glb(meta, q)
     job_id, out_dir = meta["job_id"], os.path.join(meta["job_dir"], "out")
     os.makedirs(out_dir, exist_ok=True)
+    if meta.get("mode") in ("video", "photos"):              # 웹 3D 현장조사
+        return video_job(meta, q, out_dir, job_id)
     service_name = "kgeoscan_" + time.strftime("%Y%m%d_%H%M%S")
     prev_slpk = [f for f in os.listdir(out_dir) if f.endswith(".slpk")]
     if prev_slpk:
@@ -477,7 +771,21 @@ def main():
     glb_url = step_glb(glb_path, job_id)
     thumb_url = step_thumb(meta, out_dir, job_id)
     ortho_url = step_ortho(out_dir, job_id)
-    q.update(step=4, message="SLPK 생성 중", glb_url=glb_url, thumb_url=thumb_url or None, ortho_url=ortho_url or None)
+    hz = {}
+    if ortho_url:
+        try:
+            hazards_url, changes_url, site_id = step_hazards(meta, out_dir, job_id)
+            hz = dict(hazards_url=hazards_url or None, changes_url=changes_url or None, site_id=site_id)
+        except Exception as e:                             # 위험요소 이력은 부가 기능 — 실패해도 발행은 계속
+            log(f"위험요소 이력 생략: {e}")
+    if (meta.get("trench") or {}).get("mode"):
+        try:
+            q.update(message="굴착 기록: 관 자동 추출 중")
+            util_url, rep_url = step_utilities(meta, out_dir, job_id)
+            hz.update(utilities_url=util_url or None, utility_report_url=rep_url or None, trench=meta.get("trench"))
+        except Exception as e:                             # 굴착 기록도 부가 단계 — 3D·지도 발행은 계속
+            log(f"굴착 기록 생략: {e}")
+    q.update(step=4, message="SLPK 생성 중", glb_url=glb_url, thumb_url=thumb_url or None, ortho_url=ortho_url or None, **hz)
     heading = float(meta.get("georef", {}).get("heading", 0.0)) if meta["mode"] in ("stray", "objcap") else 0.0
     slpk = step_slpk(glb_path, out_dir, las_info, service_name, heading)
     slpk_item_id = scene_item_id = scene_url = ""

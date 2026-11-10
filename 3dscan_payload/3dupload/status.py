@@ -27,6 +27,9 @@ def main():
         "scene_item_id": q.get("scene_item_id"), "glb_url": q.get("glb_url"),
         "splat_status": q.get("splat_status"), "splat_url": q.get("splat_url"), "splat_message": q.get("splat_message"),
         "ortho_url": q.get("ortho_url"), "area": q.get("area"),
+        "site_id": q.get("site_id"), "hazards_url": q.get("hazards_url"), "changes_url": q.get("changes_url"),
+        "objectid": q.get("objectid"), "splat_kind": q.get("splat_kind"), "quality": q.get("quality"),
+        "trench": q.get("trench"), "utilities_url": q.get("utilities_url"), "utility_report_url": q.get("utility_report_url"),
         "updated_at": q.get("updated_at"), "error_detail": q.get("error_detail"),
     })
 
