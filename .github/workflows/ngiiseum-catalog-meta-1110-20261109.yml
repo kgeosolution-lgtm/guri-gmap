@@ -1,0 +1,55 @@
+name: NGII catalog-meta-1110
+on:
+  push:
+    branches: [codex/ngiiseum-catalog-meta-1110-20261109]
+    paths: [.github/workflows/ngiiseum-catalog-meta-1110-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: catalog-meta-1110
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $ProgressPreference='SilentlyContinue'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'HOST_REJECTED'}
+          $service='D:\services\ngiiseum'
+          if(-not (Test-Path -LiteralPath $service -PathType Container) -or ((Get-Item -LiteralPath $service).Attributes -band [IO.FileAttributes]::ReparsePoint)){throw 'SERVICE_BOUNDARY_REJECTED'}
+          $payload=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('W3sibmFtZSI6ImNhdGFsb2ctdHJhbnNmZXItMjAyNjExMTAuanNvbiIsInNoYTI1NiI6ImQ4MWZhODViZTQ4ZDI5NzMzMjM5MzYyOGU1MTNiYWU4YTA1ZGYzNDc3ZDE2MzM3OTExMWJiNDY2YThiMDRmMWIiLCJieXRlcyI6Mzg2LCJiYXNlNjQiOiJld29nSUNKelkyaGxiV0ZXWlhKemFXOXVJam9nTVN3S0lDQWlhV1FpT2lBaVkyRjBZV3h2WnkweU1ESTJNVEV4TUNJc0NpQWdJbVpwYkdWeklqb2dXd29nSUNBZ2V3b2dJQ0FnSUNBaWFXUWlPaUFpY0dGeWRDMHdNREFpTEFvZ0lDQWdJQ0FpYzJoaE1qVTJJam9nSWpJek9EVTBOelJqTm1Fd01qTTFZV1U1TkRneE4yTmhZamszTmpsaVlXVTNZak13TVRVd1pHVXlNRGMxTldObE5tWTVNREkxWW1VMk9ERTFOelprTkdRaUxBb2dJQ0FnSUNBaVlubDBaWE1pT2lBME1qazBPVFkzTWprMkNpQWdJQ0I5TEFvZ0lDQWdld29nSUNBZ0lDQWlhV1FpT2lBaWNHRnlkQzB3TURFaUxBb2dJQ0FnSUNBaWMyaGhNalUySWpvZ0lqUTBZekkxT1RZeE5HRmlaV016TjJVMk5qa3hNR0U1TmpjeU1EWm1ZVGswT0RWaE9UUmtaVFF4TlRRelpqYzBNemswTXpFMlkyVm1aR00zT0RObU9UZ2lMQW9nSUNBZ0lDQWlZbmwwWlhNaU9pQTFNVFExTkRReE5UVUtJQ0FnSUgwS0lDQmRMQW9nSUNKaWVYUmxjeUk2SURRNE1EazFNVEUwTlRFS2ZRbz0ifSx7Im5hbWUiOiJjYXRhbG9nLWFyY2hpdmUtMjAyNjExMTAuanNvbiIsInNoYTI1NiI6ImQ3N2QzMWZiYzIyYTkyMmZmYTBlNjcyZWU5NjQ1ZWE1MzcxMjkxMWViM2U3MjBkNWVhMTdkNTgyMTJiNjU5ZTQiLCJieXRlcyI6MjYyLCJiYXNlNjQiOiJldzBLSUNBaWMyTm9aVzFoVm1WeWMybHZiaUk2SURFc0RRb2dJQ0pwWkNJNklDSmpZWFJoYkc5bkxUSXdNall4TVRFd0lpd05DaUFnSW5Ob1lUSTFOaUk2SUNJNU1EQTRPRFkwWmprMU16SXdaRFl4T0dVek1XWXhNRFJsTVdJME1qY3dOREJtT0RCbVpXSmtPVGRpWVRCak16Y3hZak0yTVdSbU1XUXdaREprTURJNElpd05DaUFnSW1KNWRHVnpJam9nTkRnd09UVXhNVFExTVN3TkNpQWdJbkJoY25Seklqb2dXdzBLSUNBZ0lDSndZWEowTFRBd01DSXNEUW9nSUNBZ0luQmhjblF0TURBeElnMEtJQ0JkTEEwS0lDQWlabWxzWlVOdmRXNTBJam9nTXl3TkNpQWdJbVp2Y20xaGRDSTZJQ0o2YVhBMk5DMXpkRzl5WlNJTkNuME5DZz09In1d'))|ConvertFrom-Json
+          if(@($payload).Count -ne 2){throw 'METADATA_COUNT_REJECTED'}
+          function Hash-Bytes([byte[]]$Bytes){$sha=[Security.Cryptography.SHA256]::Create();try{return ([BitConverter]::ToString($sha.ComputeHash($Bytes))).Replace('-','').ToLowerInvariant()}finally{$sha.Dispose()}}
+          $prepared=@()
+          foreach($entry in $payload){
+           if($entry.name -notin @('catalog-transfer-20261110.json','catalog-archive-20261110.json')){throw 'METADATA_NAME_REJECTED'}
+           $bytes=[Convert]::FromBase64String($entry.base64)
+           if($bytes.Length -ne $entry.bytes -or (Hash-Bytes $bytes) -ne $entry.sha256){throw 'METADATA_PAYLOAD_HASH_REJECTED'}
+           $target=Join-Path $service $entry.name
+           $exists=Test-Path -LiteralPath $target
+           if($exists){
+            if((Get-Item -LiteralPath $target).Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'METADATA_LINK_REJECTED'}
+            if((Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant() -ne $entry.sha256){throw 'EXISTING_METADATA_DIFFERS_NO_OVERWRITE'}
+           }
+           $prepared+=@{entry=$entry;target=$target;bytes=$bytes;exists=$exists}
+          }
+          $readback=@()
+          foreach($item in $prepared){
+           if(-not $item.exists){
+            $temporary=$item.target+'.'+[Guid]::NewGuid().ToString('N')+'.tmp'
+            try{
+             [IO.File]::WriteAllBytes($temporary,$item.bytes)
+             [IO.File]::Move($temporary,$item.target)
+            }finally{if(Test-Path -LiteralPath $temporary){Remove-Item -LiteralPath $temporary -Force}}
+           }
+           $file=Get-Item -LiteralPath $item.target
+           $actual=(Get-FileHash -LiteralPath $item.target -Algorithm SHA256).Hash.ToLowerInvariant()
+           if($file.Length -ne $item.entry.bytes -or $actual -ne $item.entry.sha256){throw 'METADATA_READBACK_FAILED'}
+           $readback+=@{name=$item.entry.name;bytes=$file.Length;sha256=$actual;created=(-not $item.exists)}
+          }
+          @{metadataReady=$true;id='catalog-20261110';files=$readback;databaseChanged=$false;drawingFilesTransferred=$false;verifiedAt=[DateTime]::UtcNow.ToString('o')}|ConvertTo-Json -Depth 8 -Compress
+          
