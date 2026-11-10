@@ -1,0 +1,147 @@
+name: NGII catalog-calendar-acl-repair-1110
+on:
+  push:
+    branches: [codex/ngiiseum-catalog-calendar-acl-repair-1110-20261109]
+    paths: [.github/workflows/ngiiseum-catalog-calendar-acl-repair-1110-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: catalog-calendar-acl-repair-1110
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $ProgressPreference='SilentlyContinue'
+          # PRIVATE ONE-TIME OPERATION. Caller must first confirm the shared deployment queue is idle.
+          # Does not run a release, alter business rows, modify function bodies, or create PUBLIC grants.
+          # Root runs this only after independent review. The existing install lock is held throughout.
+          $expected='909323ff3dcaa0516070c839fa4cee26013aa9d8'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'CALENDAR_ACL_HOST_REJECTED'}
+          $lockPath='D:\services\ngiiseum\install.lock'
+          if(-not(Test-Path -LiteralPath $lockPath -PathType Leaf)){throw 'CALENDAR_ACL_EXISTING_LOCK_REQUIRED'}
+          if((Get-Item -LiteralPath $lockPath).Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'CALENDAR_ACL_LOCK_LINK_REJECTED'}
+          $lock=$null
+          try {
+           try {$lock=[IO.File]::Open($lockPath,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::None)} catch {throw 'CALENDAR_ACL_INSTALL_BUSY'}
+           $code=@'
+          import fs from 'node:fs/promises';
+          import path from 'node:path';
+          import {createHash} from 'node:crypto';
+          import {createRequire} from 'node:module';
+          import {pathToFileURL} from 'node:url';
+          const service='D:/services/ngiiseum',expected=process.argv[2];
+          const dbName='ngiiseum_catalog_20261110',readerRole='ngiiseum_catalog_reader';
+          const signature='local_catalog.source_day_v1(text)';
+          const expectedBody='81a6430039041dce86150635c7ea386accda50b5b7eaac3b2382305e6b09d251';
+          const receiptPath=service+'/catalog-calendar-acl-repair-20261110.json';
+          const sha=x=>createHash('sha256').update(x).digest('hex');
+          const samePath=(a,b)=>typeof a==='string'&&path.resolve(a).toLowerCase()===path.resolve(b).toLowerCase();
+          const demand=(ok,code)=>{if(!ok)throw Error(code);};
+          const proof={checkedAt:new Date().toISOString(),passed:false,grantCommitted:false,oldGrant:null,newGrant:null,definitionSha256:expectedBody,handlerChecks:[],businessRowsWritten:false};
+          let ownerClient,readerClient,catalogReader,transaction=false,receiptHandle,commitAttempted=false,commitAcknowledged=false;
+          async function noLinks(file){
+           let p=path.resolve(file);const root=path.resolve(service);
+           demand(p.toLowerCase().startsWith(root.toLowerCase()+path.sep),'ACL_PATH_REJECTED');
+           while(true){demand(!(await fs.lstat(p)).isSymbolicLink(),'ACL_LINK_REJECTED');if(samePath(p,root))break;p=path.dirname(p);}
+          }
+          const functionSql=`select p.oid::text oid,p.prosrc,p.provolatile,p.proisstrict,p.proparallel,p.prosecdef,p.proconfig,p.prokind,
+           p.pronargs,p.prorettype='date'::regtype returns_date,l.lanname,owner.rolname owner,
+           has_function_privilege($2,p.oid,'EXECUTE') reader_execute,
+           exists(select 1 from aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a where a.grantee=0 and a.privilege_type='EXECUTE') public_execute,
+           coalesce((select jsonb_agg(jsonb_build_array(a.grantor::text,a.grantee::text,a.privilege_type,a.is_grantable) order by a.grantor,a.grantee,a.privilege_type,a.is_grantable) from aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a where a.grantee<>(select oid from pg_roles where rolname=$2)),'[]'::jsonb) other_acl,
+           exists(select 1 from aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a where a.grantee=(select oid from pg_roles where rolname=$2) and a.privilege_type='EXECUTE' and a.is_grantable) reader_grant_option
+           from pg_proc p join pg_language l on l.oid=p.prolang join pg_roles owner on owner.oid=p.proowner where p.oid=to_regprocedure($1)`;
+          async function inspectFunction(){
+           const rows=(await ownerClient.query(functionSql,[signature,readerRole])).rows;
+           demand(rows.length===1,'ACL_FUNCTION_MISSING');const f=rows[0];
+           demand(f.provolatile==='i'&&f.proisstrict&&f.proparallel==='s'&&!f.prosecdef&&f.prokind==='f'&&f.pronargs===1&&f.returns_date&&f.lanname==='plpgsql'&&f.owner==='ngiiseum_owner','ACL_FUNCTION_PROPERTIES_REJECTED');
+           demand(JSON.stringify(f.proconfig)===JSON.stringify(['search_path=pg_catalog']),'ACL_FUNCTION_SEARCH_PATH_REJECTED');
+           demand(sha(f.prosrc.replaceAll('\r\n','\n'))===expectedBody,'ACL_FUNCTION_BODY_CHANGED');
+           demand(!f.public_execute&&!f.reader_grant_option,'ACL_PUBLIC_OR_GRANT_OPTION_REJECTED');return f;
+          }
+          async function inspectReader(){
+           const i=(await readerClient.query("select current_user role,current_database() db,inet_server_port() port,current_setting('default_transaction_read_only') readonly,current_setting('transaction_read_only') transaction_readonly")).rows[0];
+           demand(i.role===readerRole&&i.db===dbName&&i.port===49326&&i.readonly==='on'&&i.transaction_readonly==='on','ACL_READER_DEFAULT_NOT_READ_ONLY');
+           const permissions=(await readerClient.query(`select
+           (select count(*)::int from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('local_catalog','local_flow') and c.relkind in ('r','p','v','m','f') and has_table_privilege(current_user,c.oid,'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')) writable,
+           (select count(*)::int from pg_namespace n where n.nspname in ('public','local_catalog','local_flow') and has_schema_privilege(current_user,n.oid,'CREATE')) creatable,
+           (select rolsuper or rolcreaterole or rolcreatedb or rolreplication or rolbypassrls from pg_roles where rolname=current_user) privileged`)).rows[0];
+           demand(permissions.writable===0&&permissions.creatable===0&&!permissions.privileged,'ACL_READER_WRITE_PRIVILEGE_REJECTED');
+           return {defaultReadOnly:true,writableTables:0,creatableSchemas:0};
+          }
+          async function checkRoute(route,query,ready=false){
+           let statusCode=0,body;const res={set statusCode(v){statusCode=v;},setHeader(){},end(v){body=v;}};
+           await catalogReader.handle({method:'GET'},res,route,new URL('http://127.0.0.1/'+route+'?'+query));
+           let payload;try{payload=JSON.parse(body);}catch{}
+           const ok=statusCode===200&&payload?.server_snapshot?.id==='catalog-20261110'&&payload.read_only===true&&(!ready||payload.status==='ready');
+           proof.handlerChecks.push({route,query,statusCode,passed:ok});
+           return ok;
+          }
+          try {
+           demand(process.env.COMPUTERNAME==='KGO-GIS'&&expected==='909323ff3dcaa0516070c839fa4cee26013aa9d8'&&!process.env.PGOPTIONS,'ACL_HOST_RELEASE_OR_OPTIONS_REJECTED');
+           const files={current:service+'/current.json',online:service+'/online.local.json',owner:service+'/postgres.local.json',catalog:service+'/catalog.local.json'};
+           const bytes={},config={};for(const [key,file]of Object.entries(files)){await noLinks(file);bytes[key]=await fs.readFile(file);config[key]=JSON.parse(bytes[key]);}
+           const {current,online,owner,catalog}=config;
+           demand(current.commit===expected,'ACL_RUNTIME_CHANGED');
+           demand(online.publicUrl==='https://kgeodata.com/app/ngiiseum'&&online.port===4190&&samePath(online.catalogConfigFile,files.catalog)&&!Object.hasOwn(online,'dataTransfer'),'ACL_ONLINE_CONFIGURATION_REJECTED');
+           demand(owner.host==='127.0.0.1'&&owner.port===49326&&owner.user==='ngiiseum_owner','ACL_OWNER_CONFIGURATION_REJECTED');
+           demand(catalog.snapshotId==='catalog-20261110'&&samePath(catalog.datasetRoot,service+'/data/catalog-20261110')&&samePath(catalog.reviewManifestFile,service+'/data/real50-20261109/review/manifest.json'),'ACL_CATALOG_CONFIGURATION_REJECTED');
+           demand(catalog.database?.host==='127.0.0.1'&&catalog.database.port===49326&&catalog.database.database===dbName&&catalog.database.user===readerRole,'ACL_READER_CONFIGURATION_REJECTED');
+           const runtime=service+'/releases/'+expected,schema=runtime+'/packages/local-workflow/source-calendar-schema.sql';
+           await noLinks(schema);const sql=(await fs.readFile(schema,'utf8')).replaceAll('\r\n','\n');
+           const match=sql.match(/CREATE OR REPLACE FUNCTION local_catalog\.source_day_v1\(value text\) RETURNS date\s+LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE SET search_path=pg_catalog AS \$\$([\s\S]*?)\$\$;/);
+           demand(match&&sha(match[1])===expectedBody,'ACL_REPOSITORY_DEFINITION_CHANGED');
+           // Exclusive private receipt also prevents accidental repeated invocation. No existing receipt is overwritten.
+           receiptHandle=await fs.open(receiptPath,'wx');
+           await receiptHandle.writeFile(JSON.stringify({...proof,state:'started'})+'\n');
+           const require=createRequire(runtime+'/package.json'),{Client}=require('pg');
+           const connection=c=>new Client({host:c.host,port:c.port,user:c.user,password:c.password,database:dbName,connectionTimeoutMillis:5000,query_timeout:30000});
+           ownerClient=connection(owner);readerClient=connection(catalog.database);
+           await ownerClient.connect();await readerClient.connect();
+           const identity=(await ownerClient.query("select current_user role,current_database() db,inet_server_port() port,current_setting('data_directory') directory")).rows[0];
+           demand(identity.role==='ngiiseum_owner'&&identity.db===dbName&&identity.port===49326&&samePath(identity.directory,service+'/postgres-data'),'ACL_CLUSTER_IDENTITY_REJECTED');
+           proof.readerBefore=await inspectReader();
+           await ownerClient.query('begin');transaction=true;
+           await ownerClient.query("set local lock_timeout='2s'");await ownerClient.query("set local statement_timeout='15s'");
+           const before=await inspectFunction();proof.oldGrant=before.reader_execute;
+           if(!before.reader_execute)await ownerClient.query('GRANT EXECUTE ON FUNCTION local_catalog.source_day_v1(text) TO ngiiseum_catalog_reader');
+           const after=await inspectFunction();
+           demand(after.oid===before.oid&&after.reader_execute&&JSON.stringify(after.other_acl)===JSON.stringify(before.other_acl),'ACL_POST_GRANT_MISMATCH');
+           commitAttempted=true;await ownerClient.query('commit');commitAcknowledged=true;transaction=false;proof.grantCommitted=!before.reader_execute;proof.newGrant=after.reader_execute;
+           proof.readerAfter=await inspectReader();
+           const date=(await readerClient.query("select local_catalog.source_day_v1('20251118')::text valid,local_catalog.source_day_v1('20250230')::text invalid")).rows[0];
+           demand(date.valid==='2025-11-18'&&date.invalid===null,'ACL_PARSER_SMOKE_FAILED');
+           const {createCatalogReader}=await import(pathToFileURL(runtime+'/server/catalog-reader.mjs').href);
+           catalogReader=await createCatalogReader(catalog);
+           const routeResults=[];
+           routeResults.push(await checkRoute('local-api/source-calendar','table=KCR_PMSRGST&month=2025-11&day=2025-11-18&drawings=0&q=&offset=0&limit=25',true));
+           routeResults.push(await checkRoute('local-api/data-tables','table=KCR_PMSRGST&scope=catalog&start=2025-11-18&end=2025-11-18&offset=0&limit=25'));
+           routeResults.push(await checkRoute('local-api/overview',''));
+           for(const [key,file]of Object.entries(files))demand(sha(await fs.readFile(file))===sha(bytes[key]),'ACL_CONFIGURATION_CHANGED');
+           demand(routeResults.every(Boolean),'ACL_HANDLER_CHECK_FAILED');
+           proof.passed=true;proof.state='verified';
+          } catch(error) {
+           if(transaction){try{await ownerClient.query('rollback');}catch{}transaction=false;}
+           if(commitAttempted&&!commitAcknowledged){proof.state='commit_outcome_unknown';proof.grantCommitted=null;proof.manualReadbackRequired=true;proof.automaticRetryAllowed=false;}
+           else proof.state=proof.grantCommitted?'grant_committed_verification_failed':'failed_before_commit';
+           proof.errorCode=/^ACL_[A-Z0-9_]+$/.test(error.message??'')?error.message:/^[0-9A-Z]{5}$/.test(error.code??'')?error.code:'ACL_OPERATION_FAILED';
+          } finally {
+           if(catalogReader)try{await catalogReader.close();}catch{}
+           if(readerClient)try{await readerClient.end();}catch{}
+           if(ownerClient)try{await ownerClient.end();}catch{}
+           proof.finishedAt=new Date().toISOString();
+           if(receiptHandle){try{await receiptHandle.truncate(0);await receiptHandle.write(JSON.stringify(proof,null,2)+'\n',0,'utf8');await receiptHandle.sync();}finally{await receiptHandle.close();}}
+          }
+          console.log(JSON.stringify(proof));
+          if(!proof.passed)process.exitCode=1;
+          '@
+           $code | & node.exe --input-type=module - $expected
+           if($LASTEXITCODE -ne 0){throw 'CALENDAR_ACL_REPAIR_OR_VERIFICATION_FAILED'}
+          } finally { if($lock){$lock.Dispose()} }
+          
