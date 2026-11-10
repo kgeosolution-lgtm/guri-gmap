@@ -1,0 +1,66 @@
+name: NGII catalog-recovery-progress-1110
+on:
+  push:
+    branches: [codex/ngiiseum-catalog-recovery-progress-1110-20261109]
+    paths: [.github/workflows/ngiiseum-catalog-recovery-progress-1110-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: catalog-recovery-progress-1110
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $ProgressPreference='SilentlyContinue'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'CATALOG_RECOVERY_PROGRESS_HOST_REJECTED'}
+          $service='D:\services\ngiiseum'
+          $request='d333743fe90ccf2fa388f55af4d8236d'
+          $baseline=Join-Path $service ('catalog-baselines\'+$request)
+          $boot=(Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime()
+          $activationStarted=[DateTimeOffset]::Parse('2026-11-10T05:01:38Z').UtcDateTime
+          $stages=@()
+          foreach($name in @('stage','runtime')){
+           $folder=Join-Path $baseline $name
+           if((Test-Path -LiteralPath $folder) -and ((Get-Item -LiteralPath $folder).Attributes -band [IO.FileAttributes]::ReparsePoint)){throw 'CATALOG_RECOVERY_PROGRESS_LINK_REJECTED'}
+           $stages+=@{name=$name;exists=(Test-Path -LiteralPath $folder -PathType Container);dependenciesPresent=(Test-Path -LiteralPath (Join-Path $folder 'node_modules') -PathType Container);onlineBuildPresent=(Test-Path -LiteralPath (Join-Path $folder 'dist\online\index.html') -PathType Leaf)}
+          }
+          $logFile=Join-Path $baseline 'reconstruction.log'
+          $logState=@{exists=$false;bytes=0;modifiedAt=$null;onlineBuildSuccessMarkers=0;npmInstallSuccessMarkers=0;viteBuildSuccessMarkers=0;errorClasses=@();fullLogEmitted=$false}
+          if(Test-Path -LiteralPath $logFile -PathType Leaf){
+           $metadata=Get-Item -LiteralPath $logFile
+           if($metadata.Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'CATALOG_RECOVERY_PROGRESS_LINK_REJECTED'}
+           $logState.exists=$true;$logState.bytes=$metadata.Length;$logState.modifiedAt=$metadata.LastWriteTimeUtc.ToString('o')
+           $stream=[IO.File]::Open($logFile,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite)
+           try{
+            $length=[int][Math]::Min($stream.Length,262144);$null=$stream.Seek(-$length,[IO.SeekOrigin]::End)
+            $buffer=New-Object byte[] $length;$read=0
+            while($read -lt $length){$count=$stream.Read($buffer,$read,$length-$read);if($count -eq 0){break};$read+=$count}
+            $text=[Text.Encoding]::UTF8.GetString($buffer,0,$read)
+            $logState.onlineBuildSuccessMarkers=[Regex]::Matches($text,'Online UI built with /app/ngiiseum/ paths\.').Count
+            $logState.npmInstallSuccessMarkers=[Regex]::Matches($text,'(?m)^added \d+ packages').Count
+            $logState.viteBuildSuccessMarkers=[Regex]::Matches($text,'built in [0-9.]+[ms]').Count
+            foreach($entry in @(
+             @{name='NETWORK_OR_REGISTRY_UNAVAILABLE';pattern='ENOTFOUND|ECONNRESET|ETIMEDOUT|EAI_AGAIN|ECONNREFUSED'},
+             @{name='FILE_OR_PERMISSION_ERROR';pattern='ENOENT|EACCES|EPERM|ENAMETOOLONG'},
+             @{name='DISK_FULL';pattern='ENOSPC|no space left|not enough space'},
+             @{name='NPM_OR_BUILD_ERROR';pattern='npm (?:ERR!|error)|error during build|Build failed|failed to resolve'}
+            )){if([Regex]::IsMatch($text,$entry.pattern,[Text.RegularExpressions.RegexOptions]::IgnoreCase)){$logState.errorClasses+=,$entry.name}}
+           }finally{$stream.Dispose()}
+          }
+          $proofFile=Join-Path $baseline 'baseline.json'
+          $proof=@{exists=(Test-Path -LiteralPath $proofFile -PathType Leaf);bytes=$null;modifiedAt=$null}
+          if($proof.exists){$metadata=Get-Item -LiteralPath $proofFile;if($metadata.Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'CATALOG_RECOVERY_PROGRESS_LINK_REJECTED'};$proof.bytes=$metadata.Length;$proof.modifiedAt=$metadata.LastWriteTimeUtc.ToString('o')}
+          $current=Get-Content -LiteralPath (Join-Path $service 'current.json') -Raw|ConvertFrom-Json
+          if($current.commit -cnotmatch '^[a-f0-9]{40}$'){throw 'CATALOG_RECOVERY_PROGRESS_RELEASE_REJECTED'}
+          $config=Get-Content -LiteralPath (Join-Path $service 'online.local.json') -Raw|ConvertFrom-Json
+          $configured=$false
+          if($config.catalogConfigFile){$configured=[IO.Path]::GetFullPath($config.catalogConfigFile) -eq (Join-Path $service 'catalog.local.json')}
+          $transfer=$null -ne $config.PSObject.Properties['dataTransfer']
+          [ordered]@{checkedAt=[DateTime]::UtcNow.ToString('o');requestId=$request;readOnly=$true;lastBootUpTime=$boot.ToString('o');bootAfterActivationStarted=($boot -gt $activationStarted);stages=$stages;baselineProof=$proof;reconstructionLog=$logState;liveCommit=$current.commit;catalogConfigPresent=$configured;transferConfigPresent=$transfer;catalogSwitched=($configured -and -not $transfer);configurationValuesEmitted=$false;processInspectionSkipped=$true;stateChanged=$false;restoreOrActivationStarted=$false}|ConvertTo-Json -Depth 7 -Compress
+          
