@@ -1,0 +1,23 @@
+name: NGII drawing-restore-progress-1110
+on:
+  push:
+    branches: [codex/ngiiseum-drawing-restore-progress-1110-20261109]
+    paths: [.github/workflows/ngiiseum-drawing-restore-progress-1110-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: drawing-restore-progress-1110
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'HOST_REJECTED'}
+          $root='D:\services\ngiiseum\data\review-expansion-20261110'
+          foreach($name in @('restore-progress.json','verification.json','activation-receipt.json')){if(Test-Path (Join-Path $root $name)){Get-Content (Join-Path $root $name) -Raw}}
+          
