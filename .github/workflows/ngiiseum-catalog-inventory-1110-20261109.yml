@@ -1,0 +1,59 @@
+name: NGII catalog-inventory-1110
+on:
+  push:
+    branches: [codex/ngiiseum-catalog-inventory-1110-20261109]
+    paths: [.github/workflows/ngiiseum-catalog-inventory-1110-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: catalog-inventory-1110
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'Host boundary'}
+          $service='D:\services\ngiiseum'
+          $config=Get-Content -LiteralPath (Join-Path $service 'online.local.json') -Raw | ConvertFrom-Json
+          $current=Get-Content -LiteralPath (Join-Path $service 'current.json') -Raw | ConvertFrom-Json
+          if($current.commit -notmatch '^[a-f0-9]{40}$'){throw 'Release identity'}
+          $disk=Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='D:'" | Select-Object DeviceID,Size,FreeSpace
+          $services=@(Get-CimInstance Win32_Service | Where-Object {$_.Name -match 'postgres|filezilla' -or $_.DisplayName -match 'PostgreSQL|FileZilla'} | Select-Object Name,DisplayName,State,StartName)
+          $processes=@(Get-CimInstance Win32_Process | Where-Object {$_.Name -match '^postgres\.exe$|filezilla'} | Select-Object Name,ProcessId,ExecutablePath)
+          $fileZillaPids=@($processes | Where-Object {$_.Name -match 'filezilla'} | ForEach-Object {$_.ProcessId})
+          $listeners=@(Get-NetTCPConnection -State Listen | Where-Object {$_.LocalPort -in @(21,22,990,14147,14148,4190,49326,5432) -or $_.OwningProcess -in $fileZillaPids} | Select-Object LocalAddress,LocalPort,OwningProcess)
+          $installed=@(foreach($registry in @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*','HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*')){Get-ItemProperty -Path $registry -ErrorAction SilentlyContinue | Where-Object {$_.DisplayName -match 'FileZilla'} | Select-Object DisplayName,DisplayVersion,InstallLocation})
+          $incoming=Join-Path $service 'incoming'
+          $incomingFiles=@(if(Test-Path -LiteralPath $incoming){Get-ChildItem -LiteralPath $incoming -File -Recurse})
+          $transfer=if($config.dataTransfer){[ordered]@{enabled=$true;directory=$config.dataTransfer.directory;expectedBytes=$config.dataTransfer.expectedBytes;expiresAt=$config.dataTransfer.expiresAt;expectedHashConfigured=[bool]$config.dataTransfer.expectedSha256}}else{[ordered]@{enabled=$false}}
+          $inventory=[ordered]@{host=$env:COMPUTERNAME;checkedAt=[DateTime]::UtcNow.ToString('o');commit=$current.commit;disk=$disk;services=$services;processes=$processes;listeners=$listeners;fileZillaInstalled=$installed;transfer=$transfer;bridgeKeyPresent=(Test-Path -LiteralPath (Join-Path $service 'read-bridge.key'));incoming=[ordered]@{exists=(Test-Path -LiteralPath $incoming);fileCount=$incomingFiles.Count;bytes=($incomingFiles|Measure-Object Length -Sum).Sum};pgRestorePresent=(Test-Path -LiteralPath (Join-Path $service 'data\real50-20261109\postgres\bin\pg_restore.exe'))}
+          $inventory|ConvertTo-Json -Depth 8 -Compress
+          $code=@'
+          import fs from 'node:fs/promises';
+          import {createRequire} from 'node:module';
+          const service='D:/services/ngiiseum';
+          const sha=JSON.parse(await fs.readFile(service+'/current.json','utf8')).commit;
+          if(!/^[a-f0-9]{40}$/.test(sha))throw Error('Release identity');
+          const require=createRequire(service+'/releases/'+sha+'/package.json');
+          const pg=require('pg');
+          const config=JSON.parse(await fs.readFile(service+'/postgres.local.json','utf8'));
+          if(config.host!=='127.0.0.1'||config.port!==49326||config.user!=='ngiiseum_owner')throw Error('Database identity');
+          const db=new pg.Client({...config,database:'postgres',options:'-c default_transaction_read_only=on',connectionTimeoutMillis:5000,query_timeout:15000});
+          try{
+           await db.connect();
+           const identity=(await db.query("select current_database() database,current_user role,current_setting('server_version') version,current_setting('data_directory') data_directory,current_setting('default_transaction_read_only') read_only,(select rolcreatedb from pg_roles where rolname=current_user) can_create_database")).rows[0];
+           const databases=(await db.query("select datname,datallowconn,pg_database_size(oid)::text bytes from pg_database order by datname")).rows;
+           const available=(await db.query("select name,default_version,installed_version from pg_available_extensions where name in ('postgis','postgis_raster','pgcrypto') order by name")).rows;
+           console.log(JSON.stringify({databaseInventory:{identity,databases,available}}));
+          }finally{await db.end();}
+          '@
+          $codeFile=Join-Path $service 'catalog-inventory-20261110.mjs'
+          [IO.File]::WriteAllText($codeFile,$code,(New-Object Text.UTF8Encoding($false)))
+          & node.exe $codeFile
+          if($LASTEXITCODE -ne 0){throw 'Read-only database inventory failed'}
+          
