@@ -1,0 +1,172 @@
+name: NGII catalog-final-audit-verified-1110
+on:
+  push:
+    branches: [codex/ngiiseum-catalog-final-audit-verified-1110-20261109]
+    paths: [.github/workflows/ngiiseum-catalog-final-audit-verified-1110-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: catalog-final-audit-verified-1110
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $ProgressPreference='SilentlyContinue'
+          # Read-only final audit template. The caller runs this only after activation.
+          # No server file, service, configuration, source drawing, or database is changed.
+          $expected='f6b674c7c5e4a3b9ce9496073921f9585d17d837'
+          if($env:COMPUTERNAME -ne 'KGO-GIS' -or $expected -cnotmatch '^[a-f0-9]{40}$'){throw 'CATALOG_FINAL_AUDIT_HOST_OR_RELEASE_REJECTED'}
+          $code=@'
+          import fs from 'node:fs/promises';
+          import {get as httpGet} from 'node:http';
+          import path from 'node:path';
+          import {createHash} from 'node:crypto';
+          import {createRequire} from 'node:module';
+          const service='D:/services/ngiiseum',expected=process.argv[2],catalogId='catalog-20261110';
+          const pilotName='ngiiseum_review_real50_20261109',catalogName='ngiiseum_catalog_20261110';
+          const tables=['local_flow.job','local_flow.drawing','local_flow.permit','local_flow.cad_selection','local_flow.day_review','local_flow.review_label','local_flow.training_label','online_review.audit'];
+          const sourceNames=['job','drawing','permit'];
+          // Independent aggregate readback from the original successful stage action.
+          // These counts ground baseline completeness; they are not a signature of rows.
+          const stageCompleteness={runId:42742287497,jobId:129586021855,commit:'64e532da245d8a07e1f27a84a546151a5fe634d5',evidenceSha256:'a7b935f1880fde9ce0826aa6b8efad178e8be164f3851388cff34264106112e6',sourceCounts:{job:1119,drawing:72776,permit:2348},historyMinimumCounts:{'local_flow.cad_selection':62,'local_flow.review_label':11,'local_flow.training_label':56,'local_flow.day_review':9,'online_review.audit':11},auditByIsTest:[{is_test:false,n:3},{is_test:true,n:8}]};
+          const digest=bytes=>createHash('sha256').update(bytes).digest('hex');
+          const samePath=(a,b)=>typeof a==='string'&&path.resolve(a).toLowerCase()===path.resolve(b).toLowerCase();
+          const requireThat=(condition,code)=>{if(!condition)throw Error(code);};
+          const validDate=value=>typeof value==='string'&&Number.isFinite(Date.parse(value));
+          const safeCount=value=>Number.isSafeInteger(value)&&value>=0;
+          async function main(){
+           requireThat(process.env.COMPUTERNAME==='KGO-GIS'&&/^[a-f0-9]{40}$/.test(expected??''),'AUDIT_HOST_OR_RELEASE_REJECTED');
+           const paths={
+            current:service+'/current.json',online:service+'/online.local.json',pilot:service+'/real-review.local.json',
+            owner:service+'/postgres.local.json',catalog:service+'/catalog.local.json',
+            receipt:service+'/catalog-20261110-verification.json',baseline:service+'/catalog-review-baseline.private.json',
+            manifest:service+'/data/catalog-20261110/manifest.json',transfer:service+'/catalog-transfer-20261110.json',
+            reviewManifest:service+'/data/real50-20261109/review/manifest.json',
+           };
+           const bytes={},data={};
+           for(const [key,file]of Object.entries(paths)){
+            let current=file;
+            while(samePath(current,service)||current.toLowerCase().startsWith(service.toLowerCase().replaceAll('/',path.sep)+path.sep)||current.startsWith(service+'/')){
+             requireThat(!(await fs.lstat(current)).isSymbolicLink(),'AUDIT_FILE_LINK_REJECTED');
+             if(samePath(current,service))break;
+             current=path.dirname(current);
+            }
+            bytes[key]=await fs.readFile(file);data[key]=JSON.parse(bytes[key]);
+           }
+           const {current,online,pilot,owner,catalog,receipt,baseline,manifest,reviewManifest}=data;
+           requireThat(current.commit===expected,'AUDIT_RELEASE_CHANGED');
+           requireThat(online.publicUrl==='https://kgeodata.com/app/ngiiseum'&&online.port===4190&&samePath(online.reviewPilotFile,paths.pilot)&&samePath(online.catalogConfigFile,paths.catalog)&&!Object.hasOwn(online,'dataTransfer'),'AUDIT_ONLINE_CONFIGURATION_REJECTED');
+           requireThat(owner.host==='127.0.0.1'&&owner.port===49326&&owner.user==='ngiiseum_owner','AUDIT_CLUSTER_CONFIG_REJECTED');
+           requireThat(pilot.database?.host==='127.0.0.1'&&pilot.database.port===49326&&pilot.database.database===pilotName&&pilot.database.user==='ngiiseum_review_app'&&samePath(pilot.datasetRoot,path.dirname(paths.reviewManifest)),'AUDIT_PILOT_CONFIG_REJECTED');
+           requireThat(catalog.snapshotId===catalogId&&samePath(catalog.datasetRoot,path.dirname(paths.manifest))&&samePath(catalog.reviewManifestFile,paths.reviewManifest)&&(!catalog.manifestFile||catalog.manifestFile==='manifest.json'),'AUDIT_CATALOG_CONFIG_REJECTED');
+           requireThat(catalog.database?.host==='127.0.0.1'&&catalog.database.port===49326&&catalog.database.database===catalogName&&catalog.database.user==='ngiiseum_catalog_reader','AUDIT_CATALOG_READER_IDENTITY_REJECTED');
+           requireThat(receipt.catalogId===catalogId&&receipt.passed===true&&receipt.readOnly===true&&receipt.existingReviewRecordsPreserved===true&&validDate(receipt.verifiedAt),'AUDIT_VERIFICATION_RECEIPT_REJECTED');
+           requireThat(receipt.configSha256===digest(bytes.catalog)&&receipt.manifestSha256===digest(bytes.manifest)&&receipt.transferManifestSha256===digest(bytes.transfer),'AUDIT_VERIFICATION_HASH_MISMATCH');
+           requireThat(manifest.id===catalogId&&JSON.stringify(manifest.schemas)===JSON.stringify(['local_catalog','local_flow'])&&validDate(manifest.sourceSnapshotAt??manifest.createdAt),'AUDIT_MANIFEST_IDENTITY_REJECTED');
+           const tableCounts=manifest.tableCounts??{},countKeys=Object.keys(tableCounts).sort();
+           requireThat(countKeys.length===40&&JSON.stringify(countKeys)===JSON.stringify(Object.keys(receipt.counts??{}).sort())&&countKeys.every(name=>/^(local_catalog|local_flow)\.[a-z_]+$/.test(name)&&safeCount(tableCounts[name])&&receipt.counts[name]===tableCounts[name]),'AUDIT_VERIFIED_COUNTS_MISMATCH');
+           requireThat(receipt.snapshot?.id===catalogId&&receipt.snapshot.read_only===true&&receipt.snapshot.storage==='server'&&receipt.snapshot.sourceSnapshotAt===(manifest.sourceSnapshotAt??manifest.createdAt),'AUDIT_SNAPSHOT_RECEIPT_REJECTED');
+           requireThat(reviewManifest.id==='real50-20261109'&&Array.isArray(reviewManifest.selected)&&reviewManifest.selected.length===50&&new Set(reviewManifest.selected.map(row=>row.jobId)).size===50,'AUDIT_PILOT_MANIFEST_REJECTED');
+           requireThat(JSON.stringify(Object.keys(baseline).sort())===JSON.stringify([...tables].sort()),'AUDIT_BASELINE_TABLE_SCOPE_REJECTED');
+           for(const table of tables){
+            const rows=baseline[table];
+            requireThat(Array.isArray(rows)&&rows.every(row=>typeof row.id==='string'&&row.id.length>0&&row.id.length<=256&&/^[a-f0-9]{32}$/.test(row.hash??''))&&new Set(rows.map(row=>row.id)).size===rows.length,'AUDIT_BASELINE_ROWS_REJECTED');
+           }
+           for(const name of sourceNames)requireThat(reviewManifest.counts?.[name]===stageCompleteness.sourceCounts[name]&&baseline['local_flow.'+name].length===reviewManifest.counts[name],'AUDIT_BASELINE_SOURCE_INCOMPLETE');
+           for(const [table,minimum]of Object.entries(stageCompleteness.historyMinimumCounts))requireThat(baseline[table].length>=minimum,'AUDIT_BASELINE_HISTORY_INCOMPLETE');
+           const baselineCompletenessProof={stageRunId:stageCompleteness.runId,stageJobId:stageCompleteness.jobId,stageCommit:stageCompleteness.commit,stageEvidenceSha256:stageCompleteness.evidenceSha256,sourceExactCounts:stageCompleteness.sourceCounts,historyMinimumCounts:stageCompleteness.historyMinimumCounts,baselineCounts:Object.fromEntries(tables.map(table=>[table,baseline[table].length])),baselineSha256:digest(bytes.baseline),completenessVerified:true,independentlySignedRowContents:false};
+           const require=createRequire(service+'/releases/'+expected+'/package.json'),{Client}=require('pg');
+           const connection=(config,database,forceReadOnly)=>new Client({host:config.host,port:config.port,user:config.user,password:config.password,database,connectionTimeoutMillis:5000,query_timeout:30000,...(forceReadOnly?{options:'-c default_transaction_read_only=on'}:{})});
+           const cluster=connection(owner,'postgres',true);
+           try{
+            await cluster.connect();
+            const identity=(await cluster.query("select current_user role,current_database() database,inet_server_port() port,current_setting('data_directory') directory,current_setting('default_transaction_read_only') read_only")).rows[0];
+            requireThat(identity.role==='ngiiseum_owner'&&identity.database==='postgres'&&identity.port===49326&&identity.read_only==='on'&&samePath(identity.directory,service+'/postgres-data'),'AUDIT_CLUSTER_IDENTITY_MISMATCH');
+           }finally{await cluster.end();}
+           const review=connection(pilot.database,pilotName,true),preservation={},sourceCounts={},nonTestCounts={};
+           let activeJobs,receiving,protections,audit;
+           try{
+            await review.connect();await review.query('begin isolation level repeatable read read only');
+            const identity=(await review.query("select current_user role,current_database() database,inet_server_port() port,current_setting('transaction_read_only') read_only,current_setting('transaction_isolation') isolation")).rows[0];
+            requireThat(identity.role==='ngiiseum_review_app'&&identity.database===pilotName&&identity.port===49326&&identity.read_only==='on'&&identity.isolation==='repeatable read','AUDIT_PILOT_TRANSACTION_IDENTITY_MISMATCH');
+            // Keep all IDs and row hashes private in memory. Emit aggregate counts only.
+            for(const table of tables){
+             const rows=(await review.query('select id::text id,md5(row_to_json(t)::text) hash from '+table+' t order by id')).rows;
+             const found=new Map(rows.map(row=>[row.id,row.hash])),original=new Set(baseline[table].map(row=>row.id));
+             requireThat(found.size===rows.length,'AUDIT_PILOT_DUPLICATE_ID_REJECTED');
+             let missing=0,changed=0;
+             for(const row of baseline[table]){if(!found.has(row.id))missing++;else if(found.get(row.id)!==row.hash)changed++;}
+             preservation[table]={before:baseline[table].length,now:rows.length,missing,changed,newRows:rows.filter(row=>!original.has(row.id)).length};
+            }
+            for(const name of sourceNames){
+             sourceCounts[name]=preservation['local_flow.'+name].now;
+             requireThat(safeCount(reviewManifest.counts?.[name])&&sourceCounts[name]===reviewManifest.counts[name],'AUDIT_PILOT_SOURCE_COUNT_CHANGED');
+            }
+            activeJobs=(await review.query("select count(*)::int n from local_flow.job where status in ('queued','running')")).rows[0].n;
+            receiving=(await review.query("select count(*)::int n from local_flow.folder where status='receiving'")).rows[0].n;
+            protections=(await review.query("select count(*)::int n,count(distinct t.tgrelid)::int tables from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace s on s.oid=c.relnamespace where s.nspname='local_flow' and c.relname in ('job','drawing','permit') and t.tgname='review_source_immutable' and not t.tgisinternal and t.tgenabled in ('O','A')")).rows[0];
+            audit=(await review.query('select is_test,count(*)::int n from online_review.audit group by is_test order by is_test')).rows;
+            requireThat(stageCompleteness.auditByIsTest.every(original=>(audit.find(row=>row.is_test===original.is_test)?.n??0)>=original.n),'AUDIT_STAGE_AUDIT_COUNTS_DECREASED');
+            for(const table of ['cad_selection','review_label','training_label','day_review'])nonTestCounts[table]=(await review.query('select count(*)::int n from local_flow.'+table+' where not is_test')).rows[0].n;
+            await review.query('rollback');
+           }finally{await review.end();}
+           // Do not force the reader's default: verify the actual role login setting first.
+           const reader=connection(catalog.database,catalogName,false);let readerPermissions;
+           try{
+            await reader.connect();
+            const login=(await reader.query("select current_user role,current_database() database,inet_server_port() port,current_setting('default_transaction_read_only') read_only")).rows[0];
+            requireThat(login.role==='ngiiseum_catalog_reader'&&login.database===catalogName&&login.port===49326&&login.read_only==='on','AUDIT_CATALOG_READER_NOT_READ_ONLY');
+            await reader.query('begin isolation level repeatable read read only');
+            const flags=(await reader.query('select rolsuper,rolcreaterole,rolcreatedb,rolreplication,rolbypassrls from pg_roles where rolname=current_user')).rows[0];
+            requireThat(flags&&Object.values(flags).every(value=>value===false),'AUDIT_CATALOG_READER_PRIVILEGED');
+            const writes=(await reader.query("select count(*)::int n from pg_class c join pg_namespace s on s.oid=c.relnamespace where s.nspname in ('local_catalog','local_flow') and c.relkind in ('r','p') and (has_table_privilege(current_user,c.oid,'INSERT') or has_table_privilege(current_user,c.oid,'UPDATE') or has_table_privilege(current_user,c.oid,'DELETE') or has_table_privilege(current_user,c.oid,'TRUNCATE'))")).rows[0].n;
+            const create=(await reader.query("select has_database_privilege(current_user,current_database(),'CREATE') database_create,has_schema_privilege(current_user,'public','CREATE') public_create,has_schema_privilege(current_user,'local_catalog','CREATE') catalog_create,has_schema_privilege(current_user,'local_flow','CREATE') workflow_create")).rows[0];
+            requireThat(writes===0&&Object.values(create).every(value=>value===false),'AUDIT_CATALOG_READER_HAS_WRITE_PERMISSION');
+            readerPermissions={defaultReadOnly:true,transactionReadOnly:true,effectiveWritableTables:writes,canCreateDatabaseObjects:false,privilegedRole:false};
+            await reader.query('rollback');
+           }finally{await reader.end();}
+           const getJson=async url=>{const response=await fetch(url,{signal:AbortSignal.timeout(15000),redirect:'error'});requireThat(response.ok,'AUDIT_HEALTH_HTTP_FAILED');return response.json();};
+           const getLocalJson=()=>new Promise((resolve,reject)=>{
+            let settled=false,total=0;const chunks=[];
+            const finish=(error,value)=>{if(settled)return;settled=true;clearTimeout(timer);error?reject(error):resolve(value);};
+            // Node fetch rejects port 4190 as a forbidden browser port. Use only this fixed local health endpoint.
+            const request=httpGet('http://127.0.0.1:4190/healthz',response=>{
+             if(response.statusCode!==200){finish(Error('AUDIT_LOOPBACK_HEALTH_HTTP_FAILED'));response.destroy();return;}
+             response.on('data',chunk=>{total+=chunk.length;if(total>1024*1024){finish(Error('AUDIT_LOOPBACK_HEALTH_SIZE_REJECTED'));response.destroy();request.destroy();}else chunks.push(chunk);});
+             response.on('end',()=>{if(settled)return;try{finish(null,JSON.parse(Buffer.concat(chunks).toString('utf8')));}catch{finish(Error('AUDIT_LOOPBACK_HEALTH_JSON_REJECTED'));}});
+             response.on('aborted',()=>finish(Error('AUDIT_LOOPBACK_HEALTH_RESPONSE_ABORTED')));
+             response.on('error',()=>finish(Error('AUDIT_LOOPBACK_HEALTH_RESPONSE_FAILED')));
+            });
+            const timer=setTimeout(()=>{finish(Error('AUDIT_LOOPBACK_HEALTH_TIMEOUT'));request.destroy();},15000);
+            request.on('error',()=>finish(Error('AUDIT_LOOPBACK_HEALTH_UNAVAILABLE')));
+           });
+           const local=await getLocalJson(),web=await getJson('https://kgeodata.com/app/ngiiseum/deployment.json');
+           requireThat(local.commit===expected&&web.commit===expected&&web.authenticationReady===true&&web.dataMode==='server-review-pilot'&&web.writesEnabled===true&&web.reviewDatabaseMigrated===true&&web.reviewPilot?.id==='real50-20261109'&&web.reviewPilot.drawings===50,'AUDIT_HTTPS_PILOT_IDENTITY_MISMATCH');
+           requireThat(web.catalogDatabaseMigrated===true&&web.databaseMigrated===true&&web.catalogSource==='server-snapshot'&&web.catalogSnapshot?.id===catalogId&&web.catalogSnapshot.read_only===true&&web.catalogSnapshot.sourceSnapshotAt===(manifest.sourceSnapshotAt??manifest.createdAt),'AUDIT_CATALOG_NOT_ACTIVATED');
+           for(const [key,file]of Object.entries(paths))requireThat(digest(await fs.readFile(file))===digest(bytes[key]),'AUDIT_CONFIGURATION_CHANGED_DURING_READ');
+           const missing=Object.values(preservation).reduce((sum,value)=>sum+value.missing,0),changed=Object.values(preservation).reduce((sum,value)=>sum+value.changed,0);
+           const failures=[];
+           if(missing||changed)failures.push('EXISTING_REVIEW_RECORDS_CHANGED');
+           if(activeJobs||receiving)failures.push('PILOT_ACTIVE_WORK_PRESENT');
+           if(protections.n!==3||protections.tables!==3)failures.push('PILOT_SOURCE_PROTECTION_CHANGED');
+           return {passed:failures.length===0,failures,checkedAt:new Date().toISOString(),commit:expected,databaseReadOnly:true,businessDataWritten:false,serverFilesWritten:false,configurationChanged:false,baselineCompletenessProof,
+            pilot:{id:'real50-20261109',drawings:50,permits:new Set(reviewManifest.selected.map(row=>row.permitId)).size,withPosition:reviewManifest.selected.filter(row=>row.hasPosition===true).length,sourceCounts,sourceProtectionTriggers:protections.n,sourceProtectedTables:protections.tables,activeJobs,receiving,existingRowsMissing:missing,existingRowsChanged:changed,tables:preservation,auditByIsTest:audit,nonTestCounts},
+            catalog:{id:catalogId,activated:true,storage:'server',sourceSnapshotAt:manifest.sourceSnapshotAt??manifest.createdAt,schemas:manifest.schemas,verifiedTableCount:countKeys.length,verifiedTableCounts:receipt.counts,countsRequeried:false,verifiedAt:receipt.verifiedAt,verificationHashesMatch:true,configSha256:receipt.configSha256,manifestSha256:receipt.manifestSha256,transferManifestSha256:receipt.transferManifestSha256,readerPermissions},
+            online:{httpsIdentityMatched:true,reviewWritesEnabled:true,catalogDatabaseMigrated:true,transferDisabled:true,sourceConnected:web.sourceConnected===true},
+            evidenceLimits:{cadFilesRehashed:false,cadFilePreservationNotRevalidatedInThisAudit:true,actualPortalLoginTested:false,nonTestRecordsAreNotClaimedAsHumanAcceptance:true,privateIdsOrRowHashesEmitted:false}};
+          }
+          try{const result=await main();console.log(JSON.stringify(result));if(!result.passed)process.exitCode=1;}
+          catch(error){
+           const code=/^AUDIT_[A-Z_]+$/.test(error.message??'')?error.message:({ECONNREFUSED:'AUDIT_DATABASE_UNAVAILABLE',ENOENT:'AUDIT_REQUIRED_FILE_MISSING','28P01':'AUDIT_AUTHENTICATION_FAILED','42501':'AUDIT_READ_PERMISSION_DENIED','57014':'AUDIT_READ_TIMEOUT'}[error.code]??'AUDIT_READ_ONLY_CHECK_FAILED');
+           console.log(JSON.stringify({passed:false,errorClass:code,checkedAt:new Date().toISOString(),databaseWritesAttempted:false,serverFilesWritten:false,privateErrorTextEmitted:false,privateIdsOrRowHashesEmitted:false}));process.exitCode=1;
+          }
+          '@
+          $code | & node.exe --input-type=module - $expected
+          if($LASTEXITCODE -ne 0){throw 'CATALOG_FINAL_READ_ONLY_AUDIT_FAILED'}
+          
