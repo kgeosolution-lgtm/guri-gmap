@@ -1,0 +1,30 @@
+name: NGII drawing-activation-state2-1110
+on:
+  push:
+    branches: [codex/ngiiseum-drawing-activation-state2-1110-20261109]
+    paths: [.github/workflows/ngiiseum-drawing-activation-state2-1110-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: drawing-activation-state2-1110
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'HOST_REJECTED'}
+          $root='D:\services\ngiiseum\data\review-expansion-20261110';$prepared=Join-Path $root 'activation-prepared'
+          $p=Get-Content (Join-Path $prepared 'proof.json') -Raw|ConvertFrom-Json
+          $section=[Security.AccessControl.AccessControlSections]::Access
+          foreach($name in @('review','catalog')){
+          $f=$p.files.$name
+          $paths=@($f.path,(Join-Path $prepared ($name+'.before.json')),(Join-Path $prepared $(if($name -eq 'review'){'real-review.next.json'}else{'catalog.next.json'})))
+          foreach($v in $paths){if(Test-Path $v){@{name=$name;leaf=[IO.Path]::GetFileName($v);before=((Get-FileHash $v -Algorithm SHA256).Hash.ToLowerInvariant() -eq $f.before);after=((Get-FileHash $v -Algorithm SHA256).Hash.ToLowerInvariant() -eq $f.after);acl=(Get-Acl $v).GetSecurityDescriptorSddlForm($section)}|ConvertTo-Json -Compress}}
+          }
+          @{activationClaim=(Test-Path (Join-Path $root 'activation-claim.json'));recoveryClaim=(Test-Path (Join-Path $root 'activation-recovery-claim.json'));failure=(Test-Path (Join-Path $root 'activation-failure.json'))}|ConvertTo-Json -Compress
+          
