@@ -1,0 +1,36 @@
+name: NGII detach-review-runner-1110
+on:
+  push:
+    branches: [codex/ngiiseum-detach-review-runner-1110-20261109]
+    paths: [.github/workflows/ngiiseum-detach-review-runner-1110-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: detach-review-runner-1110
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'Host boundary'}
+          $helper='D:\services\ngiiseum\start-review-runner.ps1'
+          if((Get-FileHash -LiteralPath $helper -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'eafa656c5a04477cb67cba67175c08078404c95f8f80114a0aaa27f13a86db9b'){throw 'Helper changed'}
+          $owned=@(Get-CimInstance Win32_Process | Where-Object {$_.ExecutablePath -like 'D:\services\ngiiseum-runner\*' -or ($_.Name -eq 'powershell.exe' -and $_.CommandLine -like '*\ngiiseum\start-review-runner.ps1*')})
+          if($owned.Count){throw 'Existing runner process must be inspected first'}
+          if(Test-Path -LiteralPath 'D:\services\ngiiseum-runner\stop.request'){throw 'Runner stopped by operator'}
+          $code=@'
+          const {spawn}=require('node:child_process');
+          const env={...process.env,RUNNER_TRACKING_ID:'ngiiseum-review-runner-supervisor'};
+          for(const key of ['GITHUB_TOKEN','GH_TOKEN','NGII_RUNNER_REGISTRATION','ACTIONS_RUNTIME_TOKEN','ACTIONS_ID_TOKEN_REQUEST_TOKEN','ACTIONS_ID_TOKEN_REQUEST_URL'])delete env[key];
+          const child=spawn('C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe',['-NoProfile','-NonInteractive','-WindowStyle','Hidden','-File','D:/services/ngiiseum/start-review-runner.ps1'],{cwd:'D:/services/ngiiseum',detached:true,windowsHide:true,stdio:'ignore',env});
+          child.once('error',()=>{console.error('Runner supervisor spawn failed');process.exitCode=1;});
+          child.once('spawn',()=>{console.log(JSON.stringify({started:true,supervisorPid:child.pid,detached:true,existingGatewayRestarted:false}));child.unref();});
+          '@
+          & node.exe -e $code
+          if($LASTEXITCODE -ne 0){throw 'Detached supervisor failed'}
+          
