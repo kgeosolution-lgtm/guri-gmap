@@ -1,0 +1,26 @@
+name: NGII drawing-extract-progress2-1110
+on:
+  push:
+    branches: [codex/ngiiseum-drawing-extract-progress2-1110-20261109]
+    paths: [.github/workflows/ngiiseum-drawing-extract-progress2-1110-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: drawing-extract-progress2-1110
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'HOST_REJECTED'}
+          $root='D:\services\ngiiseum\data\review-expansion-20261110'
+          $p=Get-Content (Join-Path $root 'extract-progress.json') -Raw|ConvertFrom-Json
+          $process=Get-CimInstance Win32_Process -Filter ('ProcessId='+[int]$p.pid)
+          $alive=$process -and $process.CommandLine -match 'drawing-ingest-20261110\\extract-expansion.py'
+          @{phase=$p.phase;pid=$p.pid;processAlive=[bool]$alive;jobs=$p.jobs;bundles=$p.bundles;files=$p.files;bytes=$p.bytes;error=$p.error;checkedAt=$p.checkedAt}|ConvertTo-Json -Compress
+          
