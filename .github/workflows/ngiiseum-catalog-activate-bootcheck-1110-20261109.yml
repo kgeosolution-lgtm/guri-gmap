@@ -1,0 +1,108 @@
+name: NGII catalog-activate-bootcheck-1110
+on:
+  push:
+    branches: [codex/ngiiseum-catalog-activate-bootcheck-1110-20261109]
+    paths: [.github/workflows/ngiiseum-catalog-activate-bootcheck-1110-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: catalog-activate-bootcheck-1110
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $ProgressPreference='SilentlyContinue'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'CATALOG_BOOTCHECK_HOST_REJECTED'}
+          $service='D:\services\ngiiseum'
+          $request='558cbc44cb620edd24217938627d58ac'
+          $since=[DateTimeOffset]::Parse('2026-11-10T04:40:00Z').LocalDateTime
+          $os=Get-CimInstance Win32_OperatingSystem
+          $boot=$os.LastBootUpTime.ToUniversalTime().ToString('o')
+          $eventStatus='read';$events=@()
+          try{
+           $records=@(Get-WinEvent -FilterHashtable @{LogName='System';Id=@(1074,6005,6006,6008,41);StartTime=$since} -ErrorAction Stop | Sort-Object TimeCreated)
+           foreach($event in $records){
+            $category=switch([int]$event.Id){6005{'event_log_started'}6006{'event_log_stopped'}6008{'unexpected_shutdown'}41{'kernel_power_unclean'}default{'restart_request_unclassified'}}
+            if($event.Id -eq 1074){
+             # Inspect the event privately; never emit its message, XML, account or command.
+             $message=$event.Message
+             if($message -match '(?i)Windows Update|UsoClient|MoUsoCoreWorker|TiWorker|TrustedInstaller|update orchestrator'){$category='windows_update_or_servicing_restart'}
+             elseif($message -match '(?i)restart|reboot|재시작|다시 시작'){$category='restart_request'}
+             elseif($message -match '(?i)shutdown|종료'){$category='shutdown_request'}
+            }
+            $events+=@{eventId=[int]$event.Id;time=$event.TimeCreated.ToUniversalTime().ToString('o');level=[int]$event.Level;reasonCategory=$category}
+           }
+          }catch{
+           if($_.FullyQualifiedErrorId -like 'NoMatchingEventsFound*'){$eventStatus='no_matching_events'}else{$eventStatus='event_metadata_unavailable'}
+          }
+          $all=@(Get-CimInstance Win32_Process)
+          $runnerProcesses=@()
+          foreach($process in $all){
+           $readable=-not [string]::IsNullOrWhiteSpace($process.CommandLine)
+           $pathMatched=$readable -and $process.CommandLine -match '(?i)D:[\\/]services[\\/]ngiiseum-runner|start-review-runner\.ps1|D:[\\/]services[\\/]ngiiseum[\\/]run-gateway\.ps1'
+           if($process.Name -notin @('Runner.Listener.exe','Runner.Worker.exe') -and -not $pathMatched){continue}
+           $runnerProcesses+=@{name=$process.Name;pid=[int]$process.ProcessId;parentPid=[int]$process.ParentProcessId;startedAt=if($process.CreationDate){$process.CreationDate.ToUniversalTime().ToString('o')}else{$null};commandLineReadable=$readable;dedicatedPathMatched=[bool]$pathMatched}
+          }
+          $runnerServices=@()
+          foreach($runner in @(Get-CimInstance Win32_Service | Where-Object {$_.Name -like 'actions.runner.*' -or ($_.PathName -and $_.PathName -match '(?i)ngiiseum-runner|RunnerService\.exe')})){
+           $process=$all | Where-Object {$_.ProcessId -eq $runner.ProcessId} | Select-Object -First 1
+           $runnerServices+=@{name=$runner.Name;state=$runner.State;startMode=$runner.StartMode;pid=[int]$runner.ProcessId;startedAt=if($process -and $process.CreationDate){$process.CreationDate.ToUniversalTime().ToString('o')}else{$null}}
+          }
+          $gatewayTask=@{metadataAvailable=$false}
+          try{
+           $task=Get-ScheduledTask -TaskName 'NGII-Seumter-Gateway' -ErrorAction Stop
+           $info=Get-ScheduledTaskInfo -TaskName 'NGII-Seumter-Gateway' -ErrorAction Stop
+           $gatewayTask=@{metadataAvailable=$true;state=[string]$task.State;lastRunTime=$info.LastRunTime.ToUniversalTime().ToString('o');lastTaskResult=$info.LastTaskResult}
+          }catch{}
+          $related=@();$unreadable=@{node=0;powershell=0;cmd=0;git=0}
+          foreach($process in $all){
+           if($process.Name -notmatch '^(node|powershell|cmd|git)\.exe$'){continue}
+           $kind=$Matches[1].ToLowerInvariant();$readable=-not [string]::IsNullOrWhiteSpace($process.CommandLine)
+           if(-not $readable){$unreadable[$kind]++;continue}
+           if($process.CommandLine -notlike ('*'+$request+'*') -and $process.CommandLine -notmatch '(?i)catalog-release[\\/]|catalog-release\.ps1'){continue}
+           $live=Get-Process -Id $process.ProcessId -ErrorAction SilentlyContinue
+           $related+=@{name=$process.Name;pid=[int]$process.ProcessId;parentPid=[int]$process.ParentProcessId;startedAt=if($process.CreationDate){$process.CreationDate.ToUniversalTime().ToString('o')}else{$null};cpuSeconds=if($live -and $null -ne $live.CPU){[Math]::Round($live.CPU,2)}else{$null};commandLineReadable=$true}
+          }
+          $verifiedFile=Join-Path $service 'catalog-20261110-verification.json'
+          $verification=@{exists=(Test-Path -LiteralPath $verifiedFile -PathType Leaf)}
+          if($verification.exists){
+           $receipt=Get-Content -LiteralPath $verifiedFile -Raw|ConvertFrom-Json
+           if($receipt.catalogId -ne 'catalog-20261110'){throw 'CATALOG_BOOTCHECK_VERIFICATION_IDENTITY'}
+           $verification.passed=$receipt.passed -eq $true
+           $verification.readOnly=$receipt.readOnly -eq $true
+           $verification.existingReviewRecordsPreserved=$receipt.existingReviewRecordsPreserved -eq $true
+           $verification.verifiedAt=$receipt.verifiedAt
+           $verification.receiptSha256=(Get-FileHash -LiteralPath $verifiedFile -Algorithm SHA256).Hash.ToLowerInvariant()
+           $verification.configHashMatches=($receipt.configSha256 -eq (Get-FileHash -LiteralPath (Join-Path $service 'catalog.local.json') -Algorithm SHA256).Hash.ToLowerInvariant())
+           $verification.manifestHashMatches=($receipt.manifestSha256 -eq (Get-FileHash -LiteralPath (Join-Path $service 'data\catalog-20261110\manifest.json') -Algorithm SHA256).Hash.ToLowerInvariant())
+           $verification.transferManifestHashMatches=($receipt.transferManifestSha256 -eq (Get-FileHash -LiteralPath (Join-Path $service 'catalog-transfer-20261110.json') -Algorithm SHA256).Hash.ToLowerInvariant())
+          }
+          $current=Get-Content -LiteralPath (Join-Path $service 'current.json') -Raw|ConvertFrom-Json
+          if($current.commit -cnotmatch '^[a-f0-9]{40}$'){throw 'CATALOG_BOOTCHECK_RELEASE_REJECTED'}
+          $config=Get-Content -LiteralPath (Join-Path $service 'online.local.json') -Raw|ConvertFrom-Json
+          $configured=$false
+          if($config.catalogConfigFile){$configured=[IO.Path]::GetFullPath($config.catalogConfigFile) -eq (Join-Path $service 'catalog.local.json')}
+          $transfer=$null -ne $config.PSObject.Properties['dataTransfer']
+          $lockPath=Join-Path $service 'install.lock'
+          $lockState='missing';$lockExclusiveAvailable=$null
+          if(Test-Path -LiteralPath $lockPath -PathType Leaf){
+           if((Get-Item -LiteralPath $lockPath).Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'CATALOG_BOOTCHECK_LOCK_LINK_REJECTED'}
+           try{
+            # Open an EXISTING file for READ only; no creation/truncation or state write.
+            $lock=[IO.File]::Open($lockPath,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::None)
+            try{$lockState='exclusive_read_available';$lockExclusiveAvailable=$true}finally{$lock.Dispose()}
+           }catch{
+            $native=$_.Exception.HResult -band 65535
+            if($native -in @(32,33)){$lockState='sharing_or_lock_violation';$lockExclusiveAvailable=$false}
+            elseif($_.Exception -is [UnauthorizedAccessException]){$lockState='read_permission_unavailable'}
+            else{$lockState='read_open_unavailable'}
+           }
+          }
+          [ordered]@{checkedAt=[DateTime]::UtcNow.ToString('o');currentServerTime=[DateTimeOffset]::Now.ToString('o');lastBootUpTime=$boot;requestId=$request;readOnly=$true;systemEventReadStatus=$eventStatus;systemEvents=$events;systemEventMessagesEmitted=$false;runnerServices=$runnerServices;runnerProcesses=$runnerProcesses;gatewayTask=$gatewayTask;activationProcessesWithReadableCommands=$related;unreadableProcessCounts=$unreadable;processCommandsOrUsersEmitted=$false;restoreVerification=$verification;liveCommit=$current.commit;catalogConfigPresent=$configured;transferConfigPresent=$transfer;catalogSwitched=($configured -and -not $transfer);installLockState=$lockState;installLockExclusiveReadAvailable=$lockExclusiveAvailable;configurationValuesEmitted=$false;stateChanged=$false;restoreOrActivationStarted=$false}|ConvertTo-Json -Depth 8 -Compress
+          
