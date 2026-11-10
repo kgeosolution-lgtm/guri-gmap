@@ -1,0 +1,28 @@
+name: NGII drawing-restore-wait-hold-1110
+on:
+  push:
+    branches: [codex/ngiiseum-drawing-restore-wait-hold-1110-20261109]
+    paths: [.github/workflows/ngiiseum-drawing-restore-wait-hold-1110-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: drawing-restore-wait-hold-1110
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'HOST_REJECTED'}
+          $root='D:\services\ngiiseum\data\review-expansion-20261110'
+          if(Test-Path -LiteralPath (Join-Path $root 'restore-claim.json')){throw 'RESTORE_ALREADY_STARTED'}
+          $wait=Get-Content (Join-Path $root 'restore-wait.json') -Raw|ConvertFrom-Json
+          $p=Get-CimInstance Win32_Process -Filter ('ProcessId='+[int]$wait.pid)
+          if(-not $p -or $p.Name -ne 'node.exe' -or $p.CommandLine -notmatch [regex]::Escape('D:\services\ngiiseum\drawing-ingest-20261110\wait-restore.mjs')){throw 'WAIT_PROCESS_OWNERSHIP_CHANGED'}
+          Stop-Process -Id $wait.pid
+          @{waitingProcessStopped=$true;reason='Complete missing previews before first restore';databaseRestoreStarted=$false;uploadAndExtractionUnchanged=$true}|ConvertTo-Json -Compress
+          
