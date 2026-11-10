@@ -1,0 +1,55 @@
+name: NGII catalog-overview-read-1110
+on:
+  push:
+    branches: [codex/ngiiseum-catalog-overview-read-1110-20261109]
+    paths: [.github/workflows/ngiiseum-catalog-overview-read-1110-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: catalog-overview-read-1110
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $ProgressPreference='SilentlyContinue'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'HOST_REJECTED'}
+          $service='D:\services\ngiiseum'
+          $expected='f6b674c7c5e4a3b9ce9496073921f9585d17d837'
+          if((Get-Content -LiteralPath (Join-Path $service 'current.json') -Raw|ConvertFrom-Json).commit -cne $expected){throw 'CATALOG_RUNTIME_CHANGED'}
+          $code=@'
+          import fs from 'node:fs';
+          import {pathToFileURL} from 'node:url';
+          import {createHash} from 'node:crypto';
+          const service='D:/services/ngiiseum',expected='f6b674c7c5e4a3b9ce9496073921f9585d17d837';
+          const read=p=>JSON.parse(fs.readFileSync(p,'utf8'));
+          if(process.env.COMPUTERNAME!=='KGO-GIS'||read(service+'/current.json').commit!==expected)throw Error('CATALOG_RUNTIME_CHANGED');
+          const root=service+'/releases/'+expected,config=read(service+'/catalog.local.json');
+          if(config.snapshotId!=='catalog-20261110'||config.database.host!=='127.0.0.1'||config.database.port!==49326||config.database.user!=='ngiiseum_catalog_reader'||config.database.database!=='ngiiseum_catalog_20261110')throw Error('CATALOG_READER_BOUNDARY');
+          const {createCatalogReader}=await import(pathToFileURL(root+'/server/catalog-reader.mjs'));
+          const {overview}=await import(pathToFileURL(root+'/packages/local-workflow/service.mjs'));
+          const reader=await createCatalogReader(config),out={id:'catalog-20261110',runtimeCommit:expected,startedAt:new Date().toISOString(),diagnosisOnly:true,permissionsChanged:false,privateRowsEmitted:false,queries:[]};
+          const safeError=e=>({sqlstate:/^[A-Z0-9]{5}$/.test(e.code??'')?e.code:null,permissionDenied:/permission denied/i.test(e.message??''),statementTimeout:/statement timeout/i.test(e.message??''),sourceDayFunctionNamed:/source_day_v1/.test(e.message??'')});
+          try{
+           const i=(await reader.store.db.query("select current_user role,current_database() database,inet_server_port() port,current_setting('default_transaction_read_only') read_only,current_setting('statement_timeout') statement_timeout")).rows[0];
+           if(i.role!=='ngiiseum_catalog_reader'||i.database!=='ngiiseum_catalog_20261110'||i.port!==49326||i.read_only!=='on')throw Error('CATALOG_READER_IDENTITY');
+           out.readOnly=true;out.statementTimeout=i.statement_timeout;
+           const query=reader.store.db.query.bind(reader.store.db);
+           reader.store.db.query=async(text,...args)=>{
+            const start=Date.now(),sql=typeof text==='string'?text:String(text?.text??''),row={ordinal:out.queries.length+1,sha256:createHash('sha256').update(sql).digest('hex')};out.queries.push(row);
+            try{const result=await query(text,...args);row.succeeded=true;return result;}catch(e){row.succeeded=false;Object.assign(row,safeError(e));throw e;}finally{row.elapsedMs=Date.now()-start;}
+           };
+           const start=Date.now();
+           try{await overview(reader.store);out.overview={succeeded:true,elapsedMs:Date.now()-start};}catch(e){out.overview={succeeded:false,elapsedMs:Date.now()-start,...safeError(e)};}
+          }finally{await reader.close();}
+          out.runtimeUnchanged=read(service+'/current.json').commit===expected;out.finishedAt=new Date().toISOString();console.log(JSON.stringify(out));
+          '@
+          $file=Join-Path $service ('catalog-overview-diagnosis-'+[Guid]::NewGuid().ToString('N')+'.mjs')
+          [IO.File]::WriteAllText($file,$code,(New-Object Text.UTF8Encoding($false)))
+          try{& node.exe $file;if($LASTEXITCODE -ne 0){throw 'CATALOG_OVERVIEW_DIAGNOSIS_FAILED'}}finally{Remove-Item -LiteralPath $file -Force}
+          
