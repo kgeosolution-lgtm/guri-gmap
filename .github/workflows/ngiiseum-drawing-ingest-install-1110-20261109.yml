@@ -1,0 +1,61 @@
+name: NGII drawing-ingest-install-1110
+on:
+  push:
+    branches: [codex/ngiiseum-drawing-ingest-install-1110-20261109]
+    paths: [.github/workflows/ngiiseum-drawing-ingest-install-1110-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: drawing-ingest-install-1110
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $ProgressPreference='SilentlyContinue'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'HOST_REJECTED'}
+          $service='D:\services\ngiiseum'
+          $root=Join-Path $service 'drawing-ingest-20261110'
+          $web='D:\codesolution\kgeodata\ngiiseum\web.config'
+          $lock=[IO.File]::Open((Join-Path $service 'install.lock'),[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+          try{
+           if(Test-Path -LiteralPath $root){throw 'EXISTING_INGEST_INSPECT_FIRST'}
+           if(@(Get-NetTCPConnection -LocalPort 4193 -State Listen -ErrorAction SilentlyContinue).Count){throw 'PORT_OCCUPIED'}
+           if((Get-FileHash $web -Algorithm SHA256).Hash.ToLowerInvariant() -ne '0dc85233bae785022f6b634b1f3d7fb6ed086d1a4b30db61769d14c3c3043d5a'){throw 'IIS_CHANGED'}
+           $before=Invoke-RestMethod 'https://kgeodata.com/app/ngiiseum/deployment.json'
+           $current=Get-Content (Join-Path $service 'current.json') -Raw|ConvertFrom-Json
+           if($before.commit -ne $current.commit -or -not $before.catalogDatabaseMigrated -or $before.reviewPilot.drawings -ne 50){throw 'LIVE_BOUNDARY_CHANGED'}
+           $configHash=(Get-FileHash (Join-Path $service 'online.local.json') -Algorithm SHA256).Hash
+           New-Item -ItemType Directory -Path $root|Out-Null
+           $release=Join-Path $service ('releases\'+$current.commit+'\server')
+           foreach($file in @('data-transfer.mjs','data-transfer-batch.mjs','read-bridge.mjs')){Copy-Item -LiteralPath (Join-Path $release $file) -Destination (Join-Path $root $file)}
+           [IO.File]::WriteAllBytes((Join-Path $root 'manifest.json'),[Convert]::FromBase64String('ewogICJzY2hlbWFWZXJzaW9uIjogMSwKICAiaWQiOiAiZHJhd2luZ3MtMjAyNjExMTAiLAogICJmaWxlcyI6IFsKICAgIHsKICAgICAgImlkIjogImJ1bmRsZS0wMDAiLAogICAgICAic2hhMjU2IjogIjc0N2YzYzA5NjM2YmUzYjZmMmVhN2JlY2UwNDVmM2Q1NDhmMGVlY2YwNmM2NTA4ZWU4M2Q3YjIxOGI4NDQzYjQiLAogICAgICAiYnl0ZXMiOiAxMDYxNTA2NDYzCiAgICB9LAogICAgewogICAgICAiaWQiOiAiYnVuZGxlLTAwMSIsCiAgICAgICJzaGEyNTYiOiAiY2M1ODIzNjdiMTI4OGU4ZjMwMzQ4NmZhN2Q3YTQ0NjM0NDg0MmM4YmViY2YxMmRiZGY3ZjM0MmVmODM3NTVkYSIsCiAgICAgICJieXRlcyI6IDk4OTI1ODk0NwogICAgfSwKICAgIHsKICAgICAgImlkIjogImJ1bmRsZS0wMDIiLAogICAgICAic2hhMjU2IjogIjZhMWZlZGMxMTgxZTkxM2E3Mjc5NzcwZjkzYjU3YzdjZmFkM2YxNTRiOTVlNWQ1NWVmNDc4ZDU2ZTk4NWQxYzkiLAogICAgICAiYnl0ZXMiOiAxMDYyMjY3NDY1CiAgICB9LAogICAgewogICAgICAiaWQiOiAiYnVuZGxlLTAwMyIsCiAgICAgICJzaGEyNTYiOiAiZDg2YjliNTJiNzRkZjc5ZmI5NDlhMDBmMDU0MDdjMzUzMTU2ODJjNzQ5NDUyYzVlZGQ1ZDgyNWRjNTZmYjRmMiIsCiAgICAgICJieXRlcyI6IDEwNzE3NjcwNzgKICAgIH0sCiAgICB7CiAgICAgICJpZCI6ICJidW5kbGUtMDA0IiwKICAgICAgInNoYTI1NiI6ICJiYTkzZTJlYmMwMWVlMGM5NWNiYTllMzliZWMwZjM4ZWIyMjIzZjIwNWY3NjFmNjA4NTlhODkxNDQyOTJhOTI3IiwKICAgICAgImJ5dGVzIjogMTA0MDE5ODEwMQogICAgfSwKICAgIHsKICAgICAgImlkIjogImJ1bmRsZS0wMDUiLAogICAgICAic2hhMjU2IjogImY4MDRhOGJmMzczN2UyMDUzYWI0NjQwYzM3YmE3YWZmYzJkOWU4MDViNGRmOTU4ZmRiNzM4MDAxYjljZjMyNTEiLAogICAgICAiYnl0ZXMiOiAxMDYxMzk3MjI0CiAgICB9LAogICAgewogICAgICAiaWQiOiAiYnVuZGxlLTAwNiIsCiAgICAgICJzaGEyNTYiOiAiNDIwYmM1YTY2OGE3NTFhYzNhZmUyMzEwMjY3Y2EzNmQyYWQxODhjZTEyYjJiMTU0Nzc0YTJjOTIyZWIwMGRiYSIsCiAgICAgICJieXRlcyI6IDEwNjI3MjcwODEKICAgIH0sCiAgICB7CiAgICAgICJpZCI6ICJidW5kbGUtMDA3IiwKICAgICAgInNoYTI1NiI6ICIyZWJiNDBmOWE3MWVhOGIxMzE5ZDgxZTg5ZmMyNWYxMTBiMDU3Y2JmZGRjMDhhMDk5YjdhNjM5ZTJkOGJjMmJmIiwKICAgICAgImJ5dGVzIjogMTA1ODQyMDA0OQogICAgfSwKICAgIHsKICAgICAgImlkIjogImJ1bmRsZS0wMDgiLAogICAgICAic2hhMjU2IjogIjI5MjhjMDg0NzI1NzM5ZjdjOWE4MjkzNWZmYWE5MDBlNDdkZTExZWFkYjk2ZDY0ZjE2ODQxZDFjYzc0YzMzOGIiLAogICAgICAiYnl0ZXMiOiAxMDQzMDg0MjYyCiAgICB9LAogICAgewogICAgICAiaWQiOiAiYnVuZGxlLTAwOSIsCiAgICAgICJzaGEyNTYiOiAiMzA2YjViMDY2Y2U4OGY3NmE3YTgxZDQ3MzEzOTkzZjIxZmQyNmYzNWEwMDIyMTJiNTI0NzU0NWY4ZTUxYjk1ZCIsCiAgICAgICJieXRlcyI6IDEwNzM0MjA4OTQKICAgIH0sCiAgICB7CiAgICAgICJpZCI6ICJidW5kbGUtMDEwIiwKICAgICAgInNoYTI1NiI6ICI3MmE1MTM3NjU5NDEwYzkxNTc4ZGQ1YmUyNzM1NzFlNGZkZTE1MTAzNTRmYzdmYTc1ZTg5YzQ1Y2FmZDkxMGU5IiwKICAgICAgImJ5dGVzIjogMTA1MTcxNjg2MwogICAgfSwKICAgIHsKICAgICAgImlkIjogImJ1bmRsZS0wMTEiLAogICAgICAic2hhMjU2IjogImQ5ZWFiMDIyNjUwNTQ3NjU0Zjc5ZjZiZWIzNjdjM2U3MDdkODU3MTQxYWJlYjcyNjZjMzg1MmMwOWRiYjAyZmEiLAogICAgICAiYnl0ZXMiOiAxMDY5MzY4MDE1CiAgICB9LAogICAgewogICAgICAiaWQiOiAiYnVuZGxlLTAxMiIsCiAgICAgICJzaGEyNTYiOiAiNmU0MDk3ZjdmNGUwMmM4NjA2MzVjYzdkNGY1NDIyNDJmM2NjNjcwOTY5YmZhYzViOTBlNWIwOGVhZGUwOTRmMiIsCiAgICAgICJieXRlcyI6IDk2OTYxNDQ5NwogICAgfSwKICAgIHsKICAgICAgImlkIjogImJ1bmRsZS0wMTMiLAogICAgICAic2hhMjU2IjogIjQ3MTgxNWRhYTM1ZmM0OGZlNDMyYWVmNTU0YTdjYjJhNTI0MDZlYjhkNTNjOTk3NzMzNzAxMzc0MWM0MTc4NDIiLAogICAgICAiYnl0ZXMiOiAxMDE1NDI3ODg0CiAgICB9LAogICAgewogICAgICAiaWQiOiAiYnVuZGxlLTAxNCIsCiAgICAgICJzaGEyNTYiOiAiZTMyNWU3ZDc0MjRmMGY3NmY2Yjg0Njc3YjViYzE2YjQ2MGE0YWRmZGI0YTVkMGM0M2M4YWU1NTFkNWU3NzUwZiIsCiAgICAgICJieXRlcyI6IDEwNTY5Mzg4OTIKICAgIH0sCiAgICB7CiAgICAgICJpZCI6ICJidW5kbGUtMDE1IiwKICAgICAgInNoYTI1NiI6ICIwOTJhODYwYjJkNTZjMzE0NTdiYmY5NjBlY2E0YjRiMmVmNTUzMjc1YzFkY2U1ZjM3NjQ4YjY3MTI3ODI1M2M3IiwKICAgICAgImJ5dGVzIjogOTAxOTg0MTczCiAgICB9LAogICAgewogICAgICAiaWQiOiAiYnVuZGxlLTAxNiIsCiAgICAgICJzaGEyNTYiOiAiZjUzMjg4YWM4ODgzZjQ0MGNjMmIwMmRiODBhZGM5ZTQ5ODIxMjcyZTdhNDUwZTNlYmZkZTFhZjlhZWZhN2JlZiIsCiAgICAgICJieXRlcyI6IDEwNDg1MjczNzQKICAgIH0sCiAgICB7CiAgICAgICJpZCI6ICJidW5kbGUtMDE3IiwKICAgICAgInNoYTI1NiI6ICJhNTc1MmJkYzIzN2IwYzkzOGUzODAzZDBmMjM3YThmMWMzYWQzZDZiODA5Y2IxNjdjMzUzODE5YzczNDk2OWVjIiwKICAgICAgImJ5dGVzIjogMTA0Mzk5NzQ5MAogICAgfSwKICAgIHsKICAgICAgImlkIjogImJ1bmRsZS0wMTgiLAogICAgICAic2hhMjU2IjogImI3YTU4NmI1NDA0YmI0NTBhNTM1MWU2OTE0ZDZjZThlOGJlNmI3YzViOWJiMDliYzFjZDg3ZWJhZGRjZDNiZjMiLAogICAgICAiYnl0ZXMiOiAxMDcwNzYwNjY4CiAgICB9LAogICAgewogICAgICAiaWQiOiAiYnVuZGxlLTAxOSIsCiAgICAgICJzaGEyNTYiOiAiZmZiM2ViMzYyZTBmNWFkZDQ4YjhmZWEyN2U4YzFjZmI5NGU0ZThlYWE4ZTQyZWQzOTA1NmVlMmRlMDUwOTUzYSIsCiAgICAgICJieXRlcyI6IDk5MzU1MTAzNQogICAgfSwKICAgIHsKICAgICAgImlkIjogImJ1bmRsZS0wMjAiLAogICAgICAic2hhMjU2IjogImEyNjU2ODFjZjAyMjIxZjI2ZjFkY2E2Y2E4MTJkZGQ2MDJhZDBiZjIzNzU3NDQzZmE1OTI3MTI5MmNkYjk4ZjIiLAogICAgICAiYnl0ZXMiOiA3MDAwODY3NzAKICAgIH0sCiAgICB7CiAgICAgICJpZCI6ICJyZXZpZXctbWV0YWRhdGEiLAogICAgICAic2hhMjU2IjogIjI0NDYxNmU0YzNhMDQ2NjM2ZWIyODIwOTM2ZWNmZTY3NGNhZjc2YjExYjZkNzU0MDhjYmVkYjUyNzhiZWQ2OTEiLAogICAgICAiYnl0ZXMiOiA1NTk4MzA3NgogICAgfQogIF0sCiAgImJ5dGVzIjogMjE1MDIwMDQzMDEKfQo='))
+           if((Get-FileHash (Join-Path $root 'manifest.json') -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'b9948b59ba0e9992702f3c803888835962e91ee1954eb079aafba100158f5ada'){throw 'MANIFEST_HASH'}
+           [IO.File]::WriteAllBytes((Join-Path $root 'ingest.mjs'),[Convert]::FromBase64String('aW1wb3J0IGZzIGZyb20gJ25vZGU6ZnMvcHJvbWlzZXMnOwppbXBvcnQgaHR0cCBmcm9tICdub2RlOmh0dHAnOwppbXBvcnQge2NyZWF0ZURhdGFUcmFuc2ZlckJhdGNofSBmcm9tICcuL2RhdGEtdHJhbnNmZXItYmF0Y2gubWpzJzsKY29uc3Qgcm9vdD0nRDovc2VydmljZXMvbmdpaXNldW0vZHJhd2luZy1pbmdlc3QtMjAyNjExMTAnOwpjb25zdCB0b2tlbj0oYXdhaXQgZnMucmVhZEZpbGUoJ0Q6L3NlcnZpY2VzL25naWlzZXVtL3JlYWQtYnJpZGdlLmtleScsJ3V0ZjgnKSkudHJpbSgpOwpjb25zdCBoYW5kbGVyPWF3YWl0IGNyZWF0ZURhdGFUcmFuc2ZlckJhdGNoKHtkaXJlY3Rvcnk6cm9vdCsnL2luY29taW5nJyxtYW5pZmVzdEZpbGU6cm9vdCsnL21hbmlmZXN0Lmpzb24nLHRva2VuLGV4cGlyZXNBdDonMjAyNi0xMS0xM1QxMjowMDowMC4wMDBaJyxib2R5UmVhZE1zOjkwMDAwfSk7CmNvbnN0IHNlcnZlcj1odHRwLmNyZWF0ZVNlcnZlcihhc3luYyhyZXEscmVzKT0+e3RyeXtjb25zdCB1PW5ldyBVUkwocmVxLnVybCwnaHR0cDovL2xvY2FsaG9zdCcpO2lmKCF1LnBhdGhuYW1lLnN0YXJ0c1dpdGgoJy9fZHJhd2luZy1pbmdlc3QvJykpe3Jlcy53cml0ZUhlYWQoNDA0KTtyZXR1cm4gcmVzLmVuZCgpO31hd2FpdCBoYW5kbGVyKHJlcSxyZXMsdS5wYXRobmFtZS5zbGljZSgnL19kcmF3aW5nLWluZ2VzdC8nLmxlbmd0aCkpO31jYXRjaHtpZighcmVzLmhlYWRlcnNTZW50KXJlcy53cml0ZUhlYWQoNTAwLHsnY29udGVudC10eXBlJzonYXBwbGljYXRpb24vanNvbid9KTtyZXMuZW5kKEpTT04uc3RyaW5naWZ5KHtlcnJvcjonSU5HRVNUX1JFUVVFU1RfRkFJTEVEJ30pKTt9fSk7CnNlcnZlci5saXN0ZW4oNDE5MywnMTI3LjAuMC4xJyxhc3luYygpPT57YXdhaXQgZnMud3JpdGVGaWxlKHJvb3QrJy9wcm9jZXNzLmpzb24nLEpTT04uc3RyaW5naWZ5KHtwaWQ6cHJvY2Vzcy5waWQscG9ydDo0MTkzLHN0YXJ0ZWRBdDpuZXcgRGF0ZSgpLnRvSVNPU3RyaW5nKCl9KSk7Y29uc29sZS5sb2coJ0RlZGljYXRlZCBkcmF3aW5nIGludGFrZSByZWFkeScpO30pOwo='))
+           $env:RUNNER_TRACKING_ID=''
+           $child=Start-Process -FilePath (Get-Command node.exe).Source -ArgumentList @((Join-Path $root 'ingest.mjs')) -WorkingDirectory $root -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $root 'stdout.log') -RedirectStandardError (Join-Path $root 'stderr.log')
+           $ready=$false
+           for($i=0;$i -lt 15;$i++){try{Invoke-WebRequest 'http://127.0.0.1:4193/_drawing-ingest/status' -UseBasicParsing|Out-Null}catch{if($_.Exception.Response.StatusCode.value__ -eq 401){$ready=$true;break}};Start-Sleep -Seconds 1}
+           if(-not $ready){throw 'INGEST_NOT_READY'}
+           [xml]$xml=[IO.File]::ReadAllText($web)
+           $rules=$xml.configuration.'system.webServer'.rewrite.rules
+           $rule=$xml.CreateElement('rule');$rule.SetAttribute('name','NGII dedicated drawing intake 20261110');$rule.SetAttribute('stopProcessing','true')
+           $match=$xml.CreateElement('match');$match.SetAttribute('url','^_drawing-ingest/(.*)$');[void]$rule.AppendChild($match)
+           $action=$xml.CreateElement('action');$action.SetAttribute('type','Rewrite');$action.SetAttribute('url','http://127.0.0.1:4193/_drawing-ingest/{R:1}');$action.SetAttribute('appendQueryString','true');[void]$rule.AppendChild($action)
+           [void]$rules.PrependChild($rule)
+           $temp=$web+'.drawing-ingest.tmp';$xml.Save($temp)
+           [IO.File]::Replace($temp,$web,(Join-Path $root 'web.config.before'))
+           try{
+            $unauth=$false;try{Invoke-WebRequest 'https://kgeodata.com/app/ngiiseum/_drawing-ingest/status' -UseBasicParsing|Out-Null}catch{if($_.Exception.Response.StatusCode.value__ -eq 401){$unauth=$true}}
+            if(-not $unauth){throw 'HTTPS_AUTH_BOUNDARY'}
+            $after=Invoke-RestMethod 'https://kgeodata.com/app/ngiiseum/deployment.json'
+            if($before.commit -ne $after.commit -or $after.reviewPilot.drawings -ne 50 -or -not $after.writesEnabled -or (Get-FileHash (Join-Path $service 'online.local.json') -Algorithm SHA256).Hash -ne $configHash){throw 'EXISTING_SERVICE_CHANGED'}
+           }catch{Copy-Item -LiteralPath (Join-Path $root 'web.config.before') -Destination $web -Force;Stop-Process -Id $child.Id;throw}
+           [ordered]@{ready=$true;pid=$child.Id;manifestSha256='b9948b59ba0e9992702f3c803888835962e91ee1954eb079aafba100158f5ada';files=22;bytes=21502004301;existingGatewayPreserved=$true;databaseChanged=$false;unauthenticatedStatus=401;dedicatedPath='/app/ngiiseum/_drawing-ingest/';checkedAt=[DateTime]::UtcNow.ToString('o')}|ConvertTo-Json -Compress
+          }finally{$lock.Dispose()}
+          
