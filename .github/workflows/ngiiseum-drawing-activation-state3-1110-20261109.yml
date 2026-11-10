@@ -1,0 +1,25 @@
+name: NGII drawing-activation-state3-1110
+on:
+  push:
+    branches: [codex/ngiiseum-drawing-activation-state3-1110-20261109]
+    paths: [.github/workflows/ngiiseum-drawing-activation-state3-1110-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: drawing-activation-state3-1110
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'HOST_REJECTED'}
+          $s='D:\services\ngiiseum';$root=Join-Path $s 'data\review-expansion-20261110';$p=Get-Content (Join-Path $root 'activation-prepared\proof.json') -Raw|ConvertFrom-Json
+          $f=$p.files.catalog;$next=Join-Path $root 'activation-prepared\catalog.next.json'
+          @{pathInService=([IO.Path]::GetFullPath($f.path)).StartsWith($s+'\',[StringComparison]::OrdinalIgnoreCase);currentMatches=((Get-FileHash $f.path -Algorithm SHA256).Hash.ToLowerInvariant() -eq $f.before);nextMatches=((Get-FileHash $next -Algorithm SHA256).Hash.ToLowerInvariant() -eq $f.after)}|ConvertTo-Json -Compress
+          foreach($leaf in @('review-expansion.local.json','real-review.local.json')){$a=Get-Acl (Join-Path $s $leaf);@{file=$leaf;owner=$a.Owner;access=$a.GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]::Access)}|ConvertTo-Json -Compress}
+          
