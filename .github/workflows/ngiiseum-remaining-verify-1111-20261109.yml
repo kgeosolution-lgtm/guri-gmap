@@ -1,0 +1,35 @@
+name: NGII remaining-verify-1111
+on:
+  push:
+    branches: [codex/ngiiseum-remaining-verify-1111-20261109]
+    paths: [.github/workflows/ngiiseum-remaining-verify-1111-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: remaining-verify-1111
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'HOST_REJECTED'}
+          @'
+          const fs=require('node:fs/promises');const {createReadStream}=require('node:fs');const path=require('node:path');const {createHash}=require('node:crypto');const {pathToFileURL}=require('node:url');
+          (async()=>{const service='D:/services/ngiiseum',root=service+'/data/remaining-drawings-20261111';const read=async p=>JSON.parse((await fs.readFile(p,'utf8')).replace(/^\uFEFF/,''));
+          const progress=await read(root+'/extract-progress.json');if(progress.phase!=='verified_extracted')throw Error('EXTRACTION_NOT_COMPLETE');
+          const links=await read(root+'/catalog-links.json'),verified=await read(root+'/verified-files.json');const sources=new Map(verified.files.map(f=>[f.key,f]));let existingBytes=0;
+          for(const set of links.existingSources){for(const f of set.sources){const p=path.resolve(set.root,'.runtime/local-workflow',f.key);if(!p.startsWith(path.resolve(set.root)+path.sep))throw Error('BOUNDARY');const st=await fs.lstat(p);if(!st.isFile()||st.isSymbolicLink()||st.size!==f.bytes)throw Error('EXISTING_SOURCE_MISMATCH');const h=createHash('sha256');for await(const b of createReadStream(p))h.update(b);const sha256=h.digest('hex');if(sha256!==path.basename(f.key).split('.')[0])throw Error('EXISTING_SOURCE_HASH');if(!sources.has(f.key))existingBytes+=f.bytes;sources.set(f.key,{...f,sha256});}}
+          if(sources.size!==67746||links.drawings.length!==72776)throw Error('CATALOG_SOURCE_COUNTS');for(const d of links.drawings){const f=sources.get(d.storage_key);if(!f||f.sha256!==d.sha256||f.bytes!==Number(d.bytes))throw Error('CATALOG_SOURCE_LINK');}
+          const nas=[];for(const id of ['nas-indexed','source-failed-folder']){const m=await read(root+'/'+id+'-manifest.json');for(const f of m.files){const p=path.resolve(root,f.key);if(!p.startsWith(path.resolve(root)+path.sep))throw Error('NAS_BOUNDARY');const st=await fs.lstat(p);if(!st.isFile()||st.isSymbolicLink()||st.size!==f.bytes)throw Error('NAS_FILE');sources.set(f.key,f);}for(const l of m.links){const f=sources.get(l.key);if(!f||f.sha256!==l.sha256||f.bytes!==l.bytes)throw Error('NAS_LINK');}nas.push({id,links:m.links.length,files:m.files.length,empty:m.links.filter(l=>l.bytes===0).length,processingRetried:m.processingRetried??false});}
+          const current=await read(service+'/current.json');const online=await read(service+'/online.local.json');const before=await read(root+'/history-before.json');const {default:pg}=await import(pathToFileURL(service+'/releases/'+current.commit+'/node_modules/pg/lib/index.js'));const history=[];
+          for(const set of before.sets){const cfg=await read(service+'/'+set.config),db=new pg.Client(cfg.database);await db.connect();try{await db.query('begin isolation level repeatable read read only');let preserved=0,added=0;const changed=[];for(const [table,rows] of Object.entries(set.tables)){if(!/^(local_flow|online_review)\.[a-z_]+$/.test(table))throw Error('TABLE');const key=table==='local_flow.training_case'?'job_id':table==='local_flow.survey_feature'?'survey_id':'id';const now=new Map((await db.query(`select ${key}::text id,md5(to_jsonb(t)::text) hash from ${table} t`)).rows.map(r=>[r.id,r.hash]));for(const r of rows){if(!now.has(r.id))throw Error('HISTORY_ROW_MISSING');if(now.get(r.id)!==r.hash)changed.push({table,id:r.id});else preserved++;}added+=now.size-rows.length;}history.push({config:set.config,preservedRows:preserved,addedRows:added,changedRows:changed,audit:(await db.query('select is_test,count(*)::int count from online_review.audit group by is_test')).rows});await db.query('rollback');}finally{await db.end();}}
+          const live=await fetch('https://kgeodata.com/app/ngiiseum/deployment.json').then(r=>r.json());if(!live.writesEnabled||live.reviewPilot.drawings!==1018||online.dataTransfer)throw Error('LIVE_REVIEW_CHANGED');
+          const result={checkedAt:new Date().toISOString(),runtime:live.commit,existingReviewDrawings:live.reviewPilot.drawings,writesEnabled:live.writesEnabled,dataTransfer:false,transferredFiles:verified.files.length,transferredBytes:progress.bytes,receivedCatalogRecords:links.drawings.length,receivedUniqueSources:67746,totalUniqueSourceKeys:sources.size,nas,history,originalFolderStatusUnchanged:true,databaseWritten:false};await fs.writeFile(root+'/verification.json',JSON.stringify(result,null,2),{flag:'wx'});console.log(JSON.stringify(result));})().catch(e=>{console.error(e.message);process.exitCode=1});
+          '@ | node.exe
+          if($LASTEXITCODE -ne 0){throw 'VERIFICATION_FAILED'}
+          
