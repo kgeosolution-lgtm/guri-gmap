@@ -1,0 +1,24 @@
+name: NGII session-acl-observe-1111
+on:
+  push:
+    branches: [codex/ngiiseum-session-acl-observe-1111-20261109]
+    paths: [.github/workflows/ngiiseum-session-acl-observe-1111-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: session-acl-observe-1111
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'HOST_REJECTED'}
+          $a=Get-Acl -LiteralPath 'D:/services/ngiiseum/auth-sessions'
+          $rules=@($a.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])|ForEach-Object{@{sid=$_.IdentityReference.Value;rights=[int]$_.FileSystemRights;type=[string]$_.AccessControlType;inherit=[int]$_.InheritanceFlags;propagate=[int]$_.PropagationFlags;inherited=$_.IsInherited}})
+          $p=Get-Content 'D:/services/ngiiseum/data/remaining-drawings-20261111/extract-progress.json' -Raw|ConvertFrom-Json
+          @{protected=$a.AreAccessRulesProtected;rules=$rules;progress=$p}|ConvertTo-Json -Depth 5 -Compress
