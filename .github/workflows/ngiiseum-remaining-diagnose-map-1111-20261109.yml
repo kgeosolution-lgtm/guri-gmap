@@ -1,0 +1,27 @@
+name: NGII remaining-diagnose-map-1111
+on:
+  push:
+    branches: [codex/ngiiseum-remaining-diagnose-map-1111-20261109]
+    paths: [.github/workflows/ngiiseum-remaining-diagnose-map-1111-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: remaining-diagnose-map-1111
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'HOST_REJECTED'}
+          $archive='D:/services/ngiiseum/data/remaining-drawings-20261111'
+          $ingest='D:/services/ngiiseum/drawing-ingest-20261111'
+          $processes=@(Get-CimInstance Win32_Process | Where-Object {$_.CommandLine -like ('*'+$archive+'*') -or $_.CommandLine -like '*remaining-drawings-20261111*extract.py*' -or $_.CommandLine -like '*drawing-ingest-20261111*ingest.mjs*'} | Select-Object ProcessId,ParentProcessId,Name)
+          $zips=@(Get-ChildItem -LiteralPath ($ingest+'/incoming') -Filter *.zip -File -Recurse)
+          $logs=@{};foreach($n in @('extract.stderr.log','extract.resume.stderr.log','extract.private.log')){if(Test-Path ($archive+'/'+$n)){$logs[$n]=@(Get-Content ($archive+'/'+$n) -Tail 12)}}
+          [ordered]@{checkedAt=[DateTime]::UtcNow.ToString('o');processes=$processes;zipCount=$zips.Count;zipBytes=($zips|Measure-Object Length -Sum).Sum;progress=(Get-Content ($archive+'/extract-progress.json') -Raw|ConvertFrom-Json);verifiedFilesPresent=(Test-Path ($archive+'/verified-files.json'));verificationPresent=(Test-Path ($archive+'/verification.json'));logs=$logs}|ConvertTo-Json -Depth 6 -Compress
+          
