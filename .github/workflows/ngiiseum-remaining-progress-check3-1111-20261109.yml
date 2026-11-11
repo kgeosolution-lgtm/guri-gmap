@@ -1,0 +1,25 @@
+name: NGII remaining-progress-check3-1111
+on:
+  push:
+    branches: [codex/ngiiseum-remaining-progress-check3-1111-20261109]
+    paths: [.github/workflows/ngiiseum-remaining-progress-check3-1111-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: remaining-progress-check3-1111
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'HOST_REJECTED'}
+          $root='D:/services/ngiiseum/data/remaining-drawings-20261111'
+          $state=Get-Content ($root+'/extract-progress.json') -Raw|ConvertFrom-Json
+          $p=Get-CimInstance Win32_Process -Filter ('ProcessId='+[int]$state.pid)
+          [ordered]@{checkedAt=[DateTime]::UtcNow.ToString('o');progress=$state;extractAlive=[bool]($p -and $p.Name -eq 'python.exe' -and $p.CommandLine -like '*extract-resume-20261111.py*');verified=(Test-Path ($root+'/verified-files.json'));historyChanged=$false}|ConvertTo-Json -Depth 4 -Compress
+          
