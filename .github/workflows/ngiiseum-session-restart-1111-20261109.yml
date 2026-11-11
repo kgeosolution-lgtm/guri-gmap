@@ -1,0 +1,51 @@
+name: NGII session-restart-1111
+on:
+  push:
+    branches: [codex/ngiiseum-session-restart-1111-20261109]
+    paths: [.github/workflows/ngiiseum-session-restart-1111-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: session-restart-1111
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'HOST_REJECTED'}
+          $root='D:\services\ngiiseum'
+          $expected='0179424560e847096c0703be6d5ca16bd20ba3ce'
+          $pointer=Get-Content (Join-Path $root 'current.json') -Raw|ConvertFrom-Json
+          if($pointer.commit -ne $expected){throw 'POINTER_CHANGED'}
+          $state=Get-Content (Join-Path $root 'process.json') -Raw|ConvertFrom-Json
+          if($state.commit -ne $expected){throw 'PROCESS_VERSION_CHANGED'}
+          $sessionRoot=Join-Path $root 'auth-sessions'
+          $key=Join-Path $sessionRoot 'session.key'
+          $store=Join-Path $sessionRoot 'sessions.enc'
+          if(-not (Test-Path $store)){throw 'LOGIN_REQUIRED_BEFORE_RESTART_TEST'}
+          $keyHash=(Get-FileHash $key).Hash
+          $beforeLength=(Get-Item $store).Length
+          $acl=Get-Acl $sessionRoot
+          if(-not $acl.AreAccessRulesProtected){throw 'SESSION_ACL_NOT_PROTECTED'}
+          $child=Get-CimInstance Win32_Process -Filter ('ProcessId='+[int]$state.childPid)
+          $supervisor=Get-CimInstance Win32_Process -Filter ('ProcessId='+[int]$state.supervisorPid)
+          $entry=Join-Path $root ('releases\'+$expected+'\server\online.mjs')
+          if($child.Name -ne 'node.exe' -or $child.CommandLine -notlike ('*'+$entry+'*') -or $child.ParentProcessId -ne $supervisor.ProcessId -or $supervisor.CommandLine -notlike ('*'+$root+'\run-gateway.ps1*')){throw 'PROCESS_OWNERSHIP_REJECTED'}
+          if(Test-Path (Join-Path $root 'stop.request')){throw 'STOP_REQUEST_PRESENT'}
+          Stop-Process -Id $child.ProcessId
+          $live=$null
+          for($i=0;$i -lt 25;$i++){
+           Start-Sleep -Seconds 2
+           try{$live=Invoke-RestMethod 'http://127.0.0.1:4190/app/ngiiseum/deployment.json' -TimeoutSec 2;if($live.commit -eq $expected){break}}catch{}
+          }
+          $newState=Get-Content (Join-Path $root 'process.json') -Raw|ConvertFrom-Json
+          if($live.commit -ne $expected -or $newState.childPid -eq $state.childPid){throw 'RESTART_UNVERIFIED'}
+          if((Get-FileHash $key).Hash -ne $keyHash){throw 'SESSION_KEY_CHANGED'}
+          $result=[ordered]@{restartVerified=$true;runtime=$live.commit;keyPreserved=$true;encryptedStoreRetained=(Test-Path $store);storeBytesBefore=$beforeLength;storeBytesAfter=(Get-Item $store).Length;aclProtected=$acl.AreAccessRulesProtected;drawings=$live.reviewPilot.drawings;positions=$live.reviewPilot.withPosition;writesEnabled=$live.writesEnabled;checkedAt=[DateTime]::UtcNow.ToString('o')}
+          [IO.File]::WriteAllText((Join-Path $root 'session-restart-verification-20261111.json'),($result|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
+          $result|ConvertTo-Json -Compress
