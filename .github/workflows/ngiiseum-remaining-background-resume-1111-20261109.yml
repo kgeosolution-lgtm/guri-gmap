@@ -1,0 +1,36 @@
+name: NGII remaining-background-resume-1111
+on:
+  push:
+    branches: [codex/ngiiseum-remaining-background-resume-1111-20261109]
+    paths: [.github/workflows/ngiiseum-remaining-background-resume-1111-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: remaining-background-resume-1111
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'HOST_REJECTED'}
+          $ingest='D:/services/ngiiseum/drawing-ingest-20261111'
+          $archive='D:/services/ngiiseum/data/remaining-drawings-20261111'
+          $env:RUNNER_TRACKING_ID='ngiiseum-remaining-20261111-background'
+          $old=Get-Content (Join-Path $ingest 'process.json') -Raw|ConvertFrom-Json
+          if(Get-Process -Id $old.pid -ErrorAction SilentlyContinue){throw 'INGEST_ALREADY_ALIVE'}
+          if(Get-NetTCPConnection -LocalPort 4193 -State Listen -ErrorAction SilentlyContinue){throw 'PORT_OCCUPIED'}
+          $p=Start-Process -FilePath (Get-Command node.exe).Source -ArgumentList @((Join-Path $ingest 'ingest.mjs')) -WorkingDirectory $ingest -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $ingest 'resume.stdout.log') -RedirectStandardError (Join-Path $ingest 'resume.stderr.log')
+          $state=Get-Content (Join-Path $archive 'extract-progress.json') -Raw|ConvertFrom-Json
+          $extractAlive=[bool](Get-Process -Id $state.pid -ErrorAction SilentlyContinue)
+          if(-not $extractAlive){
+           if($state.phase -ne 'waiting_for_upload' -or $state.files -ne 0){throw 'EXTRACT_STATE_REQUIRES_REVIEW'}
+           $py='D:/services/ngiiseum/data/real50-20261109/python/python.exe'
+           $ep=Start-Process -FilePath $py -ArgumentList @((Join-Path $archive 'extract.py')) -WorkingDirectory $archive -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $archive 'extract.resume.stdout.log') -RedirectStandardError (Join-Path $archive 'extract.resume.stderr.log')
+          }
+          [ordered]@{ingestPid=$p.Id;previousExtractAlive=$extractAlive;resumedExtractPid=$ep.Id;databaseChanged=$false;existingGatewayChanged=$false}|ConvertTo-Json -Compress
+          
