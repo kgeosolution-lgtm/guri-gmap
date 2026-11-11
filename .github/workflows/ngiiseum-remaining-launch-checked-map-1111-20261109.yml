@@ -1,0 +1,36 @@
+name: NGII remaining-launch-checked-map-1111
+on:
+  push:
+    branches: [codex/ngiiseum-remaining-launch-checked-map-1111-20261109]
+    paths: [.github/workflows/ngiiseum-remaining-launch-checked-map-1111-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: remaining-launch-checked-map-1111
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'HOST_REJECTED'}
+          $archive='D:/services/ngiiseum/data/remaining-drawings-20261111'
+          $state=Get-Content ($archive+'/extract-progress.json') -Raw|ConvertFrom-Json
+          if($state.phase -ne 'waiting_for_upload' -or $state.files -ne 0 -or $state.bytes -ne 0 -or $state.bundles -ne 0){throw 'STATE_CHANGED'}
+          $running=@(Get-CimInstance Win32_Process | Where-Object {$_.Name -eq 'python.exe' -and $_.CommandLine -like '*remaining-drawings-20261111*extract*'})
+          if($running.Count){throw 'EXTRACT_ALREADY_RUNNING'}
+          if((Get-FileHash ($archive+'/extract.py') -Algorithm SHA256).Hash -ne '2fcf7a0dbb47866b285b9c050685e1db18919c0accb57283005d4260a706ffde'){throw 'EXTRACT_SOURCE_CHANGED'}
+          if((Get-FileHash ($archive+'/extract-resume-20261111.py') -Algorithm SHA256).Hash -ne '6b099219742ce8ed7a57f887ae925135b4569d26217fdf74b08f94daf4910eb9'){throw 'PREPARED_SCRIPT_CHANGED'}
+          if(@(Get-ChildItem -LiteralPath ($archive+'/files') -File -ErrorAction SilentlyContinue).Count){throw 'EXISTING_FILES_REQUIRE_REVIEW'}
+          if(@(Get-ChildItem -LiteralPath 'D:/services/ngiiseum/drawing-ingest-20261111/incoming' -Filter *.zip -File -Recurse).Count -ne 53){throw 'UPLOAD_INCOMPLETE'}
+          $startup=New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{ShowWindow=[uint16]0}
+          $started=Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{CommandLine=('"D:/services/ngiiseum/data/real50-20261109/python/python.exe" "'+$archive+'/extract-resume-20261111.py"');CurrentDirectory=$archive;ProcessStartupInformation=$startup}
+          if($started.ReturnValue -ne 0){throw 'RESUME_START_FAILED'}
+          Start-Sleep -Seconds 3
+          $alive=Get-Process -Id $started.ProcessId -ErrorAction SilentlyContinue
+          [ordered]@{pid=$started.ProcessId;alive=[bool]$alive;progress=(Get-Content ($archive+'/extract-progress.json') -Raw|ConvertFrom-Json);databaseChanged=$false;originalExtractorPreserved=$true}|ConvertTo-Json -Depth 4 -Compress
+          
