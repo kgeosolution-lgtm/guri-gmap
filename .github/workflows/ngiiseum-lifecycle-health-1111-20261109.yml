@@ -1,0 +1,31 @@
+name: NGII lifecycle-health-1111
+on:
+  push:
+    branches: [codex/ngiiseum-lifecycle-health-1111-20261109]
+    paths: [.github/workflows/ngiiseum-lifecycle-health-1111-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: lifecycle-health-1111
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'HOST_REJECTED'}
+          $root='D:\services\ngiiseum'
+          $pointer=Get-Content (Join-Path $root 'current.json') -Raw|ConvertFrom-Json
+          $state=Get-Content (Join-Path $root 'process.json') -Raw|ConvertFrom-Json
+          $procs=@(Get-CimInstance Win32_Process)
+          $err=''
+          if(Test-Path (Join-Path $root 'gateway.stderr.log')){$err=Get-Content (Join-Path $root 'gateway.stderr.log') -Raw}
+          $codes=@('MODULE_NOT_FOUND','ERR_MODULE_NOT_FOUND','EADDRINUSE','EACCES','ENOENT','ECONNREFUSED','SyntaxError','TypeError')|Where-Object {$err -match [regex]::Escape($_)}
+          $health=$null
+          try{$health=Invoke-RestMethod 'http://127.0.0.1:4190/healthz' -TimeoutSec 4}catch{}
+          [ordered]@{checkedAt=[DateTime]::UtcNow.ToString('o');pointer=$pointer.commit;processCommit=$state.commit;supervisorAlive=[bool]($procs.ProcessId -contains [int]$state.supervisorPid);childAlive=[bool]($procs.ProcessId -contains [int]$state.childPid);supervisors=@($procs|Where-Object {$_.Name -eq 'powershell.exe' -and $_.CommandLine -like '*D:\services\ngiiseum\run-gateway.ps1*'}|ForEach-Object {$_.ProcessId});port4190=@(Get-NetTCPConnection -LocalPort 4190 -State Listen -ErrorAction SilentlyContinue|ForEach-Object {$_.OwningProcess});stopRequest=(Test-Path (Join-Path $root 'stop.request'));errorCodes=@($codes);stderrLength=$err.Length;healthCommit=$health.commit}|ConvertTo-Json -Depth 4 -Compress
+          
