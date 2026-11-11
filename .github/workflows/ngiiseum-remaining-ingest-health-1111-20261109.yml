@@ -1,0 +1,27 @@
+name: NGII remaining-ingest-health-1111
+on:
+  push:
+    branches: [codex/ngiiseum-remaining-ingest-health-1111-20261109]
+    paths: [.github/workflows/ngiiseum-remaining-ingest-health-1111-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: remaining-ingest-health-1111
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'HOST_REJECTED'}
+          $root='D:/services/ngiiseum/drawing-ingest-20261111'
+          $record=Get-Content (Join-Path $root 'process.json') -Raw|ConvertFrom-Json
+          $proc=Get-Process -Id $record.pid -ErrorAction SilentlyContinue
+          $status=0
+          try{$status=(Invoke-WebRequest 'http://127.0.0.1:4193/_drawing-ingest/status' -UseBasicParsing).StatusCode}catch{if($_.Exception.Response){$status=[int]$_.Exception.Response.StatusCode}}
+          [ordered]@{pid=$record.pid;alive=[bool]$proc;loopbackStatus=$status;stderrBytes=(Get-Item (Join-Path $root 'stderr.log')).Length;stdoutBytes=(Get-Item (Join-Path $root 'stdout.log')).Length}|ConvertTo-Json -Compress
+          
