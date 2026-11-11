@@ -1,0 +1,28 @@
+name: NGII remaining-history-baseline-1111
+on:
+  push:
+    branches: [codex/ngiiseum-remaining-history-baseline-1111-20261109]
+    paths: [.github/workflows/ngiiseum-remaining-history-baseline-1111-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: remaining-history-baseline-1111
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'HOST_REJECTED'}
+          @'
+          const fs=require('node:fs/promises');const {pathToFileURL}=require('node:url');
+          (async()=>{const service='D:/services/ngiiseum',root=service+'/data/remaining-drawings-20261111';const read=async p=>JSON.parse((await fs.readFile(p,'utf8')).replace(/^\uFEFF/,''));const current=await read(service+'/current.json');const {default:pg}=await import(pathToFileURL(service+'/releases/'+current.commit+'/node_modules/pg/lib/index.js'));const baseline=await read(service+'/data/review-expansion-20261110/baseline-history-before.json');const result={checkedAt:new Date().toISOString(),runtime:current.commit,sets:[]};
+          for(const name of ['real-review.local.json','review-expansion.local.json']){const config=await read(service+'/'+name),db=new pg.Client(config.database);await db.connect();try{await db.query('begin isolation level repeatable read read only');const tables={};for(const table of Object.keys(baseline)){if(!/^(local_flow|online_review)\.[a-z_]+$/.test(table))throw Error('TABLE');const key=table==='local_flow.training_case'?'job_id':table==='local_flow.survey_feature'?'survey_id':'id';tables[table]=(await db.query(`select ${key}::text id,md5(to_jsonb(t)::text) hash from ${table} t order by ${key}`)).rows;}result.sets.push({config:name,tables});await db.query('rollback');}finally{await db.end();}}
+          await fs.writeFile(root+'/history-before.json',JSON.stringify(result,null,2),{flag:'wx'});console.log(JSON.stringify({checkedAt:result.checkedAt,runtime:result.runtime,sets:result.sets.map(s=>({config:s.config,tables:Object.keys(s.tables).length,rows:Object.values(s.tables).reduce((n,a)=>n+a.length,0)})),databaseChanged:false}));})().catch(e=>{console.error(e.message);process.exitCode=1});
+          '@ | node.exe
+          if($LASTEXITCODE -ne 0){throw 'HISTORY_BASELINE_FAILED'}
+          
