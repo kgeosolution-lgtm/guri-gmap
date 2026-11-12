@@ -1068,3 +1068,36 @@ body { height:100vh; height:100dvh; }
 #splatFrame { position:absolute; inset:0; width:100%; height:100%; border:0; background:#080b0f; display:block; }
 #splatFrame:fullscreen, #splatFrame:-webkit-full-screen { background:#080b0f; }
 .lp-item-splat { color:var(--acc-o); font-size:11px; line-height:1; }
+
+/* ── 같은 장소 기록 묶기 (✦ 3D · 🥽 VR 투어 · 📐 평면도, 2026-11-12) ── */
+.sb-tag.vr { background:rgba(167,139,250,.14); color:#c4b5fd; border-color:rgba(167,139,250,.32); }
+.sb-links { display:flex; flex-wrap:wrap; align-items:center; gap:5px; margin-top:8px; }
+.sb-links-label { font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.6px; color:var(--text3); margin-right:2px; }
+.sb-link {
+  height:22px; padding:0 8px; border:1px solid var(--border2); border-radius:11px; background:transparent; color:var(--text2);
+  font-family:'Pretendard',sans-serif; font-size:10.5px; cursor:pointer; white-space:nowrap; transition:all .15s;
+}
+.sb-link:hover { border-color:var(--accent); color:var(--accent); }
+.sb-link.self { border-color:rgba(56,189,248,.45); color:var(--accent); }
+.sb-link.vr { border-color:rgba(167,139,250,.4); color:#c4b5fd; }
+.sb-link.vr:hover { border-color:#c4b5fd; }
+.sb-link.plan { border-color:rgba(52,211,153,.35); color:var(--acc-g); }
+.lp-item-vr { font-size:9.5px; color:#c4b5fd; line-height:1; white-space:nowrap; }
+.lp-item-vr.linked { opacity:.75; }
+.lp-chip.vr.active { border-color:#a78bfa; color:#c4b5fd; background:rgba(167,139,250,.12); }
+.lp-cap { display:inline-block; margin-top:10px; padding:5px 12px; border:1px solid var(--border2); border-radius:14px; color:var(--accent); text-decoration:none; font-family:'Pretendard',sans-serif; font-size:11px; }
+.lp-cap:hover { border-color:var(--accent); }
+.cap-row { display:flex; gap:6px; flex-wrap:wrap; }
+.cap-btn { display:flex; align-items:center; justify-content:center; text-decoration:none; font-size:11.5px; min-width:140px; }
+.cap-hint { margin-top:6px; font-size:10.5px; color:var(--text3); line-height:1.45; }
+/* 📐 평면도 탭 (iframe 대신 같은 자리에 div) */
+#splatFrame.plan-view { display:flex; flex-direction:column; background:#f8fafc; color:#0f172a; overflow:hidden; }
+.plan-wrap { flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding:8px; overflow:auto; }
+.plan-img { max-width:100%; max-height:100%; object-fit:contain; background:#fff; }
+.plan-info { flex-shrink:0; padding:8px 12px 10px; border-top:1px solid #e2e8f0; background:#fff; font-family:'Pretendard',sans-serif; font-size:11.5px; }
+.plan-total b { color:#0369a1; }
+.plan-rooms { display:flex; flex-wrap:wrap; gap:4px 10px; margin-top:4px; color:#334155; font-size:11px; }
+.plan-dl { display:flex; gap:6px; margin-top:6px; }
+.plan-dl a { padding:2px 9px; border:1px solid #cbd5e1; border-radius:10px; color:#0369a1; text-decoration:none; font-size:10.5px; }
+.plan-dl a:hover { border-color:#0369a1; }
+.plan-note { margin-top:5px; color:#64748b; font-size:10px; }

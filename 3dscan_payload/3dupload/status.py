@@ -1,5 +1,5 @@
 """GET /app/3dupload/status.py?job_id=xxxxxxxx -> 큐 파일 내용 (status, step, step_name, message, title, scan_type, scene_item_id, glb_url, thumb_url,
-splat_status pending|processing|done|failed, splat_url, splat_message, ortho_url, area, pano_status, pano_message, pano_url)"""
+splat_status pending|processing|done|failed, splat_url, splat_message, ortho_url, area, pano_status, pano_message, pano_url, floorplan_url)"""
 import json
 import os
 import sys
@@ -35,6 +35,8 @@ def main():
         # VR 투어 (docs/pano_contract.md 2절): pending|processing|done|failed, pano_url = tour.json 공개 주소
         "pano_status": q.get("pano_status"), "pano_message": q.get("pano_message"), "pano_url": q.get("pano_url"),
         "pano_progress": q.get("pano_progress"), "pano": q.get("pano"),
+        # 📐 집·방 평면도 (worker/floorplan.py): <job>_floorplan.json (urls.svg·png·dxf 가 안에 있다)
+        "floorplan_url": q.get("floorplan_url"),
         "updated_at": q.get("updated_at"), "error_detail": q.get("error_detail"),
     })
 

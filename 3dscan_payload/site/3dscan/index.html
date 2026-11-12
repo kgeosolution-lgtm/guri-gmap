@@ -20,7 +20,7 @@
 <!-- JSZip 은 ArcGIS 로더(AMD define)보다 먼저 읽어야 한다. 뒤에 두면 multipleDefine 으로 지도가 멈춤 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://js.arcgis.com/4.30/"></script>
-<link rel="stylesheet" href="viewer.css?v=591202f96b">
+<link rel="stylesheet" href="viewer.css?v=0c995a9c67">
 <style>
 /* 포커스 outline 제거 - ArcGIS 포함 */
 *, *:focus, *:active { outline: none !important; box-shadow: none !important; }
@@ -124,6 +124,7 @@ canvas { display: block; }
       <button type="button" class="lp-chip active" data-type="" onclick="setTypeFilter('')">전체</button>
       <button type="button" class="lp-chip home" data-type="home" onclick="setTypeFilter('home')">🏠 홈스캔</button>
       <button type="button" class="lp-chip survey" data-type="survey" onclick="setTypeFilter('survey')">📋 현장조사</button>
+      <button type="button" class="lp-chip vr" data-type="vr" onclick="setTypeFilter('vr')" title="VR 투어가 있는 기록 (같은 장소 연결 포함)">🥽 VR 투어</button>
     </div>
     <div class="lp-list" id="lpList">
       <div class="lp-loading">
@@ -159,6 +160,7 @@ canvas { display: block; }
     <div class="sb-head">
       <div class="sb-head-top">
         <div class="sb-tag" id="sbTypeTag">3D SCAN</div>
+        <div class="sb-tag vr" id="sbVrTag" style="display:none">🥽 VR</div>
         <div class="sb-tag green">● PUBLISHED</div>
         <div class="sb-head-actions">
           <button class="icon-btn" id="btnExpand" title="50:50 확장" onclick="toggleExpand()">⇔</button>
@@ -173,6 +175,8 @@ canvas { display: block; }
         <span>·</span>
         <span>UTM 52N</span>
       </div>
+      <!-- 같은 장소 기록 (✦ 3D · 🥽 VR 투어 · 📐 평면도) — viewer.js probeLinks -->
+      <div class="sb-links" id="sbLinks" style="display:none"></div>
     </div>
 
     <!-- 3D 미니 뷰어 -->
@@ -189,6 +193,7 @@ canvas { display: block; }
           <button type="button" class="vtab active" id="vtabGlb" onclick="setViewMode('glb')" title="LiDAR 메시 — 치수 측정 가능">◈ 메시</button>
           <button type="button" class="vtab" id="vtabSplat" onclick="setViewMode('splat')" title="3D — 사진처럼 보이는 가우시안 스플랫, 🚶 걸어보기">✦ 3D</button>
           <button type="button" class="vtab" id="vtabPano" style="display:none" onclick="setViewMode('pano')" title="VR 투어 — 제자리에서 찍은 360° 실사 사진으로 둘러보기">🥽 VR 투어</button>
+          <button type="button" class="vtab" id="vtabPlan" style="display:none" onclick="setViewMode('plan')" title="평면도 — 벽·문·창·치수·방 면적 (안목 기준 참고용)">📐 평면도</button>
           <button type="button" class="vtab" id="vtabOrtho" onclick="setViewMode('ortho')" title="정사영상 — 위/정면에서 본 실측 고해상도 사진">▦ 정사영상</button>
           <button type="button" class="vtab" id="vtabUtil" style="display:none" onclick="setViewMode('util')" title="굴착 기록 — 드러난 관·케이블 3D X-ray, 깊이·측점·조서">⛏ 지하시설물</button>
         </div>
@@ -214,6 +219,15 @@ canvas { display: block; }
 
     <!-- 속성 -->
     <div class="sb-body">
+
+      <div class="sb-section">
+        <div class="sec-label">📷 이 장소 기록 더하기</div>
+        <div class="cap-row">
+          <a class="foot-btn ghost cap-btn" id="lnkCapVr" href="capture_pano.html">🥽 이 장소 VR 투어 찍기</a>
+          <a class="foot-btn ghost cap-btn" id="lnkCap3d" href="capture.html">✦ 이 장소 3D 찍기</a>
+        </div>
+        <div class="cap-hint">같은 곳(20 m 안·30일 안)에서 찍으면 이 기록과 자동으로 묶여 탭으로 함께 보입니다.</div>
+      </div>
 
       <div class="sb-section">
         <div class="sec-label">🗂 속성 정보</div>
@@ -450,6 +464,6 @@ canvas { display: block; }
   <div class="toast-step" id="tStep"></div>
 </div>
 
-<script src="viewer.js?v=b8b626bb06"></script>
+<script src="viewer.js?v=5b5b458918"></script>
 </body>
 </html>

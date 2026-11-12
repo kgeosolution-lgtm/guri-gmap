@@ -215,6 +215,61 @@ def step_ortho(out_dir, job_id):
     return url
 
 
+FLOORPLAN_FILES = ("floorplan.json", "floorplan.svg", "floorplan.png", "floorplan.dxf")
+
+
+def floorplan_wanted(meta):
+    """집·방 스캔(앱 LiDAR, 유형 home)만 평면도를 만든다 — 굴착·현장조사·물체 모드는 벽이 없거나 의미가 없다"""
+    return meta.get("mode") == "stray" and (meta.get("scan_type") or "home") == "home"
+
+
+def step_floorplan(meta, out_dir, job_id, timeout=600):
+    """worker/floorplan.py(메시 → 벽·문·창·치수·방 면적) → 서빙 <job>_floorplan/ (json·svg·png·dxf) 와
+    <job>_floorplan.json (걸어보기 walk.js·스플랫 페이지·VR 투어 미니맵이 GLB 옆에서 찾는 이름) → floorplan_url. 실패·방 없음이면 ''
+    부가 단계라 예외를 밖으로 내지 않는다(호출부도 감싼다)."""
+    mesh = next((p for p in (os.path.join(out_dir, "mesh_full.ply"), os.path.join(out_dir, "mesh.ply")) if os.path.exists(p)), "")
+    fp_py = os.path.join(CFG["worker_dir"], "floorplan.py")
+    if not mesh or not os.path.exists(fp_py):
+        log("평면도 생략: " + ("메시 없음" if not mesh else "floorplan.py 없음"))
+        return ""
+    dest = os.path.join(out_dir, "floorplan")
+    shutil.rmtree(dest, ignore_errors=True)
+    cmd = [CFG["worker_python"], "-I", fp_py, "--mesh", mesh, "--out", dest, "--title", f"{meta.get('title') or job_id} 평면도",
+           "--scan-name", job_id, "--no-debug"]
+    t0 = time.time()
+    try:
+        with open(os.path.join(out_dir, "floorplan_stdout.log"), "w", encoding="utf-8") as lf:
+            rc = subprocess.run(cmd, stdout=lf, stderr=subprocess.STDOUT, text=True, timeout=timeout).returncode
+    except subprocess.TimeoutExpired:
+        log(f"평면도 생략: {timeout}초 안에 끝나지 않음")
+        return ""
+    src_json = os.path.join(dest, "floorplan.json")
+    if rc != 0 or not os.path.exists(src_json):
+        log(f"평면도 생략: floorplan.py 종료 코드 {rc} (out/floorplan_stdout.log)")
+        return ""
+    fp = json.load(open(src_json, "r", encoding="utf-8"))
+    rooms = [r for r in fp.get("rooms", []) if not r.get("partial")] or fp.get("rooms", [])
+    if not rooms:
+        log("평면도 생략: 방을 찾지 못함 (벽이 충분히 찍히지 않음)")
+        return ""
+    serve = os.path.join(CFG["glb_serve_dir"], f"{job_id}_floorplan")
+    shutil.rmtree(serve, ignore_errors=True)
+    os.makedirs(serve, exist_ok=True)
+    for n in FLOORPLAN_FILES:
+        if os.path.exists(os.path.join(dest, n)):
+            shutil.copy2(os.path.join(dest, n), os.path.join(serve, n))
+    base_url = f"{CFG['glb_serve_url']}/{job_id}_floorplan"
+    fp["urls"] = {k: f"{base_url}/{n}" for k, n in (("json", "floorplan.json"), ("svg", "floorplan.svg"), ("png", "floorplan.png"),
+                                                       ("dxf", "floorplan.dxf")) if os.path.exists(os.path.join(serve, n))}
+    fp["job_id"] = job_id
+    with open(os.path.join(CFG["glb_serve_dir"], f"{job_id}_floorplan.json"), "w", encoding="utf-8") as f:   # GLB 옆 (walk.js 규약)
+        json.dump(fp, f, ensure_ascii=False, indent=1)
+    total = sum(r.get("area_m2", 0) for r in rooms)
+    url = f"{CFG['glb_serve_url']}/{job_id}_floorplan.json"
+    log(f"평면도: {url} (방 {len(rooms)}개, {total:.2f} m², {time.time() - t0:.1f}s)")
+    return url
+
+
 # ── 위험요소 이력: 관리 대상(장소) + 직전 점검과 변화 비교 (docs/hazards_contract.md) ─────────────────────
 def sites_dir():
     d = os.path.join(CFG["data_root"], "sites")
@@ -1018,6 +1073,14 @@ def main():
             hz = dict(hazards_url=hazards_url or None, changes_url=changes_url or None, site_id=site_id)
         except Exception as e:                             # 위험요소 이력은 부가 기능 — 실패해도 발행은 계속
             log(f"위험요소 이력 생략: {e}")
+    if floorplan_wanted(meta):                             # 📐 집·방 평면도 (부동산 연계, 2026-11-12) — 실패해도 발행은 계속
+        try:
+            q.update(message="평면도 만드는 중")
+            fp_url = step_floorplan(meta, out_dir, job_id)
+            if fp_url:
+                hz["floorplan_url"] = fp_url
+        except Exception as e:
+            log(f"평면도 생략: {e}")
     if (meta.get("trench") or {}).get("mode"):
         try:
             q.update(message="굴착 기록: 관 자동 추출 중")
