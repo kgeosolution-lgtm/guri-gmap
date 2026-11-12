@@ -31,6 +31,9 @@ import zipfile
 import numpy as np
 import cv2
 
+# 서버는 'python -I pano_stitch.py' 로 돌린다(격리 모드라 스크립트 폴더가 sys.path 에 없음) → 같은 폴더의 pano_video 를 찾게 한다
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 cv2.ocl.setUseOpenCL(False)          # detail_MultiBandBlender 의 OpenCL 경로가 이 빌드에서 깨진다(결과 0)
 try:
     sys.stdout.reconfigure(encoding="utf-8")
@@ -970,16 +973,43 @@ def pick_size(req, f_med):
     return int(min(req, max(2048, s)))
 
 
+def write_spot_outputs(eq, out_dir, sid, W, opts):
+    """계약 3절 출력: sNN/pano.jpg · preview.jpg · thumb.jpg · tiles/{r}_{c}.jpg"""
+    d_spot = os.path.join(out_dir, sid)
+    os.makedirs(os.path.join(d_spot, "tiles"), exist_ok=True)
+    jp = [int(cv2.IMWRITE_JPEG_QUALITY), opts.quality, int(cv2.IMWRITE_JPEG_PROGRESSIVE), 1]
+    cv2.imwrite(os.path.join(d_spot, "pano.jpg"), eq, jp)
+    cv2.imwrite(os.path.join(d_spot, "preview.jpg"), cv2.resize(eq, (2048, 1024), interpolation=cv2.INTER_AREA), [int(cv2.IMWRITE_JPEG_QUALITY), 85, int(cv2.IMWRITE_JPEG_PROGRESSIVE), 1])
+    cv2.imwrite(os.path.join(d_spot, "thumb.jpg"), cv2.resize(eq, (512, 256), interpolation=cv2.INTER_AREA), [int(cv2.IMWRITE_JPEG_QUALITY), 82])
+    ts = W // TILE_COLS
+    for rr in range(TILE_ROWS):
+        for cc in range(TILE_COLS):
+            cv2.imwrite(os.path.join(d_spot, "tiles", f"{rr}_{cc}.jpg"), eq[rr * ts:(rr + 1) * ts, cc * ts:(cc + 1) * ts], [int(cv2.IMWRITE_JPEG_QUALITY), 88])
+    return d_spot
+
+
 def stitch_spot(src, spot, out_dir, opts, prog=lambda p, m: None):
     t0 = time.time()
     sid = spot.get("id") or "s01"
     shots = [s for s in spot.get("shots") or [] if isinstance(s, dict) and s.get("file")]
+    vmeta = spot.get("video") if isinstance(spot.get("video"), dict) else None
+    video_info, pre = None, None
+    if vmeta and vmeta.get("file") and (spot.get("mode") == "video" or len(shots) < MIN_SHOTS) and opts.video_render == "strip":
+        import pano_video                                   # 영상 지점 (계약 1.2절) 기본: 띠 모자이크
+        return pano_video.render_strip_spot(src, spot, out_dir, opts, prog, sys.modules[__name__])
+    if vmeta and vmeta.get("file") and (spot.get("mode") == "video" or len(shots) < MIN_SHOTS):
+        import pano_video                                   # 영상 지점 (계약 1.2절): 핵심 프레임 고르기·합치기 → 사진처럼
+        vimgs, shots, video_info = pano_video.load_video_spot(src, spot, opts, prog, sys.modules[__name__])
+        pre = {s["file"]: im for s, im in zip(shots, vimgs)}
+        del vimgs
+        log(f"[{sid}] 영상 {video_info['frames']}프레임 → 핵심 {video_info['keyframes']}개 (시각 {video_info['sync_ms']} ms, 일치 {video_info['sync_score']}, "
+            f"합침 {video_info['fused_med']}장, {video_info['sec_analyse'] + video_info['sec_fuse']:.0f} s)")
     if len(shots) < MIN_SHOTS:
         raise InputError(f"사진이 {MIN_SHOTS}장보다 적습니다 ({len(shots)}장)")
     imgs, cams, R0, keys, used_shots, skipped = [], [], [], [], [], []
     for s in shots:
         try:
-            img = decode_image(src.read(s["file"]))
+            img = pre.pop(s["file"]) if pre is not None else decode_image(src.read(s["file"]))
             R = shot_R(s)
         except Exception as e:
             skipped.append({"file": s.get("file"), "error": str(e)})
@@ -995,7 +1025,10 @@ def stitch_spot(src, spot, out_dir, opts, prog=lambda p, m: None):
     if len(imgs) < MIN_SHOTS:
         raise InputError(f"읽을 수 있는 사진이 {MIN_SHOTS}장보다 적습니다 ({len(imgs)}장)")
     gid = np.array([c[2] for c in cams])
-    cam_meta = spot.get("cam") or {}
+    cam_meta = dict(spot.get("cam") or {})
+    if video_info is not None:
+        cam_meta.update({k: vmeta[k] for k in ("lens", "f_ratio", "label") if vmeta.get(k) is not None})
+        cam_meta["f_ratio"] = video_info["f_ratio"]
     f_hint = cam_meta.get("f_px")
     f_ratio = cam_meta.get("f_ratio")             # 촬영 페이지가 렌즈별로 준다 (초광각 0.40, 기본 0.72)
     if not (isinstance(f_ratio, (int, float)) and 0.2 < f_ratio < 1.5):
@@ -1029,6 +1062,16 @@ def stitch_spot(src, spot, out_dir, opts, prog=lambda p, m: None):
             ang = math.acos(max(-1, min(1, float(axes[i] @ axes[j]))))
             if ang < 0.45 * (fov_diag(cams[i]) + fov_diag(cams[j])):
                 pairs.append((i, j))
+    max_per_pair = opts.max_per_pair
+    # 영상 지점: 자세는 자이로(짧은 시간 상대 회전이 정확) + 시각 맞춤이라 사전값을 좁힌다 — 몸을 축으로 돈 시차를 회전으로 흡수해 비틀지 못하게
+    sig_rot = opts.video_sig_rot if video_info is not None else opts.sig_rot
+    if video_info is not None and opts.video_pair_k > 0 and N > opts.video_pair_k + 1:
+        cosm = axes @ axes.T
+        np.fill_diagonal(cosm, -2)
+        near = np.argsort(-cosm, axis=1)[:, :opts.video_pair_k]
+        keep_p = {(min(i, int(j)), max(i, int(j))) for i in range(N) for j in near[i]}
+        pairs = [p for p in pairs if p in keep_p]
+        max_per_pair = min(max_per_pair, opts.video_max_per_pair)
     rounds = [(opts.tol1, 0.85), (opts.tol2, 0.9)]
     M = None
     # 초광각: 초점·k1 을 먼저 풀어 재고, 기기 초점비(0.40)에서 ±ultra_band 를 벗어나면 그 값으로 고정해 다시 한다.
@@ -1052,8 +1095,8 @@ def stitch_spot(src, spot, out_dir, opts, prog=lambda p, m: None):
                 if r is None:
                     continue
                 pa, pb = r
-                if len(pa) > opts.max_per_pair:
-                    sel = np.random.default_rng(i * 1000 + j).choice(len(pa), opts.max_per_pair, replace=False)
+                if len(pa) > max_per_pair:
+                    sel = np.random.default_rng(i * 1000 + j).choice(len(pa), max_per_pair, replace=False)
                     pa, pb = pa[sel], pb[sel]
                 II.append(np.full(len(pa), i))
                 JJ.append(np.full(len(pa), j))
@@ -1069,7 +1112,7 @@ def stitch_spot(src, spot, out_dir, opts, prog=lambda p, m: None):
             fix_k1 = few or opts.no_k1 or bool(fix_f)
 
             def ba(M, iters):
-                return bundle_adjust(cams, R0, gid, M, F, sig_rot_deg=opts.sig_rot, f0=f0g, fix_k1=fix_k1, fix_f=tuple(sorted(fix_f)), iters=iters,
+                return bundle_adjust(cams, R0, gid, M, F, sig_rot_deg=sig_rot, f0=f0g, fix_k1=fix_k1, fix_f=tuple(sorted(fix_f)), iters=iters,
                                      sig_k=0.2 if (f_ratio and f_ratio < 0.5) else 0.1, sig_f=opts.sig_f)
             e = ba(M, 40)
             # 이상치 빼고 한 번 더
@@ -1161,6 +1204,9 @@ def stitch_spot(src, spot, out_dir, opts, prog=lambda p, m: None):
             r = (0, Ws, r[2], r[3], True)
         small = cv2.resize(imgs[k], (cs.w, cs.h), interpolation=cv2.INTER_AREA)
         wimg, ok, wgt = warp_roi(small, cs, Ws, Hs, r)
+        if video_info is not None and opts.clip_avoid:
+            clip = cv2.dilate((wimg.max(2) >= 250).astype(np.uint8), np.ones((5, 5), np.uint8)) > 0
+            wgt = np.where(clip, wgt * 0.15, wgt).astype(wgt.dtype)
         wimg = apply_gain(wimg, gains[k])
         if r[3] > v_floor:
             ok[max(0, v_floor - r[2]):] = False
@@ -1261,16 +1307,7 @@ def stitch_spot(src, spot, out_dir, opts, prog=lambda p, m: None):
         eq, _ = fill_pole(eq, covered, "zenith", "blur", 0)
     eq = fill_small_holes(eq, covered)
     # 저장
-    d_spot = os.path.join(out_dir, sid)
-    os.makedirs(os.path.join(d_spot, "tiles"), exist_ok=True)
-    jp = [int(cv2.IMWRITE_JPEG_QUALITY), opts.quality, int(cv2.IMWRITE_JPEG_PROGRESSIVE), 1]
-    cv2.imwrite(os.path.join(d_spot, "pano.jpg"), eq, jp)
-    cv2.imwrite(os.path.join(d_spot, "preview.jpg"), cv2.resize(eq, (2048, 1024), interpolation=cv2.INTER_AREA), [int(cv2.IMWRITE_JPEG_QUALITY), 85, int(cv2.IMWRITE_JPEG_PROGRESSIVE), 1])
-    cv2.imwrite(os.path.join(d_spot, "thumb.jpg"), cv2.resize(eq, (512, 256), interpolation=cv2.INTER_AREA), [int(cv2.IMWRITE_JPEG_QUALITY), 82])
-    ts = W // TILE_COLS
-    for rr in range(TILE_ROWS):
-        for cc in range(TILE_COLS):
-            cv2.imwrite(os.path.join(d_spot, "tiles", f"{rr}_{cc}.jpg"), eq[rr * ts:(rr + 1) * ts, cc * ts:(cc + 1) * ts], [int(cv2.IMWRITE_JPEG_QUALITY), 88])
+    d_spot = write_spot_outputs(eq, out_dir, sid, W, opts)
     if opts.debug:
         vis = cv2.applyColorMap(((label_s.astype(np.int32) * 47) % 256).astype(np.uint8), cv2.COLORMAP_HSV)
         vis[label_s < 0] = 0
@@ -1314,6 +1351,9 @@ def stitch_spot(src, spot, out_dir, opts, prog=lambda p, m: None):
                    for k in range(N)],
         "skipped": skipped, "seams": per_seam[:200],
     }
+    quality["mode"] = "video" if video_info is not None else "photos"
+    if video_info is not None:
+        report["video"] = video_info
     return W, H, quality, report
 
 
@@ -1374,6 +1414,17 @@ def main(argv=None):
     ap.add_argument("--f-lo", type=float, default=0.90, help="초점이 초기값의 이 배수보다 작아지면 초기값으로 고정")
     ap.add_argument("--f-hi", type=float, default=1.10)
     ap.add_argument("--max-fix", type=float, default=12.0, help="센서 자세에서 이만큼(°) 넘게 벗어난 사진은 센서 자세로 되돌린다")
+    ap.add_argument("--video-render", choices=("strip", "keyframes"), default="strip", help="영상 지점: strip = 1.5° 띠 모자이크(기본, 시차·겹침 적음), keyframes = 핵심 프레임을 사진처럼")
+    ap.add_argument("--strip-step", type=float, default=1.5, help="영상 띠 간격 (°)")
+    ap.add_argument("--video-sharpen", type=float, default=0.6, help="영상 지점: 언샤프 마스크 세기 (0 = 끔). 합성 시험에서 PSNR 그대로·선명도 0.15→0.27")
+    ap.add_argument("--strip-blend", type=float, default=0.6, help="영상 띠: 이웃 두 프레임을 섞는 폭 (간격 비율, 1 = 고르게). 좁을수록 또렷")
+    ap.add_argument("--video-step", type=float, default=12.0, help="영상 지점: 핵심 프레임 yaw 간격 (°). 작을수록 이음선 시차가 작고 느리다")
+    ap.add_argument("--video-fuse", type=int, default=3, help="영상 지점: 핵심 프레임 하나에 합치는 프레임 수 (1 = 합치지 않음)")
+    ap.add_argument("--video-max", type=int, default=96, help="영상 지점: 핵심 프레임 상한")
+    ap.add_argument("--video-pair-k", type=int, default=10, help="영상 지점: 프레임마다 광축이 가까운 몇 개와 짝을 맞출지")
+    ap.add_argument("--video-max-per-pair", type=int, default=120)
+    ap.add_argument("--video-sig-rot", type=float, default=1.5, help="영상 지점: 자세 사전값 표준편차 (°)")
+    ap.add_argument("--no-clip-avoid", dest="clip_avoid", action="store_false", help="영상 지점: 날아간 화소 피하기 끄기")
     ap.add_argument("--debug", action="store_true")
     opts = ap.parse_args(argv)
     if opts.nadir == "none":

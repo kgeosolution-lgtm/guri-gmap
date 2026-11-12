@@ -86,6 +86,14 @@ button{font-family:inherit;color:inherit;background:none;border:0;cursor:pointer
 .mini .map svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
 .mini.fold .map{display:none}
 .mini.pick .map{cursor:crosshair;outline:3px solid var(--acc-o);outline-offset:-3px}
+.mini .hd span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mini .hd span b{color:var(--accent);font-weight:700}
+.mini .mlist{display:flex;flex-wrap:wrap;gap:4px;padding:6px;background:rgba(240,242,245,.96);border-top:1px solid rgba(0,0,0,.08)}
+.mini .mlist button{min-height:28px;padding:0 9px;border-radius:999px;border:1px solid rgba(15,23,42,.18);background:#fff;color:#1e293b;font-size:12px;font-weight:600;cursor:pointer}
+.mini .mlist button.cur{background:#0ea5e9;border-color:#0ea5e9;color:#fff}
+.mini .mlist button.placed::after{content:' ●';color:#0ea5e9;font-size:9px}
+.mini .mlist button.cur.placed::after{color:#fff}
+.mini.fold .mlist{display:none}
 
 /* 바닥 원·화살표 */
 .hot{position:absolute;left:0;top:0;pointer-events:auto;width:96px;height:96px;margin:-48px 0 0 -48px;display:flex;flex-direction:column;align-items:center;justify-content:center}
@@ -163,8 +171,9 @@ body.embed .bar{padding-top:8px}
 </div>
 
 <div class="mini" id="mini" hidden>
-  <div class="hd"><span>평면도</span><button id="miniFold" aria-label="평면도 접기">–</button></div>
+  <div class="hd"><span id="miniHd">평면도</span><button id="miniFold" aria-label="평면도 접기">–</button></div>
   <div class="map" id="miniMap"><img id="miniImg" alt="평면도"><svg id="miniSvg" viewBox="0 0 1 1" preserveAspectRatio="none"></svg></div>
+  <div class="mlist" id="miniList" hidden></div>
 </div>
 
 <nav class="spots" id="spots" aria-label="지점"></nav>
@@ -193,6 +202,10 @@ const D2R = Math.PI / 180;
 const MOBILE = matchMedia('(pointer:coarse)').matches || /iP(hone|ad|od)|Android/.test(navigator.userAgent);
 const EDIT = P.get('edit') === '1';
 const EMBED = P.get('embed') === '1' || window.self !== window.top;
+// &plan=<png 주소>: 같은 장소의 자동 평면도(worker/floorplan.py)를 미니맵으로 (계약 5절). 같은 출처(또는 상대 주소)만 연다
+const PLAN_URL = (() => { const v = P.get('plan'); if (!v) return null; try { const u = new URL(v, location.href); return u.origin === location.origin ? u.href : null; } catch (e) { return null; } })();
+// &pos=s01:0.42:0.31[:yaw];s02:...  지점의 평면도 위치(0~1, 왼쪽 위 기준)와 평면도 위 방향(선택) — 지점 놓기 결과를 주소로 넘길 때
+const POS = (() => { const o = {}; (P.get('pos') || '').split(';').forEach((t) => { const a = t.split(':'); if (a.length < 3) return; const x = parseFloat(a[1]), y = parseFloat(a[2]), w = parseFloat(a[3]); if (a[0] && isFinite(x) && isFinite(y)) o[a[0]] = { xy: [Math.min(1, Math.max(0, x)), Math.min(1, Math.max(0, y))], yaw: isFinite(w) ? w : null }; }); return o; })();
 if (EMBED) document.body.classList.add('embed');
 const MAX_TILES = MOBILE ? 6 : 8;            // 동시에 올려 둘 고해상도 조각 (2048² 한 장 ≈ 16 MB GPU)
 const R_BASE = 500, R_TILE = 490;
@@ -479,13 +492,35 @@ function northYaw() { const s = S.spot; const n = s && isFinite(s.north_yaw) ? s
 
 /* 미니맵 (계약 6절) */
 function buildMini() {
+  if (PLAN_URL) {                 // 주소로 받은 평면도가 tour.json 의 것보다 우선. 크기는 그림을 읽고 나서
+    const old = S.tour.floorplan && S.tour.floorplan.image ? new URL(S.tour.floorplan.image, S.base).href : null;
+    if (old !== PLAN_URL) S.tour.spots.forEach((s) => { s.plan_xy = null; delete s.yaw_on_plan; });     // 다른 그림의 좌표는 쓰지 않는다
+    S.tour.floorplan = { image: PLAN_URL, src: 'param', north_deg: isFinite(parseFloat(P.get('plan_north'))) ? parseFloat(P.get('plan_north')) : null };
+    S.tour.spots.forEach((s) => { const q = POS[s.id]; if (q) { s.plan_xy = q.xy; if (q.yaw != null) s.yaw_on_plan = q.yaw; } });
+  }
   const fp = S.tour.floorplan;
   if (!fp || !fp.image) { $('mini').hidden = true; return; }
   $('mini').hidden = false;
-  $('miniImg').src = abs(fp.image);
+  const img = $('miniImg');
+  img.onload = () => { if (!fp.width || fp.src === 'param') { fp.width = img.naturalWidth; fp.height = img.naturalHeight; } renderMini(); emit('plan', { image: fp.image, width: fp.width, height: fp.height }); };
+  img.onerror = () => { $('mini').hidden = true; if (fp.src === 'param') toast('평면도를 불러오지 못했습니다'); };
+  img.src = fp.src === 'param' ? fp.image : abs(fp.image);
   if (MOBILE && window.innerWidth < 640) $('mini').classList.add('fold');
   $('miniFold').textContent = $('mini').classList.contains('fold') ? '+' : '–';
 }
+/* 지점 놓기 (지점 위치는 아직 자동으로 모른다 — 메인 뷰어가 평면도 위에서 끌어 놓은 결과를 넣는 자리)
+   place(id, [x,y] 0~1 왼쪽 위 기준 | null, yawOnPlan°|null): 평면도 위치·평면도 위 방향(지점 yaw 0 이 평면도에서 가리키는 방위, 위 = 0°, 시계 방향) */
+function placeSpot(id, xy, yawOnPlan) {
+  const s = spotById(id); if (!s) return false;
+  if (xy === null) { s.plan_xy = null; }
+  else if (Array.isArray(xy) && xy.length === 2 && isFinite(xy[0]) && isFinite(xy[1])) s.plan_xy = [clamp(+xy[0], 0, 1), clamp(+xy[1], 0, 1)];
+  if (yawOnPlan === null) delete s.yaw_on_plan; else if (isFinite(yawOnPlan)) s.yaw_on_plan = +yawOnPlan;
+  if (EDIT) saveEdit();
+  renderMini();
+  emit('placed', { spot: s.id, plan_xy: s.plan_xy || null, yaw_on_plan: isFinite(s.yaw_on_plan) ? s.yaw_on_plan : null });
+  return true;
+}
+function placements() { return S.tour ? S.tour.spots.map((s) => ({ id: s.id, name: s.name || s.id, plan_xy: Array.isArray(s.plan_xy) ? s.plan_xy : null, yaw_on_plan: isFinite(s.yaw_on_plan) ? s.yaw_on_plan : null })) : []; }
 function planYaw(s) {
   if (isFinite(s.yaw_on_plan)) return +s.yaw_on_plan;
   const fp = S.tour.floorplan, n = northYaw();
@@ -494,6 +529,14 @@ function planYaw(s) {
 }
 function renderMini() {
   const fp = S.tour.floorplan; if (!fp || !fp.image) return;
+  // 머리: 지금 지점 이름. 위치를 모르는 지점이 있으면 아래에 지점 목록 (누르면 이동)
+  $('miniHd').innerHTML = '평면도' + (S.spot ? ' · <b>' + esc(S.spot.name || S.spot.id) + '</b>' : '');
+  const unplaced = S.tour.spots.some((s) => !Array.isArray(s.plan_xy));
+  const ml = $('miniList'); ml.hidden = !unplaced || S.tour.spots.length < 1;
+  if (unplaced) {
+    ml.innerHTML = S.tour.spots.map((s) => '<button data-id="' + esc(s.id) + '" class="' + (s === S.spot ? 'cur' : '') + (Array.isArray(s.plan_xy) ? ' placed' : '') + '" title="' + (Array.isArray(s.plan_xy) ? '평면도 위치 있음' : '평면도 위치 아직 없음') + '">' + esc(s.name || s.id) + '</button>').join('');
+    ml.querySelectorAll('button').forEach((b) => b.onclick = () => { const s = spotById(b.dataset.id); if (s && s !== S.spot) { S.auto = false; showSpot(s, linkTo(s.id)); } });
+  }
   const ar = (fp.height || 1) / (fp.width || 1), svg = $('miniSvg');
   svg.setAttribute('viewBox', '0 0 1 ' + ar.toFixed(4));
   let h = '<path id="cone" d="" fill="rgba(56,189,248,.35)" stroke="rgba(14,116,144,.8)" stroke-width="0.004"/>';
@@ -653,6 +696,8 @@ window.addEventListener('message', (e) => {
   if (d.cmd === 'goto' && S.tour) { const s = spotById(d.spot); if (s && s !== S.spot) showSpot(s, linkTo(s.id)); }
   else if (d.cmd === 'view') { if (isFinite(d.yaw)) S.yaw = +d.yaw; if (isFinite(d.pitch)) S.pitch = clamp(+d.pitch, -88, 88); if (isFinite(d.fov)) S.fov = clamp(+d.fov, S.fovMin, S.fovMax); S.auto = false; S.dirty = true; }
   else if (d.cmd === 'hq') setHQ(!!d.on);
+  else if (d.cmd === 'place' && S.tour) placeSpot(d.spot, d.xy === undefined ? undefined : d.xy, d.yaw_on_plan);
+  else if (d.cmd === 'placements' && S.tour) emit('placements', { spots: placements() });
 });
 function setHQ(on) { S.hq = on; $('bHQ').classList.toggle('on', on); if (S.view) S.view.updateTiles(); S.dirty = true; }
 $('bHQ').onclick = () => { setHQ(!S.hq); toast(S.hq ? '고화질로 봅니다' : '미리보기 화질로 봅니다 (데이터 절약)'); };
@@ -662,7 +707,7 @@ setHQ(S.hq);
    rayAt(u,v): 등장방형 좌표(0~1) → 지점 세계(세션 프레임, z 위) 방향.  pointAt(u,v): spot.depth 와 pose3d 가 있을 때 장면 좌표 [x,y,z] (지금은 null) */
 function rayAt(u, v) { const y = (u - 0.5) * 2 * Math.PI, p = (0.5 - v) * Math.PI; return [Math.sin(y) * Math.cos(p), Math.cos(y) * Math.cos(p), Math.sin(p)]; }
 function pointAt(u, v) { return null; }
-window.kgeoPano = { rayAt, pointAt, state: S };
+window.kgeoPano = { rayAt, pointAt, state: S, place: placeSpot, placements };
 
 /* ── 편집 (&edit=1) ── */
 function mergeEdit(tour, e) {

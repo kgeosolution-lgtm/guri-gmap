@@ -50,7 +50,7 @@ PERMIT_FIELDS = ("permit_no", "owner_org", "surveyor", "org")
 MAX_PERMIT = 100
 # VR 투어 묶음 검사 (docs/pano_contract.md 1절 '서버 검사')
 PANO_MIN_SPOTS, PANO_MAX_SPOTS, PANO_MIN_SHOTS, PANO_MAX_SHOTS = 1, 30, 6, 1500
-PANO_NAME = re.compile(r"^(spots\.json|s\d{2}/|s\d{2}/\d{4}\.jpe?g)$")
+PANO_NAME = re.compile(r"^(spots\.json|s\d{2}/|s\d{2}/\d{4}\.jpe?g|s\d{2}/video\.(mp4|webm|mov))$")   # 영상 지점 (두 바퀴, 계약 v0.3 1.2.1)
 
 
 def check_pano_zip(payload):
@@ -61,17 +61,20 @@ def check_pano_zip(payload):
         infos = zf.infolist()
     except (zipfile.BadZipFile, ValueError, OSError):
         raise ValueError("VR 투어 묶음(zip)을 열 수 없습니다. 다시 올려 주세요")
-    per_spot, has_spots = {}, False
+    per_spot, has_spots, videos = {}, False, set()
     for zi in infos:
         n = zi.filename
         if "\\" in n or n.startswith("/") or ".." in n or not PANO_NAME.match(n):
             raise ValueError(f"VR 투어 묶음에 허용되지 않는 파일이 있습니다: {n[:60]}")
         if n == "spots.json":
             has_spots = True
+        elif "/video." in n:
+            videos.add(n[:3])
         elif not n.endswith("/"):
             per_spot[n[:3]] = per_spot.get(n[:3], 0) + 1
     if not has_spots:
         raise ValueError("VR 투어 묶음에 spots.json 이 없습니다")
+    names = {zi.filename for zi in infos}
     try:
         doc = json.loads(zf.read("spots.json").decode("utf-8-sig"))
     except (UnicodeDecodeError, ValueError, KeyError):
@@ -86,10 +89,16 @@ def check_pano_zip(payload):
         sid = str((sp or {}).get("id") or "") if isinstance(sp, dict) else ""
         if not re.fullmatch(r"s\d{2}", sid):
             raise ValueError("spots.json 의 지점 id 형식이 맞지 않습니다")
+        if sp.get("mode") == "video":            # 영상 지점: 사진 6장 규칙 대신 spots.json 의 video.file 이 묶음에 있어야 함
+            vf = str(((sp.get("video") or {}) if isinstance(sp.get("video"), dict) else {}).get("file") or "")
+            if sid not in videos or not vf.startswith(sid + "/video.") or vf not in names:
+                name = (sp.get("name") or sid)[:20]
+                raise ValueError(f"'{name}' 지점 영상이 묶음에 없습니다 — 그 지점을 다시 찍어 주세요")
+            continue
         if per_spot.get(sid, 0) < PANO_MIN_SHOTS:
             name = (sp.get("name") or sid)[:20]
             raise ValueError(f"'{name}' 지점 사진이 {per_spot.get(sid, 0)}장입니다. 지점마다 {PANO_MIN_SHOTS}장 이상 필요합니다 — 그 지점을 다시 찍어 주세요")
-    return {"spots": len(spots), "shots": total}
+    return {"spots": len(spots), "shots": total, "videos": len(videos)}
 
 
 def clean_text(value, limit):
