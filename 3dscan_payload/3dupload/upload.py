@@ -6,6 +6,9 @@ POST /app/3dupload/upload.py  (multipart/form-data)
              obj_radius (m), obj_coverage (촬영 방위 커버리지 %) → 메시·스플랫을 물체 영역으로 자른다
   mode=stray: scan_zip (Stray Scanner 녹화 폴더 zip), lon, lat (필수), elev, heading
   mode=legacy (기본): las_file, glb_file (Scaniverse 등에서 내보낸 LAS + GLB)
+  굴착 기록: trench_mode=1 (+ scan_type=survey). 웹 촬영(mode=video|photos)은 docs/web_trench_contract.md 1절:
+             sensors_file (sensors.json ≤5 MB), marks_file (marks2d.json ≤1 MB) — 둘 다 선택, JSON 이어야 한다
+  굴착 허가 정보(모든 모드, 선택): permit_no, owner_org, surveyor, org (각 100자) → job.json permit → 조서
 
 응답: {"job_id": "..."}  또는 {"error": "..."}
 중복 방지: 같은 제목·같은 원본 파일 이름으로 24시간 안에 만든 작업(실패 제외)이 있으면 새로 만들지 않고 그 job_id 를 돌려준다
@@ -35,6 +38,45 @@ ALLOWED = {"scan_zip": (".zip",), "las_file": (".las", ".laz"), "glb_file": (".g
            "video_file": (".mp4", ".mov", ".m4v", ".webm", ".3gp"),   # video: 웹 3D 현장조사 (기본 카메라 영상 → GPU 스플랫)
            "photo_files": (".jpg", ".jpeg", ".png", ".heic", ".heif", ".webp")}   # photos: 같은 현장조사의 사진 여러 장 (화질 권장)
 MIN_PHOTOS, MAX_PHOTOS = 10, 300
+# 웹 굴착 기록 부속 파일 (docs/web_trench_contract.md 1절): 필드 이름 → (저장 이름, 최대 바이트)
+TRENCH_FILES = {"sensors_file": ("sensors.json", 5 * 1024 * 1024), "marks_file": ("marks2d.json", 1024 * 1024)}
+PERMIT_FIELDS = ("permit_no", "owner_org", "surveyor", "org")
+MAX_PERMIT = 100
+
+
+def clean_text(value, limit):
+    """제어 문자(줄바꿈 포함)를 빼고 앞뒤 공백을 지운 뒤 limit 자로 자른다"""
+    s = "".join(ch for ch in (value or "") if ch.isprintable())
+    return s.strip()[:limit]
+
+
+def parse_permit(fields):
+    """굴착 허가·작업자 정보 → dict (값이 있는 것만) 또는 None"""
+    p = {k: clean_text(fields.get(k), MAX_PERMIT) for k in PERMIT_FIELDS}
+    p = {k: v for k, v in p.items() if v}
+    return p or None
+
+
+def save_trench_json(item, job_dir, field):
+    """웹 굴착 기록 부속 JSON (sensors.json / marks2d.json) 저장 → 경로 또는 None. 크기·JSON 형식이 틀리면 ValueError"""
+    if not item or not item[1]:
+        return None
+    name, limit = TRENCH_FILES[field]
+    payload = item[1]
+    if len(payload) > limit:
+        raise ValueError(f"{field}: 파일이 너무 큽니다 (최대 {limit // (1024 * 1024)} MB)")
+    try:
+        data = json.loads(payload.decode("utf-8-sig"))
+    except (UnicodeDecodeError, ValueError):
+        raise ValueError(f"{field}: JSON 형식이 아닙니다")
+    if not isinstance(data, dict):
+        raise ValueError(f"{field}: JSON 객체여야 합니다")
+    if field == "marks_file" and not isinstance(data.get("marks", []), list):
+        raise ValueError("marks_file: marks 는 배열이어야 합니다")
+    dest = os.path.join(job_dir, name)
+    with open(dest, "wb") as out:
+        out.write(payload)
+    return dest
 
 
 def parse_multipart():
@@ -161,7 +203,11 @@ def main():
     trench = None
     if (fields.get("trench_mode") or "").strip().lower() in ("1", "true", "yes", "on"):
         trench = {"mode": 1}
-        area = area or {"mode": 1, "surface": "floor"}
+        if web3d:
+            trench["source"] = "web"              # 웹 촬영: GPU 워커가 실측 묶음을 돌려준 뒤 굴착 후처리 (web_trench_contract.md)
+        else:
+            area = area or {"mode": 1, "surface": "floor"}   # LiDAR 녹화만: 위에서 본 정사영상·깊이 지도
+    permit = parse_permit(fields)
 
     # 관리 대상(장소): site_id 가 있으면 그 장소, 없고 site_name 만 있으면(앱이 오프라인에서 고른 새 장소) 여기서 만든다
     site_id = None
@@ -204,8 +250,12 @@ def main():
         "job_id": job_id, "title": title, "note": note, "mode": mode, "scan_type": scan_type, "job_dir": job_dir,
         "author": cfg.get("portal_user", ""), "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "splat_requested": splat_requested, "object": obj, "area": area, "site_id": site_id, "trench": trench,
+        "permit": permit,
     }
     try:
+        if trench and web3d:                  # 웹 굴착 기록 부속 파일 (선택)
+            trench["sensors_path"] = save_trench_json(files.get("sensors_file"), job_dir, "sensors_file")
+            trench["marks2d_path"] = save_trench_json(files.get("marks_file"), job_dir, "marks_file")
         if web3d:                            # 웹 3D 현장조사: 영상 하나 또는 사진 여러 장 (LiDAR·포즈 없음) → GPU 워커가 SfM + 스플랫
             lon, lat = fields.get("lon"), fields.get("lat")
             if not lon or not lat:
@@ -258,13 +308,20 @@ def main():
 
     with open(os.path.join(job_dir, "job.json"), "w", encoding="utf-8") as f:
         json.dump(meta, f, ensure_ascii=False, indent=2)
+    # 큐 파일은 status.py 로 공개되므로 서버 경로는 빼고 있음/없음만 둔다
+    q_trench = None
+    if trench:
+        q_trench = {k: v for k, v in trench.items() if not k.endswith("_path")}
+        if web3d:
+            q_trench.update(sensors=bool(trench.get("sensors_path")), marks2d=bool(trench.get("marks2d_path")))
     queue = {"job_id": job_id, "title": title, "job_dir": job_dir, "mode": mode, "scan_type": scan_type,
              "source_name": source_name, "client_id": client_id, "app": (fields.get("app") or "")[:60],
-             "splat_requested": splat_requested, "object": obj, "area": area, "site_id": site_id, "trench": trench,
+             "splat_requested": splat_requested, "object": obj, "area": area, "site_id": site_id, "trench": q_trench,
              "status": "pending", "step": 0, "message": "대기 중", "created_at": meta["created_at"]}
     with open(os.path.join(cfg["jobs_dir"], job_id + ".json"), "w", encoding="utf-8") as f:
         json.dump(queue, f, ensure_ascii=False, indent=2)
-    respond({"job_id": job_id, "mode": mode, "scan_type": scan_type, "object_mode": bool(obj), "site_id": site_id})
+    respond({"job_id": job_id, "mode": mode, "scan_type": scan_type, "object_mode": bool(obj), "site_id": site_id,
+             "trench": q_trench, "permit": bool(permit)})
 
 
 if __name__ == "__main__":

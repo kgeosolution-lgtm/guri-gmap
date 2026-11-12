@@ -16,6 +16,11 @@ API:  check_scale(ortho_jpg_path, ortho_meta, card_json_path) -> dict
       detect_markers(img_bgr_or_path, gsd_m, ids=None) -> [{id, center_px, corners_px, size_mm_measured, refined}]
       detect_markers 의 px 좌표는 hazards 계약 규약(픽셀 중심 = 정수 + 0.5).
       make_marker_sheet(out_path, site_name, ids=[10, 11, 12, 13]) -> {pdf, png, ...}  장소 고정 표식 스티커 A4
+      detect_board(bgr, board_json) -> [{id, board, slot, corners_px, center_px, obj_mm, refined}]  굴착 기준판 (영상 프레임)
+      board_pose(dets, K) -> {distance_m, tvec_m, R, reproj_rms_px, ...}  내부 파라미터를 알 때 한 장 PnP (확인용)
+      detect_board / board_pose 의 px 는 기본 OpenCV 규약(pixel_center=0.0), COLMAP 규약이면 pixel_center=0.5.
+    python -I worker/scale_target.py --make-trench-board site/3dscan/targets
+    python -I worker/scale_target.py --detect-board frame.jpg [--fx 1400]
 
 좌표 규약 (crack_card.json "frame"):
   카드 좌표계 = 첫 태그(tag_ids[0]) 중심이 원점, +x 는 둘째 태그 중심 방향, +y 는 아래(영상과 같은 오른손 계), 단위 mm.
@@ -370,6 +375,132 @@ def make_marker_sheet(out_path, site_name, ids=(10, 11, 12, 13), tag_mm=MARKER_T
     return dict(pdf=stem + ".pdf", png=pngs, site_name=site_name, ids=ids, tag_mm=tag_mm, stickers=placed)
 
 
+# ────────────────────────────── 굴착 기준판 (웹 영상 실측 축척) ──────────────────────────────
+# web_trench_contract.md 2절. A4 가로, 네 귀퉁이에 75 mm AprilTag 36h11, 가운데 세로 띠에 글자·50 mm 막대.
+# ID 는 사이트 표식(ID >= 10, 서버 자동 묶기)과 겹치지 않게 사전 끝 쪽 576~583 을 쓴다.
+_TB_PAGE = (297.0, 210.0)
+_TB_TAG = 75.0
+_TB_MARGIN = 12.0
+_TB_BOARDS = [("1", (576, 577, 578, 579)), ("2", (580, 581, 582, 583))]
+
+
+def build_trench_board_spec():
+    """trench_board.json 내용. 좌표는 판 좌표계(판 가운데 원점, mm)."""
+    W, H = _TB_PAGE
+    t, m = _TB_TAG, _TB_MARGIN
+    cx0, cx1 = m + t / 2, W - m - t / 2
+    cy0, cy1 = m + t / 2, H - m - t / 2
+    ox, oy = W / 2, H / 2
+    centers = [(cx0, cy0), (cx1, cy0), (cx1, cy1), (cx0, cy1)]          # 슬롯 0 TL, 1 TR, 2 BR, 3 BL
+    tc = [[round(x - ox, 4), round(y - oy, 4)] for x, y in centers]
+    h = t / 2
+    corners = [[[x - h, y - h], [x + h, y - h], [x + h, y + h], [x - h, y + h]] for x, y in tc]
+    dx, dy = tc[1][0] - tc[0][0], tc[3][1] - tc[0][1]
+    bar = (ox - 25.0, 42.0, ox + 25.0, 48.0)
+    return {
+        "name": "kgeoScan trench reference board",
+        "title_ko": "kgeoScan 굴착 기준판",
+        "version": 1,
+        "units": "mm",
+        "frame": "origin = board centre (centre of the 4 tag centres = page centre); +x right as printed "
+                 "(slot 0 -> slot 1), +y down (slot 0 -> slot 3), +z into the board (right-handed); board plane z = 0. "
+                 "Tag corner order TL,TR,BR,BL as cv2.aruco returns them.",
+        "dictionary": "DICT_APRILTAG_36h11",
+        "tag_size_mm": t,
+        "tag_size_definition": "outer edge of the black border (8 modules = 6 data + 2 border); "
+                               "white quiet zone >= 12 mm (1.3 modules) around each tag",
+        "tag_modules": 8,
+        "boards": [{"label": lb, "tag_ids": list(ids)} for lb, ids in _TB_BOARDS],
+        "id_note": "ids 576-583 sit at the end of the 36h11 dictionary (0-586) so they never collide with "
+                   "crack-card ids 0-3 or server-assigned site markers (>= 10)",
+        "slots": ["top-left", "top-right", "bottom-right", "bottom-left"],
+        "tag_centers_mm": tc,
+        "tag_corners_mm": corners,
+        "center_distances_mm": {"horizontal": round(dx, 4), "vertical": round(dy, 4),
+                                "diagonal": round(math.hypot(dx, dy), 4)},
+        "board_outline_mm": [[-ox, -oy], [ox, oy]],
+        "scale_bar_50mm": {"rect_mm": [[round(bar[0] - ox, 4), round(bar[1] - oy, 4)],
+                                       [round(bar[2] - ox, 4), round(bar[3] - oy, 4)]], "length_mm": 50.0},
+        "detection": {
+            "expected_tag_px": "fx * 0.075 / distance_m  (iPhone 1080p fx~1400: 70 px at 1.5 m, 42 px at 2.5 m; "
+                               "times cos(view angle from the board normal) across the foreshortened axis)",
+            "min_tag_px": 12,
+        },
+        "page": {"size": "A4 landscape", "size_mm": list(_TB_PAGE), "png_dpi": 300,
+                 "page_top_left_in_board_mm": [-ox, -oy]},
+        "files": {"pdf": "trench_board.pdf", "png": ["trench_board.png", "trench_board_p2.png"]},
+    }
+
+
+def trench_board_primitives(spec, board=0):
+    """A4 가로 한 장(판 하나) 원소 목록, 페이지 좌표(mm, 왼쪽 위 원점)."""
+    W, H = spec["page"]["size_mm"]
+    ox, oy = W / 2, H / 2
+    b = spec["boards"][board]
+    d = _aruco_dict(spec["dictionary"])
+    t = spec["tag_size_mm"]
+    prims = []
+    for slot, tid in enumerate(b["tag_ids"]):
+        x0, y0 = spec["tag_corners_mm"][slot][0]
+        prims += _tag_rects(d, tid, x0 + ox, y0 + oy, t, int(spec["tag_modules"]))
+    (bx0, by0), (bx1, by1) = spec["scale_bar_50mm"]["rect_mm"]
+    prims.append(("rect", bx0 + ox, by0 + oy, bx1 + ox, by1 + oy, 1.0))
+    T = lambda x, y, sz, s, bold=False, anc="la", dk=1.0: prims.append(("text", x, y, sz, s, bold, anc, dk))
+    cd = spec["center_distances_mm"]
+    q = 1.3 * t / 8                                                        # 글자는 태그에서 1.3 모듈 넘게 떨어뜨린다
+    xl, xr = spec["tag_corners_mm"][0][1][0] + ox + q, spec["tag_corners_mm"][1][0][0] + ox - q
+    colw = xr - xl
+    s, z = _fit_text(f"kgeoScan 굴착 기준판 {b['label']}", 7.5, True, colw)
+    T(ox, 13.0, z, s, True, "ma")
+    s, z = _fit_text("AprilTag 36h11 · ID " + " ".join(str(i) for i in b["tag_ids"]), 3.6, False, colw)
+    T(ox, 25.0, z, s, False, "ma")
+    s, z = _fit_text(f"태그 {t:g} mm · 중심 간격 가로 {cd['horizontal']:g} mm · 세로 {cd['vertical']:g} mm", 3.2, False, colw)
+    T(ox, 31.5, z, s, False, "ma", 0.8)
+    T(ox, by1 + oy + 2.0, 3.0, "↑ 50 mm 막대 — 자로 재어 확인", True, "ma")
+    T(xl, 60.0, 3.8, "사용 방법", True)
+    lines = [
+        "1. 배율 100%(실제 크기)로 인쇄합니다.",
+        f"2. 50 mm 막대와 가로 태그 간격 {cd['horizontal']:g} mm를 자로 확인합니다.",
+        "3. 두꺼운 판지에 붙여 휘지 않게 합니다 (무광 코팅 권장).",
+        "4. 굴착 가장자리 지면이나 굴착 바닥에 평평하게 놓습니다.",
+        "5. 1.5~2.5 m 거리에서 판 전체가 여러 번 화면에 들어오게 찍습니다.",
+        "6. 태그를 흙·발·그림자로 가리지 않습니다.",
+    ]
+    for i, ln in enumerate(lines):
+        s, z = _fit_text(ln, 3.0, False, colw)
+        T(xl, 67.0 + 6.2 * i, z, s)
+    s, z = _fit_text("판 1과 판 2는 한 현장에 함께 놓아도 서로 구분됩니다.", 2.8, False, colw)
+    T(xl, 67.0 + 6.2 * len(lines) + 3.0, z, s, False, "la", 0.65)
+    T(ox, H - 16.0, 2.6, "kgeodata.com · 굴착 기준판 v1", False, "ma", 0.6)
+    # 태그 ID 표시 (조용한 여백 바깥: 위 태그 아래 / 아래 태그 위)
+    for slot, tid in enumerate(b["tag_ids"]):
+        cxp = spec["tag_centers_mm"][slot][0] + ox
+        if slot in (0, 1):
+            T(cxp, spec["tag_corners_mm"][slot][3][1] + oy + q + 0.3, 3.0, f"▲ ID {tid}", False, "ma", 0.7)
+        else:
+            T(cxp, spec["tag_corners_mm"][slot][0][1] + oy - q - 4.2, 3.0, f"▼ ID {tid}", False, "ma", 0.7)
+    return prims
+
+
+def make_trench_board_files(out_dir, dpi=300):
+    """trench_board.json, trench_board.pdf (A4 가로 2쪽: 판 1, 판 2), trench_board.png / trench_board_p2.png."""
+    from PIL import Image
+    os.makedirs(out_dir, exist_ok=True)
+    spec = build_trench_board_spec()
+    spec["page"]["png_dpi"] = dpi
+    with open(os.path.join(out_dir, "trench_board.json"), "w", encoding="utf-8") as f:
+        json.dump(spec, f, indent=1, ensure_ascii=False)
+    pages = [trench_board_primitives(spec, i) for i in range(len(spec["boards"]))]
+    write_pdf(os.path.join(out_dir, spec["files"]["pdf"]), pages, page_mm=tuple(spec["page"]["size_mm"]))
+    s = dpi / 25.4
+    W, H = int(round(spec["page"]["size_mm"][0] * s)), int(round(spec["page"]["size_mm"][1] * s))
+    for prims, name in zip(pages, spec["files"]["png"]):
+        ink = render_ink(prims, s, (H, W))
+        Image.fromarray(np.clip(255.0 * (1.0 - ink) + 0.5, 0, 255).astype(np.uint8), "L").save(
+            os.path.join(out_dir, name), dpi=(dpi, dpi), optimize=True)
+    return spec
+
+
 # ────────────────────────────── 래스터 렌더 ──────────────────────────────
 _font_cache = {}
 
@@ -617,7 +748,7 @@ def _intersect(c1, d1, c2, d2):
     return c1 + t[0] * d1
 
 
-def _refine_tag_edges(lin, corners, module_px, iters=1, max_shift=None, max_side_ratio=None):
+def _refine_tag_edges(lin, corners, module_px, iters=1, max_shift=None, max_side_ratio=None, local_levels=False, stats=None):
     """검은 테두리 바깥 모서리 4개를 50% 교차점 직선 맞춤으로 다시 구해 꼭짓점을 교점으로 만든다.
     번짐(대칭 PSF)에 대해 편향이 없다. 실패하면 None.
     iters: 앞 결과에서 다시 맞추는 횟수.  max_shift: 처음 꼭짓점에서 허용하는 최대 이동(px, 기본 max(2, 0.5 모듈)).
@@ -625,11 +756,16 @@ def _refine_tag_edges(lin, corners, module_px, iters=1, max_shift=None, max_side
     c0 = np.asarray(corners, np.float64)
     c = c0
     for _ in range(max(1, int(iters))):
-        r = _refine_edges_once(lin, c, module_px)
+        if stats is not None:
+            del stats[:]                                      # 마지막 반복의 잔차만 남긴다
+        r = _refine_edges_once(lin, c, module_px, local_levels, stats) if local_levels else _refine_edges_once(lin, c, module_px)
         if r is None:
             return None
         c = r
-    lim = max(2.0, 0.5 * module_px) if max_shift is None else max_shift
+    if max_shift is None:
+        lim = max(2.0, 0.5 * (min(_quad_modules(c0)) if module_px is None else module_px))
+    else:
+        lim = max_shift
     if np.abs(c - c0).max() > lim:
         return None
     if max_side_ratio is not None:
@@ -639,11 +775,33 @@ def _refine_tag_edges(lin, corners, module_px, iters=1, max_shift=None, max_side
     return c
 
 
-def _refine_edges_once(lin, corners, module_px):
+def _quad_modules(c, nb=8):
+    """각 변에 수직인 방향의 모듈 크기(px) = (사각형 넓이 / 변 길이) / nb. 비스듬히 본(원근) 태그용."""
+    x, y = c[:, 0], c[:, 1]
+    area = 0.5 * abs(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1)))
+    return [area / max(np.linalg.norm(c[(k + 1) % 4] - c[k]), 1e-9) / nb for k in range(4)]
+
+
+def _running_median(v, k=7):
+    if len(v) < k:
+        return np.full_like(v, np.median(v))
+    pad = k // 2
+    vp = np.pad(v, pad, mode="edge")
+    return np.median(np.lib.stride_tricks.sliding_window_view(vp, k), axis=1)
+
+
+def _refine_edges_once(lin, corners, module_px, local_levels=False, stats=None):
+    """module_px: 숫자(네 변 같은 모듈) 또는 None(현재 사각형에서 변마다 계산 — 원근으로 눌린 태그).
+    local_levels: 검정/흰색 수준을 변 전체가 아니라 표본 줄마다(이동 중앙값) 잡는다 — 그림자가 태그를 가로지를 때.
+    stats: 리스트를 주면 변마다 직선 잔차 RMS(px)를 덧붙인다."""
+    if local_levels:
+        return _refine_edges_local(lin, corners, module_px, stats)
     c = np.asarray(corners, np.float64)
     ctr = c.mean(0)
+    mods = _quad_modules(c) if module_px is None else [module_px] * 4
     lines = []
     for k in range(4):
+        mk = mods[k]
         a, b = c[k], c[(k + 1) % 4]
         L = np.linalg.norm(b - a)
         if L < 8:
@@ -653,12 +811,12 @@ def _refine_edges_once(lin, corners, module_px):
         if n @ (ctr - (a + b) / 2) > 0:
             n = -n                                            # 바깥쪽
         ts = np.arange(0.18 * L, 0.82 * L, 0.5)
-        reach = 0.85 * module_px
+        reach = 0.85 * mk
         ss = np.arange(-reach, reach + 1e-9, 0.25)
         P = a + ts[:, None, None] * u + ss[None, :, None] * n
         prof = _sample(lin, P)
-        inner = (ss < -0.4 * module_px) & (ss > -0.65 * module_px)
-        outer = ss > 0.45 * module_px
+        inner = (ss < -0.4 * mk) & (ss > -0.65 * mk)
+        outer = ss > 0.45 * mk
         if inner.sum() < 1 or outer.sum() < 1:
             return None
         B = float(np.median(prof[:, inner]))
@@ -679,6 +837,57 @@ def _refine_edges_once(lin, corners, module_px):
         if len(pts) < 6:
             return None
         lines.append(_fit_line(np.array(pts)))
+    return np.array([_intersect(*lines[(k - 1) % 4], *lines[k]) for k in range(4)])
+
+
+def _refine_edges_local(lin, corners, module_px, stats=None):
+    """_refine_edges_once 와 같되 표본 줄마다 검정/흰색 수준을 잡고(이동 중앙값), 대비가 약한 줄은 버린다."""
+    c = np.asarray(corners, np.float64)
+    ctr = c.mean(0)
+    mods = _quad_modules(c) if module_px is None else [module_px] * 4
+    lines = []
+    for k in range(4):
+        mk = mods[k]
+        a, b = c[k], c[(k + 1) % 4]
+        L = np.linalg.norm(b - a)
+        if L < 8:
+            return None
+        u = (b - a) / L
+        n = np.array([-u[1], u[0]])
+        if n @ (ctr - (a + b) / 2) > 0:
+            n = -n
+        ts = np.arange(0.18 * L, 0.82 * L, 0.5)
+        reach = 0.85 * mk
+        ss = np.arange(-reach, reach + 1e-9, 0.25)
+        P = a + ts[:, None, None] * u + ss[None, :, None] * n
+        prof = _sample(lin, P)
+        inner = (ss < -0.4 * mk) & (ss > -0.65 * mk)
+        outer = ss > 0.45 * mk
+        if inner.sum() < 1 or outer.sum() < 1:
+            return None
+        Br = _running_median(np.median(prof[:, inner], axis=1))
+        Wr = _running_median(np.median(prof[:, outer], axis=1))
+        con = Wr - Br
+        cmed = float(np.median(con))
+        if cmed < 0.03:
+            return None
+        half = 0.5 * (Br + Wr)[:, None]                       # 줄마다 50 % 수준 (벡터화)
+        trans = (prof[:, :-1] < half) & (prof[:, 1:] >= half)
+        dist = np.where(trans, np.abs(ss[:-1])[None, :], np.inf)
+        j = np.argmin(dist, axis=1)
+        rows = np.arange(len(ts))
+        ok = np.isfinite(dist[rows, j]) & (con >= 0.4 * cmed)
+        if ok.sum() < 6:
+            return None
+        rows, j = rows[ok], j[ok]
+        f0, f1 = prof[rows, j], prof[rows, j + 1]
+        e = ss[j] + (half[rows, 0] - f0) / (f1 - f0 + 1e-12) * (ss[j + 1] - ss[j])
+        pts = a + ts[rows, None] * u + e[:, None] * n
+        cc, dd = _fit_line(pts)
+        if stats is not None:
+            nr = np.array([-dd[1], dd[0]])
+            stats.append(float(np.sqrt(np.mean(((pts - cc) @ nr) ** 2))))
+        lines.append((cc, dd))
     return np.array([_intersect(*lines[(k - 1) % 4], *lines[k]) for k in range(4)])
 
 
@@ -992,6 +1201,170 @@ def detect_markers(img_bgr_or_path, gsd_m, ids=None, tag_mm=MARKER_TAG_MM, linea
     return out
 
 
+DEFAULT_BOARD_JSON = os.path.normpath(os.path.join(HERE, "..", "site", "3dscan", "targets", "trench_board.json"))
+
+
+def load_board(board_json=DEFAULT_BOARD_JSON):
+    if isinstance(board_json, dict):
+        return board_json
+    with open(board_json, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _board_detector(dict_name, min_rate):
+    """영상 프레임용 aruco 설정: 번짐·그림자에 강하게 (칸 가운데만 읽기, 큰 문턱 창, 둥근 꼭짓점 허용)."""
+    p = cv2.aruco.DetectorParameters()
+    p.minMarkerPerimeterRate = float(min_rate)
+    p.maxMarkerPerimeterRate = 4.0
+    p.adaptiveThreshWinSizeMax = 53
+    p.perspectiveRemovePixelPerCell = 8
+    p.perspectiveRemoveIgnoredMarginPerCell = 0.3
+    p.polygonalApproxAccuracyRate = 0.06
+    p.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
+    p.cornerRefinementWinSize = 3
+    p.cornerRefinementMaxIterations = 60
+    p.cornerRefinementMinAccuracy = 0.005
+    return cv2.aruco.ArucoDetector(_aruco_dict(dict_name), p)
+
+
+def _board_candidates(gray, spec, min_tag_px, ids, upsample):
+    h, w = gray.shape[:2]
+    det = _board_detector(spec["dictionary"], 2.0 * min_tag_px * 4 / max(h, w) / 2)
+    out = []
+
+    def run(g, s):
+        c, i, _ = det.detectMarkers(g)
+        if i is None:
+            return
+        for cc, ii in zip(c, i.ravel()):
+            ii = int(ii)
+            if ii not in ids:
+                continue
+            cc = (cc.reshape(4, 2).astype(np.float64) + 0.5) / s - 0.5
+            side = np.mean([np.linalg.norm(cc[(k + 1) % 4] - cc[k]) for k in range(4)])
+            if any(j == ii and np.linalg.norm(d.mean(0) - cc.mean(0)) < 0.3 * side for j, d in out):
+                continue
+            out.append((ii, cc))
+
+    run(gray, 1.0)
+    if upsample:
+        per = {}
+        for ii, _ in out:
+            for bi, b in enumerate(spec["boards"]):
+                if ii in b["tag_ids"]:
+                    per[bi] = per.get(bi, 0) + 1
+        if not per or max(per.values()) < 4:                 # 판 하나의 태그 4개를 다 못 찾았으면 1.5배로 한 번 더
+            up = cv2.resize(cv2.GaussianBlur(gray, (0, 0), 0.7), None, fx=1.5, fy=1.5, interpolation=cv2.INTER_CUBIC)
+            run(up, 1.5)
+    return out
+
+
+def detect_board(bgr, board_json=DEFAULT_BOARD_JSON, pixel_center=0.0, refine_edges=True, min_tag_px=12, linearize=True,
+                 fast=False):
+    """영상 프레임(원근 있음)에서 굴착 기준판 태그를 찾는다. 기준판 JSON 에 있는 ID 만 돌려준다.
+
+    bgr: BGR/회색 ndarray 또는 파일 경로.  board_json: trench_board.json 경로 또는 dict.
+    pixel_center: 0.0 = OpenCV 규약(픽셀 중심 = 정수, 기본) / 0.5 = COLMAP 규약(픽셀 중심 = 정수 + 0.5).
+                  내부 파라미터 K 와 같은 규약을 고를 것.
+    반환: [{id, board ('1'/'2'), board_index, slot (0 TL,1 TR,2 BR,3 BL), corners_px [TL,TR,BR,BL],
+            center_px (대각선 교점), side_px, obj_mm [[x,y,0] x4] (판 좌표, mm), refined}]  (board_index, slot 순)
+    같은 ID 가 두 번 보이면 둘 다 돌려준다 (duplicate=True).
+    refined=False 인 태그는 aruco 꼭짓점 그대로라 번짐이 크면 수 px 틀릴 수 있다 — 축척에는 refined=True 만 쓰는 것을 권장.
+    fast=True 면 1.5배 확대 재검출을 건너뛴다 (프레임당 약 0.1 s, 기본은 못 찾은 태그가 있을 때만 약 0.2 s 더).
+    """
+    spec = load_board(board_json)
+    img = bgr if isinstance(bgr, np.ndarray) else _imread(bgr)
+    if img is None:
+        return []
+    gray = img if img.ndim == 2 else cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    where = {}
+    for bi, b in enumerate(spec["boards"]):
+        for slot, tid in enumerate(b["tag_ids"]):
+            where[int(tid)] = (bi, b["label"], slot)
+    dets = _board_candidates(gray, spec, min_tag_px, where, upsample=not fast)
+    H, W = gray.shape[:2]
+    out = []
+    for i, c in dets:
+        r = None
+        if refine_edges:
+            side = max(np.linalg.norm(c[(k + 1) % 4] - c[k]) for k in range(4))
+            m = 0.6 * side
+            x0, y0 = np.floor(c.min(0) - m).astype(int)
+            x1, y1 = np.ceil(c.max(0) + m).astype(int)
+            x0, y0, x1, y1 = max(0, x0), max(0, y0), min(W, x1), min(H, y1)
+            off = np.array([x0, y0], np.float64)
+            mod = min(_quad_modules(c))
+            st_ = []
+            if mod >= 1.2:
+                r = _refine_tag_edges(_to_linear(img[y0:y1, x0:x1], linearize), c - off, None,
+                                      iters=3, max_shift=max(3.5, 0.9 * mod), max_side_ratio=4.0,
+                                      local_levels=True, stats=st_)
+                if r is not None:
+                    r = r + off
+        cc = r if r is not None else c
+        bi, lb, slot = where[i]
+        obj = [[float(x), float(y), 0.0] for x, y in spec["tag_corners_mm"][slot]]
+        out.append(dict(id=int(i), board=lb, board_index=bi, slot=slot,
+                        corners_px=[[round(float(v) + pixel_center, 3) for v in p] for p in cc],
+                        center_px=[round(float(v) + pixel_center, 3) for v in _diag_center(cc)],
+                        side_px=round(float(np.mean([np.linalg.norm(cc[(k + 1) % 4] - cc[k]) for k in range(4)])), 2),
+                        obj_mm=obj, refined=r is not None,
+                        edge_rms_px=round(max(st_), 3) if (r is not None and st_) else None))
+    seen = {}
+    for d in out:
+        seen[d["id"]] = seen.get(d["id"], 0) + 1
+    for d in out:
+        if seen[d["id"]] > 1:
+            d["duplicate"] = True
+    out.sort(key=lambda d: (d["board_index"], d["slot"], d["center_px"][1]))
+    return out
+
+
+def board_pose(dets, K, dist=None, board=None, prefer_refined=True):
+    """detect_board 결과 + 내부 파라미터 K (3x3, detections 와 같은 픽셀 규약) → 판의 카메라 자세 (PnP, 확인용).
+
+    board: '1'/'2' 또는 None(태그를 가장 많이 찾은 판).  같은 ID 가 두 번 보이면 그 ID 는 뺀다.
+    prefer_refined: 그 판에 refined=True 태그가 하나라도 있으면 그것만 쓴다.
+    반환: {ok, board, n_tags, reliable (n_tags >= 3), ids, rvec, tvec_m, R (판→카메라), camera_center_board_m,
+           distance_m (카메라→판 가운데), view_angle_deg (시선과 판 법선 사이), reproj_rms_px, reproj_max_px, corners_cam_m {id: 4x3}}
+    합성 시험: 태그 4개 거리 오차 P95 0.09 %, 3개 0.21 %, 2개 2 %, 1개 4 % — 확인에는 reliable=True 만 쓸 것.
+    한 장으로 얻는 실측 기준: 카메라에서 판까지 거리·판 꼭짓점의 카메라 좌표(m). K 오차 1 % ≈ 거리 오차 1 %.
+    """
+    dets = [d for d in dets if not d.get("duplicate")]
+    if board is None:
+        cnt = {}
+        for d in dets:
+            cnt[d["board"]] = cnt.get(d["board"], 0) + 1
+        if not cnt:
+            return dict(ok=False, reason="no board tags")
+        board = max(cnt, key=lambda k: cnt[k])
+    sel = [d for d in dets if d["board"] == str(board)]
+    if not sel:
+        return dict(ok=False, reason=f"no tags of board {board}")
+    if prefer_refined and any(d.get("refined") for d in sel):
+        sel = [d for d in sel if d.get("refined")]
+    obj = np.array([p for d in sel for p in d["obj_mm"]], np.float64) / 1000.0
+    img = np.array([p for d in sel for p in d["corners_px"]], np.float64)
+    K = np.asarray(K, np.float64)
+    D = np.zeros(5) if dist is None else np.asarray(dist, np.float64)
+    ok, rvec, tvec = cv2.solvePnP(obj, img, K, D, flags=cv2.SOLVEPNP_IPPE)
+    if not ok:
+        return dict(ok=False, reason="solvePnP failed", board=str(board), n_tags=len(sel))
+    rvec, tvec = cv2.solvePnPRefineLM(obj, img, K, D, rvec, tvec)
+    proj, _ = cv2.projectPoints(obj, rvec, tvec, K, D)
+    e = np.linalg.norm(proj.reshape(-1, 2) - img, axis=1)
+    R, _ = cv2.Rodrigues(rvec)
+    t = tvec.reshape(3)
+    nrm = R @ np.array([0.0, 0.0, 1.0])
+    ang = math.degrees(math.acos(min(1.0, abs(float(nrm @ (t / np.linalg.norm(t)))))))
+    cam = (R @ obj.T).T + t
+    return dict(ok=True, board=str(board), n_tags=len(sel), reliable=len(sel) >= 3, ids=[d["id"] for d in sel],
+                rvec=rvec.reshape(3).tolist(), tvec_m=t.tolist(), R=R.tolist(),
+                camera_center_board_m=(-R.T @ t).tolist(), distance_m=float(np.linalg.norm(t)), view_angle_deg=ang,
+                reproj_rms_px=float(np.sqrt((e ** 2).mean())), reproj_max_px=float(e.max()),
+                corners_cam_m={str(d["id"]): cam[4 * k:4 * k + 4].tolist() for k, d in enumerate(sel)})
+
+
 def _debug_overlay(img, results, path):
     vis = img.copy() if img.ndim == 3 else cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
     for r in results:
@@ -1028,6 +1401,12 @@ def main():
     ap.add_argument("--make-markers", metavar="OUT", help="write a site marker sheet OUT.pdf / OUT.png")
     ap.add_argument("--site", default="", help="site name printed on the marker stickers")
     ap.add_argument("--ids", default="10,11,12,13", help="marker ids, comma separated (>= 10)")
+    ap.add_argument("--make-trench-board", metavar="DIR", help="(re)generate trench_board.json / PDF / PNG into DIR")
+    ap.add_argument("--detect-board", metavar="IMAGE", help="find trench-board tags in a video frame / photo")
+    ap.add_argument("--board-json", default=None, help="trench_board.json (default: site/3dscan/targets)")
+    ap.add_argument("--fx", type=float, help="with --detect-board: focal length px -> also print board_pose")
+    ap.add_argument("--cx", type=float)
+    ap.add_argument("--cy", type=float)
     a = ap.parse_args()
     try:
         sys.stdout.reconfigure(encoding="utf-8")
@@ -1036,6 +1415,20 @@ def main():
     if a.make_card:
         spec = make_card_files(a.make_card)
         print(json.dumps({"written": a.make_card, "files": spec["files"]}, ensure_ascii=False))
+        return
+    if a.make_trench_board:
+        spec = make_trench_board_files(a.make_trench_board)
+        print(json.dumps({"written": a.make_trench_board, "files": spec["files"]}, ensure_ascii=False))
+        return
+    if a.detect_board:
+        img = _imread(a.detect_board)
+        dets = detect_board(img, a.board_json or DEFAULT_BOARD_JSON)
+        res = {"detections": dets}
+        if a.fx and img is not None:
+            h, w = img.shape[:2]
+            K = [[a.fx, 0, a.cx if a.cx is not None else (w - 1) / 2], [0, a.fx, a.cy if a.cy is not None else (h - 1) / 2], [0, 0, 1]]
+            res["pose"] = board_pose(dets, K)
+        print(json.dumps(res, indent=1))
         return
     if a.make_markers:
         r = make_marker_sheet(a.make_markers, a.site, [int(v) for v in a.ids.split(",") if v.strip()])

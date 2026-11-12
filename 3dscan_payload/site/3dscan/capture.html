@@ -216,6 +216,131 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
 .qtips:empty{display:none}
 .btn.red{background:var(--acc-r);border-color:var(--acc-r);color:#2a0606}
 
+/* ── 굴착 기록 ── */
+/* 무엇을 찍을까요? */
+.kinds{display:flex;flex-direction:column;gap:8px}
+.kc{display:flex;align-items:center;gap:14px;width:100%;min-height:78px;padding:12px 14px;border-radius:12px;border:1px solid var(--border2);background:var(--s2);
+  color:var(--text);font-family:inherit;text-align:left;text-decoration:none;cursor:pointer;touch-action:manipulation}
+.kc .ki{width:46px;height:46px;border-radius:12px;flex:none;display:flex;align-items:center;justify-content:center;font-size:24px;background:var(--s3);color:var(--text2)}
+.kc .kt{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.kc b{font-size:17px;font-weight:700}
+.kc .kt>span{font-size:13px;color:var(--text2);line-height:1.4}
+.kc small{font-size:12px;color:var(--text3)}
+.kc .kgo{font-size:26px;color:var(--text3);flex:none}
+.kc.on{border:2px solid var(--accent);background:rgba(56,189,248,.09)}
+.kc.on .ki{background:rgba(56,189,248,.2);color:var(--accent)}
+.kc.tr.on{border-color:var(--acc-o);background:rgba(251,146,60,.09)}
+.kc.tr.on .ki{background:rgba(251,146,60,.2);color:var(--acc-o)}
+.tutbtn{margin:-2px 0 12px;width:100%}
+
+/* 10초 촬영 요령 */
+.tut{position:fixed;inset:0;z-index:95;background:#05080c;display:flex;align-items:center;justify-content:center;
+  padding:calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom))}
+.tut-box{width:100%;max-width:440px;display:flex;flex-direction:column;align-items:stretch;gap:10px}
+.tut-dots{display:flex;gap:4px}
+.tut-dots i{flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,.18);overflow:hidden;position:relative}
+.tut-dots i.done{background:var(--accent)}
+.tut-dots i.on::after{content:'';position:absolute;inset:0;background:var(--accent);transform-origin:left;animation:tutbar var(--tut-ms,2000ms) linear forwards}
+@keyframes tutbar{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.tut-fig{display:flex;align-items:center;justify-content:center;min-height:190px;background:var(--s2);border:1px solid var(--border);border-radius:14px;padding:12px}
+.tut-fig svg{width:min(70vw,230px);height:auto;color:var(--accent)}
+.tut-t{font-size:22px;font-weight:700;text-align:center}
+.tut-s{font-size:15px;color:var(--text2);text-align:center;min-height:44px}
+.tut .chk{display:flex;gap:8px;align-items:center;justify-content:center;font-size:13px;color:var(--text2)}
+.tut .chk input{width:20px;height:20px;accent-color:var(--accent)}
+.tsteps{list-style:none;display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.tsteps li{display:flex;gap:10px;align-items:flex-start}
+.tsteps .n{width:26px;height:26px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:13px;font-weight:700;
+  background:rgba(251,146,60,.15);color:var(--acc-o);border:1px solid rgba(251,146,60,.5)}
+.tsteps b{display:block;font-size:14px}
+.tsteps span{display:block;font-size:13px;color:var(--text2)}
+.tfig{width:100%;height:auto;display:block;background:var(--s2);border:1px solid var(--border);border-radius:8px}
+.keyline{margin-top:12px;padding:10px 12px;border-radius:8px;border:1px solid rgba(251,146,60,.55);background:rgba(251,146,60,.08);font-size:14px;font-weight:600;color:#fdba74}
+.keyline small{display:block;font-weight:400;color:var(--text2);margin-top:2px}
+.boardbox{display:flex;gap:12px;align-items:center;margin-top:12px;padding:10px;border-radius:8px;background:var(--s2);border:1px solid var(--border)}
+.boardbox svg{width:96px;height:auto;flex:none}
+.boardbox b{display:block;font-size:14px}
+.boardbox span{display:block;font-size:13px;color:var(--text2)}
+.trec-note{font-size:12px;color:var(--text3);margin-top:8px}
+
+/* 녹화 화면 */
+.rec{position:fixed;inset:0;z-index:100;background:#000;color:#fff;display:flex;flex-direction:column;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+.rec-view{position:relative;flex:1;min-height:0;overflow:hidden}
+.rec-view video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
+.rec-top{position:absolute;left:0;right:0;top:0;padding:8px 10px;display:flex;flex-direction:column;gap:6px;
+  background:linear-gradient(rgba(0,0,0,.72),rgba(0,0,0,0));pointer-events:none}
+.rec-phases{display:flex;gap:4px;pointer-events:auto}
+.rec-phases button{flex:1;min-height:36px;border-radius:6px;border:1px solid rgba(255,255,255,.25);background:rgba(0,0,0,.35);color:#cbd5e1;
+  font-family:inherit;font-size:12px;line-height:1.15;padding:2px 4px;cursor:pointer}
+.rec-phases button.on{background:rgba(251,146,60,.85);border-color:#fb923c;color:#1a0d02;font-weight:700}
+.rec-phases button.done{color:#86efac}
+.rec-hint{font-size:15px;font-weight:600;text-shadow:0 1px 3px #000}
+.rec-edge{align-self:flex-start;font-size:13px;font-weight:600;padding:3px 9px;border-radius:999px;background:rgba(251,146,60,.9);color:#1a0d02}
+.rec-chips{position:absolute;left:8px;bottom:8px;display:flex;gap:5px;flex-wrap:wrap;max-width:calc(100% - 16px);pointer-events:none}
+.rec-chips span{font-size:12px;padding:3px 8px;border-radius:999px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.2)}
+.rec-chips span.ok{border-color:rgba(52,211,153,.7);color:#86efac}
+.rec-chips span.warn{border-color:rgba(251,146,60,.8);color:#fdba74}
+.rec-chips span.bad{border-color:#f87171;color:#fecaca;background:rgba(127,29,29,.6)}
+.rec-warn{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);max-width:86%;padding:10px 16px;border-radius:12px;
+  background:rgba(185,28,28,.88);font-size:18px;font-weight:700;text-align:center;pointer-events:none}
+.rec-warn.mid{background:rgba(194,65,12,.85)}
+.rec-bar{flex:none;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;background:#000}
+.rec-room{align-self:flex-start;font-size:14px;font-weight:700;padding:4px 10px;border-radius:999px;background:rgba(56,189,248,.9);color:#03131f}
+.rec-tw{display:flex;flex-direction:column;align-items:center;min-width:72px}
+.rec-goal{font-size:11px;color:#94a3b8;text-align:center;line-height:1.2}
+.rec-goal.over{color:#fdba74}
+.rec-warn.ok{background:rgba(5,150,105,.85)}
+.rec-bar .rb{min-width:58px;min-height:58px;border-radius:50%;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.08);color:#fff;
+  font-family:inherit;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-direction:column;line-height:1.1;touch-action:manipulation}
+.rec-bar .rb svg{width:24px;height:24px}
+.rec-bar .rb.on{background:#facc15;color:#000;border-color:#facc15}
+.rec-shot{width:84px;height:84px;border-radius:50%;border:4px solid #fff;background:transparent;padding:5px;cursor:pointer;flex:none;touch-action:manipulation}
+.rec-shot i{display:block;width:100%;height:100%;border-radius:50%;background:#ef4444;transition:all .2s}
+.rec-shot.going i{border-radius:8px;transform:scale(.55)}
+.rec-time{font-family:var(--mono);font-size:15px;min-width:64px;text-align:center}
+.rec-time.going{color:#f87171}
+.rec-res{font-family:var(--mono);font-size:10px;color:#94a3b8}
+@media (max-width:420px){                 /* 좁은 폰: 닫기·시간·녹화·손전등·다음 5개가 한 줄에 들어가게 */
+  .rec-bar{gap:6px;padding:10px 10px}
+  .rec-bar .rb{min-width:52px;min-height:52px}
+  .rec-shot{width:78px;height:78px}
+  .rec-tw{min-width:60px}
+}
+@media (orientation:landscape) and (max-height:540px){
+  .rec{flex-direction:row}
+  .rec-bar{flex-direction:column-reverse;padding:10px 8px;width:96px}
+  .rec-hint{font-size:14px}
+  .rec-phases button{min-height:30px}
+}
+
+/* 기준판 확인 */
+.sheet-bg{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center}
+.sheet{width:100%;max-width:560px;max-height:92vh;overflow:auto;background:var(--s1);border:1px solid var(--border2);border-radius:16px 16px 0 0;
+  padding:18px 16px calc(18px + env(safe-area-inset-bottom))}
+.sheet h3{font-size:18px;margin-bottom:8px}
+.sheet .chk{display:flex;gap:10px;align-items:flex-start;margin-top:10px;font-size:14px}
+.sheet .chk input{width:22px;height:22px;flex:none;accent-color:var(--acc-o);margin-top:1px}
+@media (min-width:600px){.sheet-bg{align-items:center}.sheet{border-radius:16px}}
+
+/* 관 표시 */
+.kf-strip{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+.kf{position:relative;flex:none;width:92px;border-radius:6px;overflow:hidden;border:2px solid transparent;background:var(--s3);padding:0;cursor:pointer}
+.kf img{display:block;width:100%;height:auto}
+.kf.on{border-color:var(--acc-o)}
+.kf .c{position:absolute;right:3px;top:3px;font-size:11px;font-weight:700;padding:0 5px;border-radius:999px;background:var(--acc-o);color:#1a0d02}
+.kf .tm{position:absolute;left:3px;bottom:3px;font-family:var(--mono);font-size:10px;padding:0 4px;border-radius:3px;background:rgba(0,0,0,.6);color:#fff}
+.mk-stage{position:relative;margin-top:8px;border-radius:8px;overflow:hidden;background:#000;touch-action:manipulation;cursor:crosshair}
+.mk-stage img{display:block;width:100%;height:auto;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.mk-dot{position:absolute;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px rgba(0,0,0,.6);
+  display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#000;cursor:pointer}
+.mk-dot.pending{background:transparent;border-style:dashed;animation:blink 1s infinite}
+.mk-pal{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
+.mk-pal button{min-height:46px;border-radius:8px;border:1px solid var(--border2);background:var(--s2);color:var(--text);font-family:inherit;font-size:14px;font-weight:600;
+  display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;touch-action:manipulation}
+.mk-pal button i{width:14px;height:14px;border-radius:50%;flex:none}
+.mk-sum{margin-top:8px;font-size:13px;color:var(--text2)}
+
 /* 업로드 */
 .ready{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
 .ready span{font-size:13px;padding:5px 11px;border-radius:999px;background:var(--s2);border:1px solid var(--border2);color:var(--text3)}
@@ -280,6 +405,27 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
     <div class="flow"><span><b>1</b>제목·위치</span><span><b>2</b>사진·영상 촬영</span><span><b>3</b>업로드</span><span><b>4</b>3D 확인</span></div>
   </section>
 
+  <!-- 무엇을 찍을까요? (모드 고르기) -->
+  <section class="card" id="secKind">
+    <h2>무엇을 찍을까요?</h2>
+    <div class="kinds">
+      <button type="button" class="kc on" id="kindSurvey" aria-pressed="true">
+        <span class="ki">✦</span>
+        <span class="kt"><b>3D 촬영</b><span>걸으며 영상·사진을 찍어 공간·물체·현장을 3D로 봅니다</span><small>촬영 방 하나 1~2분 · 처리 10~30분</small></span>
+      </button>
+      <a class="kc" id="kindVr" href="capture_pano.html">
+        <span class="ki">🥽</span>
+        <span class="kt"><b>VR 투어 촬영</b><span>제자리에 서서 360°로 찍어 매물 VR 투어를 만듭니다</span><small>촬영 지점마다 1분 안팎 · 다른 화면으로 이동</small></span>
+        <span class="kgo">›</span>
+      </a>
+      <button type="button" class="kc tr" id="kindTrench" aria-pressed="false">
+        <span class="ki">⛏</span>
+        <span class="kt"><b>굴착 기록</b><span>트렌치 가장자리를 오가며 찍어 관 위치·깊이·조서·DXF를 만듭니다</span><small>촬영 1분 안팎 · 처리 10~30분</small></span>
+      </button>
+    </div>
+  </section>
+
+
   <!-- 1. 제목 -->
   <section class="card step" id="secTitle">
     <h2>제목<span class="st need" id="stTitle">필수</span></h2>
@@ -288,6 +434,20 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
     <div class="hint" id="titleHint"></div>
     <label class="lbl" for="note">메모 (선택) <span class="cnt" id="noteCount">0/500</span></label>
     <textarea class="inp" id="note" maxlength="500" rows="2" placeholder="예: 우측 하단 균열, 지난주보다 길어짐"></textarea>
+  </section>
+
+  <!-- 굴착 정보 (굴착 기록일 때만) -->
+  <section class="card step" id="secTrenchInfo" hidden>
+    <h2>굴착 정보<span class="st">조서 첫 장에 들어감</span></h2>
+    <label class="lbl" for="permitNo">굴착 허가 번호</label>
+    <input class="inp" id="permitNo" type="text" maxlength="100" autocomplete="off" placeholder="예: 2026-도로-01234">
+    <label class="lbl" for="ownerOrg">관리기관</label>
+    <input class="inp" id="ownerOrg" type="text" maxlength="100" autocomplete="off" placeholder="예: ○○시 상수도사업본부">
+    <label class="lbl" for="surveyor">작업자</label>
+    <input class="inp" id="surveyor" type="text" maxlength="100" autocomplete="name" placeholder="이름">
+    <label class="lbl" for="org">회사</label>
+    <input class="inp" id="org" type="text" maxlength="100" autocomplete="organization" placeholder="회사 이름">
+    <div class="hint">작업자·회사는 이 기기에 기억해 둡니다. 비워 두어도 올릴 수 있습니다.</div>
   </section>
 
   <!-- 2. 위치 -->
@@ -335,11 +495,12 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
 
   <!-- 4. 촬영 방법: 사진(권장) / 영상(간편) -->
   <section class="card step" id="secGuide">
-    <h2>촬영 방법</h2>
-    <div class="seg" role="tablist" aria-label="촬영 방법">
+    <h2 id="guideTitle">촬영 방법</h2>
+    <div class="seg" role="tablist" aria-label="촬영 방법" id="methodSeg">
       <button type="button" role="tab" id="tabPhotos" class="on" aria-selected="true"><span class="tl"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h3.5l1.5-2.5h8L17.5 8H21v11H3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="13.5" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>사진 여러 장</span><small>권장 · 화질 좋음</small></button>
       <button type="button" role="tab" id="tabVideo" aria-selected="false"><span class="tl"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="14" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 10.5l6-3.5v10l-6-3.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>영상</span><small>간편</small></button>
     </div>
+    <button class="btn sm tutbtn" id="tutBtn" type="button">▶ 촬영 요령 10초 보기</button>
     <div class="guide" id="guidePhotos">
       <div class="gi">
         <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M19 36V25l5-4 5 4v11" fill="rgba(56,189,248,.18)" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M5 34a19 16 0 0 1 38 0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2 3"/><g fill="currentColor"><circle cx="5.6" cy="29.5" r="2.6"/><circle cx="10.5" cy="20.5" r="2.6"/><circle cx="19" cy="15.4" r="2.6"/><circle cx="29" cy="15.4" r="2.6"/><circle cx="37.5" cy="20.5" r="2.6"/><circle cx="42.4" cy="29.5" r="2.6"/></g></svg>
@@ -400,6 +561,56 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
         <div><b>기준 카드·표식 (있으면)</b><span>균열 기준 카드나 고정 표식을 대상 옆에 두고 함께 찍어 주세요. 실제 크기 맞춤에 씁니다.</span></div>
       </div>
     </div>
+    <!-- 굴착 기록: 앱의 굴착 모드와 같은 순서 (주변 → 한쪽 가장자리 → 반대쪽 가장자리 → 주변) -->
+    <div id="guideTrench" hidden>
+      <svg class="tfig" viewBox="0 0 320 156" role="img" aria-label="위에서 본 촬영 순서">
+        <rect x="0" y="0" width="320" height="156" fill="#121820"/>
+        <rect x="66" y="58" width="190" height="40" rx="3" fill="#05080c" stroke="#7c5a3a" stroke-width="2"/>
+        <text x="161" y="82" text-anchor="middle" font-size="11" fill="#94a3b8">트렌치</text>
+        <path d="M74 48H246" stroke="#fb923c" stroke-width="3" fill="none"/><path d="M240 42l9 6-9 6z" fill="#fb923c"/>
+        <path d="M248 108H76" stroke="#fb923c" stroke-width="3" fill="none"/><path d="M82 102l-9 6 9 6z" fill="#fb923c"/>
+        <g stroke="#fb923c" stroke-width="1.2" opacity=".55"><path d="M110 48l-8 20M110 48l10 20M180 48l-8 20M180 48l10 20M210 108l-9-20M210 108l9-20M140 108l-9-20M140 108l9-20"/></g>
+        <g fill="none" stroke="#38bdf8" stroke-width="1.5"><path d="M36 30l-26 30M36 30l34 4"/><path d="M36 128l-26-24M36 128l34-6"/></g>
+        <circle cx="36" cy="30" r="11" fill="#38bdf8"/><text x="36" y="34.5" text-anchor="middle" font-size="12" font-weight="700" fill="#03131f">1</text>
+        <circle cx="160" cy="30" r="11" fill="#fb923c"/><text x="160" y="34.5" text-anchor="middle" font-size="12" font-weight="700" fill="#1a0d02">2</text>
+        <circle cx="160" cy="128" r="11" fill="#fb923c"/><text x="160" y="132.5" text-anchor="middle" font-size="12" font-weight="700" fill="#1a0d02">3</text>
+        <circle cx="36" cy="128" r="11" fill="#38bdf8"/><text x="36" y="132.5" text-anchor="middle" font-size="12" font-weight="700" fill="#03131f">4</text>
+        <text x="254" y="30" font-size="10" fill="#94a3b8">가장자리 A</text><text x="254" y="140" font-size="10" fill="#94a3b8">가장자리 B</text>
+      </svg>
+      <ol class="tsteps">
+        <li><span class="n">1</span><div><b>주변 넓게</b><span>녹화를 시작하면 먼저 주변 지면·연석을 3~5 m 넣어 천천히 둘러봅니다.</span></div></li>
+        <li><span class="n">2</span><div><b>한쪽 가장자리를 따라 내려다보며</b><span>가장자리를 따라 천천히 걸으며 트렌치 안을 찍습니다. 폰은 안쪽으로 30~45° 숙입니다.</span></div></li>
+        <li><span class="n">3</span><div><b>반대쪽 가장자리로 돌아오기</b><span>건너편 가장자리를 따라 돌아오면 관 아래쪽과 벽이 나옵니다.</span></div></li>
+        <li><span class="n">4</span><div><b>다시 주변 넓게</b><span>끝으로 주변 지면을 넣고 멈춥니다. 1분 안팎이면 충분합니다.</span></div></li>
+      </ol>
+      <div class="keyline">가장자리 지표면이 화면에 보이게
+        <small>관 깊이(덮개)는 가장자리 지표면에서 잽니다. 트렌치 안만 찍으면 깊이를 잴 수 없습니다.</small></div>
+      <svg class="tfig" viewBox="0 0 320 150" role="img" aria-label="옆에서 본 촬영 자세와 덮개 깊이" style="margin-top:10px">
+        <rect x="0" y="0" width="320" height="150" fill="#121820"/>
+        <path d="M0 44H118V136H206V44H320V150H0z" fill="rgba(124,90,58,.35)" stroke="#7c5a3a" stroke-width="2"/>
+        <path d="M0 44H118M206 44H320" stroke="#fb923c" stroke-width="3"/>
+        <circle cx="160" cy="106" r="11" fill="#facc15" stroke="#000" stroke-width="1"/>
+        <rect x="170" y="131" width="30" height="5" fill="#f0f6ff"/>
+        <text x="185" y="127" text-anchor="middle" font-size="9" fill="#cbd5e1">기준판</text>
+        <path d="M228 44V95" stroke="#38bdf8" stroke-width="1.5"/><path d="M223 44h10M223 95h10" stroke="#38bdf8" stroke-width="1.5"/>
+        <path d="M171 95H228" stroke="#38bdf8" stroke-width="1" stroke-dasharray="3 3"/>
+        <text x="234" y="70" font-size="11" fill="#38bdf8">덮개 깊이</text><text x="234" y="84" font-size="9" fill="#94a3b8">지표면 → 관 윗면</text>
+        <rect x="62" y="10" width="10" height="17" rx="2" transform="rotate(-38 67 18)" fill="#121820" stroke="#f0f6ff" stroke-width="2"/>
+        <path d="M72 22L118 46M72 22L200 136" stroke="#fb923c" stroke-width="1.3" stroke-dasharray="4 3"/>
+        <text x="8" y="22" font-size="10" fill="#fdba74">30~45°</text>
+        <text x="6" y="60" font-size="10" fill="#fdba74">↑ 가장자리 지표면</text>
+      </svg>
+      <div class="boardbox">
+        <svg viewBox="0 0 297 210" aria-hidden="true"><rect x="2" y="2" width="293" height="206" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="4"/>
+          <g fill="#0b0f14"><rect x="28" y="20" width="60" height="60"/><rect x="209" y="20" width="60" height="60"/><rect x="28" y="130" width="60" height="60"/><rect x="209" y="130" width="60" height="60"/></g>
+          <g fill="#f8fafc"><rect x="40" y="32" width="14" height="14"/><rect x="62" y="54" width="14" height="14"/><rect x="221" y="54" width="14" height="14"/><rect x="243" y="32" width="14" height="14"/>
+            <rect x="40" y="164" width="14" height="14"/><rect x="62" y="142" width="14" height="14"/><rect x="221" y="142" width="14" height="14"/><rect x="243" y="164" width="14" height="14"/></g>
+          <path d="M123 105h50" stroke="#0b0f14" stroke-width="8"/><text x="148" y="130" text-anchor="middle" font-size="18" fill="#0b0f14">50 mm</text></svg>
+        <div><b>굴착 기준판을 트렌치 안에 놓기</b>
+          <span>A4 기준판을 트렌치 바닥이나 가장자리 지면에 평평하게 놓고, 촬영 중 한 번은 화면에 크게 보이게 하세요. 실제 크기(mm)를 맞추는 데 씁니다.</span>
+          <span id="boardPrint" hidden><a href="/app/3dscan/targets/trench_board.pdf" target="_blank" rel="noopener">기준판 인쇄용 PDF</a> (A4, 배율 100%로 인쇄)</span></div>
+      </div>
+    </div>
     <details class="more" id="setPhotos">
       <summary>카메라 설정과 요령 (처음 한 번)</summary>
       <ul>
@@ -418,6 +629,16 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
         <li><b>노출·초점 고정</b>: 찍기 전에 화면의 대상을 길게 눌러 고정(AE/AF 잠금)하세요.</li>
         <li>슬로모션·타임랩스·시네마틱 모드는 쓰지 마세요. 메뉴 이름은 기기·버전마다 조금 다를 수 있습니다.</li>
         <li>4K 1분은 약 170~350 MB입니다. Wi‑Fi에서 올리세요.</li>
+      </ul>
+    </details>
+    <details class="more" id="setTrench" hidden>
+      <summary>굴착 촬영 요령</summary>
+      <ul>
+        <li>이 화면 안의 카메라로 찍습니다. 기울기·회전 센서가 영상과 함께 기록돼 위쪽 방향과 위치를 맞춥니다.</li>
+        <li>찍는 동안 화면 방향(세로·가로)을 바꾸지 마세요. 가로로 들면 트렌치가 더 넓게 담깁니다.</li>
+        <li>‘너무 빠릅니다’가 뜨면 걸음을 늦추세요(초당 30 cm 정도). 어두우면 손전등 버튼을 켜세요(안드로이드).</li>
+        <li>찍은 뒤 장면에서 관을 눌러 가스·상수도 같은 종류를 표시할 수 있습니다(선택).</li>
+        <li>관 위에 흙·물이 덮여 있으면 걷어 내고 찍으세요. 관 윗면이 보여야 깊이가 나옵니다.</li>
       </ul>
     </details>
   </section>
@@ -450,7 +671,21 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
 
   <!-- 5b. 영상 (영상 모드) -->
   <section class="card step" id="secVideo" hidden>
-    <h2>영상<span class="st need" id="stVideo">필수</span></h2>
+    <h2 id="videoTitle">영상<span class="st need" id="stVideo">필수</span></h2>
+    <div id="trenchRecBox" hidden>
+      <button class="btn big" id="trenchRecBtn" type="button" style="background:var(--acc-o);border-color:var(--acc-o);color:#1a0d02;min-height:66px;width:100%">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="14" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 10.5l6-3.5v10l-6-3.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+        <span class="two">굴착 촬영 시작<small>이 화면에서 녹화 · 속도·흔들림·밝기 안내 · 센서 기록</small></span>
+      </button>
+      <p class="trec-note" id="trecNote">기본 카메라 앱으로 찍은 영상도 아래에서 고를 수 있지만, 센서 기록이 없어 위쪽 방향이 덜 정확합니다.</p>
+    </div>
+    <div id="coachRecBox" hidden>
+      <button class="btn big primary" id="coachRecBtn" type="button" style="min-height:66px;width:100%">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="14" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 10.5l6-3.5v10l-6-3.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+        <span class="two">✦ 3D 촬영 시작<small>안내를 받으며 이 화면에서 녹화 · 속도·흔들림·밝기·시간</small></span>
+      </button>
+      <p class="trec-note">기본 카메라 앱(4K)이 화질은 더 좋습니다. 촬영이 익숙하면 아래 ‘카메라로 촬영’을 써도 됩니다.</p>
+    </div>
     <div class="picks">
       <label class="btn big primary" for="camInput" id="camLabel">
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="14" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 10.5l6-3.5v10l-6-3.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
@@ -467,7 +702,19 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
       <div class="vwrap" id="vwrap"></div>
       <div class="chips" id="vchips"></div>
       <ul class="msgs" id="vmsgs"></ul>
+      <div class="row" id="vRetakeRow" hidden><button class="btn" id="vRetake" type="button">↻ 다시 찍기</button></div>
     </div>
+  </section>
+
+  <!-- 굴착: 관 종류 표시 (선택) → marks2d.json -->
+  <section class="card step" id="secMarks" hidden>
+    <h2>관 종류 표시<span class="st">선택</span></h2>
+    <p class="hint" style="margin:-4px 0 10px">장면을 고르고 사진에서 관을 누른 뒤 종류를 고르세요. 점을 다시 누르면 지워집니다. 건너뛰어도 됩니다.</p>
+    <div class="kf-strip" id="kfStrip"></div>
+    <div class="mk-stage" id="mkStage" hidden><img id="mkImg" alt="고른 장면"><div id="mkDots"></div></div>
+    <div class="mk-pal" id="mkPal" hidden></div>
+    <div class="mk-sum" id="mkSum"></div>
+    <div class="row"><button class="btn sm ghost" id="mkSkip" type="button">건너뛰기</button><button class="btn sm ghost" id="mkClear" type="button" hidden>표시 모두 지우기</button></div>
   </section>
 
   <!-- 6. 업로드 -->
@@ -506,8 +753,10 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
       <li class="done" id="rs1"><span class="ic">✓</span><div><b>업로드</b><small id="rs1m">전송 완료</small></div></li>
       <li class="run" id="rs2"><span class="ic">2</span><div><b>서버 등록 (썸네일·지도)</b><small id="rs2m">대기 중</small></div></li>
       <li class="off" id="rs3"><span class="ic">3</span><div><b>3D 생성 (GPU)</b><small id="rs3m">서버 등록 뒤 시작합니다</small></div></li>
+      <li class="off" id="rs4" hidden><span class="ic">4</span><div><b>굴착 산출물 (관·조서·DXF)</b><small id="rs4m">3D가 끝난 뒤 만듭니다</small></div></li>
     </ul>
     <p class="hint" id="resHint">GPU가 영상에서 카메라 위치를 계산하고 3D를 학습합니다. 보통 10~30분 걸리며, 이 화면을 닫아도 서버에서 계속 처리됩니다.</p>
+    <div class="keyline" id="resTrench" hidden></div>
     <p class="hint" id="resNet"></p>
     <a class="btn big green" id="resOpen" href="/app/3dscan/" style="margin-top:12px">지도·뷰어에서 진행 보기</a>
     <div class="row"><button class="btn sm" id="newBtn" type="button">＋ 새 촬영 시작</button></div>
@@ -523,6 +772,62 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
   <div class="foot">kgeoScan · web-capture/1</div>
 </main>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- 굴착: 촬영 전 기준판 확인 -->
+<div class="sheet-bg" id="boardSheet" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="boardSheetTitle">
+    <h3 id="boardSheetTitle">찍기 전에 확인하세요</h3>
+    <label class="chk"><input type="checkbox" id="chkBoard"><span><b>굴착 기준판</b>을 트렌치 바닥이나 가장자리 지면에 평평하게 놓았습니다.</span></label>
+    <label class="chk"><input type="checkbox" id="chkEdge"><span><b>가장자리 지표면</b>이 화면에 함께 나오게 찍겠습니다.</span></label>
+    <label class="chk"><input type="checkbox" id="chkClear"><span>관 윗면이 보이게 흙·물을 걷어 냈습니다.</span></label>
+    <p class="hint" style="margin-top:12px">기준판이 없으면 실제 크기를 맞출 수 없어 관 위치·깊이·조서가 나오지 않고 3D만 만들어집니다.</p>
+    <div class="row" style="margin-top:14px">
+      <button class="btn primary" id="boardOk" type="button" style="flex-basis:100%">카메라 켜기</button>
+      <button class="btn sm ghost" id="boardSkip" type="button">기준판 없이 찍기</button>
+      <button class="btn sm ghost" id="boardCancel" type="button">취소</button>
+    </div>
+  </div>
+</div>
+
+<!-- 3D 촬영 전 10초 요령 (건너뛸 수 있음) -->
+<div class="tut" id="tut" hidden>
+  <div class="tut-box" role="dialog" aria-modal="true" aria-labelledby="tutT">
+    <div class="tut-dots" id="tutDots"></div>
+    <div class="tut-fig" id="tutFig"></div>
+    <div class="tut-t" id="tutT"></div>
+    <div class="tut-s" id="tutS"></div>
+    <label class="chk" id="tutNoMoreRow"><input type="checkbox" id="tutNoMore">다음부터 요령 없이 바로 시작</label>
+    <div class="row" style="margin-top:4px">
+      <button class="btn ghost" id="tutSkip" type="button">건너뛰기</button>
+      <button class="btn primary" id="tutGo" type="button">시작하기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 굴착·3D: 녹화 화면 -->
+<div class="rec" id="rec" hidden>
+  <div class="rec-view">
+    <video id="recVideo" playsinline webkit-playsinline muted autoplay></video>
+    <div class="rec-top">
+      <div class="rec-phases" id="recPhases">
+        <button type="button" data-p="1">① 주변</button><button type="button" data-p="2">② 가장자리 A</button>
+        <button type="button" data-p="3">③ 가장자리 B</button><button type="button" data-p="4">④ 주변</button>
+      </div>
+      <div class="rec-room" id="recRoom" hidden>방 1</div>
+      <div class="rec-hint" id="recHint">녹화를 누르고 먼저 주변 지면을 넓게 둘러보세요</div>
+      <div class="rec-edge" id="recPill">가장자리 지표면이 화면에 보이게</div>
+    </div>
+    <div class="rec-warn" id="recWarn" hidden></div>
+    <div class="rec-chips" id="recChips"><span id="chSpeed">속도</span><span id="chBlur">흔들림</span><span id="chLight">밝기</span><span id="chTilt">기울기</span><span id="chRes" class="rec-res"></span></div>
+  </div>
+  <div class="rec-bar">
+    <button class="rb" id="recClose" type="button" aria-label="닫기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+    <div class="rec-tw"><div class="rec-time" id="recTime">00:00</div><div class="rec-goal" id="recGoal"></div></div>
+    <button class="rec-shot" id="recShot" type="button" aria-label="녹화 시작"><i></i></button>
+    <button class="rb" id="recTorch" type="button" aria-label="손전등" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2h8v5l-2 3v12h-4V10L8 7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
+    <button class="rb" id="recNext" type="button" aria-label="다음 단계">다음<br>단계</button>
+  </div>
+</div>
 
 <script>
 (function () {
@@ -545,7 +850,7 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
     hdgMag: null,
     sitesOK: null, sites: [], sitesExtra: [], siteId: '', siteName: '', newSiteName: '', preSite: '',
     titleDup: null, autoTitle: '',
-    mode: 'photos',
+    mode: 'photos', trench: false,
     file: null, cid: null, meta: null, fatal: null, fromCam: false,
     photos: [], pSeq: 0, pcid: null, pfatal: null, pFromCam: false, pShowAll: false,
     uploading: false, xhr: null, cancelled: false, doneCid: null, failed: false,
@@ -612,7 +917,8 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
   /* ── 임시 저장 (카메라 앱에 갔다 오는 동안 브라우저가 페이지를 다시 열어도 입력이 남게) ── */
   function saveDraft() {
     lsSet(DRAFT_KEY, { t: Date.now(), title: elTitle.value, auto: S.autoTitle, note: elNote.value, siteId: S.siteId,
-      manual: S.locSrc === 'manual' ? { lat: S.lat, lon: S.lon } : null });
+      manual: S.locSrc === 'manual' ? { lat: S.lat, lon: S.lon } : null,
+      permit: $('permitNo').value, owner: $('ownerOrg').value });
   }
   function loadDraft() { var d = lsGet(DRAFT_KEY, null); return d && Date.now() - d.t < 12 * 3600e3 ? d : null; }
 
@@ -943,6 +1249,7 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
   }
   function pickFile(f, fromCam) {
     if (S.uploading) { toast('업로드 중에는 영상을 바꿀 수 없습니다', 'warn'); return; }
+    trenchReset();                           // 새 영상 = 새 센서·장면·관 표시 (녹화는 recFinish 가 이 뒤에 채운다)
     var tok = ++pickSeq;
     S.file = f; S.cid = newId(); S.meta = null; S.fromCam = fromCam; S.failed = false;
     $('upErr').hidden = true; $('prog').hidden = true;
@@ -998,16 +1305,54 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
     else {
       if (f.size > LIMIT_WARN) msgs.push(['', '파일이 큽니다(600 MB 초과). 업로드가 오래 걸리니 Wi‑Fi에서 올리세요. 다음에는 2분 안으로 찍어 주세요.']);
       if (m && m.dur != null && m.dur < 10) msgs.push(['', '영상이 짧습니다(10초 미만). 대상 주위를 천천히(초당 30 cm) 돌며 20~60초 찍어야 3D가 잘 나옵니다.']);
-      if (m && m.dur != null && m.dur > 120) msgs.push(['', '영상이 깁니다(2분 초과). 처리와 업로드가 오래 걸립니다.']);
+      var coached = !!(S.rec && S.rec.cid === S.cid);    // 이 화면에서 안내 받으며 찍은 영상
+      if (m && m.dur != null && m.dur > 120 && !(coached && S.rec.kind === '3d')) msgs.push(['', '영상이 깁니다(2분 초과). 처리와 업로드가 오래 걸립니다.']);
       var iosTip = IS_IOS ? ' 아이폰은 카메라 앱으로 먼저 찍은 뒤 ‘저장된 영상 선택’ → 사진 보관함 위쪽 ‘옵션’에서 원본(현재)을 고르면 압축되지 않을 수 있습니다.' : '';
       if (m && m.w && m.h && Math.min(m.w, m.h) < 720) msgs.push(['', '해상도가 낮습니다(720p 미만). 카메라 설정에서 4K(최소 1080p)로 찍어 주세요.' + iosTip]);
-      else if (m && m.w && m.h && Math.min(m.w, m.h) < 1080) msgs.push(['info', '1080p 미만입니다. 4K 30fps로 찍으면 3D가 더 선명합니다.' + iosTip]);
+      else if (m && m.w && m.h && Math.min(m.w, m.h) < 1080) {
+        if (coached) msgs.push(['info', '브라우저 카메라가 ' + m.w + '×' + m.h + '로 녹화했습니다(기기 한계).' +
+          (S.rec.kind === 'trench' ? ' 기준판이 크게 보이도록 1~1.5 m 거리에서 찍으세요.' : ' 더 선명하게 하려면 기본 카메라(4K)로 찍어 고르세요.')]);
+        else msgs.push(['info', '1080p 미만입니다. 4K 30fps로 찍으면 3D가 더 선명합니다.' + iosTip]);
+      }
       if (m && m.failed) msgs.push(['info', '이 브라우저에서는 미리 볼 수 없는 형식입니다(예: HEVC). 업로드와 3D 처리는 됩니다.']);
       if (m && !m.failed && !msgs.length) msgs.push(['good', '✓ 촬영 조건이 좋습니다. 아래에서 업로드하세요.']);
+      if (S.trench) {                        // 굴착 기록: 센서 기록·기준판 상태
+        var pc = function (x) { return x == null ? '—' : Math.round(x * 100) + '%'; };
+        if (T.sensors && T.sensorsCid === S.cid) {
+          var L = T.live || {}, mo = T.sensors.motion.length, oc = T.sensors.orient.length;
+          msgs.push(['info', '센서 기록: 움직임 ' + mo + '개 · 방향 ' + oc + '개 · 위치 ' + T.sensors.gps.length + '개' +
+            (L.checks ? ' · 너무 빠름 ' + pc(L.fast_ratio) + ' · 흔들림 ' + pc(L.blur_ratio) + ' · 어두움 ' + pc(L.dark_ratio) : '')]);
+          if (!mo) msgs.push(['', '움직임 센서 값이 없습니다(권한 거부 등). 위쪽 방향을 카메라로 추정해 덜 정확합니다.']);
+          if (T.board === 'skipped') msgs.push(['', '기준판 없이 찍었습니다. 관 위치·깊이·조서는 나오지 않고 3D만 만들어집니다.']);
+        } else {
+          msgs.push(['', '센서 기록이 없는 영상입니다(기본 카메라). 위쪽 방향을 카메라로 추정해 덜 정확합니다. 가능하면 ‘굴착 촬영 시작’으로 찍으세요.']);
+        }
+      }
+      var why = retakeReasons();
+      if (coached && S.rec.kind === '3d') {
+        var L3 = S.rec.live || {}, p3 = function (x) { return x == null ? '—' : Math.round(x * 100) + '%'; };
+        msgs.push(['info', '촬영 ' + fmtDur(S.rec.dur / 1000) + ' · 방(구역) ' + S.rec.rooms + '개 · 너무 빠름 ' + p3(L3.fast_ratio) + ' · 흔들림 ' + p3(L3.blur_ratio) + ' · 어두움 ' + p3(L3.dark_ratio)]);
+      }
+      if (why.length) msgs.push(['bad', '다시 찍기를 권합니다 — ' + why.join(' ')]);
       if (IS_IOS && S.fromCam) msgs.push(['info', '아이폰: 이 페이지에서 바로 찍은 영상은 사진 앱에 저장되지 않을 수 있습니다. 업로드가 끝날 때까지 이 페이지를 닫지 마세요.']);
     }
+    // 이 화면에서 찍은 영상이면 ‘다시 찍기’ 버튼 (권할 때는 빨갛게)
+    var showRe = !S.fatal && !!(S.rec && S.rec.cid === S.cid), wr = retakeReasons().length > 0;
+    $('vRetakeRow').hidden = !showRe;
+    $('vRetake').className = 'btn' + (wr ? ' red' : '');
     $('vmsgs').innerHTML = msgs.map(function (x) { return '<li class="' + x[0] + '">' + esc(x[1]) + '</li>'; }).join('');
     updateReady();
+  }
+  // 촬영 중 경고 비율로 다시 찍기를 권할 까닭 (쉬운 말로)
+  function retakeReasons() {
+    if (!(S.rec && S.rec.cid === S.cid)) return [];
+    var L = S.rec.live || {}, out = [], pc = function (x) { return Math.round(x * 100) + '%'; };
+    if (L.fast_ratio > 0.2) out.push('걸음이 빨랐습니다(빠른 구간 ' + pc(L.fast_ratio) + '). 지금의 절반 속도로 천천히 걸어 주세요.');
+    if (L.blur_ratio > 0.25) out.push('흔들린 화면이 많습니다(' + pc(L.blur_ratio) + '). 두 손으로 들거나 팔꿈치를 몸에 붙여 주세요.');
+    if (L.dark_ratio > 0.3) out.push('어두운 구간이 많습니다(' + pc(L.dark_ratio) + '). 불을 켜거나 손전등을 켜고 찍어 주세요.');
+    if (S.rec.kind === '3d' && S.rec.dur < 30000 * S.rec.rooms) out.push('영상이 짧습니다. 방 하나를 1~2분 동안 천천히 한 바퀴 돌아 주세요.');
+    if (S.rec.kind === 'trench' && S.rec.dur < 20000) out.push('영상이 짧습니다. 양쪽 가장자리를 모두 지나가 주세요.');
+    return out;
   }
   function clearVideo() {
     pickSeq++; S.file = null; S.cid = null; S.meta = null; S.fatal = null; S.fromCam = false;
@@ -1157,11 +1502,585 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
     $('setPhotos').hidden = !ph; $('setVideo').hidden = ph;
     $('secPhotos').hidden = !ph; $('secVideo').hidden = ph;
     $('upErr').hidden = true; S.failed = false;
-    try { localStorage.setItem(MODE_KEY, S.mode); } catch (e) { }
+    if (!S.trench) { try { localStorage.setItem(MODE_KEY, S.mode); } catch (e) { } }
+    applyKind();
     updateReady();
   }
   function curCid() { return S.mode === 'photos' ? S.pcid : S.cid; }
   function mediaSize() { return S.mode === 'photos' ? photosSize() : (S.file ? S.file.size : 0); }
+
+  /* ════════ ⛏ 굴착 기록 (docs/web_trench_contract.md 1절) ════════
+     화면 안 카메라(getUserMedia + MediaRecorder)로 찍으면서 속도·흔들림·밝기를 알려 주고, 같은 시계(녹화 시작 ms)로
+     DeviceMotion·DeviceOrientation·나침반·GPS 를 sensors.json 에, 관 종류 탭을 marks2d.json 에 담아 영상과 함께 올린다. */
+  var TRENCH_KEY = 'kgeoscan_capture_trench', PERSON_KEY = 'kgeoscan_capture_person', D2R = Math.PI / 180;
+  var CLS = { gas: ['가스', '#facc15'], water: ['상수도', '#3b82f6'], sewer: ['하수도', '#22c55e'], power: ['전력', '#ef4444'],
+    telecom: ['통신', '#fb923c'], heat: ['지역난방', '#d946ef'], unknown: ['모름', '#9ca3af'] };
+  var CLS_ORDER = ['gas', 'water', 'sewer', 'power', 'telecom', 'heat', 'unknown'];
+  var T = { sensors: null, sensorsCid: null, live: null, keyframes: [], marks: [], kfSel: -1, pending: null, board: null, kfTok: 0 };
+  function rnd(v, d) { if (v == null || !isFinite(v)) return null; var m = Math.pow(10, d); return Math.round(v * m) / m; }
+
+  function applyKind() {                    // setMode 뒤에 불러 굴착 기록 화면으로 덮어쓴다
+    var tr = !!S.trench;
+    $('kindSurvey').classList.toggle('on', !tr); $('kindSurvey').setAttribute('aria-pressed', tr ? 'false' : 'true');
+    $('kindTrench').classList.toggle('on', tr); $('kindTrench').setAttribute('aria-pressed', tr ? 'true' : 'false');
+    $('coachRecBox').hidden = tr || S.mode !== 'video';      // 3D 영상: 안내 받으며 화면 안에서 녹화
+    $('camLabel').classList.toggle('primary', false);        // 큰 파란 버튼은 ‘3D 촬영 시작’ 하나만
+    $('tutBtn').hidden = tr;
+    $('secTrenchInfo').hidden = !tr;
+    $('methodSeg').hidden = tr;
+    $('guideTitle').textContent = tr ? '굴착 촬영 순서' : '촬영 방법';
+    $('guideTrench').hidden = !tr; $('setTrench').hidden = !tr;
+    if (tr) { $('guidePhotos').hidden = true; $('guideVideo').hidden = true; $('setPhotos').hidden = true; $('setVideo').hidden = true; }
+    $('trenchRecBox').hidden = !tr; $('camLabel').hidden = tr;
+    $('fileLabel').querySelector('small').textContent = tr ? '센서 기록 없음 · 정확도 낮음' : '갤러리·파일에서';
+    $('fileLabel').classList.toggle('primary', false);
+    $('videoTitle').firstChild.nodeValue = tr ? '굴착 영상' : '영상';
+    renderMarks();
+  }
+  function setKind(tr) {
+    if (S.uploading) { toast('업로드 중에는 바꿀 수 없습니다', 'warn'); return; }
+    S.trench = !!tr;
+    try { localStorage.setItem(TRENCH_KEY, S.trench ? '1' : '0'); } catch (e) { }
+    if (S.trench) setMode('video');          // 굴착은 영상: 센서·관 표시 시각이 영상 시계 기준
+    else { var sm = null; try { sm = localStorage.getItem(MODE_KEY); } catch (e) { } setMode(sm || S.mode); }
+    if (S.file) renderVideo();
+  }
+  function trenchReset() {
+    T.kfTok++;
+    T.keyframes.forEach(function (k) { if (k.url) { try { URL.revokeObjectURL(k.url); } catch (e) { } } });
+    T.sensors = null; T.sensorsCid = null; T.live = null; T.keyframes = []; T.marks = []; T.kfSel = -1; T.pending = null;
+    renderMarks();
+  }
+  function trenchFields() {
+    return { permit_no: $('permitNo').value.trim().slice(0, 100), owner_org: $('ownerOrg').value.trim().slice(0, 100),
+      surveyor: $('surveyor').value.trim().slice(0, 100), org: $('org').value.trim().slice(0, 100) };
+  }
+  function savePerson() { var f = trenchFields(); lsSet(PERSON_KEY, { surveyor: f.surveyor, org: f.org }); saveDraft(); }
+
+  /* 기준판 확인 → 카메라 */
+  function openBoardSheet() {
+    if (S.uploading) { toast('업로드 중에는 찍을 수 없습니다', 'warn'); return; }
+    ['chkBoard', 'chkEdge', 'chkClear'].forEach(function (id) { $(id).checked = false; });
+    $('boardSheet').hidden = false;
+  }
+  function checkBoardPrint() {             // 인쇄용 기준판(B 갈래)이 올라와 있으면 링크를 보인다
+    try { fetch('/app/3dscan/targets/trench_board.pdf', { method: 'HEAD', cache: 'no-store' }).then(function (r) { if (r.ok) $('boardPrint').hidden = false; }).catch(function () { }); } catch (e) { }
+  }
+
+  /* 녹화 */
+  var R = { stream: null, track: null, rec: null, chunks: [], mime: '', t0: 0, tEnd: 0, going: false, discard: false, loop: null, timer: null,
+    motion: [], orient: [], gps: [], phases: [], screens: [], gpsWatch: null, torch: false, rotEMA: 0, lastOri: null, hasAbs: false,
+    sharpHist: [], luma: 0, sharp: 0, buckets: {}, lastKfAt: 0, stat: null, sign: null, motionOn: false, phase: 0, vw: 0, vh: 0, startScreen: '' };
+  var acan = document.createElement('canvas'), actx = null;
+  function needsMotionPermission() { return typeof window.DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function'; }
+  function screenType() {
+    var t = (screen.orientation && screen.orientation.type) || '';
+    if (!t && typeof window.orientation === 'number') t = window.orientation === 90 ? 'landscape-primary' : window.orientation === -90 ? 'landscape-secondary' : 'portrait';
+    return /landscape-secondary/.test(t) ? 'landscape-secondary' : /landscape/.test(t) ? 'landscape-primary' : 'portrait';
+  }
+  function pickMime() {
+    if (typeof window.MediaRecorder === 'undefined') return null;
+    var c = ['video/mp4;codecs=avc1.640028', 'video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+    for (var i = 0; i < c.length; i++) { try { if (MediaRecorder.isTypeSupported(c[i])) return c[i]; } catch (e) { } }
+    return '';
+  }
+  // kind: 'trench' (굴착 기록, 단계 ①~④·센서 업로드) | '3d' (3D 촬영 코칭: 방 수·권장 시간)
+  function recOpen(kind) {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast('이 브라우저는 화면 안 카메라를 쓸 수 없습니다(https 필요). ‘저장된 영상 선택’을 쓰세요', 'warn'); return; }
+    if (pickMime() === null) { toast('이 브라우저는 녹화를 지원하지 않습니다. 기본 카메라로 찍은 뒤 ‘저장된 영상 선택’을 쓰세요', 'warn'); return; }
+    R.kind = kind === '3d' ? '3d' : 'trench';
+    var tr = R.kind === 'trench';
+    var el = $('rec');
+    el.hidden = false; document.body.style.overflow = 'hidden';
+    try { if (el.requestFullscreen) { var fp = el.requestFullscreen({ navigationUI: 'hide' }); if (fp && fp.catch) fp.catch(function () { }); } } catch (e) { }
+    R.going = false; R.discard = false; R.rotEMA = 0; R.lastOri = null; R.hasAbs = false; R.sharpHist = []; R.torch = false; R.phase = 0; R.room = 1;
+    $('recTorch').hidden = true; $('recTorch').classList.remove('on'); $('recShot').classList.remove('going');
+    $('recTime').textContent = '00:00'; $('recTime').classList.remove('going'); $('recWarn').hidden = true;
+    $('recPhases').hidden = !tr; $('recRoom').hidden = tr;
+    $('recPill').textContent = tr ? '가장자리 지표면이 화면에 보이게' : '가슴 높이 · 빈 벽·거울만 비추지 않기';
+    $('recNext').innerHTML = tr ? '다음<br>단계' : '다음<br>방';
+    $('recNext').setAttribute('aria-label', tr ? '다음 단계' : '다음 방(구역)');
+    $('recGoal').textContent = tr ? '1분 안팎' : '방 하나 1~2분'; $('recGoal').className = 'rec-goal';
+    setPhase(0); $('recHint').textContent = '카메라를 켜는 중…';
+    navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } } })
+      .then(function (st) {
+        if ($('rec').hidden) { st.getTracks().forEach(function (t) { t.stop(); }); return; }
+        R.stream = st; R.track = st.getVideoTracks()[0];
+        var v = $('recVideo'); v.srcObject = st;
+        var pp = v.play(); if (pp && pp.catch) pp.catch(function () { });
+        try { var fc = R.track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); if (fc && fc.catch) fc.catch(function () { }); } catch (e) { }
+        var caps = {}; try { caps = R.track.getCapabilities ? R.track.getCapabilities() : {}; } catch (e) { }
+        $('recTorch').hidden = !caps.torch;          // 손전등: 안드로이드 크롬처럼 torch 를 지원할 때만
+        if (!needsMotionPermission()) startMotion(); // iOS 는 녹화 버튼에서 권한을 묻는다
+        clearInterval(R.loop); R.loop = setInterval(analyse, 250);
+        keepAwake(true);
+        setPhase(0);
+      })
+      .catch(function (e) {
+        recTeardown();
+        toast('카메라를 켜지 못했습니다: ' + (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError') ? '카메라 권한을 허용해 주세요' : (e && (e.message || e.name)) || e), 'warn');
+      });
+  }
+  function startMotion() {
+    if (R.motionOn) return;
+    R.motionOn = true;
+    window.addEventListener('devicemotion', recMotion, true);
+    if ('ondeviceorientationabsolute' in window) window.addEventListener('deviceorientationabsolute', recOrient, true);
+    window.addEventListener('deviceorientation', recOrient, true);
+  }
+  function stopMotion() {
+    R.motionOn = false;
+    window.removeEventListener('devicemotion', recMotion, true);
+    window.removeEventListener('deviceorientationabsolute', recOrient, true);
+    window.removeEventListener('deviceorientation', recOrient, true);
+  }
+  function recMotion(e) {
+    var g = e.accelerationIncludingGravity || {}, r = e.rotationRate || {};
+    var rx = r.beta, ry = r.gamma, rz = r.alpha;      // 기기 x·y·z 축 둘레 회전 (°/s)
+    if (rx != null || ry != null || rz != null) {
+      var mag = Math.sqrt((rx || 0) * (rx || 0) + (ry || 0) * (ry || 0) + (rz || 0) * (rz || 0));
+      R.rotEMA = R.rotEMA * 0.88 + mag * 0.12;
+    }
+    if (!R.going) return;
+    var t = Math.round(performance.now() - R.t0);
+    if (t < 0) return;
+    R.motion.push({ t: t, ax: rnd(g.x, 3), ay: rnd(g.y, 3), az: rnd(g.z, 3), rx: rnd(rx, 2), ry: rnd(ry, 2), rz: rnd(rz, 2) });
+    if (R.lastOri && g.z != null) {        // 가속도 부호 점검: W3C 는 화면이 위를 보고 누우면 az ≈ +9.8
+      var exp = 9.81 * Math.cos(R.lastOri.beta * D2R) * Math.cos(R.lastOri.gamma * D2R);
+      if (Math.abs(exp) > 4) { if (g.z * exp > 0) R.sign.pos++; else R.sign.neg++; }
+    }
+  }
+  function recOrient(e) {
+    var isAbsEvt = e.type === 'deviceorientationabsolute', abs = isAbsEvt || e.absolute === true;
+    if (isAbsEvt) R.hasAbs = true;
+    else if (R.hasAbs) return;               // 절대 방향 이벤트가 오면 상대 이벤트는 버린다
+    if (e.beta == null && e.alpha == null) return;
+    var compass = null;
+    if (typeof e.webkitCompassHeading === 'number' && e.webkitCompassHeading >= 0) compass = e.webkitCompassHeading;   // iOS (자북)
+    else if (abs && e.alpha != null) compass = camHeading(e.alpha, e.beta || 0, e.gamma || 0);                         // 안드로이드: 후면 카메라 방향 (자북)
+    R.lastOri = { beta: e.beta || 0, gamma: e.gamma || 0 };
+    if (!R.going) return;
+    var t = Math.round(performance.now() - R.t0);
+    if (t < 0) return;
+    R.orient.push({ t: t, alpha: rnd(e.alpha, 2), beta: rnd(e.beta, 2), gamma: rnd(e.gamma, 2), abs: !!abs, compass: rnd(compass, 1) });
+  }
+  function startGpsLog() {
+    R.gps = [];
+    if (S.lat != null) R.gps.push({ t: 0, lat: rnd(S.lat, 7), lon: rnd(S.lon, 7), acc: rnd(S.acc, 1), alt: rnd(S.elev, 1), alt_acc: null, src: S.locSrc });
+    if (!('geolocation' in navigator)) return;
+    try {
+      R.gpsWatch = navigator.geolocation.watchPosition(function (p) {
+        if (!R.going) return;
+        var c = p.coords;
+        R.gps.push({ t: Math.max(0, Math.round(performance.now() - R.t0)), lat: rnd(c.latitude, 7), lon: rnd(c.longitude, 7), acc: rnd(c.accuracy, 1),
+          alt: rnd(c.altitude, 1), alt_acc: rnd(c.altitudeAccuracy, 1) });
+      }, function () { }, { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 });
+    } catch (e) { }
+  }
+  function percentile(a, q) { if (!a.length) return 0; var s = a.slice().sort(function (x, y) { return x - y; }); return s[Math.min(s.length - 1, Math.floor(q * s.length))]; }
+  function chip(id, cls, text) { var e = $(id); e.className = cls || ''; e.textContent = text; }
+  // 4 Hz: 작은 캔버스에서 밝기(평균 휘도)와 선명도(라플라시안 절댓값 평균)를 재고, 회전 속도와 함께 경고를 고른다
+  function analyse() {
+    var v = $('recVideo');
+    if (!v.videoWidth || $('rec').hidden) return;
+    R.vw = v.videoWidth; R.vh = v.videoHeight;
+    $('chRes').textContent = v.videoWidth + '×' + v.videoHeight;
+    var W = 192, H = Math.max(2, Math.round(W * v.videoHeight / v.videoWidth));
+    if (acan.width !== W || acan.height !== H || !actx) { acan.width = W; acan.height = H; actx = acan.getContext('2d', { willReadFrequently: true }); }
+    actx.drawImage(v, 0, 0, W, H);
+    var d = actx.getImageData(0, 0, W, H).data, n = W * H, g = new Float32Array(n), sum = 0, i, j;
+    for (i = 0, j = 0; i < n; i++, j += 4) { g[i] = 0.299 * d[j] + 0.587 * d[j + 1] + 0.114 * d[j + 2]; sum += g[i]; }
+    var lap = 0, cnt = 0;
+    for (var y = 1; y < H - 1; y++) for (var x = 1; x < W - 1; x++) { var k = y * W + x; lap += Math.abs(4 * g[k] - g[k - 1] - g[k + 1] - g[k - W] - g[k + W]); cnt++; }
+    var now = performance.now();
+    R.luma = sum / n; R.sharp = cnt ? lap / cnt : 0;
+    R.sharpHist.push([now, R.sharp]);
+    while (R.sharpHist.length && now - R.sharpHist[0][0] > 8000) R.sharpHist.shift();
+    var base = percentile(R.sharpHist.map(function (s) { return s[1]; }), 0.75);
+    var tr = R.kind === 'trench', lim = tr ? [45, 30] : [60, 40];   // 굴착 45°/s(앱 굴착 모드), 3D 60°/s(앱 현장·집 모드)
+    var fast = R.motionOn && R.rotEMA > lim[0], fastMid = R.motionOn && R.rotEMA > lim[1];
+    var dark = R.luma < 45, dim = R.luma < 70;
+    var blurry = !dark && R.sharpHist.length >= 8 && base > 1 && R.sharp < base * 0.5;   // 어두우면 선명도 값이 무의미 → 밝기 경고만
+    var tilt = R.lastOri ? Math.asin(Math.max(-1, Math.min(1, Math.cos(R.lastOri.beta * D2R) * Math.cos(R.lastOri.gamma * D2R)))) / D2R : null;
+    var edgePhase = tr && (R.phase === 2 || R.phase === 3);
+    chip('chSpeed', !R.motionOn ? '' : fast ? 'bad' : fastMid ? 'warn' : 'ok', R.motionOn ? '회전 ' + Math.round(R.rotEMA) + '°/s' : '속도 (녹화 때 측정)');
+    chip('chBlur', blurry ? 'bad' : R.sharpHist.length >= 8 ? 'ok' : '', blurry ? '흔들림' : '선명');
+    chip('chLight', dark ? 'bad' : dim ? 'warn' : 'ok', dark ? '어두움' : dim ? '조금 어두움' : '밝기 좋음');
+    chip('chTilt', tilt == null || !edgePhase ? '' : (tilt >= 25 && tilt <= 60) ? 'ok' : 'warn', tilt == null ? '숙임 —' : '숙임 ' + Math.round(tilt) + '°' + (edgePhase ? ' (30~45)' : ''));
+    $('chTilt').hidden = !tr;
+    var msg = '', cls = '';
+    var darkMsg = '어둡습니다 — ' + ($('recTorch').hidden ? (tr ? '밝은 쪽에서 찍으세요' : '불을 켜고 찍으세요') : R.torch ? '더 밝은 쪽에서 찍으세요' : '손전등을 켜세요');
+    if (!R.going) {                          // 녹화 전: 조명 확인
+      if (dark) msg = darkMsg;
+      else if (dim) { msg = '조금 어둡습니다 — 불을 켜면 더 선명합니다'; cls = ' mid'; }
+      else { msg = '밝기 좋음 ✓ 녹화를 누르세요'; cls = ' ok'; }
+    } else if (fast) msg = '너무 빠릅니다 — 천천히 (초당 30 cm)';
+    else if (dark) msg = darkMsg;
+    else if (blurry) msg = '흔들립니다 — 잠깐 멈췄다 천천히';
+    else if (fastMid) { msg = '조금 빠릅니다'; cls = ' mid'; }
+    var w = $('recWarn'); w.hidden = !msg; w.textContent = msg; w.className = 'rec-warn' + cls;
+    if (R.going) {
+      R.stat.n++; if (fast) R.stat.fast++; if (blurry) R.stat.blur++; if (dark) R.stat.dark++;
+      if (tr) keyframeCandidate(v, now);
+    }
+  }
+  // 3D 촬영: 방(구역)마다 권장 1~2분 — 지난 시간에 따라 한 줄 안내를 바꾼다
+  function coachTick(sec) {
+    var inRoom = sec - (R.roomStart || 0), rooms = R.room || 1;
+    $('recRoom').textContent = '방(구역) ' + rooms + ' · ' + fmtDur(inRoom);
+    var g = $('recGoal');
+    g.textContent = '권장 ' + rooms + '~' + rooms * 2 + '분';
+    g.className = 'rec-goal' + (inRoom > 120 ? ' over' : '');
+    var h = inRoom < 12 ? '문 앞에서 시작해 방을 한 바퀴 천천히 돕니다'
+      : inRoom < 60 ? '벽을 따라 천천히 · 모서리와 가구 뒤도 비추세요'
+      : inRoom < 120 ? '1분 지났습니다 — 한 바퀴 다 돌았으면 ‘다음 방’ 또는 정지'
+      : '2분이 넘었습니다 — 다음 방으로 가거나 정지하세요';
+    $('recHint').textContent = h;
+  }
+  function nextRoom() {
+    if (!R.going) return;
+    R.room = (R.room || 1) + 1;
+    R.roomStart = Math.floor((performance.now() - R.t0) / 1000);
+    R.phases.push({ t: Math.round(performance.now() - R.t0), room: R.room });
+    toast('방(구역) ' + R.room + ' 시작 — 문턱은 천천히 넘으세요', 'ok');
+    coachTick(R.roomStart);
+  }
+  // 관 표시용 장면: 3초 구간마다 가장 선명한 화면 한 장 (녹화 중 바로 뜬다 — webm 은 나중에 되감기 어렵다)
+  function keyframeCandidate(v, now) {
+    var t = Math.round(now - R.t0), b = Math.floor(t / 3000), cur = R.buckets[b];
+    if (R.rotEMA > 45 || R.luma < 35) return;
+    if (cur && (R.sharp <= cur.sharp * 1.15 || now - R.lastKfAt < 700)) return;
+    R.lastKfAt = now;
+    var W = Math.min(1280, v.videoWidth), H = Math.round(W * v.videoHeight / v.videoWidth), c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    try { c.getContext('2d').drawImage(v, 0, 0, W, H); } catch (e) { return; }
+    var item = { t: t, sharp: R.sharp, w: W, h: H, blob: null };
+    R.buckets[b] = item;
+    try { c.toBlob(function (bl) { item.blob = bl; }, 'image/jpeg', 0.82); } catch (e) { }
+  }
+  var PHASE_HINT = ['녹화를 누르고 먼저 주변 지면을 넓게 둘러보세요',
+    '① 주변 지면·연석을 3~5 m 넣어 천천히 둘러보세요',
+    '② 한쪽 가장자리를 따라 천천히 · 폰은 안쪽으로 30~45°',
+    '③ 반대쪽 가장자리를 따라 돌아오세요',
+    '④ 끝으로 주변 지면을 넓게 넣고 정지를 누르세요'];
+  function setPhase(p) {
+    R.phase = p;
+    Array.prototype.forEach.call($('recPhases').children, function (b) {
+      var n = +b.getAttribute('data-p'); b.classList.toggle('on', n === p); b.classList.toggle('done', n < p);
+    });
+    if (R.kind === '3d') {                   // 3D 촬영: 단계 대신 방(구역) 수
+      $('recHint').textContent = R.going ? '' : '녹화를 누르고 문 앞에서 시작하세요';
+      $('recNext').disabled = !R.going;
+      return;
+    }
+    $('recHint').textContent = PHASE_HINT[p] || '';
+    $('recNext').disabled = !R.going || p >= 4;
+    if (R.going) R.phases.push({ t: Math.max(0, Math.round(performance.now() - R.t0)), phase: p });
+  }
+  function onScreenChange() {
+    if (!R.going) return;
+    var s = screenType();
+    R.screens.push({ t: Math.round(performance.now() - R.t0), screen: s });
+    if (s !== R.startScreen) toast('녹화 중에는 화면 방향을 바꾸지 마세요', 'warn');
+  }
+  function recShot() {
+    if (R.going) { recStop(); return; }
+    if (!R.stream) return;
+    if (needsMotionPermission() && !R.motionOn) {   // iOS: 녹화 버튼을 누를 때 움직임·방향 센서 권한을 묻는다 (사용자 탭 안에서 바로 불러야 한다)
+      var ps = [DeviceMotionEvent.requestPermission()];
+      if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') ps.push(DeviceOrientationEvent.requestPermission());
+      Promise.all(ps.map(function (p) { return p.catch(function () { return 'denied'; }); })).then(function (res) {
+        R.permission = res[0];
+        startMotion();                       // 'denied' 라도 붙여 둔다 (브라우저에 따라 값은 온다). 실제로 오는지는 아래에서 본다
+        recBegin();
+      });
+      return;
+    }
+    recBegin();
+  }
+  function checkSensorsFlowing() {          // 녹화 2초 뒤: 움직임 센서 값이 실제로 들어오는지
+    if (!R.going) return;
+    if (!R.motion.length) toast('움직임 센서 값이 오지 않습니다' + (R.permission && R.permission !== 'granted' ? '(권한 거부)' : '') + '. 센서 기록 없이 녹화를 계속합니다', 'warn');
+  }
+  function recBegin() {
+    var mime = pickMime(), opts = { videoBitsPerSecond: 10000000 }, rec;
+    if (mime) opts.mimeType = mime;
+    try { rec = new MediaRecorder(R.stream, opts); } catch (e) {
+      try { rec = new MediaRecorder(R.stream); } catch (e2) { toast('녹화를 시작하지 못했습니다: ' + (e2.message || e2), 'warn'); return; }
+    }
+    R.rec = rec; R.chunks = []; R.mime = rec.mimeType || mime || 'video/webm'; R.discard = false;
+    rec.ondataavailable = function (e) { if (e.data && e.data.size) R.chunks.push(e.data); };
+    rec.onstart = function () {
+      R.t0 = performance.now(); R.going = true;
+      R.motion = []; R.orient = []; R.phases = []; R.buckets = {}; R.lastKfAt = 0;
+      R.stat = { n: 0, fast: 0, blur: 0, dark: 0 }; R.sign = { pos: 0, neg: 0 };
+      R.startScreen = screenType(); R.screens = [{ t: 0, screen: R.startScreen }];
+      startGpsLog();
+      try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock(screen.orientation.type).catch(function () { }); } catch (e) { }
+      $('recShot').classList.add('going'); $('recShot').setAttribute('aria-label', '녹화 정지'); $('recTime').classList.add('going');
+      setPhase(1);
+      R.room = 1; R.roomStart = 0;
+      if (R.kind === '3d') { R.phases.push({ t: 0, room: 1 }); coachTick(0); }
+      else setTimeout(checkSensorsFlowing, 2000);
+      clearInterval(R.timer);
+      var lastS = -1, maxS = R.kind === '3d' ? 600 : 180;    // 굴착 3분, 3D 10분(약 750 MB)에서 자동 정지
+      R.timer = setInterval(function () {
+        var s = Math.floor((performance.now() - R.t0) / 1000);
+        if (s === lastS) return;
+        lastS = s;
+        $('recTime').textContent = pad2(Math.floor(s / 60)) + ':' + pad2(s % 60);
+        if (R.kind === '3d') coachTick(s);
+        else if (s === 120) toast('2분이 지났습니다. 다 찍었으면 정지하세요', 'warn');
+        if (s === maxS - 30) toast('30초 뒤 자동으로 멈춥니다', 'warn');
+        if (s >= maxS) recStop();
+      }, 250);
+    };
+    rec.onstop = recFinish;
+    rec.onerror = function (e) { toast('녹화 오류: ' + ((e && e.error && e.error.message) || '알 수 없음'), 'warn'); };
+    try { rec.start(1000); } catch (e) { toast('녹화를 시작하지 못했습니다: ' + (e.message || e), 'warn'); }
+  }
+  function recStop() {
+    if (!R.going) return;
+    R.going = false; R.tEnd = performance.now();
+    clearInterval(R.timer);
+    try { R.rec.stop(); } catch (e) { recFinish(); }
+  }
+  function recTeardown() {
+    R.going = false;
+    clearInterval(R.loop); clearInterval(R.timer);
+    stopMotion();
+    if (R.gpsWatch != null) { try { navigator.geolocation.clearWatch(R.gpsWatch); } catch (e) { } R.gpsWatch = null; }
+    if (R.stream) R.stream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) { } });
+    R.stream = null; R.track = null; $('recVideo').srcObject = null;
+    try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch (e) { }
+    try { if (document.fullscreenElement && document.exitFullscreen) { var xp = document.exitFullscreen(); if (xp && xp.catch) xp.catch(function () { }); } } catch (e) { }
+    $('rec').hidden = true; document.body.style.overflow = '';
+    if (!S.uploading) keepAwake(false);
+  }
+  function recClose() {
+    if (R.going) {
+      if (!window.confirm('녹화를 멈추고 지금까지 찍은 것을 버릴까요?')) return;
+      R.discard = true; R.going = false;
+      try { R.rec.stop(); } catch (e) { }
+    }
+    recTeardown();
+  }
+  function toggleTorch() {
+    if (!R.track) return;
+    var on = !R.torch;
+    var p;
+    try { p = R.track.applyConstraints({ advanced: [{ torch: on }] }); } catch (e) { p = Promise.reject(e); }
+    p.then(function () { R.torch = on; $('recTorch').classList.toggle('on', on); })
+      .catch(function () { toast('손전등을 켜지 못했습니다', 'warn'); $('recTorch').hidden = true; });
+  }
+  function recFinish() {
+    var discard = R.discard, chunks = R.chunks, mime = R.mime;
+    var dur = Math.round((R.tEnd || performance.now()) - R.t0);
+    var settings = {}; try { settings = R.track && R.track.getSettings ? R.track.getSettings() : {}; } catch (e) { }
+    var st = R.stat || { n: 0, fast: 0, blur: 0, dark: 0 }, sg = R.sign || { pos: 0, neg: 0 };
+    var sensors = {
+      version: 1,
+      clock: 'ms since video start (MediaRecorder start)',
+      screen: R.startScreen || screenType(),
+      ua: navigator.userAgent,
+      platform: IS_IOS ? 'ios' : /Android/i.test(navigator.userAgent) ? 'android' : 'other',
+      video: { mime: mime, width: R.vw || settings.width || null, height: R.vh || settings.height || null, frame_rate: settings.frameRate || null, duration_ms: dur },
+      rotation_rate_axes: 'rx=rotationRate.beta (device x), ry=rotationRate.gamma (device y), rz=rotationRate.alpha (device z), deg/s',
+      compass_note: 'magnetic north; iOS webkitCompassHeading, Android back-camera heading from deviceorientationabsolute',
+      acc_sign_vs_w3c: sg.pos + sg.neg >= 20 ? (sg.pos >= sg.neg ? 1 : -1) : null,
+      board: T.board || 'unknown',
+      phases: R.phases.slice(),
+      screen_changes: R.screens.slice(),
+      live: { checks: st.n, fast_ratio: st.n ? rnd(st.fast / st.n, 3) : null, blur_ratio: st.n ? rnd(st.blur / st.n, 3) : null, dark_ratio: st.n ? rnd(st.dark / st.n, 3) : null },
+      motion: R.motion, orient: R.orient, gps: R.gps
+    };
+    var kfs = Object.keys(R.buckets).map(function (k) { return R.buckets[k]; }).filter(function (k) { return k.blob; }).sort(function (a, b) { return a.t - b.t; });
+    recTeardown();
+    if (discard) return;
+    var blob = new Blob(chunks, { type: (mime || 'video/webm').split(';')[0] });
+    if (blob.size < 2000) { toast('녹화된 영상이 없습니다. 다시 찍어 주세요', 'warn'); return; }
+    var ext = /mp4/.test(mime) ? '.mp4' : /quicktime/.test(mime) ? '.mov' : '.webm', d = new Date(), kind = R.kind;
+    var name = (kind === 'trench' ? 'trench_' : 'scan3d_') + d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()) + '_' + pad2(d.getHours()) + pad2(d.getMinutes()) + pad2(d.getSeconds()) + ext;
+    var file; try { file = new File([blob], name, { type: blob.type, lastModified: Date.now() }); } catch (e) { file = blob; file.name = name; }
+    pickFile(file, true);                     // S.cid 를 새로 만든다 → 그 cid 에 센서·촬영 요약을 묶는다
+    S.rec = { kind: kind, cid: S.cid, live: sensors.live, dur: dur, rooms: R.room || 1 };
+    if (kind !== 'trench') {                  // 3D 촬영: 센서는 올리지 않는다 (video3d 계약에 없음) — 요약·다시 찍기 권유만
+      renderVideo();
+      toast('녹화 ' + fmtDur(dur / 1000) + ' · 방(구역) ' + (R.room || 1) + '개', 'ok');
+      return;
+    }
+    // 서버 한도 5 MB: 넘으면 움직임·방향 기록을 한 칸씩 건너뛰어 줄인다 (60 Hz → 30 Hz …)
+    var jlen = JSON.stringify(sensors).length, step = 0;
+    while (jlen > 4.8e6 && step < 4) {
+      sensors.motion = sensors.motion.filter(function (x, i) { return i % 2 === 0; });
+      sensors.orient = sensors.orient.filter(function (x, i) { return i % 2 === 0; });
+      sensors.decimated = (sensors.decimated || 1) * 2; step++;
+      jlen = JSON.stringify(sensors).length;
+    }
+    T.sensors = sensors; T.sensorsCid = S.cid; T.live = sensors.live;
+    // 관 표시 장면: 고르게 최대 8장
+    var pick = [];
+    if (kfs.length <= 8) pick = kfs; else for (var i = 0; i < 8; i++) pick.push(kfs[Math.round(i * (kfs.length - 1) / 7)]);
+    T.keyframes = pick.map(function (k) { return { t: k.t, w: k.w, h: k.h, blob: k.blob, url: URL.createObjectURL(k.blob) }; });
+    T.kfSel = T.keyframes.length ? 0 : -1;
+    renderVideo(); renderMarks();
+    toast('녹화 ' + fmtDur(dur / 1000) + ' · 센서 ' + (R.motion.length + R.orient.length) + '개 기록', 'ok');
+  }
+  // 기본 카메라로 찍어 고른 영상(센서 없음): 고르게 6장면을 뽑아 관 표시에 쓴다
+  function extractKeyframes(f) {
+    var tok = ++T.kfTok, url = URL.createObjectURL(f), v = document.createElement('video'), out = [], times = [], i = 0;
+    v.muted = true; v.preload = 'auto'; v.setAttribute('playsinline', ''); v.setAttribute('webkit-playsinline', '');
+    var fin = function () { clearTimeout(tm); try { URL.revokeObjectURL(url); } catch (e) { } v.removeAttribute('src'); if (tok !== T.kfTok) return; T.keyframes = out; T.kfSel = out.length ? 0 : -1; renderMarks(); };
+    var tm = setTimeout(fin, 25000);
+    var next = function () { if (i >= times.length) { fin(); return; } try { v.currentTime = times[i]; } catch (e) { fin(); } };
+    v.addEventListener('loadedmetadata', function () {
+      var dd = v.duration;
+      if (!isFinite(dd) || dd <= 0) { fin(); return; }
+      for (var k = 0; k < 6; k++) times.push(dd * (0.1 + 0.8 * k / 5));
+      next();
+    });
+    v.addEventListener('seeked', function () {
+      if (tok !== T.kfTok) return;
+      try {
+        var W = Math.min(1280, v.videoWidth), H = Math.round(W * v.videoHeight / v.videoWidth), c = document.createElement('canvas');
+        c.width = W; c.height = H; c.getContext('2d').drawImage(v, 0, 0, W, H);
+        var t = Math.round(times[i] * 1000);
+        c.toBlob(function (b) { if (b) out.push({ t: t, w: W, h: H, blob: b, url: URL.createObjectURL(b) }); i++; next(); }, 'image/jpeg', 0.82);
+      } catch (e) { i++; next(); }
+    });
+    v.addEventListener('error', fin);
+    v.src = url;
+  }
+
+  /* 관 종류 표시 → marks2d.json */
+  function marksJSON() {
+    return { version: 1, marks: T.marks.map(function (m) { return { t: m.t, u: rnd(m.u, 4), v: rnd(m.v, 4), 'class': m.cls, label: m.label || '' }; }) };
+  }
+  function renderMarks() {
+    var show = !!(S.trench && S.mode === 'video' && S.file && T.keyframes.length);
+    $('secMarks').hidden = !show;
+    if (!show) { $('kfStrip').innerHTML = ''; $('mkDots').innerHTML = ''; return; }
+    $('kfStrip').innerHTML = T.keyframes.map(function (k, i) {
+      var c = T.marks.filter(function (m) { return m.kf === i; }).length;
+      return '<button type="button" class="kf' + (i === T.kfSel ? ' on' : '') + '" data-i="' + i + '"><img src="' + k.url + '" alt="">' +
+        '<span class="tm">' + fmtDur(k.t / 1000) + '</span>' + (c ? '<span class="c">' + c + '</span>' : '') + '</button>';
+    }).join('');
+    var k = T.keyframes[T.kfSel];
+    $('mkStage').hidden = !k;
+    if (k) {
+      if ($('mkImg').getAttribute('src') !== k.url) $('mkImg').src = k.url;
+      var dots = T.marks.filter(function (m) { return m.kf === T.kfSel; }).map(function (m) {
+        var c = CLS[m.cls] || CLS.unknown;
+        return '<span class="mk-dot" data-id="' + m.id + '" style="left:' + (m.u * 100) + '%;top:' + (m.v * 100) + '%;background:' + c[1] + '" title="' + esc(c[0]) + '">' + esc(c[0].slice(0, 1)) + '</span>';
+      });
+      if (T.pending && T.pending.kf === T.kfSel) dots.push('<span class="mk-dot pending" style="left:' + (T.pending.u * 100) + '%;top:' + (T.pending.v * 100) + '%"></span>');
+      $('mkDots').innerHTML = dots.join('');
+    }
+    $('mkPal').hidden = !T.pending;
+    var by = {};
+    T.marks.forEach(function (m) { by[m.cls] = (by[m.cls] || 0) + 1; });
+    $('mkSum').textContent = T.marks.length ? '표시 ' + T.marks.length + '개 — ' + CLS_ORDER.filter(function (c) { return by[c]; }).map(function (c) { return CLS[c][0] + ' ' + by[c]; }).join(', ')
+      : (T.pending ? '종류를 고르세요' : '아직 표시 없음 — 장면에서 관을 누르세요');
+    $('mkClear').hidden = !T.marks.length;
+  }
+  var markSeq = 0;
+  function onStageClick(e) {
+    var dot = e.target.closest ? e.target.closest('.mk-dot') : null;
+    if (dot && dot.getAttribute('data-id')) {
+      var id = +dot.getAttribute('data-id');
+      T.marks = T.marks.filter(function (m) { return m.id !== id; });
+      toast('표시를 지웠습니다'); renderMarks(); return;
+    }
+    var r = $('mkImg').getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    var u = (e.clientX - r.left) / r.width, v = (e.clientY - r.top) / r.height;
+    if (u < 0 || u > 1 || v < 0 || v > 1) return;
+    T.pending = { kf: T.kfSel, u: u, v: v };
+    renderMarks();
+  }
+  function onPalette(cls) {
+    var p = T.pending, k = p && T.keyframes[p.kf];
+    if (!p || !k) { T.pending = null; renderMarks(); return; }
+    if (cls) T.marks.push({ id: ++markSeq, kf: p.kf, t: k.t, u: p.u, v: p.v, cls: cls, label: '' });
+    T.pending = null; renderMarks();
+  }
+
+  /* ── 3D 촬영 전 10초 요령 (건너뛸 수 있음) ── */
+  var TUT_KEY = 'kgeoscan_capture_tut_skip', TUT_MS = 2000, tutTimer = null, tutI = 0, tutSet = null, tutThen = null;
+  function guideSvg(sel) { var e = document.querySelector(sel); return e ? e.outerHTML : ''; }
+  var TUT_SVG = {
+    chest: function () {
+      return '<svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="62" cy="22" r="11" fill="none" stroke="#cbd5e1" stroke-width="3"/>' +
+        '<path d="M62 33v45M62 78l-12 32M62 78l12 32M62 46l18 6" stroke="#cbd5e1" stroke-width="3" fill="none" stroke-linecap="round"/>' +
+        '<rect x="80" y="40" width="10" height="18" rx="2" fill="currentColor"/><path d="M91 45l27-9M91 54l27 9" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3"/>' +
+        '<path d="M2 50h74" stroke="#fb923c" stroke-width="2" stroke-dasharray="5 4"/><text x="2" y="43" font-size="11" fill="#fb923c">가슴 높이</text></svg>';
+    },
+    slow: function () {
+      return '<svg viewBox="0 0 120 120" aria-hidden="true"><g fill="currentColor"><ellipse cx="16" cy="82" rx="6" ry="10"/><ellipse cx="34" cy="66" rx="6" ry="10"/>' +
+        '<ellipse cx="52" cy="82" rx="6" ry="10"/><ellipse cx="70" cy="66" rx="6" ry="10"/></g><path d="M84 74h26" stroke="currentColor" stroke-width="3"/>' +
+        '<path d="M104 67l8 7-8 7" fill="none" stroke="currentColor" stroke-width="3"/><text x="60" y="36" text-anchor="middle" font-size="18" font-weight="700" fill="currentColor">초당 30 cm</text></svg>';
+    },
+    loop: function () {
+      return '<svg viewBox="0 0 120 120" aria-hidden="true"><path d="M14 14h92v92H72M48 106H14V14" fill="none" stroke="#94a3b8" stroke-width="3"/>' +
+        '<rect x="30" y="30" width="60" height="58" rx="14" fill="none" stroke="currentColor" stroke-width="3" stroke-dasharray="6 5"/>' +
+        '<path d="M84 56l6-8 6 8" fill="none" stroke="currentColor" stroke-width="3"/><circle cx="60" cy="98" r="6" fill="currentColor"/>' +
+        '<text x="60" y="64" text-anchor="middle" font-size="14" font-weight="700" fill="currentColor">1~2분</text></svg>';
+    },
+    wall: function () {
+      return '<svg viewBox="0 0 48 48" aria-hidden="true"><rect x="13" y="10" width="22" height="28" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>' +
+        '<path d="M18 20l6-6M18 28l12-12" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".6"/>' +
+        '<circle cx="24" cy="24" r="19" fill="none" stroke="#f87171" stroke-width="2.5"/><path d="M10.6 37.4L37.4 10.6" stroke="#f87171" stroke-width="2.5" stroke-linecap="round"/></svg>';
+    },
+    light: function () {
+      return '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 8a11 11 0 0 0-6 20v5h12v-5a11 11 0 0 0-6-20z" fill="rgba(251,191,36,.25)" stroke="#fbbf24" stroke-width="2"/>' +
+        '<path d="M19 37h10M20 41h8" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/>' +
+        '<path d="M24 1v3M8 9l2 2M40 9l-2 2M3 21h3M42 21h3" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/></svg>';
+    },
+    steps: function () { return guideSvg('#guidePhotos .gi:nth-child(1) svg'); },
+    two: function () { return guideSvg('#guidePhotos .gi:nth-child(2) svg'); },
+    pause: function () { return guideSvg('#guidePhotos .gi:nth-child(4) svg'); }
+  };
+  var TUT = {
+    video: [['chest', '가슴 높이로 들기', '폰을 가슴 높이에 세워 들고 화면을 보며 찍습니다.'],
+      ['slow', '아주 천천히 걷기', '초당 30 cm, 평소 걸음의 절반보다 느리게. 휙 돌리지 않습니다.'],
+      ['loop', '방마다 한 바퀴', '문 앞에서 시작해 벽을 따라 한 바퀴 돕니다. 방 하나에 1~2분.'],
+      ['wall', '빈 벽·거울만 비추지 않기', '무늬 없는 벽이나 거울·유리가 화면에 가득 차면 위치를 잃습니다.'],
+      ['light', '불 켜기', '불을 켜고 커튼을 엽니다. 다음 화면에서 밝기를 확인합니다.']],
+    photos: [['steps', '한 걸음에 한 장', '대상 주위를 돌며 한 걸음마다 한 장. 이웃 사진과 2/3씩 겹치게.'],
+      ['two', '높이 2단', '한 바퀴는 가슴 높이, 한 바퀴는 낮게(또는 높게) 찍습니다.'],
+      ['pause', '멈춰서 찍기', '걸으면서 누르면 번집니다. 잠깐 멈추고 찍습니다.'],
+      ['wall', '빈 벽·거울만 찍지 않기', '무늬 없는 벽이나 거울·유리만 나오면 위치를 잃습니다.'],
+      ['light', '밝게', '어두우면 번집니다. 불을 켜고 찍습니다.']]
+  };
+  function openTutorial(set, then) {           // then: 끝나면 이어서 할 일(녹화 화면 열기). 없으면 보기만
+    tutSet = TUT[set] || TUT.video; tutThen = then || null; tutI = 0;
+    $('tutGo').textContent = then ? '시작하기' : '닫기';
+    $('tutSkip').textContent = then ? '건너뛰기' : '닫기';
+    $('tutNoMoreRow').hidden = !then; $('tutNoMore').checked = false;
+    $('tutDots').style.setProperty('--tut-ms', TUT_MS + 'ms');
+    $('tut').hidden = false;
+    tutShow();
+  }
+  function tutShow() {
+    clearTimeout(tutTimer);
+    var sl = tutSet[tutI];
+    $('tutFig').innerHTML = TUT_SVG[sl[0]]();
+    $('tutT').textContent = sl[1]; $('tutS').textContent = sl[2];
+    $('tutDots').innerHTML = tutSet.map(function (x, i) { return '<i class="' + (i < tutI ? 'done' : i === tutI ? 'on' : '') + '"></i>'; }).join('');
+    if (tutI < tutSet.length - 1) tutTimer = setTimeout(function () { tutI++; tutShow(); }, TUT_MS);
+  }
+  function tutClose(go) {
+    clearTimeout(tutTimer);
+    $('tut').hidden = true;
+    if (tutThen && $('tutNoMore').checked) lsSet(TUT_KEY, true);
+    var f = tutThen; tutThen = null;
+    if (go && f) f();
+  }
+  function startCoach3d() {
+    if (S.uploading) { toast('업로드 중에는 찍을 수 없습니다', 'warn'); return; }
+    if (lsGet(TUT_KEY, false)) recOpen('3d');
+    else openTutorial('video', function () { recOpen('3d'); });
+  }
 
   /* ── 6. 업로드 ── */
   var wakeLock = null;
@@ -1231,6 +2150,14 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
     if (S.siteId) fd.append('site_id', S.siteId);
     else if (S.newSiteName) fd.append('site_name', S.newSiteName);
     // 파일은 맨 끝에. 사진은 원본 File 그대로 (줄이거나 다시 압축하지 않음)
+    if (S.trench) {                          // 굴착 기록 (web_trench_contract.md 1절): scan_type=survey 와 함께
+      fd.append('trench_mode', '1');
+      var tf = trenchFields();
+      ['permit_no', 'owner_org', 'surveyor', 'org'].forEach(function (k) { if (tf[k]) fd.append(k, tf[k]); });
+      if (!ph && T.sensors && T.sensorsCid === cid) fd.append('sensors_file', new Blob([JSON.stringify(T.sensors)], { type: 'application/json' }), 'sensors.json');
+      if (!ph && T.marks.length) fd.append('marks_file', new Blob([JSON.stringify(marksJSON())], { type: 'application/json' }), 'marks2d.json');
+      f.trench = true; f.marks = T.marks.length; f.sensors = !!(T.sensors && T.sensorsCid === cid);
+    }
     if (ph) S.photos.forEach(function (p, i) { fd.append('photo_files', p.file, photoName(p.file, i, cid)); });
     else fd.append('video_file', S.file, uploadName(S.file, cid));
 
@@ -1294,10 +2221,14 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
     $('pBar').className = 'bar done'; $('pMain').textContent = '✓ 업로드 완료';
     $('pLeft').textContent = (ph ? what + ' · ' : '') + fmtSize(f.size); $('pRight').textContent = '';
     $('cancelBtn').hidden = true;
-    rememberJob({ job_id: d.job_id, title: elTitle.value.trim(), t: Date.now(), size: f.size, mode: f.mode, count: f.count, st: '대기 중', cls: 'run', fin: false });
-    // 제목·메모는 비우고, 직접 입력한 좌표와 관리 대상은 다음 촬영을 위해 남긴다
-    lsSet(DRAFT_KEY, { t: Date.now(), title: '', auto: '', note: '', siteId: S.siteId, manual: S.locSrc === 'manual' ? { lat: S.lat, lon: S.lon } : null });
-    $('rs1m').textContent = (ph ? what + ' · ' : '') + fmtSize(f.size) + ' 전송 완료' + (d.duplicate ? ' (이미 받은 자료 — 같은 작업을 이어서 보여 줍니다)' : '');
+    rememberJob({ job_id: d.job_id, title: elTitle.value.trim(), t: Date.now(), size: f.size, mode: f.mode, count: f.count, trench: !!f.trench, st: '대기 중', cls: 'run', fin: false });
+    S.jobTrench = !!f.trench;
+    // 제목·메모는 비우고, 직접 입력한 좌표·관리 대상·굴착 허가 정보는 다음 촬영을 위해 남긴다
+    lsSet(DRAFT_KEY, { t: Date.now(), title: '', auto: '', note: '', siteId: S.siteId, manual: S.locSrc === 'manual' ? { lat: S.lat, lon: S.lon } : null,
+      permit: $('permitNo').value, owner: $('ownerOrg').value });
+    $('rs1m').textContent = (ph ? what + ' · ' : '') + fmtSize(f.size) + ' 전송 완료' +
+      (f.trench ? ' · ⛏ 굴착 · ' + (f.sensors ? '센서 기록 포함' : '센서 기록 없음') + (f.marks ? ' · 관 표시 ' + f.marks + '개' : '') : '') +
+      (d.duplicate ? ' (이미 받은 자료 — 같은 작업을 이어서 보여 줍니다)' : '');
     $('secResult').hidden = false;
     startPoll(d.job_id);
     updateReady();
@@ -1307,7 +2238,20 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
 
   /* ── 7. 처리 상황 (status.py 5초마다) ── */
   var pollT = null, pollJob = null, pollStart = 0, lastThumb = '';
-  function isFinal(d) { return d.status === 'failed' || d.splat_status === 'done' || d.splat_status === 'failed' || (d.status === 'done' && !d.splat_status); }
+  // 굴착 기록은 3D 뒤에 굴착 산출물(trench_post: pending|processing|done|skipped|failed)이 이어진다 — 그동안 큐 status 는 다시 pending/processing
+  var TP_FINAL = { done: 1, skipped: 1, failed: 1 }, tpSeen = {};
+  function trenchJob(d) { return !!(d.trench || d.trench_post || (d.job_id && d.job_id === S.job && S.jobTrench)); }
+  function regDone(d) { return d.status === 'done' || d.splat_status === 'done' || d.splat_status === 'processing'; }
+  function isFinal(d) {
+    if (d.splat_status === 'done' && trenchJob(d)) {
+      if (TP_FINAL[d.trench_post]) return true;
+      if (d.trench_post) return false;
+      if (!tpSeen[d.job_id]) tpSeen[d.job_id] = Date.now();      // 실측 묶음이 아직 안 왔다: 20분 넘게 소식이 없으면 그만 본다
+      return Date.now() - tpSeen[d.job_id] > 20 * 60e3;
+    }
+    if (d.status === 'failed' && !regDone(d)) return true;
+    return d.splat_status === 'done' || d.splat_status === 'failed' || (d.status === 'done' && !d.splat_status);
+  }
   function startPoll(job) {
     pollJob = job; pollStart = Date.now(); lastThumb = '';
     clearTimeout(pollT);
@@ -1338,26 +2282,51 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
     $('resOpen').href = VIEWER + '?job=' + encodeURIComponent(d.job_id);
     if (d.thumb_url && d.thumb_url !== lastThumb) { lastThumb = d.thumb_url; var im = $('resThumb'); im.onload = function () { im.hidden = false; }; im.src = d.thumb_url; }
     var head, s2, m2, s3, m3, i2 = '2', i3 = '3';
-    if (d.status === 'failed') { s2 = 'fail'; i2 = '✕'; m2 = d.message || '처리 실패'; }
-    else if (d.status === 'done') { s2 = 'done'; i2 = '✓'; m2 = '지도에 등록되었습니다'; }
+    var reg = regDone(d);
+    if (d.status === 'failed' && !reg) { s2 = 'fail'; i2 = '✕'; m2 = d.message || '처리 실패'; }
+    else if (reg) { s2 = 'done'; i2 = '✓'; m2 = '지도에 등록되었습니다'; }
     else if (d.status === 'processing') { s2 = 'run'; m2 = d.message || d.step_name || '처리 중'; }
     else { s2 = 'run'; m2 = '대기 중 — 앞 작업이 끝나면 시작합니다'; }
-    if (d.status === 'failed') { s3 = 'off'; m3 = '—'; head = '✕ 처리 실패'; }
-    else if (d.status !== 'done') { s3 = 'off'; m3 = '서버 등록 뒤 시작합니다'; head = d.status === 'processing' ? '서버 처리 중…' : '처리 대기 중'; }
+    if (d.status === 'failed' && !reg) { s3 = 'off'; m3 = '—'; head = '✕ 처리 실패'; }
+    else if (!reg) { s3 = 'off'; m3 = '서버 등록 뒤 시작합니다'; head = d.status === 'processing' ? '서버 처리 중…' : '처리 대기 중'; }
     else if (d.splat_status === 'pending') { s3 = 'wait'; i3 = '…'; m3 = d.splat_message || '3D 생성 대기 (GPU)'; head = '3D 생성 대기 중'; }
     else if (d.splat_status === 'processing') { s3 = 'run'; m3 = d.splat_message || '3D 만드는 중 (GPU)'; head = '3D 만드는 중…'; }
     else if (d.splat_status === 'done') { s3 = 'done'; i3 = '✓'; m3 = d.splat_message || '3D 완성'; head = '✓ 3D 완성'; }
     else if (d.splat_status === 'failed') { s3 = 'fail'; i3 = '✕'; m3 = d.splat_message || '3D 생성 실패'; head = '✕ 3D 생성 실패'; }
     else { s3 = 'off'; m3 = '3D 생성 요청 없음'; head = '✓ 등록 완료'; }
-    setStep('rs2', s2, i2, m2); setStep('rs3', s3, i3, m3);
+    // 4단계: 굴착 산출물 (관·조서·DXF)
+    var tj = trenchJob(d), s4 = 'off', i4 = '4', m4 = '3D가 끝난 뒤 만듭니다', tp = d.trench_post, tpm = d.trench_post_message;
+    if (tj && d.splat_status === 'done') {
+      if (tp === 'pending') { s4 = 'wait'; i4 = '…'; m4 = tpm || '굴착 산출물 대기 중'; head = '굴착 산출물 만드는 중…'; }
+      else if (tp === 'processing') { s4 = 'run'; m4 = tpm || '굴착 산출물 만드는 중'; head = '굴착 산출물 만드는 중…'; }
+      else if (tp === 'done') { s4 = 'done'; i4 = '✓'; m4 = tpm || '관 위치·깊이·조서 완성'; head = '✓ 3D·굴착 산출물 완성'; }
+      else if (tp === 'skipped') { s4 = 'fail'; i4 = '!'; m4 = tpm || '굴착 산출물을 만들지 않았습니다'; head = '✓ 3D 완성 (굴착 산출물 생략)'; }
+      else if (tp === 'failed') { s4 = 'fail'; i4 = '✕'; m4 = tpm || '굴착 산출물을 만들지 못했습니다'; head = '3D 완성 · 굴착 산출물 실패'; }
+      else { s4 = 'wait'; i4 = '…'; m4 = '3D 완성 — 굴착 산출물을 곧 만듭니다'; head = '굴착 산출물 준비 중…'; }
+    } else if (tj && d.splat_status === 'failed') m4 = '3D가 실패해 만들 수 없습니다';
+    $('rs4').hidden = !tj;
+    setStep('rs2', s2, i2, m2); setStep('rs3', s3, i3, m3); setStep('rs4', s4, i4, m4);
     $('resHead').textContent = head;
     $('resHead').className = 'headst' + (/✕/.test(head) ? ' bad' : /✓/.test(head) ? ' ok' : '');
     var src = (d.mode || S.jobMode) === 'photos' ? '사진' : '영상';
     $('resHint').hidden = isFinal(d) && d.status !== 'pending';
     if (d.splat_status === 'failed') { $('resHint').hidden = false; $('resHint').textContent = '겹침이 부족하거나 흔들린 ' + src + '일 수 있습니다. 안내대로 천천히 다시 찍어 올려 주세요.'; }
+    else if (tj && d.splat_status === 'done' && !TP_FINAL[tp]) { $('resHint').hidden = false; $('resHint').textContent = '3D는 지금 지도·뷰어에서 볼 수 있습니다. 관 위치·깊이·조서는 몇 분 뒤 이어서 나옵니다.'; }
     else $('resHint').textContent = 'GPU가 ' + src + '에서 카메라 위치를 계산하고 3D를 학습합니다. 보통 10~30분 걸리며, 이 화면을 닫아도 서버에서 계속 처리됩니다.';
     $('resOpen').textContent = d.splat_status === 'done' ? '✦ 3D 보기 (지도·뷰어)' : '지도·뷰어에서 진행 보기';
     renderQuality(d);
+    // 굴착: 3D 뒤에 관 위치·깊이·조서가 이어서 만들어진다 (status.py: trench, utilities_url, utility_report_url)
+    var tr = tj, rt = $('resTrench');
+    rt.hidden = !tr;
+    if (tr) {
+      if (tp === 'skipped' || tp === 'failed') {
+        rt.innerHTML = '⛏ 굴착 산출물 ' + (tp === 'skipped' ? '생략' : '실패') + '<small>' + esc(tpm || '') +
+          (tp === 'skipped' ? ' 기준판을 트렌치 안에 놓고 크게 보이게 다시 찍으면 관 위치·깊이·조서가 나옵니다.' : '') + '</small>';
+      } else if (d.utilities_url || d.utility_report_url) {
+        rt.innerHTML = '⛏ 굴착 산출물이 준비되었습니다<small>지도·뷰어에서 ⛏ 지하시설물 탭으로 관 위치·깊이를 보고, 📄 조서·산출물을 내려받습니다.</small>' +
+          (d.utility_report_url ? '<a class="btn sm" style="margin-top:8px" target="_blank" rel="noopener" href="' + esc(d.utility_report_url) + '">📄 조서·산출물 보기</a>' : '');
+      } else rt.innerHTML = '⛏ 굴착 기록<small>3D가 끝나면 기준판으로 실제 크기를 맞춰 관 위치·깊이·조서(별표 38)·DXF를 이어서 만듭니다.</small>';
+    }
   }
   /* 업로드 직후 품질 검사 (계약 1c): status.py 의 quality {grade, score, summary, checks[{key,label,value,ok}], tips[]} */
   var Q_GRADE = { good: '좋음', fair: '보통', poor: '나쁨' };
@@ -1391,7 +2360,7 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
     if (S.uploading) return;
     pollJob = null; clearTimeout(pollT);
     $('secResult').hidden = true; $('prog').hidden = true; $('upErr').hidden = true;
-    if (S.mode === 'photos') clearPhotos(); else clearVideo();
+    if (S.mode === 'photos') clearPhotos(); else { clearVideo(); trenchReset(); }
     S.doneCid = null; S.job = null; S.failed = false;
     var t = elTitle.value.trim();
     if (t && !/재촬영/.test(t)) { elTitle.value = (t + ' 재촬영').slice(0, 100); onTitleInput(); }
@@ -1412,7 +2381,7 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
     S.doneCid = null; S.job = null; S.failed = false; S.hdgMag = null; S.autoTitle = '';
     elTitle.value = ''; elNote.value = ''; $('noteCount').textContent = '0/500';
     onTitleInput();
-    clearVideo(); clearPhotos();
+    clearVideo(); clearPhotos(); trenchReset(); T.board = null;
     $('prog').hidden = true; $('upErr').hidden = true; $('secResult').hidden = true;
     $('hdgBtn').textContent = '방위 기록'; renderHeading(false);
     if (S.locSrc === 'gps' || S.locSrc == null) geoStart();
@@ -1426,6 +2395,12 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
   function jobsSave(l) { lsSet(JOBS_KEY, l.slice(0, 20)); }
   function rememberJob(j) { var l = jobsLoad().filter(function (x) { return x.job_id !== j.job_id; }); l.unshift(j); jobsSave(l); renderRecent(); }
   function statusText(d) {
+    if (d.splat_status === 'done' && (d.trench || d.trench_post)) {
+      if (d.trench_post === 'done') return ['굴착 산출물 완성', 'ok'];
+      if (d.trench_post === 'skipped') return ['3D만 (산출물 생략)', 'ok'];
+      if (d.trench_post === 'failed') return ['산출물 실패', 'fail'];
+      return ['굴착 산출물 만드는 중', 'run'];
+    }
     if (d.status === 'failed') return ['실패', 'fail'];
     if (d.status !== 'done') return [d.status === 'processing' ? '서버 처리 중' : '대기 중', 'run'];
     if (d.splat_status === 'done') return ['3D 완성', 'ok'];
@@ -1450,7 +2425,7 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
     var l = jobsLoad();
     $('secRecent').hidden = !l.length;
     $('recentList').innerHTML = l.map(function (j) {
-      var sub = shortTime(j.t) + ' · ' + j.job_id + (j.mode === 'photos' ? ' · 사진' + (j.count ? ' ' + j.count + '장' : '') : j.mode === 'video' ? ' · 영상' : '') +
+      var sub = shortTime(j.t) + ' · ' + j.job_id + (j.trench ? ' · ⛏ 굴착' : '') + (j.mode === 'photos' ? ' · 사진' + (j.count ? ' ' + j.count + '장' : '') : j.mode === 'video' ? ' · 영상' : '') +
         (Q_GRADE[j.q] ? ' · 품질 ' + Q_GRADE[j.q] : '');
       return '<li><a href="' + VIEWER + '?job=' + esc(j.job_id) + '">' +
         (j.thumb ? '<img src="' + esc(j.thumb) + '" alt="" loading="lazy">' : '<span class="ph"></span>') +
@@ -1490,7 +2465,12 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
   ['camInput', 'fileInput'].forEach(function (id) {
     var inp = $(id);
     inp.addEventListener('click', function () { inp.value = ''; });        // 같은 파일을 다시 골라도 change 가 나게
-    inp.addEventListener('change', function () { var f = inp.files && inp.files[0]; if (f) pickFile(f, id === 'camInput'); });
+    inp.addEventListener('change', function () {
+      var f = inp.files && inp.files[0];
+      if (!f) return;
+      pickFile(f, id === 'camInput');
+      if (S.trench && S.file === f) extractKeyframes(f);   // 굴착: 고른 영상에서도 관 표시 장면을 뽑는다
+    });
   });
   ['albumInput', 'shotInput'].forEach(function (id) {
     var inp = $(id);
@@ -1506,6 +2486,61 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
   $('tabPhotos').addEventListener('click', function () { setMode('photos'); });
   $('tabVideo').addEventListener('click', function () { setMode('video'); });
   $('retakeBtn').addEventListener('click', retake);
+  // ⛏ 굴착 기록
+  $('kindSurvey').addEventListener('click', function () { setKind(false); });
+  $('kindTrench').addEventListener('click', function () { setKind(true); });
+  ['permitNo', 'ownerOrg'].forEach(function (id) { $(id).addEventListener('input', saveDraft); });
+  ['surveyor', 'org'].forEach(function (id) { $(id).addEventListener('input', savePerson); });
+  $('trenchRecBtn').addEventListener('click', openBoardSheet);
+  $('boardOk').addEventListener('click', function () {
+    if (!$('chkBoard').checked) { toast('기준판을 놓았는지 확인해 주세요. 없으면 ‘기준판 없이 찍기’를 누르세요', 'warn'); return; }
+    T.board = 'confirmed'; $('boardSheet').hidden = true; recOpen('trench');
+  });
+  $('boardSkip').addEventListener('click', function () { T.board = 'skipped'; $('boardSheet').hidden = true; recOpen('trench'); });
+  $('boardCancel').addEventListener('click', function () { $('boardSheet').hidden = true; });
+  $('boardSheet').addEventListener('click', function (e) { if (e.target === $('boardSheet')) $('boardSheet').hidden = true; });
+  $('recShot').addEventListener('click', recShot);
+  $('recClose').addEventListener('click', recClose);
+  $('recTorch').addEventListener('click', toggleTorch);
+  $('recNext').addEventListener('click', function () { if (!R.going) return; if (R.kind === '3d') nextRoom(); else if (R.phase < 4) setPhase(R.phase + 1); });
+  // 3D 촬영 코칭·10초 요령
+  $('coachRecBtn').addEventListener('click', startCoach3d);
+  $('tutBtn').addEventListener('click', function () { openTutorial(S.mode === 'photos' ? 'photos' : 'video', null); });
+  $('tutSkip').addEventListener('click', function () { tutClose(true); });
+  $('tutGo').addEventListener('click', function () { tutClose(true); });
+  $('tutFig').addEventListener('click', function () { if (tutSet && tutI < tutSet.length - 1) { tutI++; tutShow(); } });
+  $('vRetake').addEventListener('click', function () {
+    if (!S.rec) return;
+    if (S.rec.kind === 'trench') openBoardSheet(); else recOpen('3d');
+  });
+  // VR 투어 촬영 화면이 아직 서버에 없으면 카드를 '준비 중'으로 둔다 (단계 배포 중 404 방지, 2026-11-12)
+  try {
+    fetch('capture_pano.html', { method: 'HEAD', cache: 'no-store' }).then(function (r) {
+      if (r.ok) return;
+      var k = $('kindVr'); k.setAttribute('data-soon', '1'); k.style.opacity = '0.55';
+      var sm = k.querySelector('small'); if (sm) sm.textContent = '준비 중 — 곧 열립니다';
+    }).catch(function () { });
+  } catch (e) { }
+  $('kindVr').addEventListener('click', function (e) {      // VR 투어 촬영은 다른 화면(capture_pano.html)으로 — 관리 대상·제목을 넘긴다
+    if (this.getAttribute('data-soon')) { e.preventDefault(); return; }
+    var q = [];
+    if (S.siteId) q.push('site_id=' + encodeURIComponent(S.siteId));
+    if (elTitle.value.trim()) q.push('title=' + encodeURIComponent(elTitle.value.trim()));
+    this.href = 'capture_pano.html' + (q.length ? '?' + q.join('&') : '');
+  });
+  $('recPhases').addEventListener('click', function (e) { var b = e.target.closest ? e.target.closest('button') : null; if (b && R.going) setPhase(+b.getAttribute('data-p')); });
+  if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', onScreenChange);
+  else window.addEventListener('orientationchange', onScreenChange);
+  $('kfStrip').addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('.kf') : null;
+    if (b) { T.kfSel = +b.getAttribute('data-i'); T.pending = null; renderMarks(); }
+  });
+  $('mkStage').addEventListener('click', onStageClick);
+  $('mkPal').innerHTML = CLS_ORDER.map(function (c) { return '<button type="button" data-c="' + c + '"><i style="background:' + CLS[c][1] + '"></i>' + CLS[c][0] + '</button>'; }).join('') +
+    '<button type="button" data-c="">취소</button>';
+  $('mkPal').addEventListener('click', function (e) { var b = e.target.closest ? e.target.closest('button') : null; if (b) onPalette(b.getAttribute('data-c')); });
+  $('mkClear').addEventListener('click', function () { if (T.marks.length && window.confirm('관 표시 ' + T.marks.length + '개를 모두 지울까요?')) { T.marks = []; T.pending = null; renderMarks(); } });
+  $('mkSkip').addEventListener('click', function () { T.pending = null; renderMarks(); nudge('secUpload', T.marks.length ? '관 표시 ' + T.marks.length + '개와 함께 올립니다' : '관 표시 없이 올립니다'); });
   $('upBtn').addEventListener('click', startUpload);
   $('cancelBtn').addEventListener('click', function () { if (S.xhr && window.confirm('업로드를 취소할까요?')) { S.cancelled = true; S.xhr.abort(); } });
   $('shareBtn').addEventListener('click', shareJob);
@@ -1528,7 +2563,16 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
     $('noteCount').textContent = elNote.value.length + '/500';
     S.preSite = (p.get('site_id') || (dr && dr.siteId) || '').trim();
     var savedMode = null; try { savedMode = localStorage.getItem(MODE_KEY); } catch (e) { }
-    setMode(p.get('mode') || savedMode || 'photos');          // 기본은 사진(권장). ?mode=video 로 영상부터 열 수 있다
+    // 굴착 정보: 허가 번호·관리기관은 임시 저장, 작업자·회사는 이 기기에 계속 기억
+    var person = lsGet(PERSON_KEY, {}) || {};
+    $('permitNo').value = (dr && dr.permit) || p.get('permit_no') || '';
+    $('ownerOrg').value = (dr && dr.owner) || p.get('owner_org') || '';
+    $('surveyor').value = person.surveyor || '';
+    $('org').value = person.org || '';
+    var savedTrench = null; try { savedTrench = localStorage.getItem(TRENCH_KEY); } catch (e) { }
+    S.trench = p.get('trench') != null ? p.get('trench') === '1' : savedTrench === '1';   // ?trench=1 로 굴착 기록부터 열 수 있다
+    setMode(S.trench ? 'video' : (p.get('mode') || savedMode || 'photos'));          // 기본은 사진(권장). ?mode=video 로 영상부터 열 수 있다
+    checkBoardPrint();
     if (dr && dr.manual && okLL(dr.manual.lat, dr.manual.lon)) setLocation(dr.manual.lat, dr.manual.lon, 'manual', null, null);
     else geoStart();
     sitesProbe();

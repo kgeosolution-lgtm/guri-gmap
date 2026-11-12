@@ -245,7 +245,8 @@ def step_hazards(meta, out_dir, job_id):
         return "", "", None
     serve, url = CFG["glb_serve_dir"], CFG["glb_serve_url"]
     doc = json.load(open(src, "r", encoding="utf-8"))
-    mids = sorted({int(m["id"]) for m in doc.get("markers", []) if int(m.get("id", 0)) >= 10})
+    # 고정 표식 = ID 10~575. 0~9 는 균열 카드, 576~583 은 굴착 기준판(옮겨 다니는 판이라 장소 묶기에 쓰면 안 됨)
+    mids = sorted({int(m["id"]) for m in doc.get("markers", []) if 10 <= int(m.get("id", 0)) < 576})
     site = site_load(meta.get("site_id"))
     if site is None and mids:                              # 자동 묶기: 고정 표식 ID 가 가장 많이 겹치는 장소
         best = (0, None)
@@ -384,9 +385,10 @@ def apply_user_marks(u, marks_path):
     return hit, miss
 
 
-def step_utilities(meta, out_dir, job_id):
+def step_utilities(meta, out_dir, job_id, las=None, mesh=None, data_dir=None, georef=None):
     """굴착 기록(trench) 작업: utility_extract.py → utilities.json, utility_report.py → 조서·DXF·LandXML·GeoJSON·제출 동영상.
-    서빙: <job>_utilities.json, <job>_util/<파일>. 모듈이 아직 없으면 건너뛴다 → (utilities_url, report_url)"""
+    서빙: <job>_utilities.json, <job>_util/<파일>. 모듈이 아직 없으면 건너뛴다 → (utilities_url, report_url)
+    웹 굴착 기록(trench_post)은 GPU 워커 실측 묶음의 las·mesh·데이터 폴더·georef.json 을 넘긴다 (기본값 = 앱 녹화 경로)"""
     if not (meta.get("trench") or {}).get("mode"):
         return "", ""
     wd = CFG["worker_dir"]
@@ -396,10 +398,11 @@ def step_utilities(meta, out_dir, job_id):
         return "", ""
     udir = os.path.join(out_dir, "utilities")
     os.makedirs(udir, exist_ok=True)
-    jm = os.path.join(meta["job_dir"], "job.json")
-    mesh = os.path.join(out_dir, "mesh_full.ply") if os.path.exists(os.path.join(out_dir, "mesh_full.ply")) else os.path.join(out_dir, "mesh.ply")
-    cmd = [CFG["worker_python"], "-I", ext_py, "--las", os.path.join(out_dir, "scan.las"), "--georef", jm, "--out", udir]
-    if os.path.exists(mesh):                                        # 메시가 있으면 메시 경로(천장 구분·밀도 고름), 없으면 LAS
+    jm = georef or os.path.join(meta["job_dir"], "job.json")
+    if mesh is None:
+        mesh = os.path.join(out_dir, "mesh_full.ply") if os.path.exists(os.path.join(out_dir, "mesh_full.ply")) else os.path.join(out_dir, "mesh.ply")
+    cmd = [CFG["worker_python"], "-I", ext_py, "--las", las or os.path.join(out_dir, "scan.las"), "--georef", jm, "--out", udir]
+    if mesh and os.path.exists(mesh):                               # 메시가 있으면 메시 경로(천장 구분·밀도 고름), 없으면 LAS
         cmd += ["--mesh", mesh]
     with open(os.path.join(out_dir, "utility_stdout.log"), "a", encoding="utf-8") as lf:
         proc = subprocess.run(cmd, stdout=lf, stderr=subprocess.STDOUT, text=True, timeout=1800)
@@ -408,15 +411,19 @@ def step_utilities(meta, out_dir, job_id):
         log("굴착 기록: 관 추출 실패 (utility_stdout.log 확인)")
         return "", ""
     u = json.load(open(up, "r", encoding="utf-8"))
-    data = _extract_dataset(meta.get("scan_zip"), os.path.join(udir, "_data"))
+    own_data = not data_dir
+    data = data_dir if data_dir else _extract_dataset(meta.get("scan_zip"), os.path.join(udir, "_data"))
     if data and os.path.exists(os.path.join(data, "marks.json")):
         hit, miss = apply_user_marks(u, os.path.join(data, "marks.json"))
         if hit or miss:
-            log(f"굴착 기록: 앱에서 고른 관 종류 {hit}개 반영" + (f", {miss}개는 가까운 관 없음" if miss else ""))
+            log(f"굴착 기록: 촬영 때 고른 관 종류 {hit}개 반영" + (f", {miss}개는 가까운 관 없음" if miss else ""))
     u["job_id"] = job_id
     u.setdefault("local", {})["glb"] = f"{job_id}.glb"             # utilities.json 과 같은 폴더 기준 상대 주소 (계약 v0.2)
     if meta.get("title"):
         u["title"] = meta["title"]
+    permit = meta.get("permit") or {}
+    if permit:
+        u["permit"] = permit                                        # 굴착 허가 번호·관리기관·작업자 (업로드 필드)
     serve, url = CFG["glb_serve_dir"], CFG["glb_serve_url"]
     for path in (up, os.path.join(serve, f"{job_id}_utilities.json")):   # 산출물 생성기도 같은 내용을 읽게 한다
         with open(path, "w", encoding="utf-8") as f:
@@ -431,8 +438,17 @@ def step_utilities(meta, out_dir, job_id):
         cmd = [CFG["worker_python"], "-I", rep_py, "--utilities", up, "--job-dir", meta["job_dir"], "--out", rdir]
         if data:
             cmd += ["--data", data]                                 # 제출 동영상(rgb.mp4)·현장 사진(hires/)
-        if meta.get("title"):
-            cmd += ["--title", meta["title"]]
+        title = meta.get("title") or ""
+        if permit.get("permit_no"):
+            title = (title + " · " if title else "") + f"굴착 허가 {permit['permit_no']}"
+        if permit.get("owner_org"):
+            title += f" ({permit['owner_org']})"
+        if title:
+            cmd += ["--title", title]
+        if permit.get("surveyor"):
+            cmd += ["--surveyor", permit["surveyor"]]
+        if permit.get("org"):
+            cmd += ["--org", permit["org"]]
         with open(os.path.join(out_dir, "utility_stdout.log"), "a", encoding="utf-8") as lf:
             proc = subprocess.run(cmd, stdout=lf, stderr=subprocess.STDOUT, text=True, timeout=1800)
         if proc.returncode == 0 and os.path.isdir(rdir):
@@ -444,9 +460,135 @@ def step_utilities(meta, out_dir, job_id):
             log(f"굴착 기록: 산출물 {sorted(os.listdir(dest))}")
         else:
             log("굴착 기록: 산출물 생성 실패 (utility_stdout.log 확인)")
-    if data:
+    if data and own_data:
         shutil.rmtree(os.path.join(udir, "_data"), ignore_errors=True)   # 원본은 scan zip 에 그대로 있다
     return util_url, report_url
+
+
+# ── 웹 굴착 기록: GPU 워커 실측 묶음 → 굴착 후처리 (docs/web_trench_contract.md 3·4절) ─────────────────
+BUNDLE_FILES = {"rgb.mp4", "odometry.csv", "frame_quality.csv", "camera_matrix.csv", "mesh.ply", "mesh.glb", "scan.las",
+                "marks.json", "scale.json", "georef.json"}               # splat_jobs.py 와 같은 목록 (업로드 때 이미 검사함)
+BUNDLE_DIRS = {"hires": (".jpg", ".jpeg", ".png", ".json")}
+TP_SKIP_SCALE = "기준판을 찾지 못해 실측 산출물을 만들지 않았습니다 — 3D 보기만 제공"
+
+
+def _unpack_bundle(zip_path, dest):
+    """trench_bundle.zip 을 dest 에 푼다. 허용 목록 밖·절대 경로·'..' 는 ValueError (splat_jobs.check_bundle 과 같은 규칙)"""
+    shutil.rmtree(dest, ignore_errors=True)
+    os.makedirs(dest)
+    with zipfile.ZipFile(zip_path) as zf:
+        members = []
+        for zi in zf.infolist():
+            n = zi.filename.replace("\\", "/")
+            parts = n.split("/")
+            if n.startswith("/") or (len(n) > 1 and n[1] == ":") or ".." in parts or "." in parts:
+                raise ValueError(f"묶음에 허용되지 않는 경로: {zi.filename!r}")
+            if zi.is_dir():
+                if n.rstrip("/") not in BUNDLE_DIRS:
+                    raise ValueError(f"묶음에 허용되지 않는 폴더: {zi.filename!r}")
+                continue
+            ok = (len(parts) == 1 and n in BUNDLE_FILES) or (
+                len(parts) == 2 and parts[0] in BUNDLE_DIRS and parts[1] and not parts[1].startswith(".")
+                and os.path.splitext(parts[1])[1].lower() in BUNDLE_DIRS[parts[0]])
+            if not ok:
+                raise ValueError(f"묶음에 허용되지 않는 파일: {zi.filename!r}")
+            members.append(zi)
+        zf.extractall(dest, members=members)
+    return dest
+
+
+def step_update_point(oid, attrs):
+    """scan_points 의 기존 점(objectid) 속성을 고친다 (레이어에 있는 필드만)"""
+    layer = CFG["points_layer_url"]
+    token = get_token(CFG["server_url"])
+    info = http_json(layer, {"f": "json", "token": token})
+    fields = {f.get("name", "").lower() for f in info.get("fields", [])}
+    a = {k: v for k, v in attrs.items() if k.lower() in fields}
+    a["objectid"] = int(oid)
+    out = http_json(layer + "/updateFeatures", {"features": json.dumps([{"attributes": a}]), "f": "json", "token": token})
+    res = (out.get("updateResults") or [{}])[0]
+    if not res.get("success"):
+        raise RuntimeError("scan_points 갱신 실패: " + str(res.get("error")))
+    log(f"scan_points OID {oid} 갱신: {sorted(a)}")
+
+
+def trench_post(meta, q):
+    """큐 kind=trench_post: GPU 워커가 올린 실측 묶음(trench_bundle.zip)으로
+    ① mesh.glb 서빙(<job>.glb, 메시 탭) ② 지도 점 glb_url 갱신 ③ 축척이 있으면 관 추출·조서.
+    스플랫·3D 보기는 이미 끝난 작업이므로 여기서 실패해도 status 는 done 으로 두고 trench_post=failed 로 알린다."""
+    job_id, job_dir = meta["job_id"], meta["job_dir"]
+    out_dir = os.path.join(job_dir, "out")
+    os.makedirs(out_dir, exist_ok=True)
+    qd = q.read()
+    q.update(status="processing", step=7, trench_post="processing", trench_post_message="굴착 산출물 만드는 중",
+             message="굴착 산출물 만드는 중 (3D 는 먼저 볼 수 있음)")
+    upd = {}
+    try:
+        bundle = qd.get("trench_bundle_path") or os.path.join(job_dir, "trench_bundle.zip")
+        data = _unpack_bundle(bundle, os.path.join(out_dir, "trench_data"))
+        scale = json.load(open(os.path.join(data, "scale.json"), "r", encoding="utf-8"))
+        gj = os.path.join(data, "georef.json")
+        geo = json.load(open(gj, "r", encoding="utf-8"))
+        old = meta.get("georef") or {}
+        g = {"lon": float(geo.get("lon", old.get("lon"))), "lat": float(geo.get("lat", old.get("lat"))),
+             "elev": float(geo.get("elev", old.get("elev", 0.0)) or 0.0), "heading": float(geo.get("heading", old.get("heading", 0.0)) or 0.0)}
+        meta.setdefault("georef_upload", old)                       # 촬영 페이지가 보낸 첫 위치는 남겨 둔다
+        meta["georef"] = g                                          # 워커가 GPS 평균·나침반으로 다시 정한 값 (조서도 이것을 읽는다)
+        meta["trench"] = dict(meta.get("trench") or {"mode": 1}, scale_method=scale.get("method"),
+                              scale_residual_mm=scale.get("residual_mm"), georef_source=geo.get("source"))
+        with open(os.path.join(job_dir, "job.json"), "w", encoding="utf-8") as f:
+            json.dump(meta, f, ensure_ascii=False, indent=2)
+        glb_url = step_glb(os.path.join(data, "mesh.glb"), job_id)
+        upd["glb_url"] = glb_url
+        las = os.path.join(data, "scan.las")
+        las_info = step_las(las) if os.path.exists(las) else None
+        if CFG.get("portal_enabled", True):
+            try:
+                oid = qd.get("objectid")
+                if oid:
+                    attrs = {"glb_url": glb_url}
+                    if las_info:
+                        attrs.update(coord_x=las_info["coord_x"], coord_y=las_info["coord_y"], coord_z=las_info["coord_z"])
+                    step_update_point(oid, attrs)
+                elif las_info:
+                    upd["objectid"] = step_register(meta, las_info, glb_url, "", "", "", qd.get("thumb_url") or "")
+            except Exception as e:                                  # 지도 점은 부가 — 산출물은 계속 만든다
+                log(f"지도 점 갱신 생략: {e}")
+        method = (scale.get("method") or "none").lower()
+        if method == "none" or not las_info:
+            state = "skipped"
+            msg = TP_SKIP_SCALE if method == "none" else "실측 점군(scan.las)이 묶음에 없어 관 추출을 하지 않았습니다 — 3D 보기만 제공"
+            log("굴착 후처리: " + msg)
+            # 앞선 묶음이 만든 산출물이 남아 있으면 지운다 (사이트가 <job>_utilities.json 이 있으면 ⛏ 탭을 보이므로)
+            serve = CFG["glb_serve_dir"]
+            stale = os.path.join(serve, f"{job_id}_utilities.json")
+            if os.path.exists(stale):
+                os.remove(stale)
+            shutil.rmtree(os.path.join(serve, f"{job_id}_util"), ignore_errors=True)
+            upd.update(utilities_url=None, utility_report_url=None)
+        else:
+            mesh = os.path.join(data, "mesh.ply")
+            util_url, rep_url = step_utilities(meta, out_dir, job_id, las=las, mesh=mesh if os.path.exists(mesh) else "",
+                                               data_dir=data, georef=gj)
+            upd.update(utilities_url=util_url or None, utility_report_url=rep_url or None)
+            if util_url:
+                try:
+                    n = len(json.load(open(os.path.join(CFG["glb_serve_dir"], f"{job_id}_utilities.json"), "r", encoding="utf-8")).get("utilities") or [])
+                except Exception:
+                    n = 0
+                state = "done"
+                msg = f"굴착 산출물 완료 — 관 {n}개" + ("" if rep_url else " (조서 없음: 굴착·관을 찾지 못함)")
+            else:
+                state, msg = "failed", "관 추출에 실패했습니다 (서버 로그 확인)"
+        upd.update(trench=dict(qd.get("trench") or {"mode": 1}, scale_method=method))
+        q.update(status="done", step=7, kind=None, trench_post=state, trench_post_message=msg, message=msg, **upd)
+        log(f"굴착 후처리 {state}: {msg}")
+    except Exception as e:
+        import traceback
+        log("굴착 후처리 실패: " + str(e))
+        print(traceback.format_exc(), flush=True)
+        q.update(status="done", step=7, kind=None, trench_post="failed",
+                 trench_post_message=("굴착 산출물을 만들지 못했습니다: " + str(e))[:300], message="3D 완료 (굴착 산출물 실패)", **upd)
 
 
 def step_slpk(glb_path, out_dir, las_info, service_name, heading=0.0):
@@ -747,6 +889,8 @@ def main():
     q = Queue(queue_path)
     if q.read().get("kind") == "rebuild_glb":
         return rebuild_glb(meta, q)
+    if q.read().get("kind") == "trench_post":                # 웹 굴착 기록: GPU 실측 묶음이 들어온 뒤 (splat_jobs.py op=upload|bundle)
+        return trench_post(meta, q)
     job_id, out_dir = meta["job_id"], os.path.join(meta["job_dir"], "out")
     os.makedirs(out_dir, exist_ok=True)
     if meta.get("mode") in ("video", "photos"):              # 웹 3D 현장조사

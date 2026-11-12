@@ -15,6 +15,12 @@ r"""
   사진 작업(job.json mode=photos, 큐 splat_kind=video, 계약 1b): list/claim 이 photo_count, photos_bytes 를 더 돌려주고,
       GET ?op=download&job_id=&file=photos 는 photos_dir 의 사진들을 무압축(STORE) zip 으로 보낸다 (Content-Length 있음).
   큐의 quality(계약 1c, 서버 media_check)는 list/claim 에 그대로 실어 보낸다 — 워커는 참고만 한다.
+  웹 굴착 기록(job.json trench.mode=1, docs\web_trench_contract.md): list/claim 이 trench_mode, files{sensors, marks2d} 를 돌려주고,
+      GET ?op=download&file=sensors|marks2d 로 촬영 페이지가 올린 sensors.json / marks2d.json 을 받는다.
+      실측 묶음 trench_bundle.zip(계약 3절)은 두 가지로 올린다 — 받으면 큐를 status=pending, kind=trench_post 로 두어
+      대기열 처리기 → pipeline.py 가 굴착 후처리(GLB 서빙·관 추출·조서)를 한다:
+        · op=upload 의 multipart 파트 trench_bundle (요청 전체 512 MB 이하)
+        · POST ?op=bundle&job_id=  본문 = zip 그대로 (Content-Type application/zip, 최대 1 GB = IIS 한도, 디스크로 바로 씀)
   POST ?op=fail&job_id=&message=        splat_status=failed (워커가 포기한 작업)
   POST ?op=queue&job_id=[&force=1]      완료된 작업을 스플랫 대기열에 넣는다 (소급 적용·재학습). force 없이는 done/failed 인 스플랫만 다시 넣음
   GET  ?op=status&job_id=               큐 파일의 스플랫 관련 필드
@@ -47,6 +53,13 @@ MAX_THUMB = 8 * 1024 * 1024           # 영상 작업 대표 화면 jpg 상한
 VIDEO_TYPES = {".mp4": "video/mp4", ".mov": "video/quicktime", ".m4v": "video/x-m4v", ".webm": "video/webm", ".3gp": "video/3gpp"}
 PHOTO_EXTS = (".jpg", ".jpeg", ".png", ".heic", ".heif", ".webp")          # 계약 1b
 MIN_PHOTOS = 3                                                             # 이보다 적으면 사진 작업을 가져가지 않음 (업로드는 10장 이상)
+MAX_BUNDLE = 1024 * 1024 * 1024       # 실측 묶음 상한 = IIS maxAllowedContentLength (web.config). 계약의 1.5 GB 는 IIS 한도를 올려야 함
+BUNDLE_FILES = {"rgb.mp4", "odometry.csv", "frame_quality.csv", "camera_matrix.csv", "mesh.ply", "mesh.glb", "scan.las",
+                "marks.json", "scale.json", "georef.json"}                 # 계약 3절 — zip 맨 위 (감싸는 폴더 없이)
+BUNDLE_DIRS = {"hires": (".jpg", ".jpeg", ".png", ".json")}               # hires/*.jpg + hires/poses.json
+BUNDLE_REQUIRED = ("scale.json", "georef.json", "mesh.glb")
+BUNDLE_MAX_ENTRIES = 3000
+BUNDLE_MAX_UNPACKED = 4 * 1024 * 1024 * 1024                               # 압축 폭탄 방지
 
 
 # ── 공통 ─────────────────────────────────────────────────────────────────────
@@ -156,6 +169,71 @@ def video_file(meta):
     return path, ext
 
 
+def trench_info(q, meta):
+    """웹 굴착 기록: (trench_mode, {sensors, marks2d} 파일 있음 여부, {이름: 서버 경로})"""
+    t = meta.get("trench") or q.get("trench") or {}
+    paths = {}
+    for key, name in (("sensors_path", "sensors"), ("marks2d_path", "marks2d")):
+        p = (meta.get("trench") or {}).get(key) or ""
+        if p and os.path.isfile(p):
+            paths[name] = p
+    return bool(t.get("mode")), {"sensors": "sensors" in paths, "marks2d": "marks2d" in paths}, paths
+
+
+def check_bundle(path):
+    """trench_bundle.zip 검사 (계약 3절) → 이름 목록. 틀리면 ValueError (메시지는 워커 로그용)"""
+    import zipfile
+    try:
+        zf = zipfile.ZipFile(path)
+    except (zipfile.BadZipFile, OSError) as e:
+        raise ValueError(f"trench_bundle: zip 이 아닙니다 ({e})")
+    with zf:
+        infos = zf.infolist()
+        if len(infos) > BUNDLE_MAX_ENTRIES:
+            raise ValueError(f"trench_bundle: 항목이 너무 많습니다 ({len(infos)})")
+        total, names = 0, []
+        for zi in infos:
+            n = zi.filename.replace("\\", "/")
+            parts = n.split("/")
+            if n.startswith("/") or (len(n) > 1 and n[1] == ":") or ".." in parts or any(p in (".",) for p in parts):
+                raise ValueError(f"trench_bundle: 허용되지 않는 경로 {zi.filename!r}")
+            if zi.is_dir():
+                if n.rstrip("/") not in BUNDLE_DIRS:
+                    raise ValueError(f"trench_bundle: 허용되지 않는 폴더 {zi.filename!r}")
+                continue
+            if len(parts) == 1:
+                if n not in BUNDLE_FILES:
+                    raise ValueError(f"trench_bundle: 허용되지 않는 파일 {zi.filename!r}")
+            elif len(parts) == 2 and parts[0] in BUNDLE_DIRS and parts[1] and not parts[1].startswith("."):
+                if os.path.splitext(parts[1])[1].lower() not in BUNDLE_DIRS[parts[0]]:
+                    raise ValueError(f"trench_bundle: 허용되지 않는 파일 {zi.filename!r}")
+            else:
+                raise ValueError(f"trench_bundle: 허용되지 않는 경로 {zi.filename!r}")
+            total += zi.file_size
+            names.append(n)
+        if total > BUNDLE_MAX_UNPACKED:
+            raise ValueError("trench_bundle: 풀었을 때 크기가 너무 큽니다")
+        missing = [r for r in BUNDLE_REQUIRED if r not in names]
+        if missing:
+            raise ValueError("trench_bundle: 필수 파일 없음 " + ", ".join(missing))
+        for jn in ("scale.json", "georef.json"):
+            try:
+                if not isinstance(json.loads(zf.read(jn).decode("utf-8-sig")), dict):
+                    raise ValueError
+            except Exception:
+                raise ValueError(f"trench_bundle: {jn} 이 JSON 객체가 아닙니다")
+    return names
+
+
+def accept_bundle(qp, q, meta, tmp_path):
+    """검사를 통과한 묶음을 <job_dir>\\trench_bundle.zip 으로 옮기고 큐를 굴착 후처리 대기로 둔다 → 큐"""
+    dest = os.path.join(meta.get("job_dir") or os.path.dirname(tmp_path), "trench_bundle.zip")
+    os.replace(tmp_path, dest)
+    return update_queue(qp, status="pending", kind="trench_post", step=7, trench_post="pending",
+                        trench_post_message="굴착 산출물 대기 중 (3D 는 먼저 볼 수 있음)", trench_bundle_path=dest,
+                        trench_bundle_bytes=os.path.getsize(dest), message="굴착 산출물 대기 중")
+
+
 def splat_summary(q, meta):
     zip_path = meta.get("scan_zip") or ""
     mesh = os.path.join(meta.get("job_dir") or "", "out", "mesh.ply")
@@ -163,7 +241,10 @@ def splat_summary(q, meta):
     photos = is_photos(q, meta)
     vpath, vext = video_file(meta) if video and not photos else ("", "")
     pfiles = photo_files(meta) if photos else []
+    trench_mode, tfiles, _ = trench_info(q, meta)
     return {
+        "trench_mode": trench_mode, "files": tfiles if trench_mode else None,          # 웹 굴착 기록 (web_trench_contract.md)
+        "trench_post": q.get("trench_post"), "trench_post_message": q.get("trench_post_message"),
         "job_id": q.get("job_id"), "title": q.get("title"), "scan_type": q.get("scan_type"), "mode": job_mode(q, meta),
         "splat_kind": q.get("splat_kind") or ("video" if video else None),
         "georef": (meta.get("georef") or q.get("georef")) if video else None,
@@ -300,8 +381,13 @@ def op_download(cfg, job_id):
         ctype, name = VIDEO_TYPES[ext], "video" + ext                 # 원래 확장자 (워커가 디코더를 고르는 데 씀)
     elif which == "photos":
         return download_photos(meta)
+    elif which in ("sensors", "marks2d"):                         # 웹 굴착 기록 부속 파일
+        path = trench_info(q, meta)[2].get(which, "")
+        if not path:
+            return respond({"error": f"{which} 파일이 서버에 없음"}, "404 Not Found")
+        ctype, name = "application/json", which + ".json"
     else:
-        return respond({"error": "file 은 zip, mesh, video, photos 중 하나"}, "400 Bad Request")
+        return respond({"error": "file 은 zip, mesh, video, photos, sensors, marks2d 중 하나"}, "400 Bad Request")
     if not path or not os.path.exists(path):
         return respond({"error": f"{which} 파일이 서버에 없음"}, "404 Not Found")
     size = os.path.getsize(path)
@@ -374,6 +460,21 @@ def op_upload(cfg, job_id):
     thumb_item = files.get("thumb")
     if thumb_item and thumb_item[1] and (len(thumb_item[1]) > MAX_THUMB or not thumb_item[1].startswith(b"\xff\xd8\xff")):
         return respond({"error": "thumb 는 8 MB 이하 JPEG 이어야 합니다"}, "400 Bad Request")   # 아무것도 쓰기 전에 검사
+    bundle_tmp = None
+    bundle_item = files.get("trench_bundle")
+    if bundle_item and bundle_item[1]:                            # 웹 굴착 기록 실측 묶음 — 이것도 쓰기 전에 검사
+        if not trench_info(q, meta)[0]:
+            return respond({"error": "굴착 기록(trench_mode) 작업이 아닙니다"}, "409 Conflict")
+        if q.get("status") != "done":
+            return respond({"error": f"처리가 끝난 작업에만 묶음을 올릴 수 있습니다 (status={q.get('status')})"}, "409 Conflict")
+        bundle_tmp = os.path.join(meta.get("job_dir") or cfg["data_root"], f"_bundle_{os.getpid()}.zip.tmp")
+        with open(bundle_tmp, "wb") as f:
+            f.write(bundle_item[1])
+        try:
+            check_bundle(bundle_tmp)
+        except ValueError as e:
+            os.remove(bundle_tmp)
+            return respond({"error": str(e)}, "400 Bad Request")
     serve_dir, serve_url = cfg["glb_serve_dir"], cfg["glb_serve_url"]
     os.makedirs(serve_dir, exist_ok=True)
     dest = os.path.join(serve_dir, job_id + ext)
@@ -442,8 +543,46 @@ def op_upload(cfg, job_id):
                      splat_registered=registered, objectid=oid or q.get("objectid"),
                      splat_message=done_msg + ("" if registered else " (scan_points 등록 실패: " + reg_msg + ")"),
                      **extra)
+    if bundle_tmp:
+        q = accept_bundle(qp, q, meta, bundle_tmp)
     respond({"job_id": job_id, "splat_url": splat_url, "splat_full_url": full_url, "bytes": len(blob), "registered": registered,
-             "objectid": oid, "thumb_url": thumb_url, "message": q.get("splat_message")})
+             "objectid": oid, "thumb_url": thumb_url, "message": q.get("splat_message"), "trench_post": q.get("trench_post")})
+
+
+def op_bundle(cfg, job_id):
+    """POST ?op=bundle&job_id= 본문 = trench_bundle.zip 그대로. 메모리에 다 올리지 않고 디스크로 바로 쓴다 (최대 1 GB)."""
+    qp, q, meta = load_job(cfg, job_id)
+    if not q:
+        return respond({"error": "없는 작업"}, "404 Not Found")
+    if not trench_info(q, meta)[0]:
+        return respond({"error": "굴착 기록(trench_mode) 작업이 아닙니다"}, "409 Conflict")
+    if q.get("status") != "done":
+        return respond({"error": f"처리가 끝난 작업에만 묶음을 올릴 수 있습니다 (status={q.get('status')})"}, "409 Conflict")
+    length = int(os.environ.get("CONTENT_LENGTH") or 0)
+    if length <= 0:
+        return respond({"error": "본문(zip)이 없습니다"}, "400 Bad Request")
+    if length > MAX_BUNDLE:
+        return respond({"error": "묶음이 너무 큽니다 (최대 1 GB)"}, "413 Payload Too Large")
+    tmp = os.path.join(meta.get("job_dir") or cfg["data_root"], f"_bundle_{os.getpid()}.zip.tmp")
+    left = length
+    with open(tmp, "wb") as f:
+        while left > 0:
+            chunk = sys.stdin.buffer.read(min(left, 4 * 1024 * 1024))
+            if not chunk:
+                break
+            f.write(chunk)
+            left -= len(chunk)
+    if left:
+        os.remove(tmp)
+        return respond({"error": f"본문이 끊겼습니다 ({length - left}/{length} 바이트)"}, "400 Bad Request")
+    try:
+        names = check_bundle(tmp)
+    except ValueError as e:
+        os.remove(tmp)
+        return respond({"error": str(e)}, "400 Bad Request")
+    q = accept_bundle(qp, q, meta, tmp)
+    respond({"job_id": job_id, "bytes": length, "files": len(names), "trench_post": q.get("trench_post"),
+             "message": q.get("trench_post_message")})
 
 
 def op_fail(cfg, job_id):
@@ -533,7 +672,9 @@ def main():
         return op_fail(cfg, job_id)
     if op == "queue":
         return op_queue(cfg, job_id)
-    respond({"error": "op 는 list|claim|download|upload|fail|queue|status"}, "400 Bad Request")
+    if op == "bundle":
+        return op_bundle(cfg, job_id)
+    respond({"error": "op 는 list|claim|download|upload|bundle|fail|queue|status"}, "400 Bad Request")
 
 
 if __name__ == "__main__":

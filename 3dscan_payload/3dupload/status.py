@@ -30,6 +30,8 @@ def main():
         "site_id": q.get("site_id"), "hazards_url": q.get("hazards_url"), "changes_url": q.get("changes_url"),
         "objectid": q.get("objectid"), "splat_kind": q.get("splat_kind"), "quality": q.get("quality"),
         "trench": q.get("trench"), "utilities_url": q.get("utilities_url"), "utility_report_url": q.get("utility_report_url"),
+        # 웹 굴착 기록 후처리 (docs/web_trench_contract.md 4절): pending|processing|done|skipped|failed
+        "trench_post": q.get("trench_post"), "trench_post_message": q.get("trench_post_message"),
         "updated_at": q.get("updated_at"), "error_detail": q.get("error_detail"),
     })
 
