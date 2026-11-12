@@ -122,6 +122,15 @@ button{font-family:inherit}
 .restore{display:flex;gap:10px;align-items:center;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.3);border-radius:10px;padding:10px 12px;margin-top:12px;font-size:13.5px}
 .restore .btn{flex:none}
 
+/* 공개 범위·관리 링크 (docs/share_contract.md 1·2절, capture.html 과 같은 모양) */
+.vis{display:grid;gap:6px;margin-top:4px}
+.visopt{display:flex;gap:10px;align-items:flex-start;padding:9px 11px;border:1px solid var(--border);border-radius:10px;background:var(--s2);cursor:pointer}
+.visopt input{margin-top:3px;flex:none}
+.visopt b{font-size:14px;color:var(--text)}
+.visopt small{display:block;font-size:12.5px;color:var(--text3);margin-top:2px;line-height:1.4}
+.visopt:has(input:checked){border-color:var(--accent)}
+.mng{margin-top:12px;padding:10px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--s2);font-size:13px;color:var(--text2)}
+.mng .mono{display:block;word-break:break-all;margin:6px 0;color:var(--text);font-size:12px}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .chip{font-size:12.5px;background:var(--s3);border:1px solid var(--border);border-radius:999px;padding:3px 10px;color:var(--text2)}
 .chip b{color:var(--text);font-weight:600}
@@ -144,6 +153,9 @@ button{font-family:inherit}
 .recent li{display:flex;gap:10px;align-items:center;font-size:13.5px;padding:8px 10px;border-radius:8px;background:var(--s2)}
 .recent li span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .recent li small{color:var(--text3);font-family:var(--mono);font-size:11.5px}
+.recent li .rt{flex:1;min-width:0}
+.recent li .rt span,.recent li .rt small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.recent li .btn{flex:none;white-space:nowrap}
 .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);z-index:80;opacity:0;pointer-events:none;
   background:var(--s1);border:1px solid var(--border2);border-radius:10px;padding:10px 14px;font-size:14px;transition:.25s;max-width:calc(100% - 32px);text-align:center}
 .toast.on{opacity:1;transform:translateX(-50%)}
@@ -299,6 +311,12 @@ button{font-family:inherit}
     <input class="inp" id="title" maxlength="100" placeholder="예: OO아파트 101동 1203호" autocomplete="off">
     <label class="lbl" for="note">메모 (선택)</label>
     <input class="inp" id="note" maxlength="500" placeholder="예: 84㎡ · 남향 · 2026년 11월 촬영">
+    <div class="lbl">공개 범위</div>
+    <div class="vis" id="visBox" role="radiogroup" aria-label="공개 범위">
+      <label class="visopt"><input type="radio" name="vis" value="link" checked><span><b>🔗 링크 공유</b><small>링크를 받은 사람만 봅니다. 지도·목록에는 나오지 않아요.</small></span></label>
+      <label class="visopt"><input type="radio" name="vis" value="public"><span><b>🌐 공개</b><small>지도와 목록에 나와 누구나 볼 수 있어요.</small></span></label>
+      <label class="visopt"><input type="radio" name="vis" value="private"><span><b>🔒 비공개</b><small>관리 링크가 있는 나만 볼 수 있어요.</small></span></label>
+    </div>
     <div class="lbl">촬영 위치</div>
     <div class="loc" id="loc"><span class="dot"></span><div style="min-width:0"><div class="main" id="locMain">위치를 아직 재지 않았습니다</div><div class="subl" id="locSub">지도에 VR 투어를 놓는 데 씁니다. 건물 안이면 수십 m 오차가 날 수 있습니다.</div></div>
       <button class="btn sm" id="locBtn">위치 재기</button></div>
@@ -345,6 +363,9 @@ button{font-family:inherit}
 
   <section class="card" id="secResult" hidden>
     <h2>처리 상황</h2>
+    <div class="mng" id="resManage" hidden>🔑 <b>관리 링크</b> — 이 링크가 있어야 나중에 공개 범위·제목·VR 투어를 고칠 수 있어요. 잃어버리면 다시 받을 수 없으니 저장해 두세요.
+      <span class="mono" id="resManageUrl"></span>
+      <button class="btn sm" id="resManageCopy" type="button">관리 링크 복사</button> <span id="resVis"></span></div>
     <ul class="steps">
       <li id="rs1" class="done"><span class="ic">✓</span><div>업로드<small id="rs1m"></small></div></li>
       <li id="rs2" class="wait"><span class="ic">·</span><div>360° 사진 만들기<small>대기 중</small></div></li>
@@ -631,7 +652,7 @@ button{font-family:inherit}
   function saveState() {
     clearTimeout(saveT);
     saveT = setTimeout(function () {
-      var st = { t: Date.now(), title: $('title').value, note: $('note').value, lat: S.lat, lon: S.lon, acc: S.acc, locSrc: S.locSrc,
+      var st = { t: Date.now(), title: $('title').value, note: $('note').value, vis: visChoice(), lat: S.lat, lon: S.lon, acc: S.acc, locSrc: S.locSrc,
         spots: S.spots.map(function (sp) { var c = Object.assign({}, sp); c.shots = sp.shots.map(function (s) { var x = Object.assign({}, s); ['blob', 'url', 'tiny', 'thumb', '_R', '_why', '_mark'].forEach(function (k) { delete x[k]; }); return x; }); ['thumbUrl', '_cov', '_covPct', '_ghosted', 'vshots'].forEach(function (k) { delete c[k]; }); if (c.video) { c.video = Object.assign({}, c.video); delete c.video.blob; } return c; }) };
       dbTx('state', 'readwrite', function (s) { s.put(st, 'cur'); });
     }, 300);
@@ -2070,6 +2091,7 @@ button{font-family:inherit}
     fd.append('scan_type', 'home');
     fd.append('app', 'web-pano/1');
     fd.append('client_id', cid);
+    fd.append('visibility', visChoice());
     fd.append('lat', S.lat.toFixed(7)); fd.append('lon', S.lon.toFixed(7));
     if (S.elev != null) fd.append('elev', S.elev.toFixed(1));
     if (meta.north_yaw != null) fd.append('heading', (((-meta.north_yaw) % 360 + 360) % 360).toFixed(1));   // 세션 yaw 0 의 진북 방위
@@ -2106,12 +2128,34 @@ button{font-family:inherit}
   function onBeforeUnload(e) { if (S.uploading) { e.preventDefault(); e.returnValue = ''; return ''; } }
   function uploadEnd() { S.uploading = false; S.xhr = null; keepAwake(false); window.removeEventListener('beforeunload', onBeforeUnload); updateReady(); }
   function uploadFail(msg) { if (!S.uploading) return; uploadEnd(); $('prog').hidden = true; var e = $('upErr'); e.hidden = false; e.textContent = '✕ ' + msg; }
+  /* ── 공개 범위·관리 키 (docs/share_contract.md 1·2절): 키는 이 기기 localStorage['kgeo_keys'] 에만 둔다 (capture.html 과 같음) ── */
+  var KEYS_KEY = 'kgeo_keys', MAIN_VIEWER = '/app/3dscan/', VIS_LABEL = { link: '🔗 링크 공유', public: '🌐 공개', private: '🔒 비공개' };
+  function visChoice() { var r = document.querySelector('input[name="vis"]:checked'); return r ? r.value : 'link'; }
+  function editKeys() { var o = lsGet(KEYS_KEY, {}); return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {}; }
+  function saveEditKey(job, key) { var o = editKeys(); o[job] = key; lsSet(KEYS_KEY, o); }
+  function manageUrl(job) { var k = editKeys()[job]; return location.origin + MAIN_VIEWER + '?job=' + encodeURIComponent(job) + (k ? '#key=' + encodeURIComponent(k) : ''); }
+  function showManage(job, vis) {
+    var box = $('resManage'); if (!box) return;
+    if (!job || !editKeys()[job]) { box.hidden = true; return; }
+    $('resManageUrl').textContent = manageUrl(job);
+    $('resVis').textContent = VIS_LABEL[vis] ? '현재: ' + VIS_LABEL[vis] : '';
+    box.hidden = false;
+  }
+  function selectText(el) { try { var r = document.createRange(); r.selectNodeContents(el); var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r); toast('길게 눌러 복사해 주세요', 'warn'); } catch (e) { } }
+  function copyText(txt, el, okMsg) {
+    var done = function () { toast(okMsg, 'ok'); };
+    try { navigator.clipboard.writeText(txt).then(done, function () { if (el) selectText(el); }); } catch (e) { if (el) selectText(el); }
+  }
+  $('resManageCopy').addEventListener('click', function () { copyText($('resManageUrl').textContent, $('resManageUrl'), '관리 링크를 복사했어요. 잃어버리지 않게 저장해 두세요.'); });
+  document.querySelectorAll('input[name="vis"]').forEach(function (r) { r.addEventListener('change', function () { saveState(); }); });
   function uploadDone(d, f) {
     uploadEnd();
+    if (d.edit_key) saveEditKey(d.job_id, d.edit_key);
+    showManage(d.job_id, d.visibility || visChoice());
     var what = '지점 ' + f.spots + '곳' + (f.count ? ' · 사진 ' + f.count + '장' : '') + (f.videos ? ' · 영상 ' + f.videos + '개' : '');
     $('pBar').className = 'bar done'; $('pMain').textContent = '✓ 업로드 완료'; $('pLeft').textContent = what + ' · ' + fmtSize(f.size); $('pRight').textContent = ''; $('cancelBtn').hidden = true;
     S.job = d.job_id;
-    rememberJob({ job_id: d.job_id, title: $('title').value.trim(), t: Date.now(), spots: f.spots, count: f.count, st: '대기 중', fin: false });
+    rememberJob({ job_id: d.job_id, title: $('title').value.trim(), t: Date.now(), spots: f.spots, count: f.count, st: '대기 중', fin: false, vis: d.visibility || visChoice() });
     $('rs1m').textContent = what + ' · ' + fmtSize(f.size) + (d.duplicate ? ' (이미 받은 자료 — 같은 작업을 이어서 보여 줍니다)' : '');
     $('secResult').hidden = false;
     startPoll(d.job_id);
@@ -2202,8 +2246,10 @@ button{font-family:inherit}
   function renderRecent() {
     var l = jobsLoad(); $('secRecent').hidden = !l.length;
     $('recentList').innerHTML = l.slice(0, 8).map(function (j) {
-      return '<li><span>' + esc(j.title || j.job_id) + '</span><small>' + shortTime(j.t) + ' · ' + (j.spots || '?') + '곳 · ' + esc(j.st || '') + '</small><a class="btn sm" href="' + VIEWER + '?job=' + encodeURIComponent(j.job_id) + '">보기</a></li>';
+      return '<li><div class="rt"><span>' + esc(j.title || j.job_id) + '</span><small>' + shortTime(j.t) + ' · ' + (j.spots || '?') + '곳 · ' + esc(j.st || '') + (VIS_LABEL[j.vis] ? ' · ' + VIS_LABEL[j.vis] : '') + '</small></div><a class="btn sm" href="' + VIEWER + '?job=' + encodeURIComponent(j.job_id) + '">보기</a>' +
+        (editKeys()[j.job_id] ? '<button class="btn sm ghost" type="button" data-mng="' + esc(j.job_id) + '">관리 링크</button>' : '') + '</li>';
     }).join('');
+    $('recentList').querySelectorAll('button[data-mng]').forEach(function (b) { b.onclick = function () { copyText(manageUrl(b.dataset.mng), null, '관리 링크를 복사했어요. 잃어버리지 않게 저장해 두세요.'); }; });
   }
 
   /* ── 시작 ── */
@@ -2221,6 +2267,7 @@ button{font-family:inherit}
     if (st && Date.now() - st.t < 7 * 86400e3 && Array.isArray(st.spots) && st.spots.length) {
       if (!$('title').value) $('title').value = st.title || '';
       if (!$('note').value) $('note').value = st.note || '';
+      if (st.vis && VIS_LABEL[st.vis]) { var vr = document.querySelector('input[name="vis"][value="' + st.vis + '"]'); if (vr) vr.checked = true; }
       if (st.lat != null && S.lat == null) setLoc(st.lat, st.lon, st.acc, st.locSrc || 'gps');
       S.spots = st.spots.map(function (sp) { sp.shots = (sp.shots || []).map(function (s) { return s; }); return sp; });
       var n = 0, nv = 0; S.spots.forEach(function (sp) { n += sp.shots.length; if (sp.video && sp.video.size) nv++; });

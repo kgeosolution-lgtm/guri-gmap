@@ -12,6 +12,7 @@ kgeoScan pipeline v2:  python -I pipeline.py <job_dir>\job.json <jobs>\<id>.json
 """
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -1039,6 +1040,18 @@ def step_delete_point(oid):
     log(f"scan_points OID {oid} 삭제 (공개 범위 바뀜)")
 
 
+def _point_oids_for_job(job_id):
+    """scan_points 에서 이 작업의 점 objectid 들 (thumb_url·glb_url·splat_url 에 작업 번호가 든 것).
+    재처리(retry)로 큐의 objectid 를 잃은 옛 점까지 찾는다 (2026-11-12 82f7603b 가 지도에 남은 일)"""
+    if not re.fullmatch(r"[0-9a-f]{8}", str(job_id or "")):
+        return []
+    layer = CFG["points_layer_url"]
+    token = get_token(CFG["server_url"])
+    where = " OR ".join(f"{f} LIKE '%{job_id}%'" for f in ("thumb_url", "glb_url"))
+    out = http_json(layer + "/query", {"where": where, "outFields": "objectid", "returnGeometry": "false", "f": "json", "token": token})
+    return [int(f["attributes"]["objectid"]) for f in out.get("features") or [] if (f.get("attributes") or {}).get("objectid") is not None]
+
+
 def share_scene_items(item_ids, everyone):
     user, portal = CFG["portal_user"], CFG["portal_url"]
     token = get_token(portal)
@@ -1088,8 +1101,14 @@ def visibility_sync(meta, q, resume=True):
                     step_update_point(oid, {"splat_url": qd["splat_url"]})
                 except Exception as e:
                     log(f"splat_url 반영 생략: {e}")
-        elif vis != "public" and oid:
-            step_delete_point(oid)
+        elif vis != "public":
+            oids = set([int(oid)] if oid else [])
+            try:
+                oids |= set(_point_oids_for_job(meta.get("job_id") or qd.get("job_id")))
+            except Exception as e:
+                log(f"작업 번호로 점 찾기 생략: {e}")
+            for o in sorted(oids):
+                step_delete_point(o)
             upd["objectid"] = None
         elif vis == "public" and oid and qd.get("title"):
             step_update_point(oid, {"scan_title": qd["title"]})

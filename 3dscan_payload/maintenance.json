@@ -1,17 +1,6 @@
 {
-  "once_id": "2026-11-12-office-vr-link",
+  "once_id": "2026-11-12-office-vr-link-2",
   "actions": [
-    {
-      "op": "set-visibility",
-      "job_id": "82f7603b",
-      "visibility": "link",
-      "edit_key_sha256": "7c908b0795c059013a801bd51c787e2e38f714138683d8529c5c52f3e1d4ea9c"
-    },
-    {
-      "op": "set-visibility",
-      "job_id": "cfb5229d",
-      "visibility": "link",
-      "edit_key_sha256": "849845eb54a9999c08e8e1eae94959b6f60f615ca55887825f5e5e08f180e215"
-    }
+    {"op": "set-visibility", "job_id": "82f7603b", "visibility": "link"}
   ]
 }
