@@ -35,6 +35,8 @@ jobs:
             'site/3dscan/splat.html' = 'da8f1ec90893e602ae6c954cb18b4dc6f51f181904dcd5c185dd645ee9831873'
             'site/3dscan/ortho.html' = '123ae7a46fc70ca7a312338a70f2045135654c06628fadd978c996a5306938ee'
             'site/3dscan/utility.html' = '807d30ed9367a42c97949c11365d39059c70282ee69d37fc2e6039fd2ac5f7fd'
+            'site/3dscan/walk.js' = '0981c0752e74c4a99e69a6578b7c826dd47e0f4d460cfe7ab65738c349fbeb83'
+            'site/3dscan/capture_ar.html' = 'fd04a3e695c0ccfadde5e984eb93681464466b349e362ea5fdb4b0a0a805e61e'
             'site/3dscan/targets/trench_board.pdf' = 'a1f0af16b6d7effbe722ec97e746bdf6014f0a906162b00e9a8ff60ea311f06f'
             'site/3dscan/capture.html' = '01a151638904f036124b8ca089fb3dc3df88a7891742931cbbe606cd07740e57'
             'site/3dscan/glb.web.config' = '40f7eadd4d140ac1ad31fe5543f165d51f4e83fd2cf4af96acb308ef6bd77273'
@@ -115,7 +117,7 @@ jobs:
 
           # ── 파일 설치
           New-Item -ItemType Directory -Force -Path $site, $upload | Out-Null
-          foreach ($f in 'index.html','viewer.js','viewer.css','splat.html','ortho.html','utility.html','capture.html') { Copy-Item -LiteralPath (Join-Path $src ('site\3dscan\' + $f)) -Destination (Join-Path $site $f) -Force }
+          foreach ($f in 'index.html','viewer.js','viewer.css','splat.html','ortho.html','utility.html','capture.html','walk.js','capture_ar.html') { Copy-Item -LiteralPath (Join-Path $src ('site\3dscan\' + $f)) -Destination (Join-Path $site $f) -Force }
           if (Test-Path -LiteralPath (Join-Path $src 'site\3dscan\targets')) {
             New-Item -ItemType Directory -Force -Path (Join-Path $site 'targets') | Out-Null
             Copy-Item -Path (Join-Path $src 'site\3dscan\targets\*') -Destination (Join-Path $site 'targets') -Force
