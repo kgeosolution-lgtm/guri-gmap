@@ -77,8 +77,8 @@ jobs:
             'worker/media_check.py' = '083044d78af7dfdd5e3118b37ca2e4ceb28b47132b2ecef6971969e5c1f68896'
             'worker/utility_extract.py' = '5dd63a4aee15ee6ac79613bbb4ce8551eef70d5f72f354cae0fa1634741b77de'
             'worker/utility_report.py' = '50df2a31e359ceca0fa4f5ca541bb096c0a71a7bef720e1d556cf19f24f770b0'
-            'worker/pano_stitch.py' = 'a47da44dff288d243ecb173a76bf635c8c1e2d004b155294e7eb72cb6666523f'
-            'worker/pano_video.py' = 'ad1775a8df9ee69bb183436f94c9befedf01fc7547c227c49fde08caba1a1f15'
+            'worker/pano_stitch.py' = '9d5b7eaad352172c1e47735b7c7f9023f764b4eb969bf688ec99a7738f2f752b'
+            'worker/pano_video.py' = 'a0b96f4c34b15647ccaa795721c8677b501252a91a9700d6030c67298541f138'
             'config/kgeoscan.example.json' = 'bf94b0186dc4eb33a29e43fb9b9b9132ec13b85ace6a1915c065737bfa95c964'
             'requirements.txt' = '4703521a52b31751fac24f008578a24cbad28d3ba1bd7c95351184a6e75cfc5c'
           }

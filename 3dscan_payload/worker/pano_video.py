@@ -630,9 +630,20 @@ def render_strip_spot(src, spot, out_dir, opts, prog, ps):
         ax = Rs[:, :, 2]
         pitch = np.degrees(np.arcsin(np.clip(ax[:, 2], -1, 1)))
         yaw = np.degrees(np.arctan2(ax[:, 0], ax[:, 1]))
-        up = ok & (pitch >= 10) & (pitch <= 62)
-        dn = ok & (pitch <= -10) & (pitch >= -62)
-        zen = ok & (pitch > 62)
+        tn = {}
+        for tt_ in v.get("turns") or []:
+            if isinstance(tt_, dict) and isinstance(tt_.get("t0"), (int, float)) and tt_.get("name"):
+                tn.setdefault(str(tt_["name"]), float(tt_["t0"]))
+        turns_used = all(k in tn for k in ("turn1", "tilt", "turn2", "ceil"))
+        if turns_used:
+            t_end = tn.get("end", float(t[-1]) + 1)
+            up = ok & (t >= tn["turn1"]) & (t <= tn["tilt"]) & (pitch > -5) & (pitch <= 65)
+            dn = ok & (t >= tn["turn2"]) & (t <= tn["ceil"]) & (pitch < 5) & (pitch >= -65)
+            zen = ok & (t >= tn["ceil"]) & (t <= t_end) & (pitch > 55)
+        else:
+            up = ok & (pitch >= 10) & (pitch <= 62)
+            dn = ok & (pitch <= -10) & (pitch >= -62)
+            zen = ok & (pitch > 62)
         # ── 흐름·초점: 위·아래 바퀴 같은 yaw 짝 + 같은 바퀴 시작·끝 짝 (둘 다 카메라 위치가 같아 시차 없음)
         prog(3.6, f"{sid} 자세 흐름 맞추는 중")
         sift = cv2.SIFT_create(nfeatures=1200, contrastThreshold=0.02)
@@ -716,13 +727,31 @@ def render_strip_spot(src, spot, out_dir, opts, prog, ps):
             idx = np.nonzero(m)[0]
             if len(idx) < 20:
                 continue
+            yu = np.degrees(np.unwrap(np.radians(yaw[idx])))
+            if yu[-1] < yu[0]:
+                yu = -yu                                       # 왼쪽으로 돈 바퀴
+            cs = np.concatenate([[0.0], np.cumsum(score[idx])])
+            best, j = None, 0
+            for i in range(len(idx)):                           # 360° 를 덮는 가장 짧은 구간들 중 점수 합이 큰 것
+                while j < len(idx) and yu[j] - yu[i] < 360.0:
+                    j += 1
+                if j >= len(idx):
+                    break
+                sc_ = cs[j] - cs[i]
+                if best is None or sc_ > best[0]:
+                    best = (sc_, i, j)
+            if best is not None:
+                i0, j0 = best[1], best[2]
+            else:
+                i0, j0 = 0, len(idx)                           # 한 바퀴가 안 됨: 있는 만큼
+            win, yw = idx[i0:j0], yu[i0:j0] - yu[i0]
             cells = {}
-            for k in idx:
-                c = int((yaw[k] + 180) // step)
+            for k, y_ in zip(win, yw):
+                c = int(y_ // step)
                 if c not in cells or score[k] > score[cells[c]]:
                     cells[c] = int(k)
             sel = np.array(sorted(cells.values(), key=lambda kk: yaw[kk]))
-            bands[bn] = {"frames": sel, "pitch": float(np.median(pitch[idx]))}
+            bands[bn] = {"frames": sel, "pitch": float(np.median(pitch[idx])), "span": float(yu[-1] - yu[0]), "window": [int(win[0]), int(win[-1])]}
         if not bands:
             _fail(ps, "영상에서 위·아래 바퀴를 찾지 못했습니다 (폰을 30° 위·아래로 기울여 돌아 주세요)")
         zsel = []
@@ -737,8 +766,15 @@ def render_strip_spot(src, spot, out_dir, opts, prog, ps):
         prog(3.8, f"{sid} 노출 맞추는 중")
         allk = sorted(set(int(k) for b in bands.values() for k in b["frames"]) | set(zsel))
         pos = {k: i for i, k in enumerate(allk)}
-        rows, strip_res = [], []
+        rows, strip_res, strip_raw = [], [], []
         dis = cv2.DISOpticalFlow_create(cv2.DISOPTICAL_FLOW_PRESET_FAST)
+        dism = cv2.DISOpticalFlow_create(cv2.DISOPTICAL_FLOW_PRESET_MEDIUM)
+        use_morph = bool(getattr(opts, "strip_morph", True))
+        gh, gw = grays[0].shape
+        CW = max(24, int(round(gw * 0.15)))                       # 보관할 가운데 띠 반폭 (분석 px, ≈ ±10°)
+        gcx = gw // 2
+        pflow = {}
+        gxx, gyy = np.meshgrid(np.arange(gw, dtype=np.float32), np.arange(gh, dtype=np.float32))
         for bn, b in bands.items():
             fs_ = b["frames"]
             for i in range(len(fs_)):
@@ -749,13 +785,26 @@ def render_strip_spot(src, spot, out_dir, opts, prog, ps):
                 r = _logratio(grays[a], gbw, val)
                 if r is not None:
                     rows.append((pos[a], pos[c], r, 1.0))
-                if i % 4 == 0:                                   # 띠 경계 어긋남 (시차·자세 오차) 표본: 가운데 띠
-                    hh, ww = grays[a].shape
-                    x0, x1, y0, y1 = int(ww * 0.3), int(ww * 0.7), int(hh * 0.15), int(hh * 0.85)
+                F = None
+                if use_morph:
+                    F = dism.calc(grays[a], gbw, None)          # gbw(x + F) ≈ ga(x)
+                    F[~val] = 0
+                    F = cv2.medianBlur(F, 5)
+                    F = cv2.GaussianBlur(F, (0, 0), 1.5)
+                    np.clip(F, -48, 48, out=F)
+                    pflow[(a, c)] = F[:, max(0, gcx - CW):gcx + CW].astype(np.float16)
+                if i % 4 == 0:                                   # 띠 경계 어긋남 표본 (가운데): 맞추기 전 / 광류로 맞춘 뒤
+                    x0, x1, y0, y1 = int(gw * 0.3), int(gw * 0.7), int(gh * 0.15), int(gh * 0.85)
                     vv = val[y0:y1, x0:x1]
                     if vv.mean() > 0.8:
                         fl = dis.calc(np.ascontiguousarray(grays[a][y0:y1, x0:x1]), np.ascontiguousarray(gbw[y0:y1, x0:x1]), None)
-                        strip_res.append(float(np.median(np.hypot(fl[..., 0], fl[..., 1])[vv])))
+                        strip_raw.append(float(np.median(np.hypot(fl[..., 0], fl[..., 1])[vv])))
+                        if F is not None:
+                            gbf = cv2.remap(gbw, gxx + F[..., 0], gyy + F[..., 1], cv2.INTER_LINEAR)
+                            fl2 = dis.calc(np.ascontiguousarray(grays[a][y0:y1, x0:x1]), np.ascontiguousarray(gbf[y0:y1, x0:x1]), None)
+                            strip_res.append(float(np.median(np.hypot(fl2[..., 0], fl2[..., 1])[vv])))
+                        else:
+                            strip_res.append(strip_raw[-1])
         if "up" in bands and "down" in bands:
             dn_f = bands["down"]["frames"]
             for a in bands["up"]["frames"][::3]:
@@ -798,7 +847,8 @@ def render_strip_spot(src, spot, out_dir, opts, prog, ps):
         W = ps.pick_size(opts.size, f_full)
         H = W // 2
         vhalf = math.degrees(math.atan((h / 2.0) / f_full)) - 2.0
-        floor = -(opts.floor_cut - 1) if opts.floor_cut > 0 else -90.0
+        vfc = float(getattr(opts, "video_floor_cut", 72.0) or 0.0)
+        floor = -(vfc - 1) if vfc > 0 else -90.0
         lat = 90.0 - (np.arange(H) + 0.5) * 180.0 / H
         lon = (np.arange(W) + 0.5) * 360.0 / W - 180.0
         has_up, has_dn = "up" in bands, "down" in bands
@@ -814,7 +864,41 @@ def render_strip_spot(src, spot, out_dir, opts, prog, ps):
         else:
             wu = np.ones(H) if has_up else np.zeros(H)
         z_lo = (p_up + vhalf - 10.0) if has_up else 60.0
-        wz = _smooth((lat - z_lo) / 7.0) if zsel else np.zeros(H)
+        if zsel:
+            Wz = 512
+            zc = []
+            for la_ in np.arange(40.0, 89.0, 1.0):
+                dz = ps.eq_dirs(np.arange(Wz, dtype=np.float32), np.full(Wz, (90.0 - la_) / 180.0 * (Wz // 2), np.float32), Wz, Wz // 2)
+                cov_ = np.zeros(Wz, bool)
+                for zk in zsel:
+                    _x, _y, okz = ps.project(dz, ps.Cam(Rc[zk], f_full, 0.0, w, h), margin=-0.04 * h)
+                    cov_ |= okz
+                zc.append((la_, float(cov_.mean())))
+            good_ = [la_ for la_, c_ in zc if c_ >= 0.97]
+            if good_:                                          # 그 위로 모두 덮이는 가장 낮은 위도
+                lo_ok = 89.0
+                for la_, c_ in reversed(zc):
+                    if c_ < 0.97:
+                        break
+                    lo_ok = la_
+                z_lo = float(np.clip(lo_ok + 1.0, 52.0, z_lo))
+        # 천장 훑기 프레임은 덮는 곳마다 화소 단위로 (52° 위, 프레임 가장자리는 부드럽게). 천장에 가까운 형광등은
+        # 띠마다 다른 자리에서 봐 비틀린 줄무늬가 되는데, 한 자리에서 찍은 천장 프레임은 곧게 보인다
+        zcap = float(getattr(opts, "video_zenith_from", 52.0) or 52.0)
+        zramp = _smooth((lat - zcap) / 8.0).astype(np.float32) if zsel else np.zeros(H, np.float32)
+        zr0 = int(np.nonzero(zramp > 0)[0][-1]) + 1 if zramp.any() else 0       # 위에서부터 zr0 줄까지가 천장 띠
+        Zcov = np.zeros((zr0, W), np.float32)
+
+        def zen_weight(px_, py_, okz_, cosang_, rows_sl):
+            ef = np.minimum(np.minimum(px_, w - 1 - px_), np.minimum(py_, h - 1 - py_)) / (0.07 * h)
+            return (_smooth(ef) * okz_ * zramp[rows_sl][:, None] * np.clip(cosang_, 0, 1) ** 8).astype(np.float32)
+        if zr0:
+            dzz = ps.eq_dirs(np.arange(W, dtype=np.float32)[None, :], np.arange(zr0, dtype=np.float32)[:, None], W, H)
+            for zk in zsel:
+                zx_, zy_, zok_ = ps.project(dzz, ps.Cam(Rc[zk], f_full, 0.0, w, h))
+                Zcov = np.maximum(Zcov, zen_weight(zx_, zy_, zok_, np.ones_like(zx_), slice(0, zr0)))
+            del dzz, zx_, zy_, zok_
+        wz = np.zeros(H, np.float32)
         band_w = {}
         if has_up:
             m = (lat >= p_up - vhalf) & (lat <= p_up + vhalf) & (lat >= floor)
@@ -824,7 +908,8 @@ def render_strip_spot(src, spot, out_dir, opts, prog, ps):
             band_w["down"] = np.where(m, np.maximum(1 - wu, 1e-3), 0.0).astype(np.float32)
         # 이음 띠 행: 두 바퀴를 따로 모은다 (본 누적에서는 뺀다)
         if has_up and has_dn:
-            trow = np.nonzero((lat >= mid - bw - 1.0) & (lat <= mid + bw + 1.0) & (band_w["up"] > 0) & (band_w["down"] > 0))[0]
+            top_ = max(mid + bw + 1.0, min(p_dn + vhalf - 1.0, mid + bw + 1.0 + float(getattr(opts, "video_move_band", 18.0))))
+            trow = np.nonzero((lat >= mid - bw - 1.0) & (lat <= top_) & (band_w["up"] > 0) & (band_w["down"] > 0))[0]
         else:
             trow = np.zeros(0, int)
         tv0, tv1 = (int(trow[0]), int(trow[-1]) + 1) if len(trow) else (0, 0)
@@ -841,20 +926,22 @@ def render_strip_spot(src, spot, out_dir, opts, prog, ps):
             id_e = np.concatenate([fs_, fs_, fs_])
             j = np.clip(np.searchsorted(ys_e, lon), 1, len(ys_e) - 1)
             y0, y1 = ys_e[j - 1], ys_e[j]
-            w1 = np.clip((lon - y0) / np.maximum(y1 - y0, 1e-6), 0, 1)
+            wl = np.clip((lon - y0) / np.maximum(y1 - y0, 1e-6), 0, 1)
             blend = float(getattr(opts, "strip_blend", 1.0) or 1.0)      # 두 프레임을 섞는 폭 (칸 간격 비율). 좁을수록 선명, 넓을수록 이음 부드러움
-            if blend < 0.999:
-                w1 = _smooth((w1 - 0.5) / max(0.05, blend) + 0.5)
-            colmap[bn] = (id_e[j - 1], id_e[j], w1.astype(np.float32))
+            w1 = _smooth((wl - 0.5) / max(0.05, blend) + 0.5) if blend < 0.999 else wl
+            colmap[bn] = (id_e[j - 1], id_e[j], w1.astype(np.float32), wl.astype(np.float32))
         need = {}
         for bn in bands:
-            k0, k1, _w1 = colmap[bn]
+            k0, k1, _w1, _wl = colmap[bn]
             for k in np.unique(np.concatenate([k0, k1])):
                 need.setdefault(int(k), []).append(bn)
         for zk in zsel:
             need.setdefault(int(zk), []).append("zen")
         acc = np.zeros((H, W, 3), np.float32)
         wsum = np.zeros((H, W), np.float32)
+        s_g = gw / float(w)                                       # 원본 px → 분석 px
+        Kf = _Kmat(f_full, w, h)
+        Kfi = np.linalg.inv(Kf)
         prog(5, f"{sid} 띠 {len(need)}개 그리는 중 ({W}×{H})")
         t_r = time.time()
         cap = cv2.VideoCapture(path)
@@ -871,38 +958,76 @@ def render_strip_spot(src, spot, out_dir, opts, prog, ps):
                     g = gain.get(idx, 1.0)
                     cam = ps.Cam(Rc[idx], f_full, 0.0, w, h)
                     gray_full = None
+                    jobs_ = []
                     for bn in need[idx]:
                         if bn == "zen":
-                            rows_ = np.nonzero(wz > 0)[0]
-                            if not len(rows_):
-                                continue
-                            runs = [(0, W)]
-                            colw = None
-                        else:
-                            k0, k1, w1 = colmap[bn]
-                            colw = np.where(k0 == idx, 1 - w1, 0) + np.where(k1 == idx, w1, 0)
-                            cols = np.nonzero(colw > 0)[0]
-                            rows_ = np.nonzero(band_w[bn] > 0)[0]
-                            if tv1 > tv0:
-                                rows_ = np.union1d(rows_, np.arange(tv0, tv1))
-                            if not len(cols) or not len(rows_):
+                            rows_ = np.arange(zr0)
+                            if len(rows_):
+                                jobs_.append((bn, None, rows_, [(0, W)], None))
+                            continue
+                        k0, k1, w1, wl = colmap[bn]
+                        rows_ = np.nonzero(band_w[bn] > 0)[0]
+                        if tv1 > tv0:
+                            rows_ = np.union1d(rows_, np.arange(tv0, tv1))
+                        if not len(rows_):
+                            continue
+                        for role, sel_ in (("L", k0 == idx), ("R", k1 == idx)):
+                            cols = np.nonzero(sel_ & ((1 - w1 if role == "L" else w1) > 0))[0]
+                            if not len(cols):
                                 continue
                             br = np.nonzero(np.diff(cols) > 1)[0]
                             starts = np.r_[cols[0], cols[br + 1]]
                             ends = np.r_[cols[br], cols[-1]] + 1
-                            runs = list(zip(starts.tolist(), ends.tolist()))
+                            jobs_.append((bn, role, rows_, list(zip(starts.tolist(), ends.tolist())), (k0, k1, w1, wl)))
+                    for bn, role, rows_, runs, cm in jobs_:
                         v0, v1 = int(rows_[0]), int(rows_[-1]) + 1
                         for (u0, u1) in runs:
                             us = np.arange(u0, u1, dtype=np.float32)
                             vs = np.arange(v0, v1, dtype=np.float32)
                             d = ps.eq_dirs(us[None, :], vs[:, None], W, H)
-                            px, py, okp = ps.project(d, cam)
+                            if role is None:
+                                px, py, okp = ps.project(d, cam)
+                                colw = None
+                            else:
+                                k0, k1, w1, wl = cm
+                                colw = (1 - w1) if role == "L" else w1
+                                m_ = wl[u0:u1][None, :].astype(np.float32)
+                                if role == "L":                              # 이 프레임 = 앞(a). a 에서 x − m·F(x)
+                                    pa_, pc_ = idx, int(k1[u0])
+                                    px, py, okp = ps.project(d, cam)
+                                    F = pflow.get((pa_, pc_))
+                                    if F is not None:
+                                        fx = cv2.remap(F[..., 0].astype(np.float32), (px * s_g - (gcx - CW)).astype(np.float32), (py * s_g).astype(np.float32), cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=0)
+                                        fy = cv2.remap(F[..., 1].astype(np.float32), (px * s_g - (gcx - CW)).astype(np.float32), (py * s_g).astype(np.float32), cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=0)
+                                        px = px - m_ * fx / s_g
+                                        py = py - m_ * fy / s_g
+                                else:                                        # 이 프레임 = 뒤(c). a 자리 x + (1−m)·F(x) 를 c 로 옮겨 뽑는다
+                                    pa_, pc_ = int(k0[u0]), idx
+                                    cam_a = ps.Cam(Rc[pa_], f_full, 0.0, w, h)
+                                    qx, qy, okq = ps.project(d, cam_a)
+                                    F = pflow.get((pa_, pc_))
+                                    if F is not None:
+                                        fx = cv2.remap(F[..., 0].astype(np.float32), (qx * s_g - (gcx - CW)).astype(np.float32), (qy * s_g).astype(np.float32), cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=0)
+                                        fy = cv2.remap(F[..., 1].astype(np.float32), (qx * s_g - (gcx - CW)).astype(np.float32), (qy * s_g).astype(np.float32), cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=0)
+                                        qx = qx + (1 - m_) * fx / s_g
+                                        qy = qy + (1 - m_) * fy / s_g
+                                    Hm_ = Kf @ Rc[idx].T @ Rc[pa_] @ Kfi
+                                    X = Hm_[0, 0] * qx + Hm_[0, 1] * qy + Hm_[0, 2]
+                                    Y = Hm_[1, 0] * qx + Hm_[1, 1] * qy + Hm_[1, 2]
+                                    Z = Hm_[2, 0] * qx + Hm_[2, 1] * qy + Hm_[2, 2]
+                                    Zs = np.where(Z > 1e-6, Z, 1e-6)
+                                    px, py = X / Zs, Y / Zs
+                                    okp = okq & (Z > 1e-6) & (px >= -0.5) & (px <= w - 0.5) & (py >= -0.5) & (py <= h - 0.5)
                             samp = cv2.remap(img, px.astype(np.float32), py.astype(np.float32), cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
                             if bn == "zen":
                                 cosang = d @ z_axes[idx].astype(np.float32)
-                                wgt = (np.clip(cosang, 0, 1) ** 40) * wz[v0:v1, None] * okp
+                                wgt = zen_weight(px, py, okp, cosang, slice(v0, v1))
                             else:
                                 wgt = colw[u0:u1][None, :] * band_w[bn][v0:v1, None] * okp
+                                if bn == "up" and v0 < zr0:                 # 천장 프레임이 덮는 만큼 띠를 덜 쓴다
+                                    zz1 = min(v1, zr0)
+                                    wgt = wgt.astype(np.float32)
+                                    wgt[:zz1 - v0] *= (1 - Zcov[v0:zz1, u0:u1])
                                 clip = samp.max(2) >= 250                 # 날아간 화소: 다른 바퀴가 덮으면 그쪽을 쓴다 (유사 HDR)
                                 if has_up and has_dn and clip.any():
                                     wgt = np.where(clip, wgt * 1e-4, wgt)
@@ -927,6 +1052,7 @@ def render_strip_spot(src, spot, out_dir, opts, prog, ps):
         del acc
         # ── 이음 띠: 위 바퀴 ↔ 아래 바퀴 광류로 반씩 맞춰 섞는다 (손목 축 시차·남은 자세 오차)
         seam, seam_raw = [], []
+        moving_px, n_moving, row_gain, n_clone = 0, 0, None, 0
         if tv1 > tv0:
             prog(88, f"{sid} 위·아래 바퀴 이음 맞추는 중")
             U_ = accT["up"] / np.maximum(wT["up"], 1e-6)[..., None]
@@ -945,7 +1071,8 @@ def render_strip_spot(src, spot, out_dir, opts, prog, ps):
                             F[..., 1] + cv2.remap(Fb, gx + F[..., 0], gy + F[..., 1], cv2.INTER_LINEAR)[..., 1])
             corner = cv2.cornerMinEigenVal(gu, 7, 3) > ps.CORNER_MIN
             both_s = cv2.resize((vu & vd).astype(np.uint8), (ww, hh), interpolation=cv2.INTER_NEAREST) > 0
-            selm = both_s & corner & (cons < 1.5)
+            lat_t0 = cv2.resize(lat[tv0:tv1].astype(np.float32)[:, None], (1, hh), interpolation=cv2.INTER_LINEAR)
+            selm = both_s & corner & (cons < 1.5) & (np.abs(lat_t0 - mid) <= bw + 1.0)
             if selm.sum() > 30:
                 seam_raw = (np.hypot(F[..., 0], F[..., 1])[selm] * sc * 360.0 / W).tolist()
             F = np.where(cons[..., None] < 3.0, F, 0).astype(np.float32)
@@ -953,13 +1080,77 @@ def render_strip_spot(src, spot, out_dir, opts, prog, ps):
             np.clip(F, -40.0 / sc, 40.0 / sc, out=F)
             Ff = cv2.resize(F, (W, hT), interpolation=cv2.INTER_LINEAR) * sc
             wrow = wu[tv0:tv1].astype(np.float32)[:, None]      # 위 바퀴 가중
+            # 움직인 물체(지나가는 사람): 광류로 맞춘 뒤에도 두 바퀴가 크게 다른 덩어리는 아래 바퀴로 통째로 —
+            # 사람은 바닥에 서 있어 몸이 아래 바퀴에만 보이는 줄에 걸치므로, 아래 바퀴를 쓰면 '몸 전체' 아니면 '없음'이 된다
+            # (위 바퀴 머리 + 아래 바퀴 빈 몸 = 떠 있는 머리, 실촬영 cfb5229d s02). 날아간 화소도 아래 바퀴가 멀쩡하면 아래로
+            gdw = cv2.remap(gd, gx + F[..., 0], gy + F[..., 1], cv2.INTER_LINEAR)
+            # 무늬(고주파) 차이로 찾는다 — 화이트보드·유리처럼 보는 각도에 따라 밝기만 다른 곳은 빼고, 사람 윤곽·옷 무늬는 잡는다
+            gu_f, gd_f = gu.astype(np.float32), gdw.astype(np.float32)
+            hp_u = gu_f - cv2.GaussianBlur(gu_f, (0, 0), 6.0)
+            hp_d = gd_f - cv2.GaussianBlur(gd_f, (0, 0), 6.0)
+            dtex = cv2.GaussianBlur(np.abs(hp_u - hp_d), (0, 0), 3.0)
+            dlum = np.abs(cv2.GaussianBlur(gu_f, (0, 0), 2.0) - cv2.GaussianBlur(gd_f, (0, 0), 2.0))
+            wr_s = cv2.resize(np.broadcast_to(wrow, (hT, 1)).astype(np.float32), (1, hh), interpolation=cv2.INTER_LINEAR)
+            thr = float(getattr(opts, "video_move_diff", 28.0))
+            dlow = np.abs(cv2.GaussianBlur(gu_f, (0, 0), 5.0) - cv2.GaussianBlur(gd_f, (0, 0), 5.0))     # 사람은 둘레와 밝기·색이 달라 흐려도 남는다
+            Mv = ((dlow > thr) & (dlum > thr) & both_s & (wr_s > 0.02)).astype(np.uint8)
+            Mv = cv2.morphologyEx(Mv, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+            Mv = cv2.morphologyEx(Mv, cv2.MORPH_CLOSE, np.ones((15, 15), np.uint8))
+            n_, lab_, st_, _c = cv2.connectedComponentsWithStats(Mv, connectivity=8)
+            min_area = max(60, int(0.6 * (W / 360.0 / sc) ** 2 * 4))          # 약 2°×2° 보다 작은 점은 무시
+            keep_ = np.zeros(n_, bool)
+            keep_[1:] = st_[1:, cv2.CC_STAT_AREA] >= min_area
+            Mv = keep_[lab_].astype(np.uint8)
+            cnts, _h = cv2.findContours(Mv, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)       # 덩어리 안 구멍 메우기 (머리카락처럼 무늬 없는 속)
+            if cnts:
+                cv2.drawContours(Mv, cnts, -1, 1, thickness=cv2.FILLED)
+            Mv = cv2.dilate(Mv, np.ones((7, 7), np.uint8))
+            moving_px = int(Mv.sum()) * sc * sc
+            n_moving = int(keep_.sum())
+            # 덩어리는 따로: 360° 끝에 걸친 것만 부드럽게 바꾸고, 나머지는 아래에서 포아송 붙이기(seamlessClone)
+            n2_, lab2_, st2_, _c2 = cv2.connectedComponentsWithStats(Mv, connectivity=8)
+            wrapc = np.zeros(n2_, bool)
+            for ci in range(1, n2_):
+                x_, w_ = st2_[ci, cv2.CC_STAT_LEFT], st2_[ci, cv2.CC_STAT_WIDTH]
+                wrapc[ci] = x_ <= 2 or x_ + w_ >= ww - 2
+            Mwrap = wrapc[lab2_].astype(np.float32)
+            Mf = cv2.GaussianBlur(Mwrap, (0, 0), 2.0)
+            Mf = np.clip(cv2.resize(Mf, (W, hT), interpolation=cv2.INTER_LINEAR) * 2.0, 0, 1)
+            clipU = U_.max(2) >= 250
+            clipD = D_.max(2) >= 250
+            Mf = np.maximum(Mf, (clipU & ~clipD & vd).astype(np.float32))
+            # 줄마다 두 바퀴 밝기 비 (비네팅: 같은 곳을 위 바퀴는 화면 아래쪽, 아래 바퀴는 위쪽에서 본다) → 위 바퀴가 주인인 줄에서 아래 바퀴를 맞춘다
+            okm = both_s & (Mv == 0) & (gu > 20) & (gu < 235) & (gdw > 20) & (gdw < 235)
+            rr_ = np.ones(hh, np.float32)
+            for yy in range(hh):
+                mm_ = okm[yy]
+                if mm_.sum() > ww * 0.05:
+                    rr_[yy] = float(np.median(gu_f[yy][mm_] / np.maximum(gd_f[yy][mm_], 1.0)))
+            rr_ = np.clip(cv2.GaussianBlur(rr_.reshape(-1, 1), (0, 0), 4.0).ravel() if hh > 8 else rr_, 0.8, 1.25)
+            rr_full = cv2.resize(rr_.reshape(-1, 1), (1, hT), interpolation=cv2.INTER_LINEAR).ravel()
+            sD = (1 + (rr_full - 1) * wrow[:, 0]).astype(np.float32)
+            D_ = D_ * sD[:, None, None]
+            row_gain = [round(float(rr_.min()), 3), round(float(rr_.max()), 3)]
+            ntop = max(2, int(round(1.0 / (180.0 / H))))           # 맨 위 1° 는 서서히 (아래 바퀴가 못 본 위쪽과 이어지게)
+            Mf[:ntop] *= np.linspace(0, 1, ntop, dtype=np.float32)[:, None]
             X, Y = np.meshgrid(np.arange(W, dtype=np.float32), np.arange(hT, dtype=np.float32))
             Uw = cv2.remap(U_.astype(np.float32), X - (1 - wrow) * Ff[..., 0], Y - (1 - wrow) * Ff[..., 1], cv2.INTER_LINEAR, borderMode=cv2.BORDER_WRAP)
             Dw = cv2.remap(D_.astype(np.float32), X + wrow * Ff[..., 0], Y + wrow * Ff[..., 1], cv2.INTER_LINEAR, borderMode=cv2.BORDER_WRAP)
             vuw = cv2.remap(vu.astype(np.float32), X - (1 - wrow) * Ff[..., 0], Y - (1 - wrow) * Ff[..., 1], cv2.INTER_NEAREST, borderMode=cv2.BORDER_WRAP) > 0.5
             vdw = cv2.remap(vd.astype(np.float32), X + wrow * Ff[..., 0], Y + wrow * Ff[..., 1], cv2.INTER_NEAREST, borderMode=cv2.BORDER_WRAP) > 0.5
-            wa = np.where(vuw, np.broadcast_to(wrow, vuw.shape), 0.0)
-            wb = np.where(vdw, 1 - np.broadcast_to(wrow, vdw.shape), 0.0)
+            if getattr(opts, "debug", False):                 # 이음 띠 점검: 위 바퀴 / 아래 바퀴 / 바꾼 곳
+                dd_ = os.path.join(out_dir, sid)
+                os.makedirs(dd_, exist_ok=True)
+                cv2.imwrite(os.path.join(dd_, "debug_band_up.jpg"), np.clip(U_, 0, 255).astype(np.uint8)[::2, ::2])
+                cv2.imwrite(os.path.join(dd_, "debug_band_down.jpg"), np.clip(D_, 0, 255).astype(np.uint8)[::2, ::2])
+                cv2.imwrite(os.path.join(dd_, "debug_band_move.png"), (Mv * 255).astype(np.uint8))
+            # 바꾼 곳은 아래 바퀴를 광류 없이 그대로 (움직인 물체·반복 무늬에서 광류는 엉터리라 물결이 생긴다)
+            mfc = np.clip(Mf, 0, 1)[..., None]
+            Dw = Dw * (1 - mfc) + D_.astype(np.float32) * mfc
+            vdw = vdw | ((Mf > 0.5) & vd)
+            wrb = np.broadcast_to(wrow, vuw.shape)
+            wa = np.where(vuw, wrb * (1 - Mf), 0.0)
+            wb = np.where(vdw, (1 - wrb) + wrb * Mf, 0.0)
             ws_ = wa + wb
             out = (Uw * wa[..., None] + Dw * wb[..., None]) / np.maximum(ws_, 1e-6)[..., None]
             cov_t = ws_ > 1e-6
@@ -967,6 +1158,37 @@ def render_strip_spot(src, spot, out_dir, opts, prog, ps):
             blk[cov_t] = np.clip(out[cov_t] + 0.5, 0, 255).astype(np.uint8)
             eq[tv0:tv1] = blk
             covered[tv0:tv1] |= cov_t
+            del out
+            # 움직인 물체 덩어리: 아래 바퀴를 포아송 붙이기 — 가장자리 밝기가 둘레와 꼭 맞아 화이트보드·유리의 밝기 차이가 '조각'으로 안 보인다
+            D8 = np.clip(D_ + 0.5, 0, 255).astype(np.uint8)
+            pad = 12
+            n_clone = 0
+            for ci in range(1, n2_):
+                if wrapc[ci]:
+                    continue
+                x_, y_, w_, h_ = (int(v_) for v_ in st2_[ci, :4])
+                mk = cv2.resize((lab2_[y_:y_ + h_, x_:x_ + w_] == ci).astype(np.uint8), (w_ * sc, h_ * sc), interpolation=cv2.INTER_NEAREST)
+                Y0, X0 = y_ * sc, x_ * sc
+                Y1, X1 = min(hT, Y0 + mk.shape[0]), min(W, X0 + mk.shape[1])
+                mk = mk[:Y1 - Y0, :X1 - X0] & vd[Y0:Y1, X0:X1].astype(np.uint8)
+                mk[: max(0, ntop - Y0)] = 0                      # 맨 위 1° 는 붙이지 않음 (위쪽과 이어짐)
+                if mk.sum() < 64:
+                    continue
+                R0, R1, C0, C1 = tv0 + Y0 - pad, tv0 + Y1 + pad, X0 - pad, X1 + pad
+                if R0 < 0 or R1 > H or C0 < 0 or C1 > W:
+                    continue
+                dst = eq[R0:R1, C0:C1].copy()
+                src = dst.copy()
+                src[pad:pad + (Y1 - Y0), pad:pad + (X1 - X0)][mk > 0] = D8[Y0:Y1, X0:X1][mk > 0]
+                mcrop = np.zeros(dst.shape[:2], np.uint8)
+                mcrop[pad:pad + (Y1 - Y0), pad:pad + (X1 - X0)] = mk * 255
+                bx, by, bw_, bh_ = cv2.boundingRect(mcrop)
+                try:
+                    eq[R0:R1, C0:C1] = cv2.seamlessClone(src, dst, mcrop, (bx + bw_ // 2, by + bh_ // 2), cv2.NORMAL_CLONE)
+                    n_clone += 1
+                except cv2.error:
+                    pass
+            del D8
             # 맞춘 뒤 어긋남 (가운데 줄 기준: 반씩 옮긴 두 바퀴 사이)
             Um = cv2.remap(U_.astype(np.float32), X - 0.5 * Ff[..., 0], Y - 0.5 * Ff[..., 1], cv2.INTER_LINEAR, borderMode=cv2.BORDER_WRAP)
             Dm = cv2.remap(D_.astype(np.float32), X + 0.5 * Ff[..., 0], Y + 0.5 * Ff[..., 1], cv2.INTER_LINEAR, borderMode=cv2.BORDER_WRAP)
@@ -976,10 +1198,12 @@ def render_strip_spot(src, spot, out_dir, opts, prog, ps):
             R2 = dm.calc(g2, g1, None)
             cons2 = np.hypot(R1[..., 0] + cv2.remap(R2, gx + R1[..., 0], gy + R1[..., 1], cv2.INTER_LINEAR)[..., 0],
                              R1[..., 1] + cv2.remap(R2, gx + R1[..., 0], gy + R1[..., 1], cv2.INTER_LINEAR)[..., 1])
-            sel2 = both_s & (cv2.cornerMinEigenVal(g1, 7, 3) > ps.CORNER_MIN) & (cons2 < 1.5)
+            lat_t = cv2.resize(lat[tv0:tv1].astype(np.float32)[:, None], (1, hh), interpolation=cv2.INTER_LINEAR)
+            inb = np.abs(lat_t - mid) <= bw + 1.0
+            sel2 = both_s & inb & (cv2.cornerMinEigenVal(g1, 7, 3) > ps.CORNER_MIN) & (cons2 < 1.5) & (Mv[:hh, :ww] == 0)
             if sel2.sum() > 30:
                 seam = (np.hypot(R1[..., 0], R1[..., 1])[sel2] * sc * 360.0 / W).tolist()
-            del accT, wT, U_, D_, Uw, Dw, X, Y, Ff
+            del accT, wT, U_, D_, Uw, Dw, X, Y, Ff, Mf
         # ── 품질: 위·아래 바퀴 이음(맞춘 뒤) + 띠 경계 잔차
         strip_deg = [r / f_g / D2R for r in strip_res]
         # 등급은 더 나쁜 쪽으로: 위·아래 바퀴 이음(맞춘 뒤)과 이웃 띠 사이 잔차(시차·자세 오차 — 섞이면 살짝 흐려짐)
@@ -998,7 +1222,7 @@ def render_strip_spot(src, spot, out_dir, opts, prog, ps):
             eq = cv2.addWeighted(eq, 1 + amt, bl, -amt, 0)
             del bl
         prog(90, f"{sid} 바닥·천장 메우는 중")
-        eq, nadir_r = ps.fill_pole(eq, covered, "nadir", opts.nadir, opts.nadir_radius, cut_deg=(90 - opts.floor_cut) if opts.floor_cut > 0 else 0)
+        eq, nadir_r = ps.fill_pole(eq, covered, "nadir", opts.nadir, opts.nadir_radius, cut_deg=(90 - vfc) if vfc > 0 else 0)
         if not covered[: max(1, H // 18)].all():
             eq, _ = ps.fill_pole(eq, covered, "zenith", "blur", 0)
         eq = ps.fill_small_holes(eq, covered)
@@ -1022,6 +1246,8 @@ def render_strip_spot(src, spot, out_dir, opts, prog, ps):
             "seam_deg_med": None if s_med is None else round(s_med, 2), "seam_deg_p90": None if s_p90 is None else round(s_p90, 2),
             "rowseam_deg_med": round(float(np.median(seam)), 3) if seam else None, "rowseam_deg_p90": round(float(np.percentile(seam, 90)), 3) if seam else None,
             "rowseam_raw_deg_med": round(float(np.median(seam_raw)), 3) if seam_raw else None, "rowseam_raw_deg_p90": round(float(np.percentile(seam_raw, 90)), 3) if seam_raw else None,
+            "strip_raw_deg_med": round(float(np.median(strip_raw)) / f_g / D2R, 3) if strip_raw else None,
+            "strip_raw_deg_p90": round(float(np.percentile(strip_raw, 90)) / f_g / D2R, 3) if strip_raw else None,
             "strip_deg_med": round(float(np.median(strip_deg)), 3) if strip_deg else None,
             "strip_deg_p90": round(float(np.percentile(strip_deg, 90)), 3) if strip_deg else None,
             "guards": ([] if sync_score >= 0.5 else ["sync_weak"]),
@@ -1033,7 +1259,8 @@ def render_strip_spot(src, spot, out_dir, opts, prog, ps):
             images.append({"file": f"{name}#{k}", "q": [round(float(a), 6) for a in ps.R_to_quat(Rc[k])], "yaw": round(y_, 2), "pitch": round(p_, 2), "roll": round(r_, 2),
                            "band": "zen" if k in zsel else ("up" if k in up_set else "down"), "gain": round(gain.get(k, 1.0), 3)})
         video_info = {
-            "render": "strip", "file": name, "frames": len(fr), "decoded_size": [int(w0), int(h0)], "size": [int(w), int(h)], "rotate_deg": rk * 90,
+            "render": "strip", "file": name, "turns_used": turns_used, "morph": use_morph, "moving_regions": n_moving, "moving_px": moving_px, "moving_cloned": n_clone, "band_row_gain": row_gain, "zenith_from_deg": zcap if zsel else None, "zenith_cover": round(float(Zcov.mean()), 3) if zr0 else None,
+            "band_windows": {bn: b.get("window") for bn, b in bands.items()}, "band_span_deg": {bn: round(b.get("span", 0), 1) for bn, b in bands.items()}, "frames": len(fr), "decoded_size": [int(w0), int(h0)], "size": [int(w), int(h)], "rotate_deg": rk * 90,
             "fps": round(1000.0 / max(1e-3, float(np.median(np.diff(t)))), 2), "dur_s": round((t[-1] - t[0]) / 1000.0, 2),
             "sync_ms": round(delta, 1), "sync_score": round(float(sync_score), 3), "strip_step_deg": step,
             "strips": {bn: int(len(b["frames"])) for bn, b in bands.items()}, "zenith_frames": len(zsel),
