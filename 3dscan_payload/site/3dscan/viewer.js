@@ -993,6 +993,17 @@ require([
   window.openUtilReport = function() {
     if (_utilInfo && _utilInfo.report) window.open(_utilInfo.report, "_blank");
   };
+  // 🔗 매물 공유 페이지 (tour.html, docs/share_contract.md 3절): VR 투어가 있는 기록(같은 장소 기록 포함)에서 연다.
+  // 이 기기에 그 VR 작업의 관리 키가 있으면 #key= 를 붙여 편집 모드로 연다 (키는 주소의 # 뒤라 서버로 가지 않는다)
+  function panoJobId() {
+    const m = _panoInfo && String(_panoInfo.url || "").match(/([0-9a-f]{8})_pano\/tour\.json/);
+    return m ? m[1] : null;
+  }
+  window.openTourShare = function() {
+    const job = panoJobId(); if (!job) return;
+    const key = typeof editKeyFor === "function" ? editKeyFor(job) : null;
+    window.open(`tour.html?job=${job}` + (key ? `#key=${encodeURIComponent(key)}` : ""), "_blank", "noopener");
+  };
   function setupViewerTabs(attrs) {
     removeSplatFrame();
     removeOrthoOverlay();
@@ -1032,6 +1043,13 @@ require([
     if (g("btnSplatOpen")) g("btnSplatOpen").style.display = glb ? "none" : "";
     if (g("btnOrthoMap"))  g("btnOrthoMap").style.display  = ortho ? "" : "none";
     if (g("btnUtilReport")) g("btnUtilReport").style.display = _utilInfo && _utilInfo.report ? "" : "none";
+    if (g("btnTourShare")) {
+      const job = panoJobId();
+      g("btnTourShare").style.display = job ? "" : "none";
+      if (job) g("btnTourShare").title = (typeof editKeyFor === "function" && editKeyFor(job))
+        ? "매물 공유 페이지 — 링크·QR·삽입 코드, 이 기기에 관리 키가 있어 평면도 배치·설명 표시를 고칠 수 있어요"
+        : "매물 공유 페이지 — 링크·QR 코드·다른 사이트 삽입 코드";
+    }
     const badge = document.querySelector(".viewer-badge");
     if (badge) badge.textContent = splat ? "Gaussian Splat · 3DGS Viewer" : ortho ? "Orthophoto · 정사영상" :
       util ? "Underground Utilities · 지하시설물" : pano ? "VR Tour · VR 투어" : plan ? "Floor Plan · 평면도" : "3D Object · GLB Viewer";
