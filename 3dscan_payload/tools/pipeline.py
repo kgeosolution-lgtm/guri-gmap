@@ -23,6 +23,20 @@ import zipfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 CFG = json.load(open(os.environ.get("KGEOSCAN_CONFIG", r"D:\kgeoHub\config\kgeoscan.json"), "r", encoding="utf-8"))
 T0 = time.time()
+_SHARE_EVERYONE = True          # Portal Scene·SLPK 아이템을 모두에게 공유할지 (공개 범위 public 일 때만, main 에서 정함)
+VISIBILITIES = ("public", "link", "private")
+
+
+def current_visibility(meta):
+    """지금의 공개 범위 (docs/share_contract.md 1절). edit.py 가 처리 중에 바꿀 수 있어 job.json 을 다시 읽는다.
+    필드가 없는 예전 작업은 public (지금까지처럼 지도에 나온다)"""
+    v = meta.get("visibility")
+    try:
+        with open(os.path.join(meta["job_dir"], "job.json"), "r", encoding="utf-8") as f:
+            v = json.load(f).get("visibility", v)
+    except Exception:
+        pass
+    return v if v in VISIBILITIES else "public"
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # 러너가 UTF-8 로 읽는다 (cp949 깨짐 방지)
 
 
@@ -751,7 +765,7 @@ def step_publish(slpk, service_name, title):
     for iid in [i for i in (slpk_item_id, scene_item_id) if i]:
         try:
             http_json(f"{portal}/sharing/rest/content/users/{user}/items/{iid}/share",
-                      {"everyone": "true", "org": "true", "f": "json", "token": token})
+                      {"everyone": "true" if _SHARE_EVERYONE else "false", "org": "true", "f": "json", "token": token})
         except Exception as e:
             log(f"공유 설정 생략 ({iid}): {e}")
     try:
@@ -807,12 +821,16 @@ def step_publish_rest(slpk, service_name, title):
     scene_url = scene.get("url", "")
     for iid in (slpk_item_id, scene_item_id):
         http_json(f"{portal}/sharing/rest/content/users/{user}/items/{iid}/share",
-                  {"everyone": "true", "org": "true", "f": "json", "token": token})
+                  {"everyone": "true" if _SHARE_EVERYONE else "false", "org": "true", "f": "json", "token": token})
     log(f"Scene 아이템: {scene_item_id} → {scene_url}")
     return slpk_item_id, scene_item_id, scene_url
 
 
 def step_register(meta, las_info, glb_url, slpk_item_id, scene_item_id, scene_url, thumb_url="", ortho_url="", pano_url=""):
+    vis = current_visibility(meta)
+    if vis != "public":                                   # 링크 공유·비공개: 지도·목록에 넣지 않는다 (산출물은 그대로 서빙)
+        log(f"공개 범위 {vis}: 지도(scan_points) 등록 안 함")
+        return None
     layer = CFG["points_layer_url"]
     token = get_token(CFG["server_url"])
     info = http_json(layer, {"f": "json", "token": token})
@@ -1011,6 +1029,83 @@ def pano_job(meta, q, out_dir, job_id):
     log(f"VR 투어 작업 완료 {round(time.time() - T0, 1)}s")
 
 
+def step_delete_point(oid):
+    layer = CFG["points_layer_url"]
+    token = get_token(CFG["server_url"])
+    out = http_json(layer + "/deleteFeatures", {"objectIds": str(int(oid)), "f": "json", "token": token})
+    res = (out.get("deleteResults") or [{}])[0]
+    if not res.get("success"):
+        raise RuntimeError("scan_points 삭제 실패: " + str(res.get("error")))
+    log(f"scan_points OID {oid} 삭제 (공개 범위 바뀜)")
+
+
+def share_scene_items(item_ids, everyone):
+    user, portal = CFG["portal_user"], CFG["portal_url"]
+    token = get_token(portal)
+    for iid in [i for i in item_ids if i]:
+        try:
+            http_json(f"{portal}/sharing/rest/content/users/{user}/items/{iid}/share",
+                      {"everyone": "true" if everyone else "false", "org": "true", "f": "json", "token": token})
+            log(f"Portal 아이템 {iid} 공유: {'모두' if everyone else '조직만'}")
+        except Exception as e:
+            log(f"공유 설정 생략 ({iid}): {e}")
+
+
+def _las_info_for(meta, result):
+    """다시 등록할 때의 좌표: 처리 결과(pipeline_result.json)의 las, 없으면 업로드 위치(georef)"""
+    if isinstance(result.get("las"), dict) and result["las"].get("coord_x") is not None:
+        return result["las"]
+    g = meta.get("georef") or {}
+    from pyproj import Transformer
+    x, y = Transformer.from_crs("EPSG:4326", f"EPSG:{CFG.get('utm_epsg', 32652)}", always_xy=True).transform(g["lon"], g["lat"])
+    z = float(g.get("elev", 0.0))
+    return dict(points=0, coord_x=x, coord_y=y, coord_z=z, bbox=[x, y, z, x, y, z])
+
+
+def visibility_sync(meta, q, resume=True):
+    """큐 kind=visibility_sync (edit.py 가 넣음) 또는 처리 중 바뀐 공개 범위 따라잡기:
+    public 인데 점이 없으면 scan_points 에 등록, public 이 아닌데 점이 있으면 지운다. Portal Scene 아이템 공유도 맞춘다.
+    공개 상태에서 제목이 바뀌었으면 점의 scan_title 도 고친다. 끝나면 원래 상태(resume_*)로 되돌린다"""
+    qd = q.read()
+    vis = current_visibility(meta)
+    oid = qd.get("objectid")
+    upd, err = {}, None
+    try:
+        result = {}
+        rp = os.path.join(meta["job_dir"], "out", "pipeline_result.json")
+        if os.path.exists(rp):
+            result = json.load(open(rp, "r", encoding="utf-8"))
+        if not CFG.get("portal_enabled", True):
+            log("portal_enabled=false: 공개 범위 지도 반영 건너뜀 (로컬 시험)")
+        elif vis == "public" and not oid:
+            oid = step_register(meta, _las_info_for(meta, result), qd.get("glb_url") or result.get("glb_url") or "",
+                                result.get("slpk_item_id") or "", qd.get("scene_item_id") or result.get("scene_item_id") or "",
+                                result.get("scene_url") or "", qd.get("thumb_url") or "", qd.get("ortho_url") or "",
+                                pano_url=qd.get("pano_url") or "")
+            upd["objectid"] = oid
+            if oid and qd.get("splat_url"):
+                try:
+                    step_update_point(oid, {"splat_url": qd["splat_url"]})
+                except Exception as e:
+                    log(f"splat_url 반영 생략: {e}")
+        elif vis != "public" and oid:
+            step_delete_point(oid)
+            upd["objectid"] = None
+        elif vis == "public" and oid and qd.get("title"):
+            step_update_point(oid, {"scan_title": qd["title"]})
+        if CFG.get("portal_enabled", True) and (qd.get("scene_item_id") or result.get("slpk_item_id")):
+            share_scene_items([qd.get("scene_item_id") or result.get("scene_item_id"), result.get("slpk_item_id")], vis == "public")
+        log(f"공개 범위 반영: {vis} (objectid {upd.get('objectid', oid)})")
+    except Exception as e:
+        err = str(e)[:300]
+        log(f"공개 범위 반영 실패: {err}")
+    fix = dict(visibility=vis, visibility_sync_pending=False, visibility_sync_error=err, **upd)
+    if resume:
+        fix.update(kind=None, status=qd.get("resume_status") or "done", step=qd.get("resume_step") if qd.get("resume_step") is not None else 7,
+                   message=qd.get("resume_message") or "처리 완료", resume_status=None, resume_step=None, resume_message=None)
+    q.update(**fix)
+
+
 def rebuild_glb(meta, q):
     """대기열 항목 kind=rebuild_glb: 끝난 Stray 스캔을 지금의 워커로 다시 처리해 서빙 GLB(+면 촬영 정사영상)만 바꾼다.
     Portal Scene·LAS·점 속성은 그대로(같은 glb_url). out → out_prev 로 한 세대만 남긴다.
@@ -1038,6 +1133,16 @@ def main():
     meta_path, queue_path = sys.argv[1], sys.argv[2]
     meta = json.load(open(meta_path, "r", encoding="utf-8"))
     q = Queue(queue_path)
+    global _SHARE_EVERYONE
+    _SHARE_EVERYONE = current_visibility(meta) == "public"
+    if q.read().get("kind") == "visibility_sync":           # 공개 범위·제목 바꿈 (edit.py, docs/share_contract.md 2절)
+        return visibility_sync(meta, q)
+    run_job(meta, q)
+    if q.read().get("visibility_sync_pending"):              # 처리 중에 공개 범위가 바뀌었다 → 끝난 뒤 지도 반영을 맞춘다
+        visibility_sync(meta, q, resume=False)
+
+
+def run_job(meta, q):
     if q.read().get("kind") == "rebuild_glb":
         return rebuild_glb(meta, q)
     if q.read().get("kind") == "trench_post":                # 웹 굴착 기록: GPU 실측 묶음이 들어온 뒤 (splat_jobs.py op=upload|bundle)

@@ -12,7 +12,11 @@ POST /app/3dupload/upload.py  (multipart/form-data)
   mode=pano (VR 투어, docs/pano_contract.md 1절): pano_file (pano_spots.zip: spots.json + sNN/NNNN.jpg), lon, lat (필수),
              spot_count, shot_count (참고). 서버가 지점마다 360° 등장방형을 만든다 (pipeline → worker/pano_stitch.py)
 
-응답: {"job_id": "..."}  또는 {"error": "..."}
+  공개 범위(모든 모드, docs/share_contract.md 1절): visibility = public | link(기본) | private
+             link·private 은 지도(scan_points)·최근 목록에 나오지 않고 링크(?job=)로만 연다
+
+응답: {"job_id": "...", "visibility": "...", "edit_key": "..."}  또는 {"error": "..."}
+     edit_key(관리 키)는 이 응답으로 한 번만 나간다 — 서버에는 SHA-256 해시만 남긴다 (중복 업로드 응답에는 없음)
 중복 방지: 같은 제목·같은 원본 파일 이름으로 24시간 안에 만든 작업(실패 제외)이 있으면 새로 만들지 않고 그 job_id 를 돌려준다
           (앱의 백그라운드 전송이 재시도돼 같은 녹화가 여러 번 올라오는 경우).
 작업 폴더: <data_root>\<job_id>\  (업로드 원본 + job.json)
@@ -35,7 +39,7 @@ import zipfile
 # IIS 에서 HTTP/2 요청일 때 stdin/stdout 에 setmode 를 부르면 응답이 끊기고(RST), GET 에서는 502 가 났다.
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # python -I 에서도 common.py 를 찾도록
-from common import load_config, respond  # noqa: E402
+from common import VISIBILITIES, hash_edit_key, job_visibility, load_config, new_edit_key, respond  # noqa: E402
 
 MAX_TITLE = 100
 MAX_BODY = 1024 * 1024 * 1024  # 1 GB (web.config 의 maxAllowedContentLength 와 맞춤)
@@ -266,6 +270,9 @@ def main():
         else:
             area = area or {"mode": 1, "surface": "floor"}   # LiDAR 녹화만: 위에서 본 정사영상·깊이 지도
     permit = parse_permit(fields)
+    visibility = (fields.get("visibility") or "link").strip().lower()
+    if visibility not in VISIBILITIES:
+        return respond({"error": "visibility 는 public, link, private 중 하나"}, "400 Bad Request")
 
     # 관리 대상(장소): site_id 가 있으면 그 장소, 없고 site_name 만 있으면(앱이 오프라인에서 고른 새 장소) 여기서 만든다
     site_id = None
@@ -298,7 +305,9 @@ def main():
     client_id = (fields.get("client_id") or "")[:64]
     dup = find_recent_duplicate(cfg, title, mode, source_name, client_id)
     if dup:
-        return respond({"job_id": dup["job_id"], "mode": mode, "scan_type": dup.get("scan_type", scan_type), "duplicate": True})
+        # 중복: 같은 작업 번호만 돌려준다 (관리 키는 처음 응답에서만 — 새 키를 만들거나 다시 내주지 않는다)
+        return respond({"job_id": dup["job_id"], "mode": mode, "scan_type": dup.get("scan_type", scan_type), "duplicate": True,
+                        "visibility": job_visibility(dup)})
 
     job_id = uuid.uuid4().hex[:8]
     job_dir = os.path.join(cfg["data_root"], job_id)
@@ -309,8 +318,10 @@ def main():
         "job_id": job_id, "title": title, "note": note, "mode": mode, "scan_type": scan_type, "job_dir": job_dir,
         "author": cfg.get("portal_user", ""), "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "splat_requested": splat_requested, "object": obj, "area": area, "site_id": site_id, "trench": trench,
-        "permit": permit,
+        "permit": permit, "visibility": visibility,
     }
+    edit_key = new_edit_key()
+    meta["edit_key_sha256"] = hash_edit_key(edit_key)
     try:
         if trench and web3d:                  # 웹 굴착 기록 부속 파일 (선택)
             trench["sensors_path"] = save_trench_json(files.get("sensors_file"), job_dir, "sensors_file")
@@ -394,13 +405,15 @@ def main():
     queue = {"job_id": job_id, "title": title, "job_dir": job_dir, "mode": mode, "scan_type": scan_type,
              "source_name": source_name, "client_id": client_id, "app": (fields.get("app") or "")[:60],
              "splat_requested": splat_requested, "object": obj, "area": area, "site_id": site_id, "trench": q_trench,
+             "visibility": visibility,
              "status": "pending", "step": 0, "message": "대기 중", "created_at": meta["created_at"]}
     if pano:
         queue.update(pano_status="pending", pano_message="VR 투어 만들기 대기 중", pano=meta.get("pano"))
     with open(os.path.join(cfg["jobs_dir"], job_id + ".json"), "w", encoding="utf-8") as f:
         json.dump(queue, f, ensure_ascii=False, indent=2)
     respond({"job_id": job_id, "mode": mode, "scan_type": scan_type, "object_mode": bool(obj), "site_id": site_id,
-             "trench": q_trench, "permit": bool(permit), **({"pano": meta.get("pano")} if pano else {})})
+             "trench": q_trench, "permit": bool(permit), "visibility": visibility, "edit_key": edit_key,
+             **({"pano": meta.get("pano")} if pano else {})})
 
 
 if __name__ == "__main__":

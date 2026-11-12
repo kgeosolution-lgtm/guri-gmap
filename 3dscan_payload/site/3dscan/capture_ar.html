@@ -148,6 +148,15 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
 .pmain{font-size:15px;font-weight:600;margin-bottom:8px}
 .errbox{margin-top:12px;padding:10px 12px;border-radius:8px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.32);color:#fca5a5;font-size:14px}
 .jobline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--text2)}
+/* 공개 범위·관리 링크 (docs/share_contract.md 1·2절) */
+.vis{display:grid;gap:6px;margin-top:4px}
+.visopt{display:flex;gap:10px;align-items:flex-start;padding:9px 11px;border:1px solid var(--border);border-radius:10px;background:var(--s2);cursor:pointer}
+.visopt input{margin-top:3px;flex:none}
+.visopt b{font-size:14px;color:var(--text)}
+.visopt small{display:block;font-size:12.5px;color:var(--text3);margin-top:2px;line-height:1.4}
+.visopt:has(input:checked){border-color:var(--accent)}
+.mng{margin-top:12px;padding:10px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--s2);font-size:13px;color:var(--text2)}
+.mng .mono{display:block;word-break:break-all;margin:6px 0;color:var(--text);font-size:12px}
 .jobline .mono{font-size:15px;color:var(--text);font-weight:600;letter-spacing:.04em}
 .thumb{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:8px;background:var(--s2);margin-top:12px}
 .headst{font-size:18px;font-weight:700;margin-top:12px}
@@ -251,6 +260,12 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
     <input class="inp" id="title" type="text" maxlength="100" autocomplete="off" placeholder="예: 광교로 상수도 굴착 3구간">
     <label class="lbl" for="note">메모 (선택) <span class="cnt" id="noteCount">0/500</span></label>
     <textarea class="inp" id="note" maxlength="500" rows="2" placeholder="공사명, 관 종류, 특이사항"></textarea>
+    <label class="lbl">공개 범위</label>
+    <div class="vis" id="visBox" role="radiogroup" aria-label="공개 범위">
+      <label class="visopt"><input type="radio" name="vis" value="link" checked><span><b>🔗 링크 공유</b><small>링크를 받은 사람만 봅니다. 지도·목록에는 나오지 않아요.</small></span></label>
+      <label class="visopt"><input type="radio" name="vis" value="public"><span><b>🌐 공개</b><small>지도와 목록에 나와 누구나 볼 수 있어요.</small></span></label>
+      <label class="visopt"><input type="radio" name="vis" value="private"><span><b>🔒 비공개</b><small>관리 링크가 있는 나만 볼 수 있어요.</small></span></label>
+    </div>
   </section>
 
   <section class="card step" id="secLoc">
@@ -331,6 +346,9 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
   <section class="card" id="secResult" hidden>
     <h2>처리 상황</h2>
     <div class="jobline">작업 번호 <span class="mono" id="resJob"></span></div>
+    <div class="mng" id="resManage" hidden>🔑 <b>관리 링크</b> — 이 링크가 있으면 공개 범위·제목을 고칠 수 있어요. 잃어버리면 다시 받을 수 없으니 저장해 두세요.
+      <span class="mono" id="resManageUrl"></span>
+      <button class="btn sm" id="resManageCopy" type="button">관리 링크 복사</button> <span id="resVis"></span></div>
     <img class="thumb" id="resThumb" alt="" hidden>
     <div class="headst" id="resHead">처리 대기 중</div>
     <ol class="steps">
@@ -421,6 +439,28 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
   function toast(msg, cls) { var el = $('toast'); el.textContent = msg; el.className = 'toast on' + (cls ? ' ' + cls : ''); clearTimeout(toastT); toastT = setTimeout(function () { el.className = 'toast'; }, 3800); }
   function vib(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { } }
   function emit(type, extra) { try { document.dispatchEvent(new CustomEvent('kgeoar', { detail: Object.assign({ type: type }, extra || {}) })); } catch (e) { } }
+  /* ── 공개 범위·관리 키 (docs/share_contract.md 1·2절): 키는 이 기기 localStorage['kgeo_keys'] 에만 둔다 ── */
+  var KEYS_KEY = 'kgeo_keys', VIS_LABEL = { link: '🔗 링크 공유', public: '🌐 공개', private: '🔒 비공개' };
+  function visChoice() { var r = document.querySelector('input[name="vis"]:checked'); return r ? r.value : 'link'; }
+  function editKeys() { var o = lsGet(KEYS_KEY, {}); return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {}; }
+  function saveEditKey(job, key) { var o = editKeys(); o[job] = key; lsSet(KEYS_KEY, o); }
+  function keyHeaders(job) { var k = editKeys()[job]; return k ? { headers: { 'X-Edit-Key': k } } : null; }
+  function manageUrl(job) { var k = editKeys()[job]; return location.origin + '/app/3dscan/?job=' + encodeURIComponent(job) + (k ? '#key=' + encodeURIComponent(k) : ''); }
+  function showManage(job, vis) {
+    var box = $('resManage'); if (!box) return;
+    if (!editKeys()[job]) { box.hidden = true; return; }
+    $('resManageUrl').textContent = manageUrl(job);
+    $('resVis').textContent = VIS_LABEL[vis] ? '현재: ' + VIS_LABEL[vis] : '';
+    box.hidden = false;
+  }
+  function selectText(el) { try { var r = document.createRange(); r.selectNodeContents(el); var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r); toast('길게 눌러 복사해 주세요', 'warn'); } catch (e) { } }
+  document.addEventListener('DOMContentLoaded', function () {
+    var b = $('resManageCopy'); if (!b) return;
+    b.addEventListener('click', function () {
+      var url = $('resManageUrl').textContent, done = function () { toast('관리 링크를 복사했어요. 잃어버리지 않게 저장해 두세요.', 'ok'); };
+      try { navigator.clipboard.writeText(url).then(done, function () { selectText($('resManageUrl')); }); } catch (e) { selectText($('resManageUrl')); }
+    });
+  });
   function getJSON(url, opt, ms) {
     var ctl = window.AbortController ? new AbortController() : null, o = Object.assign({ cache: 'no-store' }, opt || {});
     if (ctl) o.signal = ctl.signal;
@@ -1443,6 +1483,7 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
     fd.append('title', $('title').value.trim().slice(0, 100));
     fd.append('mode', 'stray'); fd.append('scan_type', 'survey'); fd.append('trench_mode', '1'); fd.append('app', 'web-xr/1');
     fd.append('client_id', pk.cid);
+    fd.append('visibility', visChoice());
     fd.append('lat', pk.geo.lat.toFixed(7)); fd.append('lon', pk.geo.lon.toFixed(7));
     if (pk.geo.alt != null) fd.append('elev', pk.geo.alt.toFixed(2));
     if (pk.hd && pk.hd.ok) fd.append('heading', pk.hd.true_heading.toFixed(2));
@@ -1491,6 +1532,8 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
   function uploadDone(d, pk) {
     uploadEnd(); window.removeEventListener('beforeunload', onBeforeUnload);
     S.job = d.job_id;
+    if (d.edit_key) saveEditKey(d.job_id, d.edit_key);
+    showManage(d.job_id, d.visibility);
     $('pBar').className = 'bar done'; $('pMain').textContent = '✓ 업로드 완료'; $('pLeft').textContent = fmtSize(pk.zip.size); $('pRight').textContent = ''; $('cancelBtn').hidden = true;
     $('upBtn').classList.add('dis'); $('upBtn').textContent = '✓ 올렸습니다';
     var l = lsGet(JOB_KEY, []); l = (Array.isArray(l) ? l : []).filter(function (j) { return j.job_id !== d.job_id; }); l.unshift({ job_id: d.job_id, title: $('title').value.trim(), t: Date.now() }); lsSet(JOB_KEY, l.slice(0, 10));
@@ -1503,7 +1546,7 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
   function startPoll(job) { pollJob = job; pollStart = Date.now(); clearTimeout(pollT); renderResult({ job_id: job, status: 'pending' }); pollOnce(); }
   function pollOnce() {
     var job = pollJob; if (!job) return; clearTimeout(pollT);
-    getJSON(API + 'status.py?job_id=' + job, null, 15000).then(function (r) {
+    getJSON(API + 'status.py?job_id=' + job, keyHeaders(job), 15000).then(function (r) {
       if (job !== pollJob) return;
       if (r.status === 404) { renderResult({ job_id: job, status: 'failed', message: '서버에서 작업을 찾을 수 없습니다' }); return 'stop'; }
       if (!r.ok || !r.data) throw new Error('HTTP ' + r.status);

@@ -1,5 +1,6 @@
 """GET /app/3dupload/find_job.py?client_id=<앱이 보낸 녹화 고유 ID>  -> 그 녹화로 만들어진 작업 {job_id, status, step, ...} (없으면 404)
-   GET /app/3dupload/find_job.py?recent=10                          -> 최근 작업 요약 목록 (진단용)
+   GET /app/3dupload/find_job.py?recent=10                          -> 최근 '공개' 작업 요약 목록 (진단용)
+       link·private(docs/share_contract.md 1절)은 목록에 넣지 않는다. client_id 조회는 그 녹화를 올린 앱만 아는 값이라 그대로 둔다
 
 앱이 업로드 중 '연결 끊김' 오류를 받았을 때, 서버에는 이미 작업이 만들어졌는지 확인해 재업로드 대신 폴링을 이어가기 위한 것.
 """
@@ -8,11 +9,11 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from common import load_config, query_params, respond  # noqa: E402
+from common import job_visibility, load_config, query_params, respond  # noqa: E402
 
 STEP_NAMES = ["대기 중", "입력 준비", "융합·텍스처", "좌표·LAS", "GLB 준비", "SLPK 생성", "Portal 발행", "완료"]
 SUMMARY_KEYS = ("job_id", "title", "mode", "scan_type", "status", "step", "message", "created_at", "updated_at",
-                "scene_item_id", "glb_url", "thumb_url", "app", "client_id", "source_name")
+                "scene_item_id", "glb_url", "thumb_url", "app", "client_id", "source_name", "visibility")
 
 
 def load_jobs(jobs_dir):
@@ -38,6 +39,7 @@ def load_jobs(jobs_dir):
 
 def summary(q):
     d = {k: q.get(k) for k in SUMMARY_KEYS}
+    d["visibility"] = job_visibility(q)
     step = int(q.get("step", 0) or 0)
     d["step_name"] = STEP_NAMES[min(step, len(STEP_NAMES) - 1)]
     return d
@@ -58,7 +60,7 @@ def main():
         n = max(1, min(int(params.get("recent") or 10), 50))
     except ValueError:
         n = 10
-    respond({"jobs": [summary(q) for q in jobs[:n]]})
+    respond({"jobs": [summary(q) for q in jobs if job_visibility(q) == "public"][:n]})
 
 
 if __name__ == "__main__":

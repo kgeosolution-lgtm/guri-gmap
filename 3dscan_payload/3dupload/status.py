@@ -1,11 +1,14 @@
 """GET /app/3dupload/status.py?job_id=xxxxxxxx -> 큐 파일 내용 (status, step, step_name, message, title, scan_type, scene_item_id, glb_url, thumb_url,
-splat_status pending|processing|done|failed, splat_url, splat_message, ortho_url, area, pano_status, pano_message, pano_url, floorplan_url)"""
+splat_status pending|processing|done|failed, splat_url, splat_message, ortho_url, area, pano_status, pano_message, pano_url, floorplan_url, visibility)
+
+공개 범위 (docs/share_contract.md 1절): private 작업은 관리 키(헤더 X-Edit-Key 또는 ?key=)가 맞을 때만 산출물 주소를 준다.
+키가 없거나 틀리면 {job_id, status, visibility: "private"} 만. can_edit 은 키가 맞을 때 true"""
 import json
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from common import load_config, query_params, respond, safe_job_id  # noqa: E402
+from common import check_edit_key, job_visibility, load_config, load_job_files, query_params, read_edit_key, respond, safe_job_id  # noqa: E402
 
 STEP_NAMES = ["대기 중", "입력 준비", "융합·텍스처", "좌표·LAS", "GLB 준비", "SLPK 생성", "Portal 발행", "완료"]
 
@@ -14,13 +17,18 @@ def main():
     job_id = safe_job_id(query_params().get("job_id"))
     if not job_id:
         return respond({"error": "job_id 형식 오류"}, "400 Bad Request")
-    path = os.path.join(load_config()["jobs_dir"], job_id + ".json")
-    if not os.path.exists(path):
+    qp, q, _mp, meta = load_job_files(load_config(), job_id)
+    if not qp:
         return respond({"error": "없는 작업"}, "404 Not Found")
-    with open(path, "r", encoding="utf-8") as f:
-        q = json.load(f)
+    visibility = job_visibility(meta if meta.get("visibility") else q)
+    key = read_edit_key()
+    can_edit = bool(key) and check_edit_key(meta, key)
+    if visibility == "private" and not can_edit:
+        return respond({"job_id": job_id, "status": q.get("status", "pending"), "visibility": "private",
+                        "message": "비공개 기록입니다. 관리 링크로 열어야 볼 수 있어요."})
     step = int(q.get("step", 0))
     respond({
+        "visibility": visibility, "can_edit": can_edit,
         "job_id": job_id, "status": q.get("status", "pending"), "step": step,
         "title": q.get("title"), "mode": q.get("mode"), "scan_type": q.get("scan_type"), "thumb_url": q.get("thumb_url"),
         "step_name": STEP_NAMES[min(step, len(STEP_NAMES) - 1)], "message": q.get("message", ""),

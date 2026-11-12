@@ -386,6 +386,37 @@ def queue_splat(job_id, force=False):
     print(f"queue-splat: {job_id} '{q.get('title')}' → pending")
 
 
+def set_visibility(job_id, visibility, edit_key_sha256=None):
+    """기존 기록의 공개 범위를 바꾼다 (docs/share_contract.md 1절). 관리 키가 없던 기록은 해시만 받아 넣는다(원문은 서버에 오지 않음).
+    끝난 작업이면 큐를 kind=visibility_sync 로 돌려 지도(scan_points) 등록·삭제를 맞춘다 — edit.py 의 queue_sync 와 같은 방식."""
+    if visibility not in ("public", "link", "private"):
+        print(f"set-visibility: 잘못된 값 {visibility}"); return
+    p, q = _queue_file(job_id)
+    if not q:
+        print(f"set-visibility: 큐 파일 없음 ({job_id})"); return
+    mp = os.path.join(q.get("job_dir") or os.path.join(CFG["data_root"], job_id), "job.json")
+    meta = json.load(open(mp, "r", encoding="utf-8")) if os.path.exists(mp) else {}
+    fields = {"visibility": visibility}
+    if edit_key_sha256 and not meta.get("edit_key_sha256"):
+        h = str(edit_key_sha256).lower()
+        if len(h) == 64 and all(c in "0123456789abcdef" for c in h):
+            fields["edit_key_sha256"] = h
+    if os.path.exists(mp):
+        meta.update(fields)
+        with open(mp, "w", encoding="utf-8") as f:
+            json.dump(meta, f, ensure_ascii=False, indent=2)
+    q["visibility"] = visibility
+    if q.get("status") == "done":
+        q.update(kind="visibility_sync", status="pending", resume_status="done", resume_step=q.get("step", 7),
+                 resume_message=q.get("message") or "처리 완료")
+    else:
+        q["visibility_sync_pending"] = True
+    q["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump(q, f, ensure_ascii=False, indent=2)
+    print(f"set-visibility: {job_id} '{q.get('title')}' → {visibility}" + (" (관리 키 해시 넣음)" if "edit_key_sha256" in fields else ""))
+
+
 def backfill_splats():
     """서빙 폴더에 <job>.splat(.spz) 이 있는데 scan_points.splat_url 이 비어 있는 스캔: 필드를 채우고 큐 파일도 맞춘다."""
     stoken = token(CFG["server_url"])
@@ -448,6 +479,8 @@ def main():
                     redo_ortho(act.get("job_id"))
                 elif op == "rebuild-glb":
                     rebuild_glb(act.get("jobs", "all"))
+                elif op == "set-visibility":
+                    set_visibility(act.get("job_id"), act.get("visibility"), act.get("edit_key_sha256"))
                 else:
                     print(f"알 수 없는 작업: {op}")
             except Exception as e:

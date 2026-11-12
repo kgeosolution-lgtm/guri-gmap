@@ -336,6 +336,7 @@ require([
     tag.textContent = tinfo ? `${tinfo.icon} ${tinfo.label}` : "3D SCAN";
     tag.className   = "sb-tag" + (tinfo ? " type-" + attrs.scan_type : "");
     document.getElementById("aType").textContent = tinfo ? `${tinfo.icon} ${tinfo.label}` : "—";
+    setVisTag(attrs._visibility || "public");          // 🌐 공개 / 🔗 링크 공유 / 🔒 비공개 (docs/share_contract.md 1절)
     // 📷 이 장소 기록 더하기: 같은 제목으로 시작하면 목록·같은 장소 묶기에서 한눈에 이어진다 (위치는 촬영 페이지가 GPS 로 잡는다)
     const capQ = (attrs.scan_title ? "title=" + encodeURIComponent(attrs.scan_title) : "") +
       (attrs.site_id ? (attrs.scan_title ? "&" : "") + "site_id=" + encodeURIComponent(attrs.site_id) : "");
@@ -1528,19 +1529,24 @@ function updateProgressPopup(step, title, pct, msg) {
 let _doneSceneId = null;
 let _doneGlbUrl  = null;
 let _doneOid     = null;                          // 영상 현장조사: Scene·GLB 없이 점만 있어 objectid 로 찾는다
+let _doneStatus  = null;                          // status.py 응답 (링크 공유·비공개는 지도 점 없이 이것으로 연다)
 window.closeDoneModal = function() {
   document.getElementById("doneModal").classList.remove("show");
 };
 window.viewDoneScene = async function() {
   closeDoneModal();
   const pointLayer = window._pointLayer, mapView = window._mapView;
-  if (!pointLayer || !mapView) return;
+  const publicPoint = !_doneStatus || (_doneStatus.visibility || "public") === "public";
+  if (!publicPoint || !pointLayer || !mapView) {           // 지도 점이 없거나 지도가 아직 안 떴다
+    if (_doneStatus && window.openSidebar) openSidebar(attrsFromStatus(_doneStatus));
+    return;
+  }
   try {
     const q = pointLayer.createQuery();
     if (_doneSceneId)      q.where = `scene_item_id = '${_doneSceneId}'`;
     else if (_doneGlbUrl)  q.where = `glb_url = '${_doneGlbUrl}'`;
     else if (_doneOid)     { q.where = "1=1"; q.objectIds = [_doneOid]; }
-    else return;
+    else { if (_doneStatus) openSidebar(attrsFromStatus(_doneStatus)); return; }
     q.outFields      = ["*"];
     q.returnGeometry = true;
     await pointLayer.when();
@@ -1550,11 +1556,14 @@ window.viewDoneScene = async function() {
     if (fs.features.length) {
       const feat = fs.features[0];
       await mapView.goTo({ target: feat.geometry, zoom: 18 }, { duration: 700 });
-      openSidebar(feat.attributes);
+      openSidebar(Object.assign({}, feat.attributes, _doneStatus ? { _job_id: _doneStatus.job_id, _visibility: _doneStatus.visibility } : {}));
       if (window._loadListPanel) window._loadListPanel();
+    } else if (_doneStatus) {
+      openSidebar(attrsFromStatus(_doneStatus));          // 지도에 점이 없다 → 상태 정보로 바로 연다
     }
   } catch(e) {
     console.warn("확대 실패:", e);
+    if (_doneStatus) openSidebar(attrsFromStatus(_doneStatus));
   }
 };
 
@@ -1690,9 +1699,17 @@ async function trackJob(jobId, title) {
   window._ppAutoShown = false;
   for (let i = 0; i < 600; i++) {                 // 3초 × 600 = 30분 (Stray 처리 + SLPK + 발행)
     try {
-      const sr = await fetch(`/app/3dupload/status.py?job_id=${jobId}`, { cache: "no-store" });
+      const sr = await statusFetch(jobId);
       if (sr.status === 404) { finish(); setUploadState("error", title, 0, 0, "없는 작업입니다 (" + jobId + ")"); return; }
       const sd = await sr.json();
+      if (sd.visibility === "private" && sd.step === undefined) {     // 관리 키 없이 연 비공개 기록
+        finish(); setUploadState("error", title, 0, 0, sd.message || "비공개 기록입니다"); return;
+      }
+      if (i === 0 && sd.status === "done") {          // 공유 링크(?job=)로 이미 끝난 기록을 열었다 → 팝업 없이 바로 연다
+        finish(); setUploadState("done", sd.title || title, LAST_STEP, 100, "");
+        openFromStatus(sd);
+        return;
+      }
       if (!title && sd.title) { title = sd.title; rememberJob(jobId, title); }
       const step = Math.min(sd.step || 0, LAST_STEP);
       window._lastStatusMsg = sd.message || "";
@@ -1704,12 +1721,14 @@ async function trackJob(jobId, title) {
         _doneSceneId = sd.scene_item_id || null;
         _doneGlbUrl  = sd.glb_url || null;
         _doneOid     = sd.objectid || null;
+        _doneStatus  = sd;
         setTimeout(() => {
           const dm = document.getElementById("doneModal");
           if (dm) {
             document.getElementById("doneModalTitle").textContent = "✓ 처리 완료!";
             document.getElementById("doneModalMsg").innerHTML =
-              `<strong style="color:var(--text)">${esc(title)}</strong> 스캔이 처리되어 지도에 등록되었습니다.` +
+              `<strong style="color:var(--text)">${esc(title)}</strong> ` + ((sd.visibility || "public") === "public" ? "스캔이 처리되어 지도에 등록되었습니다."
+                : sd.visibility === "private" ? "기록이 처리되었습니다. 🔒 비공개 — 관리 링크가 있는 사람만 봅니다." : "기록이 처리되었습니다. 🔗 링크 공유 — 지도·목록에는 나오지 않고 링크로만 봅니다.") +
               (sd.mode === "pano" ? "<br><span style='color:var(--accent)'>🥽 VR 투어: 보기를 누르면 360° 사진으로 지점 사이를 오가며 둘러봅니다.</span>"
                 : sd.mode === "video" ? "<br><span style='color:var(--acc-o)'>📱 영상 현장조사: 3D(스플랫)는 GPU 가 카메라 위치를 계산한 뒤 만듭니다(보통 10~30분). 끝나면 목록에서 열어 ✦ 3D 로 봅니다.</span>"
                 : sd.scene_item_id ? "" : "<br><span style='color:var(--text3)'>Scene 레이어(SLPK)는 생성되지 않아 GLB 뷰어로만 볼 수 있습니다.</span>") +
@@ -1740,8 +1759,95 @@ async function trackJob(jobId, title) {
 window.addEventListener("DOMContentLoaded", () => {
   const p   = new URLSearchParams(window.location.search);
   const job = (p.get("job") || "").trim().toLowerCase();
+  const km  = (window.location.hash || "").match(/[#&]key=([A-Za-z0-9_\-]{10,100})/);
+  if (km && /^[0-9a-f]{8}$/.test(job)) saveEditKey(job, km[1]);   // 관리 링크로 열었다 → 이 기기의 '내 기록'에 넣는다
+  renderMine();
   if (/^[0-9a-f]{8}$/.test(job)) { trackJob(job, ""); return; }
   // 새로고침·재방문: 24시간 안에 시작했고 아직 끝나지 않은 최근 작업을 이어서 보여 준다
   const recent = loadJobs().filter(j => Date.now() - j.t < 86400000).pop();
   if (recent) trackJob(recent.job_id, recent.title);
 });
+
+
+/* ════ 공개 범위·관리 키·내 기록 (docs/share_contract.md 1·2절, 2026-11-12) ════
+   관리 키는 업로드 응답으로 한 번만 나오고 이 기기 localStorage['kgeo_keys'] 에만 둔다 (서버에는 해시만).
+   link·private 기록은 지도(scan_points)에 점이 없으므로 status.py 응답으로 attrs 를 만들어 openSidebar 로 연다 */
+const KEYS_KEY = "kgeo_keys";
+const VIS_INFO = { public: { icon: "🌐", label: "공개" }, link: { icon: "🔗", label: "링크 공유" }, private: { icon: "🔒", label: "비공개" } };
+function loadEditKeys() { try { const o = JSON.parse(localStorage.getItem(KEYS_KEY) || "{}"); return o && typeof o === "object" && !Array.isArray(o) ? o : {}; } catch (e) { return {}; } }
+function saveEditKey(job, key) { try { const o = loadEditKeys(); o[job] = key; localStorage.setItem(KEYS_KEY, JSON.stringify(o)); } catch (e) {} }
+function editKeyFor(job) { return loadEditKeys()[job] || null; }
+function statusFetch(job) {
+  const k = editKeyFor(job);
+  return fetch(`/app/3dupload/status.py?job_id=${job}`, { cache: "no-store", headers: k ? { "X-Edit-Key": k } : {} });
+}
+let _visJob = null;                               // 지금 사이드바에 열린 기록의 작업 번호 (status 로 연 경우)
+function setVisTag(v) {
+  const t = document.getElementById("sbVisTag"); if (!t) return;
+  const i = VIS_INFO[v] || VIS_INFO.public;
+  t.textContent = `${i.icon} ${i.label}`;
+  t.className = "sb-tag " + (v === "link" ? "vis-link" : v === "private" ? "vis-private" : "green");
+}
+function attrsFromStatus(sd) {
+  _visJob = sd.job_id;
+  return {
+    objectid: sd.objectid || null, scan_title: sd.title || sd.job_id, scan_type: sd.scan_type, note: "",
+    glb_url: sd.glb_url || null, thumb_url: sd.thumb_url || null, splat_url: sd.splat_url || null,
+    ortho_url: sd.ortho_url || null, pano_url: sd.pano_url || null, floorplan_url: sd.floorplan_url || null,
+    scene_item_id: sd.scene_item_id || null, site_id: sd.site_id || null, pub_date: null, author: "",
+    _job_id: sd.job_id, _visibility: sd.visibility || "public",
+  };
+}
+async function openFromStatus(sd) {
+  _doneSceneId = sd.scene_item_id || null; _doneGlbUrl = sd.glb_url || null; _doneOid = sd.objectid || null; _doneStatus = sd;
+  for (let i = 0; i < 40 && !window.openSidebar; i++) await new Promise(r => setTimeout(r, 200));   // 지도·사이드바 준비 대기
+  if ((sd.visibility || "public") === "public" && sd.objectid) {
+    for (let i = 0; i < 40 && !window._pointLayer; i++) await new Promise(r => setTimeout(r, 200));
+  }
+  window.viewDoneScene();
+}
+async function setVisibility(job, v) {
+  const k = editKeyFor(job); if (!k) return null;
+  try {
+    const r = await fetch("/app/3dupload/edit.py", { method: "POST", cache: "no-store",
+      headers: { "Content-Type": "application/json", "X-Edit-Key": k }, body: JSON.stringify({ op: "visibility", job_id: job, visibility: v }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || ("HTTP " + r.status));
+    return d;
+  } catch (e) { alert("공개 범위를 바꾸지 못했습니다: " + e.message); return null; }
+}
+async function renderMine() {
+  const box = document.getElementById("lpMine"); if (!box) return;
+  const jobs = Object.keys(loadEditKeys()).filter(j => /^[0-9a-f]{8}$/.test(j));
+  if (!jobs.length) { box.hidden = true; return; }
+  box.hidden = false;
+  box.innerHTML = `<div class="lp-mine-head">🔑 내 기록 <small>(이 기기에 관리 키가 있는 기록 ${jobs.length}개)</small></div>`;
+  for (const job of jobs.slice(-30).reverse()) {
+    const row = document.createElement("div");
+    row.className = "lp-mine-item"; row.dataset.job = job;
+    row.innerHTML = `<span class="t">${esc(job)}</span><span class="st">확인 중…</span>`;
+    box.appendChild(row);
+    statusFetch(job).then(r => r.ok ? r.json() : null).then(sd => {
+      if (!sd) { row.querySelector(".st").textContent = "없음"; return; }
+      const vis = sd.visibility || "public";
+      row.innerHTML = `<span class="t" title="${esc(sd.title || job)}">${esc(sd.title || job)}</span>` +
+        `<span class="st">${sd.status === "done" ? "완료" : sd.status === "failed" ? "실패" : "처리 중"}</span>` +
+        `<select title="공개 범위">${Object.entries(VIS_INFO).map(([k, i]) => `<option value="${k}"${k === vis ? " selected" : ""}>${i.icon} ${i.label}</option>`).join("")}</select>` +
+        `<button type="button" title="관리 링크 복사">🔑</button>`;
+      row.onclick = ev => { if (ev.target.closest("select,button")) return; if (sd.status === "done") openFromStatus(sd); else trackJob(job, sd.title || ""); };
+      row.querySelector("select").onchange = async ev => {
+        const d = await setVisibility(job, ev.target.value);
+        if (!d) { ev.target.value = vis; return; }
+        sd.visibility = d.visibility;
+        if (_visJob === job) setVisTag(d.visibility);
+        if (window._loadListPanel) setTimeout(() => window._loadListPanel(), 6000);   // 공개로 바꿨으면 지도 등록 뒤 목록 새로 고침
+      };
+      row.querySelector("button").onclick = () => {
+        const url = `${location.origin}/app/3dscan/?job=${job}#key=${editKeyFor(job)}`;
+        (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(
+          () => { const b = row.querySelector("button"); b.textContent = "✓"; setTimeout(() => { b.textContent = "🔑"; }, 1500); },
+          () => prompt("관리 링크 (길게 눌러 복사)", url));
+      };
+    }).catch(() => { row.querySelector(".st").textContent = "확인 실패"; });
+  }
+}

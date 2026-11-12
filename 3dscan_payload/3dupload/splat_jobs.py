@@ -45,7 +45,7 @@ import urllib.request
 # IIS 에서 HTTP/2 요청일 때 stdin/stdout 에 setmode 를 부르면 응답이 끊기고(RST), GET 에서는 502 가 났다.
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from common import load_config, query_params, respond, safe_job_id  # noqa: E402
+from common import job_visibility, load_config, query_params, respond, safe_job_id  # noqa: E402
 
 MAX_BODY = 512 * 1024 * 1024          # .splat 업로드 상한 512 MB (가우시안 100만 ≈ 32 MB)
 STALE_HOURS_DEFAULT = 3
@@ -530,11 +530,13 @@ def op_upload(cfg, job_id):
                                              "worker", "splat_bytes", "splat_full_bytes", "frames_used", "frames_total", "registered",
                                              "sfm_seconds", "extract_seconds", "scale") if k in stats}
     registered, reg_msg, oid = False, "", q.get("objectid")
-    try:
-        oid = register_splat_url(cfg, q, splat_url)
-        registered = True
-    except Exception as e:
-        reg_msg = str(e)[:300]
+    public = job_visibility(meta if meta.get("visibility") else q) == "public"
+    if public:
+        try:
+            oid = register_splat_url(cfg, q, splat_url)
+            registered = True
+        except Exception as e:
+            reg_msg = str(e)[:300]
     extra = {}
     if isinstance(stats, dict) and stats.get("object_mode"):
         extra["splat_object_region"] = stats.get("object_region")   # 워커가 확정한 영역 (pipeline 의 object_region 은 건드리지 않음)
@@ -543,7 +545,7 @@ def op_upload(cfg, job_id):
     done_msg = ("3D 완료 (사진)" if is_photos(q, meta) else "3D 완료 (영상)") if video else "스플랫 완료" + (" (물체 모드)" if extra.get("splat_object_region") else "")
     q = update_queue(qp, splat_status="done", splat_url=splat_url, splat_full_url=full_url, splat_done_at=now_str(), splat_stats=summary,
                      splat_registered=registered, objectid=oid or q.get("objectid"),
-                     splat_message=done_msg + ("" if registered else " (scan_points 등록 실패: " + reg_msg + ")"),
+                     splat_message=done_msg + ("" if registered or not public else " (scan_points 등록 실패: " + reg_msg + ")"),
                      **extra)
     if bundle_tmp:
         q = accept_bundle(qp, q, meta, bundle_tmp)
