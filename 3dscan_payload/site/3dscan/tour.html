@@ -1,0 +1,1246 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d1117">
+<meta name="color-scheme" content="dark">
+<meta name="format-detection" content="telephone=no">
+<title>VR 투어 · kgeoScan</title>
+<meta name="description" content="360° 실사 사진으로 집 안을 둘러보는 VR 투어">
+<!-- 메신저 미리보기(Open Graph). 카카오톡·네이버 등은 JS 를 돌리지 않으므로 여기 값이 기본이다. 기록별 제목·사진은 아래 JS 가 고친다(일부 미리보기만 반영) -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="kgeoScan">
+<meta property="og:title" content="VR 투어 · kgeoScan">
+<meta property="og:description" content="360° 실사 사진으로 집 안을 둘러보세요. 방마다 오가며 볼 수 있습니다.">
+<meta property="og:image" content="https://kgeodata.com/app/3dscan/og_tour.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:locale" content="ko_KR">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230d1117'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%2338bdf8'/%3E%3C/svg%3E">
+<!--
+  kgeoScan 매물용 VR 투어 공유 페이지 — 계약: docs/share_contract.md 3절 (+ docs/pano_contract.md 5.1·6절)
+  열기: tour.html?job=<job_id>   (시험: ?tour=<tour.json URL>)
+  선택: &embed=1 (다른 사이트에 넣는 작은 화면) · &spot= &yaw= &pitch= &fov= (처음 보는 곳) · &plan=<평면도 png 또는 _floorplan.json, 같은 출처>
+  편집: #key=<edit_key> 가 있을 때만 (지점 놓기·설명 표시·매물 정보 → POST /app/3dupload/edit.py op=pano_meta, 헤더 X-Edit-Key)
+  VR 화면은 pano.html 을 iframe 으로 띄우고 postMessage 로 주고받는다 (같은 출처).
+  QR: qrcode-generator 1.4.4 (Kazuhiko Arase, MIT) — cdnjs 고정판 + SRI, QR 을 열 때만 받는다.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+:root{
+  --bg:#080b0f; --s1:#0d1117; --s2:#121820; --s3:#18212d;
+  --border:rgba(255,255,255,.08); --border2:rgba(255,255,255,.14);
+  --accent:#38bdf8; --acc-g:#34d399; --acc-o:#fb923c; --acc-r:#f87171;
+  --text:#f0f6ff; --text2:#94a3b8; --text3:#64748b;
+  --glass:rgba(13,17,23,.78);
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+  --sans:'Pretendard Variable','Pretendard',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif;
+  --safe-t:env(safe-area-inset-top); --safe-b:env(safe-area-inset-bottom);
+  --vh:100vh; --peek:140px; --sheet:80vh; --pw:380px;
+  --r:12px; --tap:48px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);overflow:hidden}
+body{font-family:var(--sans);color:var(--text);font-size:15px;line-height:1.5;-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+[hidden]{display:none !important}
+button,input,textarea,select{font:inherit;color:inherit}
+button{background:none;border:0;cursor:pointer;touch-action:manipulation}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* ── 틀 ── */
+#app{position:fixed;inset:0;display:grid;grid-template-columns:minmax(0,1fr) var(--pw)}
+body.editing{--pw:420px}
+.stage{position:relative;min-width:0;background:#000;overflow:hidden}
+#pano{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;background:#000}
+.panel{position:relative;display:flex;flex-direction:column;min-height:0;background:var(--s1);border-left:1px solid var(--border2)}
+.ph{flex:none;padding:14px 16px 12px;border-bottom:1px solid var(--border)}
+.pb{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4px 16px calc(var(--safe-b) + 24px);overscroll-behavior:contain}
+.grab{display:none}
+
+/* 머리 (보기) */
+.tt h1{font-size:19px;font-weight:800;line-height:1.3;letter-spacing:-.01em;word-break:keep-all;overflow-wrap:anywhere}
+.tt p{font-size:13.5px;color:var(--text2);margin-top:3px}
+.tt p b{color:var(--text);font-weight:700}
+.acts{display:flex;gap:8px;margin-top:12px}
+.act{flex:1;min-height:var(--tap);border-radius:10px;background:var(--s2);border:1px solid var(--border2);display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  font-size:14.5px;font-weight:700;text-decoration:none;color:var(--text);padding:0 8px;white-space:nowrap}
+.act svg{width:18px;height:18px;flex:none}
+.act.a3d{color:#03131f;background:var(--accent);border-color:var(--accent)}
+.act:active,.btn:active{transform:scale(.97)}
+
+/* 머리 (편집) */
+.ehead{display:flex;flex-direction:column;gap:10px}
+.erow{display:flex;align-items:center;gap:8px}
+.ebadge{font-size:12.5px;font-weight:700;color:var(--acc-o);display:flex;align-items:center;gap:6px;flex:1;min-width:0}
+.ebadge i{width:8px;height:8px;border-radius:50%;background:var(--acc-o);box-shadow:0 0 8px var(--acc-o);flex:none}
+.ebadge span{color:var(--text2);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.seg{display:flex;background:var(--s2);border:1px solid var(--border2);border-radius:11px;padding:3px;gap:3px;flex:1}
+.seg button{flex:1;min-height:42px;border-radius:8px;font-size:14px;font-weight:700;color:var(--text2);white-space:nowrap;padding:0 6px}
+.seg button[aria-selected="true"]{background:var(--s3);color:var(--text);box-shadow:inset 0 0 0 1px var(--border2)}
+.seg button em{font-style:normal;font-family:var(--mono);font-size:11.5px;color:var(--acc-o);margin-left:3px}
+
+/* 단추 */
+.btn{min-height:var(--tap);padding:0 16px;border-radius:10px;background:var(--s2);border:1px solid var(--border2);font-size:15px;font-weight:700;
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;text-decoration:none;color:var(--text);white-space:nowrap}
+.btn svg{width:18px;height:18px;flex:none}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:#03131f}
+.btn:disabled{opacity:.42;cursor:default;transform:none}
+.btn.pri:disabled{opacity:1;background:var(--s3);border-color:var(--border2);color:var(--text3)}
+.btn.warn{color:var(--acc-r);border-color:rgba(248,113,113,.4)}
+.btn.sm{min-height:40px;padding:0 12px;font-size:14px}
+.btn.full{width:100%}
+.btn.ghost{background:none}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.btns .btn{flex:1 1 auto}
+
+/* 몸통 칸 */
+.sec{padding:16px 0;border-bottom:1px solid var(--border)}
+.sec:last-child{border-bottom:0}
+.sec h2{font-size:13px;font-weight:700;color:var(--text2);letter-spacing:.02em;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.sec h2 small{font-weight:600;color:var(--text3);font-size:12px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:baseline;gap:5px;padding:7px 11px;border-radius:999px;background:var(--s2);border:1px solid var(--border2);font-size:14px;font-weight:700}
+.chip small{font-weight:600;color:var(--text2);font-size:12.5px}
+.note{white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px;color:#dbe4f0;margin-top:12px}
+.empty{font-size:14px;color:var(--text3)}
+.muted{font-size:12.5px;color:var(--text3);margin-top:8px}
+
+/* 지점 목록 */
+.spots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.spot{position:relative;border-radius:10px;overflow:hidden;background:var(--s2);border:2px solid transparent;text-align:left;min-height:var(--tap)}
+.spot img{display:block;width:100%;aspect-ratio:2/1;object-fit:cover;background:var(--s3)}
+.spot span{display:flex;align-items:center;gap:6px;padding:7px 9px 8px;font-size:14px;font-weight:700}
+.spot span b{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:700}
+.spot em{position:absolute;top:5px;left:5px;font-style:normal;font-family:var(--mono);font-size:11px;background:rgba(8,11,15,.78);border-radius:5px;padding:1px 6px;color:var(--text2)}
+.spot i{font-style:normal;font-size:11.5px;font-weight:700;color:#03131f;background:var(--acc-o);border-radius:999px;padding:1px 7px;flex:none}
+.spot.cur{border-color:var(--accent)}
+.spot.cur span b{color:var(--accent)}
+
+/* 이 방의 설명 */
+.hl{display:flex;flex-direction:column;gap:6px}
+.hrow{display:flex;align-items:center;gap:10px;min-height:var(--tap);padding:8px 10px;border-radius:10px;background:var(--s2);border:1px solid var(--border);text-align:left;width:100%}
+.hrow .n{width:26px;height:26px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;background:#fff;color:#0d1117}
+.hrow .tx{flex:1;min-width:0}
+.hrow .tx b{display:block;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hrow .tx small{display:block;font-size:12.5px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hrow .ops{display:flex;gap:6px;flex:none}
+.hrow.sel{border-color:var(--acc-o)}
+
+/* 공유 */
+.share-url{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+.share-url input{flex:1;min-width:0;min-height:var(--tap);font-family:var(--mono);font-size:13px;color:var(--text2);background:var(--bg);border:1px solid var(--border2);border-radius:10px;padding:0 12px}
+.qr{margin-top:12px;display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px;border-radius:var(--r);background:var(--s2);border:1px solid var(--border)}
+.qr canvas{width:220px;height:220px;image-rendering:pixelated;border-radius:8px;background:#fff}
+.qr p{font-size:13px;color:var(--text2);text-align:center}
+.embed{margin-top:12px;padding:12px;border-radius:var(--r);background:var(--s2);border:1px solid var(--border)}
+.embed textarea{width:100%;min-height:96px;resize:vertical;font-family:var(--mono);font-size:12.5px;color:var(--text2);background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:10px;margin-bottom:10px}
+.embed p{font-size:12.5px;color:var(--text3);margin-bottom:8px}
+
+/* 3D */
+.card3d{display:flex;align-items:center;gap:12px;padding:12px;border-radius:var(--r);background:linear-gradient(135deg,rgba(56,189,248,.14),rgba(56,189,248,.04));border:1px solid rgba(56,189,248,.35);text-decoration:none;color:var(--text)}
+.card3d b{display:block;font-size:16px}
+.card3d small{display:block;font-size:13px;color:var(--text2)}
+.card3d .ico{width:46px;height:46px;border-radius:12px;background:var(--accent);color:#03131f;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;flex:none}
+.card3d .go{margin-left:auto;font-size:20px;color:var(--accent)}
+
+/* 편집 칸 */
+.field{display:block;margin-bottom:14px}
+.field>span{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:13.5px;font-weight:700;color:var(--text2);margin-bottom:6px}
+.field>span small{font-weight:600;color:var(--text3);font-family:var(--mono);font-size:12px}
+.inp{width:100%;min-height:var(--tap);font-size:16px;color:var(--text);background:var(--bg);border:1px solid var(--border2);border-radius:10px;padding:10px 12px}
+textarea.inp{min-height:120px;resize:vertical;line-height:1.5}
+.inp:focus{border-color:var(--accent);outline:none}
+.hint{font-size:12.5px;color:var(--text3);margin-top:6px;line-height:1.45}
+.hint b{color:var(--text2)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.step{display:flex;align-items:center;gap:6px}
+.step .inp{text-align:center;padding:10px 4px}
+.step button{width:var(--tap);height:var(--tap);flex:none;border-radius:10px;background:var(--s2);border:1px solid var(--border2);font-size:22px;font-weight:700}
+.pyeong{font-family:var(--mono);font-size:12.5px;color:var(--text2);margin-top:6px}
+.banner{margin:0 0 16px;padding:12px;border-radius:10px;background:rgba(251,146,60,.1);border:1px solid rgba(251,146,60,.4);font-size:14px}
+.banner .btns{margin-top:10px}
+.keybox{padding:12px;border-radius:10px;background:var(--s2);border:1px solid var(--border)}
+.keybox p{font-size:13px;color:var(--text2);margin-bottom:10px}
+.vis{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;padding:5px 10px;border-radius:999px;background:var(--s2);border:1px solid var(--border2);margin-bottom:10px}
+.dirty-note{font-size:12.5px;color:var(--acc-o);font-weight:700;white-space:nowrap}
+
+/* 평면도 위 지점 놓기 */
+.pe-map{position:relative;border-radius:10px;overflow:hidden;background:#f0f2f5;touch-action:none;user-select:none;-webkit-user-select:none}
+.pe-map img{display:block;width:100%;height:auto;pointer-events:none;-webkit-user-drag:none}
+.pe-map svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.pe-map.armed{outline:3px solid var(--acc-o);outline-offset:-3px;cursor:crosshair}
+.pe-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.pchip{min-height:44px;padding:0 14px;border-radius:999px;background:var(--s2);border:1px solid var(--border2);font-size:14px;font-weight:700;display:inline-flex;align-items:center;gap:6px;touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab}
+.pchip .d{width:10px;height:10px;border-radius:50%;border:2px solid var(--text3)}
+.pchip.placed .d{background:var(--accent);border-color:var(--accent)}
+.pchip.cur{border-color:var(--accent);color:var(--accent)}
+.pchip.armed{border-color:var(--acc-o);color:var(--acc-o);box-shadow:0 0 0 2px rgba(251,146,60,.25)}
+.dragghost{position:fixed;z-index:100;pointer-events:none;transform:translate(-50%,-120%);padding:8px 14px;border-radius:999px;background:var(--acc-o);color:#1a0d00;font-weight:800;font-size:14px;box-shadow:0 6px 20px rgba(0,0,0,.4)}
+.pe-rot{display:flex;gap:8px;margin-top:10px;align-items:center}
+.pe-rot .btn{flex:1}
+.noplan{padding:14px;border-radius:10px;background:var(--s2);border:1px dashed var(--border2);font-size:14px;color:var(--text2)}
+
+/* VR 화면 위 겹침 (설명 표시·조준점) */
+.ov{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:3}
+.pin{position:absolute;left:0;top:0;pointer-events:auto;width:0;height:0}
+.pin button{position:absolute;left:-19px;top:-19px;width:38px;height:38px;border-radius:50%;background:rgba(8,11,15,.62);border:2.5px solid #fff;color:#fff;
+  font-size:15px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,.45),0 0 0 4px rgba(255,255,255,.18);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.pin .lb{position:absolute;left:24px;top:-14px;white-space:nowrap;font-size:13px;font-weight:700;padding:4px 10px;border-radius:999px;background:rgba(8,11,15,.76);border:1px solid var(--border2);pointer-events:none;max-width:200px;overflow:hidden;text-overflow:ellipsis}
+.pin.ed button{border-style:dashed;border-color:var(--acc-o);background:rgba(251,146,60,.25)}
+.pin.ed.sel button{background:var(--acc-o);color:#1a0d00;border-style:solid}
+.pin.ring button,.pin.ed.sel.ring button{background:none;border:2.5px dashed var(--acc-o);width:52px;height:52px;left:-26px;top:-26px;box-shadow:none;color:transparent;pointer-events:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+.pop{position:absolute;z-index:4;left:0;top:0;width:min(280px,calc(100% - 24px));padding:12px 14px 14px;border-radius:12px;background:var(--glass);border:1px solid var(--border2);
+  box-shadow:0 10px 30px rgba(0,0,0,.45);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.pop b{display:block;font-size:16px;padding-right:34px}
+.pop p{font-size:14px;color:#dbe4f0;margin-top:4px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:40vh;overflow:auto}
+.pop .x{position:absolute;right:6px;top:6px;width:36px;height:36px;border-radius:8px;font-size:20px;color:var(--text2)}
+.cross{position:absolute;left:50%;top:50%;width:56px;height:56px;margin:-28px 0 0 -28px;pointer-events:none;z-index:3}
+.cross::before,.cross::after{content:'';position:absolute;background:var(--acc-o);box-shadow:0 0 0 1px rgba(0,0,0,.45)}
+.cross::before{left:27px;top:0;width:2px;height:56px}
+.cross::after{top:27px;left:0;height:2px;width:56px}
+.cross i{position:absolute;inset:14px;border-radius:50%;border:2px solid var(--acc-o);box-shadow:0 0 0 1px rgba(0,0,0,.45)}
+.hotbar{position:absolute;left:50%;top:calc(50% + 44px);transform:translateX(-50%);z-index:4;display:flex;gap:8px;pointer-events:none}
+.addhere{pointer-events:auto;min-height:var(--tap);padding:0 16px;border-radius:999px;
+  background:var(--acc-o);color:#1a0d00;font-size:15px;font-weight:800;box-shadow:0 6px 20px rgba(0,0,0,.45);white-space:nowrap}
+.addhere.alt{background:var(--glass);color:var(--text);border:1px solid var(--border2);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.addhere.top{position:absolute;left:50%;top:calc(var(--safe-t) + 64px);transform:translateX(-50%);z-index:4}
+@media (max-width:640px){ .hotbar{left:calc(50% - 28px)} }            /* 오른쪽은 pano.html 의 확대·HD 단추 자리 */
+@media (max-width:420px){ .addhere{font-size:14px;padding:0 12px} }
+
+/* 불러오기·오류 */
+.center{position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;padding:16px;background:var(--bg)}
+.box{max-width:420px;text-align:center}
+.box b{display:block;font-size:17px;margin-bottom:6px}
+.box p{color:var(--text2);font-size:14px}
+.box .btn{margin-top:14px}
+.spin{width:34px;height:34px;border-radius:50%;border:3px solid rgba(56,189,248,.2);border-top-color:var(--accent);animation:sp .9s linear infinite;margin:0 auto 12px}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+.toast{position:fixed;left:50%;bottom:calc(var(--safe-b) + 24px);transform:translateX(-50%) translateY(16px);z-index:200;opacity:0;pointer-events:none;
+  background:var(--s1);border:1px solid var(--border2);border-radius:10px;padding:11px 16px;font-size:14.5px;transition:.25s;max-width:calc(100% - 32px);box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.toast.on{opacity:1;transform:translateX(-50%)}
+.toast.bad{border-color:rgba(248,113,113,.6)}
+
+/* 설명 표시 대화 상자 */
+dialog{margin:auto;width:min(440px,calc(100% - 24px));max-height:calc(100% - 24px);overflow:auto;background:var(--s1);color:var(--text);border:1px solid var(--border2);border-radius:16px;padding:18px}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+dialog h3{font-size:17px;margin-bottom:4px}
+dialog .sub{font-size:13px;color:var(--text2);margin-bottom:14px}
+dialog .btns{margin-top:4px}
+
+/* 다른 사이트에 넣은 작은 화면 (&embed=1) */
+.ebar{display:none}
+body.embed #app{grid-template-columns:1fr;bottom:52px}
+body.embed .panel{display:none}
+body.embed .ebar{position:fixed;left:0;right:0;bottom:0;height:52px;display:flex;align-items:center;gap:10px;padding:0 8px 0 14px;background:var(--s1);border-top:1px solid var(--border2)}
+.ebar .et{flex:1;min-width:0;font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ebar .et small{font-weight:600;color:var(--text2);margin-left:6px}
+.ebar .btn{min-height:40px;font-size:14px;padding:0 12px}
+
+/* ── 휴대폰: 위는 VR, 아래는 끌어 올리는 판 ── */
+@media (max-width:899px){
+  #app{display:block}
+  .stage{position:fixed;left:0;right:0;top:0;height:calc(var(--vh) - var(--peek))}
+  body.embed .stage{height:auto;bottom:0}
+  .panel{position:fixed;left:0;right:0;bottom:0;height:var(--sheet);border-left:0;border-top:1px solid var(--border2);border-radius:16px 16px 0 0;z-index:30;
+    transform:translateY(calc(var(--sheet) - var(--peek)));transition:transform .28s cubic-bezier(.2,.8,.2,1);box-shadow:0 -10px 30px rgba(0,0,0,.35)}
+  .panel.open{transform:translateY(0)}
+  .panel:not(.open) .pb{visibility:hidden}
+  .ph{padding:6px 14px 12px;cursor:pointer}
+  .grab{display:block;width:40px;height:5px;border-radius:3px;background:var(--border2);margin:2px auto 8px}
+  .tt h1{font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .acts{margin-top:10px}
+  .act{font-size:14px;padding:0 4px;gap:4px}
+  .pb{padding-left:14px;padding-right:14px}
+}
+@media (max-width:380px){ .act svg{display:none} }
+</style>
+</head>
+<body>
+<noscript><p style="padding:24px">이 페이지는 자바스크립트가 필요합니다.</p></noscript>
+<div id="app">
+  <main class="stage" id="stage">
+    <iframe id="pano" title="VR 투어 (360° 사진)" allow="fullscreen; gyroscope; accelerometer"></iframe>
+    <div class="ov" id="ov" aria-hidden="false"></div>
+    <div class="cross" id="cross" hidden><i></i></div>
+    <div class="hotbar" id="hotBar" hidden><button class="addhere" id="addHere" aria-label="화면 가운데에 설명 붙이기">＋ 가운데에 붙이기</button><button class="addhere alt" id="pickHere" aria-label="VR 화면에서 눌러 고르기">👆 눌러서 고르기</button></div>
+    <button class="addhere top" id="pickCancel" hidden>붙일 곳을 누르세요 · 취소</button>
+    <div class="pop" id="pop" hidden role="dialog" aria-live="polite"><button class="x" id="popX" aria-label="닫기">×</button><b id="popT"></b><p id="popP"></p></div>
+    <div class="center" id="center"><div class="box"><div class="spin" id="cSpin"></div><b id="cMain">VR 투어를 불러오는 중…</b><p id="cSub"></p><div id="cAct"></div></div></div>
+  </main>
+
+  <aside class="panel" id="panel" aria-label="매물 정보">
+    <div class="ph" id="ph">
+      <div class="grab" aria-hidden="true"></div>
+      <div id="vhead">
+        <div class="tt"><h1 id="hTitle">VR 투어</h1><p id="hMeta"></p></div>
+        <div class="acts" id="acts">
+          <button class="act" data-go="sInfo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>정보</button>
+          <button class="act" data-go="sSpots"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6-5.3-6-10a6 6 0 0112 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2"/></svg>지점</button>
+          <button class="act" data-go="sShare"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>공유</button>
+          <a class="act a3d" id="a3dTop" hidden>✦ 3D</a>
+        </div>
+      </div>
+      <div class="ehead" id="ehead" hidden>
+        <div class="erow"><div class="ebadge"><i></i>편집 중<span id="eWho"></span></div><span class="dirty-note" id="dirtyNote" hidden>저장 안 함</span></div>
+        <div class="erow">
+          <div class="seg" role="tablist" aria-label="편집할 것">
+            <button role="tab" data-tab="info" aria-selected="true">정보</button>
+            <button role="tab" data-tab="hot" aria-selected="false">설명 표시<em id="hotN"></em></button>
+            <button role="tab" data-tab="place" aria-selected="false">지점 위치</button>
+          </div>
+          <button class="btn pri" id="bSave" disabled>저장</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="pb" id="pb">
+      <!-- 보기 -->
+      <section class="sec vsec" id="sInfo">
+        <h2>매물 정보</h2>
+        <div class="chips" id="iChips"></div>
+        <p class="note" id="iNote" hidden></p>
+        <p class="empty" id="iEmpty" hidden>아직 적힌 매물 정보가 없습니다.</p>
+      </section>
+      <section class="sec vsec" id="sHere" hidden>
+        <h2>이 지점의 설명 <small id="hereName"></small></h2>
+        <div class="hl" id="hereList"></div>
+      </section>
+      <section class="sec vsec" id="sSpots">
+        <h2>지점 <small id="spotN"></small></h2>
+        <div class="spots" id="spotList"></div>
+      </section>
+      <section class="sec vsec" id="s3d" hidden>
+        <a class="card3d" id="a3d" target="_blank" rel="noopener"><span class="ico">✦</span><span><b>3D로 보기</b><small id="a3dSub">같은 장소의 3D 기록</small></span><span class="go">›</span></a>
+      </section>
+      <section class="sec vsec" id="sShare">
+        <h2>공유</h2>
+        <div class="share-url"><input id="shareUrl" readonly aria-label="공유 링크"></div>
+        <div class="btns">
+          <button class="btn pri" id="bCopy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/></svg>링크 복사</button>
+          <button class="btn" id="bShareNative" hidden>보내기…</button>
+          <button class="btn" id="bQr" aria-expanded="false">QR 코드</button>
+          <button class="btn" id="bEmbed" aria-expanded="false">삽입 코드</button>
+        </div>
+        <div class="qr" id="qrBox" hidden>
+          <canvas id="qrCanvas" width="220" height="220" aria-label="공유 링크 QR 코드"></canvas>
+          <p>휴대폰 카메라로 비추면 이 VR 투어가 열립니다.</p>
+          <button class="btn sm" id="bQrSave">QR 그림 저장</button>
+        </div>
+        <div class="embed" id="embedBox" hidden>
+          <p>블로그·홈페이지 HTML 에 붙여 넣으면 이 VR 투어가 들어갑니다.</p>
+          <textarea id="embedCode" readonly aria-label="삽입 코드"></textarea>
+          <button class="btn full" id="bEmbedCopy">삽입 코드 복사</button>
+        </div>
+      </section>
+      <section class="sec vsec" id="sOwner" hidden>
+        <h2>내가 올린 투어</h2>
+        <button class="btn full" id="bEditOn">✎ 이 투어 고치기</button>
+        <p class="muted">이 브라우저에 관리 키가 저장되어 있어 고칠 수 있습니다.</p>
+      </section>
+
+      <!-- 편집: 정보 -->
+      <section class="sec esec" id="eInfo" data-tab="info" hidden>
+        <div id="draftBanner" class="banner" hidden></div>
+        <label class="field"><span>제목 <small id="cTitle">0/60</small></span><input class="inp" id="fTitle" maxlength="60" placeholder="예: 햇살아파트 101동 12층"></label>
+        <div class="two">
+          <label class="field"><span>전용면적 (m²)</span><input class="inp" id="fArea" type="number" inputmode="decimal" min="0" max="100000" step="0.01" placeholder="84.97"><div class="pyeong" id="fPy"></div></label>
+          <div class="field"><span>방 수</span><div class="step"><button type="button" id="rMinus" aria-label="방 하나 빼기">−</button><input class="inp" id="fRooms" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="—" aria-label="방 수"><button type="button" id="rPlus" aria-label="방 하나 더하기">＋</button></div></div>
+        </div>
+        <p class="hint" id="areaHint">광고에는 <b>건축물대장 전용면적</b>을 적어 주세요.</p>
+        <label class="field" style="margin-top:14px"><span>설명 <small id="cNote">0/1000</small></span><textarea class="inp" id="fNote" maxlength="1000" placeholder="입주 가능일, 관리비, 수리한 곳 등을 적어 주세요"></textarea></label>
+      </section>
+
+      <!-- 편집: 설명 표시 -->
+      <section class="sec esec" id="eHot" data-tab="hot" hidden>
+        <p class="hint" style="margin:0 0 12px">VR 화면을 돌려 <b>주황 조준점</b>을 붙일 곳에 맞추고 <b>＋ 가운데에 붙이기</b>를 누르거나, <b>👆 눌러서 고르기</b>를 누른 뒤 VR 화면의 그 자리를 누르세요. 예: 에어컨, 붙박이장, 수리한 곳.</p>
+        <div class="btns"><button class="btn pri" id="bAddHot">＋ 화면 가운데에 붙이기</button><button class="btn" id="bPick">👆 VR 화면에서 눌러 고르기</button></div>
+        <div class="hl" id="eHotList" style="margin-top:14px"></div>
+      </section>
+
+      <!-- 편집: 지점 위치 -->
+      <section class="sec esec" id="ePlace" data-tab="place" hidden>
+        <div id="peWrap">
+          <div class="pe-map" id="peMap"><img id="peImg" alt="평면도" draggable="false"><svg id="peSvg" viewBox="0 0 1 1" preserveAspectRatio="none"></svg></div>
+          <div class="pe-chips" id="peChips"></div>
+          <div class="pe-rot">
+            <button class="btn sm" id="rotL" aria-label="보는 방향 왼쪽으로 15도">⟲ 15°</button>
+            <button class="btn sm" id="rotR" aria-label="보는 방향 오른쪽으로 15도">⟳ 15°</button>
+            <button class="btn sm warn" id="unplace">이 지점 빼기</button>
+          </div>
+          <p class="hint">지점 이름을 평면도로 <b>끌어다 놓거나</b>, 이름을 누른 뒤 평면도를 누르세요. 놓은 점은 끌어서 옮깁니다.<br>파란 부채꼴 끝의 <b>동그라미를 돌려</b> VR 에서 지금 보는 방향과 맞추세요.</p>
+          <p class="muted" id="planFrom"></p>
+        </div>
+        <div class="noplan" id="noPlan" hidden>이 장소에는 평면도가 아직 없습니다. 같은 집을 3D(LiDAR)로 찍으면 평면도가 만들어지고, 그때 지점을 놓을 수 있습니다.</div>
+      </section>
+
+      <!-- 편집: 관리 -->
+      <section class="sec esec" id="eKey" data-tab="*" hidden>
+        <h2>관리</h2>
+        <div class="vis" id="visBadge" hidden></div>
+        <div class="keybox">
+          <p>아래 <b>관리 링크</b>가 있으면 누구나 이 투어를 고칠 수 있습니다. 다른 사람에게 보내지 마세요. 보여 줄 때는 위 <b>공유</b>의 링크를 쓰세요.</p>
+          <div class="btns"><button class="btn" id="bKeyCopy">관리 링크 복사</button><button class="btn" id="bShareCopy">공유 링크 복사</button></div>
+        </div>
+        <button class="btn ghost full" id="bEditOff" style="margin-top:10px">편집 끝내고 보기 화면으로</button>
+      </section>
+    </div>
+  </aside>
+</div>
+
+<footer class="ebar" id="ebar"><div class="et" id="eTitle">VR 투어</div><a class="btn" id="eOpen" target="_blank" rel="noopener">크게 보기 ↗</a></footer>
+
+<dialog id="dlgHot">
+  <form method="dialog" id="hotForm">
+    <h3 id="dhTitle">설명 붙이기</h3>
+    <p class="sub" id="dhSub"></p>
+    <label class="field"><span>제목 <small id="cHotT">0/40</small></span><input class="inp" id="hT" maxlength="40" required placeholder="예: 시스템 에어컨"></label>
+    <label class="field"><span>설명 <small id="cHotX">0/500</small></span><textarea class="inp" id="hX" maxlength="500" placeholder="예: 2023년 설치, 거실·안방 2대"></textarea></label>
+    <div class="btns">
+      <button type="button" class="btn warn sm" id="hDel" hidden>지우기</button>
+      <button type="button" class="btn sm" id="hMove" hidden>지금 화면 가운데로 옮기기</button>
+    </div>
+    <div class="btns" style="margin-top:10px"><button type="button" class="btn" id="hCancel">취소</button><button type="submit" class="btn pri" id="hOk">붙이기</button></div>
+  </form>
+</dialog>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const P = new URLSearchParams(location.search);
+const API = '/app/3dupload/';
+const PANO_PAGE = "pano.html?v=df9c3df06c";                                // 배포가 ?v=해시 를 붙여도 된다 (viewer.js 의 PANO_PAGE 와 같은 꼴)
+const LAYER_ITEM = '1058978572fd43e799f7068330ff90d8';        // scan_points 포털 항목 (공개 기록의 같은 장소 찾기, viewer.js PT_ITEM_ID)
+const QR_JS = { src: 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js',
+                sri: 'sha384-mZT2gIty7ZDdOGkxfP6joZcYdMW1Jvj9dRlfpTmaJAKKXTqzygtB22k7FLe+KZC1' };   // MIT, Kazuhiko Arase
+const LIM = { hot: 200, hT: 40, hX: 500, title: 60, note: 1000, body: 250000 };   // edit.py: 설명 표시 200개, 본문 256 KB
+const BAD_TEXT = /[<>]|javascript\s*:|data\s*:\s*text\/html|on\w+\s*=/i;            // edit.py BAD_TEXT 와 같다 (그대로 보내면 400)
+const BAD_MSG = '<, > 기호나 스크립트처럼 보이는 글(예: javascript:, onclick=)은 쓸 수 없습니다. 고친 뒤 다시 눌러 주세요.';
+function cleanText(s) { return String(s == null ? '' : s).replace(/[\p{C}\p{Z}]/gu, (c) => (c === ' ' || c === '\n' || c === '\t' ? c : '')).trim(); }   // edit.py: 인쇄 안 되는 글자 빼고 앞뒤 공백 지움
+const EMBED = P.get('embed') === '1';
+const MOBILE = matchMedia('(pointer:coarse)').matches || /iP(hone|ad|od)|Android/.test(navigator.userAgent);
+const PHONE = () => window.innerWidth < 900;
+const D2R = Math.PI / 180;
+const VIS = { public: '🌐 지도에도 공개', link: '🔗 링크가 있는 사람만', private: '🔒 나만 (관리 링크로만)' };
+
+const S = {
+  job: '', key: '', edit: false, status: null, tourUrl: '', tour: null, spots: [],
+  meta: blankMeta(), saved: '', metaUrl: '', plan: null, d3: null,
+  cur: null, ready: false, waiting: false, features: [], lastView: null,
+  tab: 'info', armed: null, selHot: -1, dlgIdx: -1, dlgDraft: null, pop: -1, pendingLook: null
+};
+
+/* ── 작은 도구 ── */
+function blankMeta() { return { version: 1, placements: {}, hotspots: [], info: { title: '', area_m2: null, rooms: null, note: '' } }; }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const wrap180 = (a) => ((a + 180) % 360 + 360) % 360 - 180;
+const r2 = (v, n = 2) => +(+v).toFixed(n);
+const fin = (v) => v !== null && v !== '' && isFinite(v);
+let toastT = 0;
+function toast(msg, bad) { const e = $('toast'); e.textContent = msg; e.className = 'toast on' + (bad ? ' bad' : ''); clearTimeout(toastT); toastT = setTimeout(() => { e.className = 'toast'; }, bad ? 4200 : 2600); }
+function center(main, sub, spin, actHtml) {
+  const c = $('center');
+  if (main == null) { c.hidden = true; return; }
+  c.hidden = false; $('cMain').textContent = main; $('cSub').textContent = sub || ''; $('cSpin').hidden = !spin; $('cAct').innerHTML = actHtml || '';
+}
+function sameOrigin(u) { if (!u) return null; try { const x = new URL(u, location.href); return x.origin === location.origin ? x.href : null; } catch (e) { return null; } }
+function relPath(u) { const a = sameOrigin(u); if (!a) return null; const x = new URL(a); return x.pathname + x.search; }
+async function req(url, opt, ms) {
+  const ac = new AbortController(), t = setTimeout(() => ac.abort(), ms || 8000);
+  try {
+    const r = await fetch(url, Object.assign({ cache: 'no-cache', signal: ac.signal }, opt || {}));
+    let data = null; try { data = await r.json(); } catch (e) { }
+    return { ok: r.ok, status: r.status, data };
+  } catch (e) { return { ok: false, status: 0, data: null }; } finally { clearTimeout(t); }
+}
+function fmtArea(m2) { return fin(m2) ? (+m2).toLocaleString('ko-KR', { maximumFractionDigits: 2 }) + ' m²' : ''; }
+function fmtPy(m2) { return fin(m2) ? (m2 * 0.3025).toLocaleString('ko-KR', { maximumFractionDigits: 1 }) + '평' : ''; }
+function spotById(id) { return S.spots.find((s) => s.id === id) || null; }
+function spotName(id) { const s = spotById(id); return s ? (s.name || s.id) : id; }
+
+/* ── 관리 키 (계약 2절): #key= 가 있을 때만 편집. 촬영 페이지가 localStorage['kgeo_keys'][job] 에 둔다 ── */
+function hashKey() { const m = location.hash.match(/(?:^#|&)key=([A-Za-z0-9_-]{16,64})(?:&|$)/); return m ? m[1] : ''; }
+function storedKeys() { try { const o = JSON.parse(localStorage.getItem('kgeo_keys') || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } }
+function storeKey(job, key) { try { const o = storedKeys(); if (o[job] === key) return; o[job] = key; localStorage.setItem('kgeo_keys', JSON.stringify(o)); } catch (e) { } }
+
+/* ── 주소 ── */
+function shareUrl() {
+  const u = new URL(location.pathname, location.origin);
+  if (S.job) u.searchParams.set('job', S.job); else if (S.tourUrl) u.searchParams.set('tour', relPath(S.tourUrl) || S.tourUrl);
+  return u.href;
+}
+function editUrl() { return shareUrl() + '#key=' + S.key; }
+function embedCode() {
+  const u = new URL(shareUrl()); u.searchParams.set('embed', '1');
+  return '<iframe src="' + esc(u.href) + '" width="100%" height="480" style="border:0;border-radius:12px;max-width:100%" allow="fullscreen; gyroscope; accelerometer" allowfullscreen loading="lazy" title="' + esc(listingTitle()) + ' VR 투어"></iframe>';
+}
+function panoSrc() {
+  const q = new URLSearchParams();
+  if (S.tourUrl) q.set('tour', relPath(S.tourUrl) || S.tourUrl); else q.set('job', S.job);
+  q.set('embed', '1');
+  if (S.plan && S.plan.png) {        // 지점 위치는 pano.html 이 meta.json 에서 읽는다 (&pos 는 cmd:"meta" 때마다 다시 덮여 쓰지 않는다)
+    q.set('plan', S.plan.png);
+    if (fin(S.plan.north)) q.set('plan_north', S.plan.north);
+  }
+  ['spot', 'yaw', 'pitch', 'fov'].forEach((k) => { const v = P.get(k); if (v && /^[A-Za-z0-9_.-]{1,16}$/.test(v)) q.set(k, v); });
+  return PANO_PAGE + (PANO_PAGE.includes('?') ? '&' : '?') + q.toString();
+}
+
+/* ── pano.html 과 주고받기 (pano_contract 5.1, 같은 출처) ── */
+const frame = $('pano');
+function send(cmd, extra) { const w = frame.contentWindow; if (!w || !S.ready) return; try { w.postMessage(Object.assign({ type: 'kgeo-pano', cmd }, extra || {}), location.origin); } catch (e) { } }
+function sendMeta() { send('meta', { hotspots: S.meta.hotspots, placements: S.meta.placements, info: S.meta.info }); }   // 저장 전 편집을 pano.html 이 바로 다시 그린다 (계약 5.1 v0.4)
+function syncPano() {                // pano.html 은 'ready' 뒤에 meta.json 을 스스로 읽는다 → 첫 지점이 열린 뒤 편집 중인 내용으로 한 번 더 맞춘다
+  sendMeta();
+  S.spots.forEach((s) => { if (!S.meta.placements[s.id]) send('place', { spot: s.id, xy: null, yaw_on_plan: null }); });
+}
+window.addEventListener('message', (e) => {
+  if (e.origin !== location.origin || e.source !== frame.contentWindow) return;
+  const d = e.data; if (!d || d.type !== 'kgeo-pano' || !d.event) return;
+  if (d.event === 'ready') {
+    S.ready = true; S.synced = false; S.features = Array.isArray(d.features) ? d.features : [];
+    if (S.waiting) { S.waiting = false; load(); return; }          // 만드는 중이던 투어가 다 됐다 → 처음부터 다시 읽는다
+    center(null); kick();
+  } else if (d.event === 'spot') { if (!S.synced) { S.synced = true; if (S.edit) syncPano(); } setCur(d.spot); }
+  else if (d.event === 'view') { S.lastView = { yaw: +d.yaw, pitch: +d.pitch, fov: +d.fov, spot: d.spot || S.cur, t: performance.now() }; }
+  else if (d.event === 'hotspot') { if (isFinite(d.index) && S.edit) onPinTap(+d.index); }
+  else if (d.event === 'pick') { onPick(d); }
+  else if (d.event === 'error') { if (!S.tour) center('VR 투어를 열 수 없습니다', d.message || '', false); }
+});
+/* pano.html 이 설명 표시를 직접 그리는가 (v0.4: kgeoPano.setMeta 가 있다). 그러면 보기 화면에선 겹쳐 그리지 않는다 */
+function nativeHot() {
+  if (S.features.includes('hotspots')) return true;
+  try { const k = frame.contentWindow && frame.contentWindow.kgeoPano; return !!(k && typeof k.setMeta === 'function'); } catch (e) { return false; }
+}
+function frameState() { try { const k = frame.contentWindow && frame.contentWindow.kgeoPano; return k && k.state ? k.state : null; } catch (e) { return null; } }
+/* 지금 보는 방향: pano.html 이 'view' 를 보내 주면 그것, 아니면 같은 출처라 kgeoPano.state 를 읽는다 */
+function curView() {
+  const s = frameState();
+  if (s && isFinite(s.yaw)) return { yaw: s.yaw, pitch: s.pitch, fov: s.fov, spot: s.spot ? s.spot.id : S.cur };
+  if (S.lastView && performance.now() - S.lastView.t < 1500) return S.lastView;
+  return null;
+}
+async function viewNow() {
+  let v = curView(); if (v) return v;
+  send('getview'); await new Promise((r) => setTimeout(r, 300));
+  return curView();
+}
+
+/* ── 불러오기 ── */
+async function load() {
+  S.ready = false; S.tour = null; frame.removeAttribute('src');
+  center('VR 투어를 불러오는 중…', '', true);
+  const job = (P.get('job') || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 32).toLowerCase();
+  const tourP = P.get('tour');
+  S.key = hashKey();
+  if (!job && !tourP) { center('열 VR 투어가 없습니다', '주소에 ?job=작업번호 가 필요합니다.', false, '<a class="btn" href="./">kgeoScan 지도로</a>'); return; }
+  S.job = job || ((tourP || '').match(/\/([0-9a-f]{8})_pano\/tour\.json/i) || [])[1] || '';
+  if (S.key && S.job && !storedKeys()[S.job]) storeKey(S.job, S.key);    // 이미 있는 키는 저장이 성공했을 때만 바꾼다 (틀린 링크가 맞는 키를 덮지 않게)
+  S.edit = !!(S.key && S.job && !EMBED);
+
+  // 1. 작업 상태 (status.py) — 비공개면 관리 키를 헤더로 보낸다
+  if (job) {
+    const k = S.key || storedKeys()[job];
+    const r = await req(API + 'status.py?job_id=' + job, { cache: 'no-store', headers: k ? { 'X-Edit-Key': k } : {} });
+    if (r.status === 404) { center('VR 투어를 찾을 수 없습니다', '작업 번호(' + job + ')를 확인해 주세요. 지워졌을 수 있습니다.', false); return; }
+    if (!r.ok && !tourP) { center('VR 투어를 불러오지 못했습니다', '인터넷 연결을 확인하고 다시 열어 주세요.', false, '<button class="btn" onclick="location.reload()">다시 열기</button>'); return; }
+    S.status = r.data || {};
+    if (S.edit && S.status.can_edit === false) {        // status.py 가 관리 키를 확인해 준다 (키가 틀리면 고치기를 켜지 않는다)
+      S.edit = false; S.badKey = true;
+      try { const o = storedKeys(); if (o[job] === S.key) { delete o[job]; localStorage.setItem('kgeo_keys', JSON.stringify(o)); } } catch (e) { }
+    }
+    if (!S.key && S.status.can_edit === false) S.ownerOff = true;      // 이 브라우저에 남은 키가 맞지 않으면 '고치기' 단추를 숨긴다
+  }
+  const st = S.status || {};
+  S.tourUrl = sameOrigin(tourP) || sameOrigin(st.pano_url) || '';
+  if (!S.tourUrl) {
+    const ps = st.pano_status;
+    if (st.need_key || (st.visibility === 'private' && !ps)) { S.status = {}; center('비공개 VR 투어입니다', '올린 사람의 관리 링크(#key=…)로 열어야 볼 수 있습니다.', false); renderHead(); return; }
+    if (ps === 'failed') { center('VR 투어를 만들지 못했습니다', st.pano_message || '', false); renderHead(); return; }
+    if (!ps && st.mode && st.mode !== 'pano') { center('이 기록에는 VR 투어가 없습니다', '3D 보기로 열어 주세요.', false, '<a class="btn pri" href="./?job=' + esc(job) + '">3D 보기로 열기</a>'); renderHead(); return; }
+    // 아직 만드는 중: pano.html 이 진행을 보이며 8초마다 다시 본다 → 'ready' 가 오면 처음부터 다시 읽는다
+    S.waiting = true; S.edit = false; renderHead(); renderAll();
+    frame.src = PANO_PAGE + (PANO_PAGE.includes('?') ? '&' : '?') + 'job=' + encodeURIComponent(job) + '&embed=1';
+    center(null);
+    return;
+  }
+
+  // 2. tour.json · meta.json · 같은 장소(평면도·3D)를 함께
+  S.metaUrl = new URL('meta.json', S.tourUrl).href;
+  const [tr, mr, rel] = await Promise.all([req(S.tourUrl), req(S.metaUrl, { cache: 'no-store' }, 5000), findRelated(st)]);
+  if (!tr.ok || !tr.data || !Array.isArray(tr.data.spots) || !tr.data.spots.length) {
+    center('VR 투어를 열 수 없습니다', tr.status ? 'tour.json 을 읽지 못했습니다 (HTTP ' + tr.status + ')' : '인터넷 연결을 확인해 주세요.', false); return;
+  }
+  S.tour = tr.data;
+  S.spots = S.tour.spots.map((s) => ({ id: s.id, name: s.name || s.id, thumb: new URL(s.thumb || s.preview || s.pano, S.tourUrl).href, plan_xy: s.plan_xy, yaw_on_plan: s.yaw_on_plan }));
+  S.meta = normMeta(mr.ok ? mr.data : null);
+  S.plan = rel.plan || tourPlan();
+  if (S.plan && S.plan.fromTour && !Object.keys(S.meta.placements).length) {     // tour.json 안 평면도면 거기 적힌 위치로 시작
+    S.spots.forEach((s) => { if (Array.isArray(s.plan_xy)) S.meta.placements[s.id] = { xy: s.plan_xy.slice(0, 2), yaw_on_plan: fin(s.yaw_on_plan) ? +s.yaw_on_plan : 0 }; });
+  }
+  S.d3 = rel.d3;
+  S.saved = metaStr();
+  S.cur = (spotById(P.get('spot')) || spotById(S.tour.start) || S.spots[0]).id;
+  if (S.edit) checkDraft();
+  frame.src = panoSrc();
+  renderHead(); renderAll(); setOg();
+  if (S.badKey) toast('관리 키가 맞지 않아 고칠 수 없습니다. 업로드할 때 받은 관리 링크로 다시 열어 주세요.', true);
+  setTimeout(() => { if (!S.ready && !$('center').hidden) center(null); }, 12000);   // pano.html 이 'ready' 를 못 보내도 화면은 보이게
+}
+function normMeta(m) {
+  const o = blankMeta();
+  if (!m || typeof m !== 'object') return o;
+  if (m.placements && typeof m.placements === 'object') Object.entries(m.placements).forEach(([id, p]) => {
+    if (/^s\d{2}$/.test(id) && p && Array.isArray(p.xy) && p.xy.length === 2 && fin(p.xy[0]) && fin(p.xy[1])) o.placements[id] = { xy: [clamp(+p.xy[0], 0, 1), clamp(+p.xy[1], 0, 1)], yaw_on_plan: fin(p.yaw_on_plan) ? +p.yaw_on_plan : 0 };   // edit.py 는 null 방향을 받지 않는다 (없으면 0)
+  });
+  if (Array.isArray(m.hotspots)) o.hotspots = m.hotspots.filter((h) => h && typeof h.spot === 'string' && fin(h.yaw) && fin(h.pitch))
+    .slice(0, LIM.hot).map((h) => ({ spot: h.spot, yaw: +h.yaw, pitch: +h.pitch, title: String(h.title || '').slice(0, LIM.hT), text: String(h.text || '').slice(0, LIM.hX) }));
+  const i = m.info || {};
+  o.info = { title: String(i.title || '').slice(0, LIM.title), area_m2: fin(i.area_m2) ? +i.area_m2 : null, rooms: fin(i.rooms) ? Math.round(+i.rooms) : null, note: String(i.note || '').slice(0, LIM.note) };
+  return o;
+}
+function metaStr() { return JSON.stringify({ placements: S.meta.placements, hotspots: S.meta.hotspots, info: S.meta.info }); }
+function tourPlan() {
+  const fp = S.tour && S.tour.floorplan;
+  if (!fp || !fp.image) return null;
+  const png = relPath(new URL(fp.image, S.tourUrl).href);
+  return png ? { png, north: fin(fp.north_deg) ? +fp.north_deg : null, fromTour: true, label: '투어에 들어 있는 평면도' } : null;
+}
+
+/* ── 같은 장소의 평면도·3D (viewer.js 의 같은 장소 묶기와 같은 규칙)
+   ① 이 작업의 floorplan_url·splat_url  ② site_id 가 같은 기록 (sites.py)  ③ 공개 지도 레이어에서 20 m·30일·같은 유형 ── */
+function planOfJson(url, j) {
+  if (!j || !Array.isArray(j.rooms) || !j.rooms.length) return null;
+  const png = relPath((j.urls && j.urls.png) || url.replace(/_floorplan\.json(\?.*)?$/, '_floorplan/floorplan.png'));
+  if (!png) return null;
+  const area = j.rooms.filter((r) => !r.partial).reduce((s, r) => s + (+r.area_m2 || 0), 0);
+  return { png, json: url, area: area || null, north: fin(j.north_deg) ? +j.north_deg : null };
+}
+async function findRelated(st) {
+  const out = { plan: null, d3: null };
+  const pp = P.get('plan');
+  if (pp) {                               // &plan= 이 주어지면 그것 (png 또는 _floorplan.json)
+    const u = sameOrigin(pp);
+    if (u && /_floorplan\.json(\?|$)/.test(u)) { const r = await req(u, {}, 5000); out.plan = r.ok ? planOfJson(u, r.data) : null; }
+    else if (u) out.plan = { png: relPath(u) };
+    if (out.plan) out.plan.label = '주소로 받은 평면도';
+  }
+  if (!S.job) return out;
+  const cands = [Object.assign({ job_id: S.job, self: true }, st)];
+  if (st.site_id) {
+    const r = await req(API + 'sites.py?site_id=' + encodeURIComponent(st.site_id), {}, 4000);
+    const ids = ((r.data && r.data.scans) || []).map((x) => String(x.job_id || '')).filter((j) => /^[0-9a-f]{8}$/.test(j) && j !== S.job).slice(0, 8);
+    const sts = await Promise.all(ids.map((j) => req(API + 'status.py?job_id=' + j, { cache: 'no-store' }, 4000).then((x) => (x.ok && x.data ? Object.assign({ job_id: j }, x.data) : null))));
+    sts.forEach((x) => { if (x) cands.push(x); });
+  }
+  await pick(cands, out);
+  if (!out.plan || !out.d3) { try { await pick(await layerSiblings(st), out); } catch (e) { } }
+  return out;
+}
+async function pick(cands, out) {
+  for (const c of cands) {
+    if (!out.d3) {
+      const splat = sameOrigin(c.splat_url), glb = sameOrigin(c.glb_url);
+      if (splat) {
+        const q = new URLSearchParams({ model: relPath(splat) });
+        if ((c.scan_type || 'home') === 'home') q.set('home', '1');
+        const fpu = sameOrigin(c.floorplan_url); if (fpu) q.set('floorplan', relPath(fpu));
+        out.d3 = { href: 'splat.html?' + q.toString(), self: !!c.self, date: c.created_at || c.pub_date || '', title: c.title || c.scan_title || '' };
+      } else if (glb) {
+        const jid = c.job_id || '';
+        out.d3 = { href: c.scene_item_id ? './?select=' + encodeURIComponent(c.scene_item_id) : './?job=' + encodeURIComponent(jid), self: !!c.self, date: c.created_at || c.pub_date || '', title: c.title || c.scan_title || '' };
+      }
+    }
+    if (!out.plan) {
+      let u = sameOrigin(c.floorplan_url);
+      if (!u && c.layer && c.glb_url && (c.scan_type || 'home') === 'home') u = sameOrigin(String(c.glb_url).replace(/\.glb(\?.*)?$/i, '_floorplan.json'));
+      if (u) {
+        const r = await req(u, {}, 5000);
+        const p = r.ok ? planOfJson(u, r.data) : null;
+        if (p) { p.label = c.self ? '이 기록의 평면도' : '같은 장소 기록의 평면도' + (c.title || c.scan_title ? ' (' + (c.title || c.scan_title) + ')' : ''); out.plan = p; }
+      }
+    }
+    if (out.plan && out.d3) break;
+  }
+}
+async function layerSiblings(st) {
+  const it = await req('/portal/sharing/rest/content/items/' + LAYER_ITEM + '?f=json', {}, 3000);
+  let url = it.ok && it.data && it.data.url; if (!url || !sameOrigin(url)) return [];
+  url = sameOrigin(url).replace(/\/+$/, ''); if (!/\/\d+$/.test(url)) url += '/0';
+  const q = (p) => req(url + '/query?' + new URLSearchParams(Object.assign({ f: 'json', outFields: '*', returnGeometry: 'true', outSR: '4326' }, p)), {}, 4000);
+  const j = S.job;
+  const me = await q({ where: "thumb_url LIKE '%/" + j + ".jpg%' OR thumb_url LIKE '%/" + j + "_pano/%' OR glb_url LIKE '%/" + j + ".glb%'" });
+  const f = me.ok && me.data && (me.data.features || [])[0];
+  if (!f || !f.geometry || !isFinite(f.geometry.x)) return [];
+  const near = await q({ where: '1=1', geometry: f.geometry.x + ',' + f.geometry.y, geometryType: 'esriGeometryPoint', inSR: '4326',
+    distance: '20', units: 'esriSRUnit_Meter', spatialRel: 'esriSpatialRelIntersects', resultRecordCount: '30' });
+  const ta = f.attributes || {}, tDate = +ta.pub_date || 0, oid = ta.objectid ?? ta.OBJECTID;
+  return ((near.data && near.data.features) || []).map((x) => x.attributes || {})
+    .filter((a) => (a.objectid ?? a.OBJECTID) !== oid)
+    .filter((a) => (ta.site_id && a.site_id) ? String(ta.site_id) === String(a.site_id) : ((a.scan_type || '') === (ta.scan_type || '') && (!tDate || !+a.pub_date || Math.abs(+a.pub_date - tDate) <= 30 * 86400000)))
+    .sort((x, y) => Math.abs((+x.pub_date || 0) - tDate) - Math.abs((+y.pub_date || 0) - tDate))
+    .map((a) => Object.assign({ layer: true, job_id: ((String(a.glb_url || a.thumb_url || '').match(/\/([0-9a-f]{8})[^/]*$/i) || [])[1] || '') }, a));
+}
+
+/* ── 그리기 (보기) ── */
+function listingTitle() { return S.meta.info.title || (S.tour && S.tour.title) || (S.status && S.status.title) || 'VR 투어'; }
+function metaLine() {
+  const i = S.meta.info, a = [];
+  if (fin(i.area_m2)) a.push('<b>' + esc(fmtArea(i.area_m2)) + '</b> (' + esc(fmtPy(i.area_m2)) + ')');
+  if (fin(i.rooms)) a.push('방 ' + i.rooms + '개');
+  if (S.spots.length) a.push('지점 ' + S.spots.length + '곳');
+  return a.join(' · ');
+}
+function renderHead() {
+  const t = listingTitle();
+  $('hTitle').textContent = t; $('eTitle').innerHTML = esc(t) + (fin(S.meta.info.area_m2) ? '<small>' + esc(fmtArea(S.meta.info.area_m2)) + '</small>' : '');
+  $('hMeta').innerHTML = S.waiting ? 'VR 투어를 만드는 중입니다…' : metaLine();
+  document.title = t + ' · VR 투어 · kgeoScan';
+  $('eOpen').href = shareUrl();
+}
+function renderInfo() {
+  const i = S.meta.info, c = [];
+  if (fin(i.area_m2)) c.push('<span class="chip">전용 ' + esc(fmtArea(i.area_m2)) + '<small>' + esc(fmtPy(i.area_m2)) + '</small></span>');
+  if (fin(i.rooms)) c.push('<span class="chip">방 ' + i.rooms + '개</span>');
+  if (S.spots.length) c.push('<span class="chip">360° 지점 ' + S.spots.length + '곳</span>');
+  if (S.meta.hotspots.length) c.push('<span class="chip">설명 ' + S.meta.hotspots.length + '개</span>');
+  $('iChips').innerHTML = c.join('');
+  $('iNote').textContent = i.note || ''; $('iNote').hidden = !i.note;
+  $('iEmpty').hidden = !!(i.note || fin(i.area_m2) || fin(i.rooms));
+}
+function renderSpots() {
+  $('spotN').textContent = S.spots.length ? S.spots.length + '곳' : '';
+  $('spotList').innerHTML = S.spots.map((s, k) => {
+    const n = S.meta.hotspots.filter((h) => h.spot === s.id).length;
+    return '<button class="spot' + (s.id === S.cur ? ' cur' : '') + '" data-id="' + esc(s.id) + '" aria-label="' + esc(s.name) + ' 보기"><img loading="lazy" alt="" src="' + esc(s.thumb) + '"><em>' + (k + 1) + '</em><span><b>' + esc(s.name) + '</b>' + (n ? '<i>설명 ' + n + '</i>' : '') + '</span></button>';
+  }).join('') || '<p class="empty">' + (S.waiting ? '만드는 중입니다' : '지점이 없습니다') + '</p>';
+  $('spotList').querySelectorAll('.spot').forEach((b) => b.onclick = () => { goto(b.dataset.id); if (PHONE()) sheet(false); });
+}
+function renderHere() {
+  const list = S.meta.hotspots.map((h, i) => [h, i]).filter(([h]) => h.spot === S.cur);
+  $('sHere').hidden = S.edit || !list.length;
+  $('hereName').textContent = S.cur ? spotName(S.cur) : '';
+  $('hereList').innerHTML = list.map(([h, i], k) => '<button class="hrow" data-i="' + i + '"><span class="n">' + (k + 1) + '</span><span class="tx"><b>' + esc(h.title) + '</b>' + (h.text ? '<small>' + esc(h.text) + '</small>' : '') + '</span></button>').join('');
+  $('hereList').querySelectorAll('.hrow').forEach((b) => b.onclick = () => { lookAt(+b.dataset.i); if (PHONE()) sheet(false); });
+}
+function render3d() {
+  const d = S.d3;
+  $('s3d').hidden = !d; $('a3dTop').hidden = !d;
+  if (!d) return;
+  $('a3d').href = d.href; $('a3dTop').href = d.href; $('a3dTop').target = '_blank'; $('a3dTop').rel = 'noopener';
+  $('a3dSub').textContent = d.self ? '사진처럼 보이는 3D 로 집 안을 걸어 봅니다' : '같은 장소의 3D 기록' + (d.title ? ' · ' + d.title : '');
+}
+function renderShare() {
+  $('shareUrl').value = shareUrl();
+  $('embedCode').value = embedCode();
+  $('bShareNative').hidden = !(navigator.share && MOBILE);
+  const k = storedKeys()[S.job];
+  $('sOwner').hidden = S.edit || EMBED || !k || !!S.ownerOff;
+}
+function renderAll() {
+  document.body.classList.toggle('editing', S.edit);
+  $('vhead').hidden = S.edit; $('ehead').hidden = !S.edit;
+  ['sInfo', 'sSpots', 'sShare'].forEach((id) => { $(id).hidden = false; });
+  renderInfo(); renderSpots(); renderHere(); render3d(); renderShare();
+  if (S.edit) { document.querySelectorAll('.vsec').forEach((e) => { e.hidden = true; }); renderEdit(); }
+  else document.querySelectorAll('.esec').forEach((e) => { e.hidden = true; });
+  hotUi();
+  kick(); fitSheet();
+}
+function setCur(id) {
+  if (!id) return;
+  if (id !== S.cur) closePop();
+  S.cur = id;
+  $('spotList').querySelectorAll('.spot').forEach((b) => b.classList.toggle('cur', b.dataset.id === id));
+  renderHere();
+  if (S.edit) { if (S.tab === 'hot') renderHotList(); if (S.tab === 'place') renderPlan(); }
+  const pl = S.pendingLook;                            // 다른 지점의 설명을 눌렀을 때: 그 지점이 열리면 그쪽으로 돌린다
+  if (pl && S.meta.hotspots[pl] && S.meta.hotspots[pl].spot === id) { S.pendingLook = null; lookAt(pl); }
+  kick();
+}
+function goto(id) { if (!id) return; send('goto', { spot: id }); }
+function lookAt(i) {
+  const h = S.meta.hotspots[i]; if (!h) return;
+  if (h.spot !== S.cur) { S.pendingLook = i; goto(h.spot); return; }
+  send('view', { yaw: h.yaw, pitch: h.pitch });
+  if (S.edit) return;
+  if (!nativeHot()) { openPop(i); return; }
+  // pano.html 이 그린 설명 표시의 카드를 연다 (여는 명령이 없어 같은 출처 DOM 의 그 단추를 누른다)
+  setTimeout(() => { try { const b = frame.contentDocument.querySelector('#hots .ihot[data-i="' + i + '"]'); if (b && !b.classList.contains('on')) b.click(); } catch (e) { } }, 60);
+}
+
+/* ── Open Graph (메신저 미리보기): 정적 값 위에 기록별 값을 덮는다. JS 를 안 도는 미리보기는 정적 값만 본다 ── */
+function setMetaTag(attr, key, val) {
+  let m = document.head.querySelector('meta[' + attr + '="' + key + '"]');
+  if (!m) { m = document.createElement('meta'); m.setAttribute(attr, key); document.head.appendChild(m); }
+  m.setAttribute('content', val);
+}
+function setOg() {
+  const t = listingTitle(), i = S.meta.info;
+  const d = [fin(i.area_m2) ? '전용 ' + fmtArea(i.area_m2) : '', fin(i.rooms) ? '방 ' + i.rooms + '개' : '', S.spots.length ? '360° 지점 ' + S.spots.length + '곳' : ''].filter(Boolean).join(' · ');
+  const desc = (d ? d + ' — ' : '') + (i.note ? i.note.replace(/\s+/g, ' ').slice(0, 90) : '360° 실사 사진으로 집 안을 둘러보세요.');
+  let img = S.tourUrl ? S.tourUrl.replace(/_pano\/tour\.json(\?.*)?$/, '.jpg') : '';               // <job>.jpg (GLB·썸네일 옆)
+  if (!img || img === S.tourUrl) img = S.spots[0] ? S.spots[0].thumb : '';
+  setMetaTag('property', 'og:title', t + ' · VR 투어');
+  setMetaTag('property', 'og:description', desc);
+  setMetaTag('name', 'description', desc);
+  setMetaTag('property', 'og:url', shareUrl());
+  if (img) {
+    setMetaTag('property', 'og:image', new URL(img, location.href).href);
+    document.head.querySelectorAll('meta[property="og:image:width"],meta[property="og:image:height"]').forEach((m) => m.remove());   // 기본 그림의 크기였다
+  }
+}
+
+/* ── VR 화면 위 겹침: 설명 표시 (pano.html 이 'ready' 의 features 에 "hotspots" 를 넣으면 보기 모드에선 그쪽에 맡긴다) ── */
+let raf = 0;
+function kick() { if (!raf) raf = requestAnimationFrame(tick); }
+function project(yaw, pitch, v, W, H) {
+  // pano.html: dirOf(yaw,pitch) = (−cosθcosψ, sinθ, −cosθsinψ), camera.rotation YXZ = (pitch, π/2 − yaw, 0), 앞 = −z
+  const y = yaw * D2R, p = pitch * D2R;
+  const x = -Math.cos(p) * Math.cos(y), yy = Math.sin(p), z = -Math.cos(p) * Math.sin(y);
+  const b = -(Math.PI / 2 - v.yaw * D2R), a = -v.pitch * D2R;
+  const x1 = x * Math.cos(b) + z * Math.sin(b), z1 = -x * Math.sin(b) + z * Math.cos(b);
+  const y2 = yy * Math.cos(a) - z1 * Math.sin(a), z2 = yy * Math.sin(a) + z1 * Math.cos(a);
+  if (z2 > -0.02) return null;
+  const t = Math.tan(v.fov * D2R / 2);
+  return [(x1 / -z2 / (t * W / H) + 1) / 2 * W, (1 - y2 / -z2 / t) / 2 * H];
+}
+function tick() {
+  raf = 0;
+  const ov = $('ov');
+  const W = frame.clientWidth, H = frame.clientHeight;
+  const v = S.ready ? curView() : null;
+  const native = S.ready && nativeHot();
+  const show = !!(v && S.tour) && (S.edit || !native);
+  const list = show ? S.meta.hotspots.map((h, i) => [h, i]).filter(([h]) => h.spot === (v.spot || S.cur)) : [];
+  if (v && v.spot && v.spot !== S.cur) setCur(v.spot);
+  const keep = new Set();
+  list.forEach(([h, i], k) => {
+    if (native && i !== S.selHot) return;              // pano.html 이 직접 그리면 편집 중 고른 것만 테두리로
+    const xy = project(h.yaw, h.pitch, v, W, H);
+    let el = ov.querySelector('.pin[data-i="' + i + '"]');
+    if (!xy || xy[0] < -40 || xy[0] > W + 40 || xy[1] < -40 || xy[1] > H + 40) { if (el) el.style.display = 'none'; if (S.pop === i) placePop(null); return; }
+    if (!el) {
+      el = document.createElement('div'); el.className = 'pin'; el.dataset.i = i;
+      el.innerHTML = '<button aria-label=""></button><span class="lb"></span>';
+      el.querySelector('button').onclick = (e) => { e.stopPropagation(); onPinTap(+el.dataset.i); };
+      ov.appendChild(el);
+    }
+    keep.add(el);
+    el.className = 'pin' + (S.edit ? ' ed' : '') + (S.edit && i === S.selHot ? ' sel' : '') + (native ? ' ring' : '');
+    el.style.display = ''; el.style.transform = 'translate(' + xy[0].toFixed(1) + 'px,' + xy[1].toFixed(1) + 'px)';
+    const bt = el.querySelector('button'); bt.textContent = native ? '' : (S.edit ? String(k + 1) : 'i'); bt.setAttribute('aria-label', h.title + ' 설명 보기');
+    el.querySelector('.lb').textContent = native ? '' : h.title; el.querySelector('.lb').hidden = native;
+    if (S.pop === i) placePop(xy);
+  });
+  ov.querySelectorAll('.pin').forEach((el) => { if (!keep.has(el)) el.remove(); });
+  if (S.pop >= 0 && !keep.size) placePop(null);
+  if (S.edit && S.tab === 'place') updateCone(v);
+  if (S.ready && (S.edit || (show && S.meta.hotspots.length) || S.pop >= 0)) kick();     // 설명 표시가 없으면 돌지 않는다 (지점이 바뀌면 'spot' 이 다시 깨운다)
+}
+function onPinTap(i) { if (S.edit) { S.selHot = i; openHotDialog(i); } else openPop(i); }
+function openPop(i) { const h = S.meta.hotspots[i]; if (!h) return; S.pop = i; $('popT').textContent = h.title; $('popP').textContent = h.text || ''; $('popP').hidden = !h.text; $('pop').hidden = false; $('pop').style.visibility = 'hidden'; kick(); }
+function closePop() { S.pop = -1; $('pop').hidden = true; }
+function placePop(xy) {
+  const p = $('pop'); if (p.hidden) return;
+  if (!xy) { p.style.visibility = 'hidden'; return; }
+  const W = frame.clientWidth, H = frame.clientHeight, w = p.offsetWidth, h = p.offsetHeight;
+  let x = xy[0] - w / 2, y = xy[1] + 28; if (y + h > H - 8) y = xy[1] - h - 28;
+  p.style.transform = 'translate(' + clamp(x, 12, W - w - 12).toFixed(0) + 'px,' + clamp(y, 8, H - h - 8).toFixed(0) + 'px)'; p.style.visibility = 'visible';
+}
+$('popX').onclick = closePop;
+
+/* ── 휴대폰 아래 판 ── */
+function sheet(open) { $('panel').classList.toggle('open', !!open); if (!open) $('pb').scrollTop = 0; }
+function fitSheet() {
+  const vh = window.innerHeight;
+  document.documentElement.style.setProperty('--vh', vh + 'px');
+  if (!PHONE() || EMBED) return;
+  const probe = document.createElement('div'); probe.style.cssText = 'position:fixed;height:env(safe-area-inset-bottom);visibility:hidden'; document.body.appendChild(probe);
+  const sb = probe.offsetHeight; probe.remove();
+  document.documentElement.style.setProperty('--peek', ($('ph').offsetHeight + sb) + 'px');
+  document.documentElement.style.setProperty('--sheet', Math.round(Math.min(vh * 0.82, vh - 64)) + 'px');
+}
+window.addEventListener('resize', fitSheet);
+new ResizeObserver(fitSheet).observe($('ph'));
+$('ph').addEventListener('click', (e) => { if (!PHONE() || e.target.closest('button,a,input')) return; sheet(!$('panel').classList.contains('open')); });
+{ // 판 머리를 위아래로 밀어 열고 닫기
+  let y0 = null;
+  $('ph').addEventListener('pointerdown', (e) => { if (PHONE() && !e.target.closest('button,a,input')) y0 = e.clientY; });
+  window.addEventListener('pointerup', (e) => { if (y0 == null) return; const dy = e.clientY - y0; y0 = null; if (Math.abs(dy) > 30) sheet(dy < 0); });
+}
+$('acts').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-go]'); if (!b) return;
+  const el = $(b.dataset.go), pb = $('pb');
+  const go = () => pb.scrollTo({ top: Math.max(0, el.getBoundingClientRect().top - pb.getBoundingClientRect().top + pb.scrollTop - 4), behavior: 'smooth' });
+  if (PHONE()) { sheet(true); setTimeout(go, 60); } else go();
+});
+
+/* ── 공유: 링크·QR·삽입 코드 ── */
+async function copyText(t, okMsg) {
+  try { await navigator.clipboard.writeText(t); toast(okMsg); return; } catch (e) { }
+  const ta = document.createElement('textarea'); ta.value = t; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;opacity:0;top:0'; document.body.appendChild(ta); ta.select();
+  let ok = false; try { ok = document.execCommand('copy'); } catch (e) { } ta.remove();
+  if (ok) toast(okMsg); else window.prompt('복사해서 쓰세요', t);
+}
+$('bCopy').onclick = () => copyText(shareUrl(), '링크를 복사했습니다. 카카오톡·문자에 붙여 넣으세요.');
+$('bShareNative').onclick = () => { navigator.share({ title: listingTitle() + ' · VR 투어', text: listingTitle() + ' — 360° VR 투어', url: shareUrl() }).catch(() => { }); };
+$('bEmbedCopy').onclick = () => copyText(embedCode(), '삽입 코드를 복사했습니다.');
+$('shareUrl').onclick = () => $('shareUrl').select();
+$('bEmbed').onclick = () => { const b = $('embedBox'); b.hidden = !b.hidden; $('bEmbed').setAttribute('aria-expanded', String(!b.hidden)); $('embedCode').value = embedCode(); };
+let qrP = null;
+function loadQr() {
+  if (qrP) return qrP;
+  qrP = new Promise((res, rej) => {
+    const s = document.createElement('script'); s.src = QR_JS.src; s.integrity = QR_JS.sri; s.crossOrigin = 'anonymous'; s.referrerPolicy = 'no-referrer';
+    s.onload = () => (window.qrcode ? res(window.qrcode) : rej(new Error('QR')));
+    s.onerror = () => { qrP = null; rej(new Error('QR')); };
+    document.head.appendChild(s);
+  });
+  return qrP;
+}
+$('bQr').onclick = async () => {
+  const box = $('qrBox');
+  if (!box.hidden) { box.hidden = true; $('bQr').setAttribute('aria-expanded', 'false'); return; }
+  try {
+    const qrcode = await loadQr();
+    if (qrcode.stringToBytesFuncs && qrcode.stringToBytesFuncs['UTF-8']) qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
+    const q = qrcode(0, 'M'); q.addData(shareUrl()); q.make();
+    const n = q.getModuleCount(), quiet = 4, sc = Math.max(4, Math.floor(600 / (n + quiet * 2))), c = $('qrCanvas');
+    c.width = c.height = (n + quiet * 2) * sc;
+    const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.fillStyle = '#000';
+    for (let r = 0; r < n; r++) for (let k = 0; k < n; k++) if (q.isDark(r, k)) g.fillRect((k + quiet) * sc, (r + quiet) * sc, sc, sc);
+    box.hidden = false; $('bQr').setAttribute('aria-expanded', 'true');
+  } catch (e) { toast('QR 코드를 만들지 못했습니다. 인터넷 연결을 확인해 주세요.', true); }
+};
+$('bQrSave').onclick = () => {
+  $('qrCanvas').toBlob((b) => { if (!b) return; const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'VR투어_' + (S.job || 'qr') + '_QR.png'; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); }, 'image/png');
+};
+$('bEditOn').onclick = () => { const k = storedKeys()[S.job]; if (!k) return; location.hash = 'key=' + k; location.reload(); };
+
+/* ════ 편집 (#key=) ════ */
+function dirty() { return S.edit && metaStr() !== S.saved; }
+function changed(opt) {
+  const d = dirty();
+  $('bSave').disabled = !d; $('dirtyNote').hidden = !d;
+  try { if (d) localStorage.setItem('kgeo_tour_draft:' + S.job, JSON.stringify({ t: Date.now(), meta: JSON.parse(metaStr()) })); else localStorage.removeItem('kgeo_tour_draft:' + S.job); } catch (e) { }
+  renderHead(); renderInfo(); renderSpots();
+  if (!opt || !opt.quiet) sendMeta();
+  $('hotN').textContent = S.meta.hotspots.length ? ' ' + S.meta.hotspots.length : '';
+  kick();
+}
+function checkDraft() {
+  let d = null; try { d = JSON.parse(localStorage.getItem('kgeo_tour_draft:' + S.job) || 'null'); } catch (e) { }
+  const b = $('draftBanner');
+  if (!d || !d.meta || JSON.stringify(normMeta(d.meta)) === JSON.stringify(normMeta(JSON.parse(S.saved)))) { b.hidden = true; return; }
+  const when = new Date(d.t || 0);
+  b.innerHTML = '<b>저장하지 않은 편집이 있습니다</b> (' + esc(when.toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })) + ')<div class="btns"><button class="btn sm pri" id="dLoad">불러오기</button><button class="btn sm" id="dDrop">버리기</button></div>';
+  b.hidden = false;
+  $('dLoad').onclick = () => { S.meta = normMeta(d.meta); b.hidden = true; fillInfo(); changed(); renderEdit(); toast('저장하지 않았던 편집을 불러왔습니다. 저장을 눌러야 반영됩니다.'); };
+  $('dDrop').onclick = () => { try { localStorage.removeItem('kgeo_tour_draft:' + S.job); } catch (e) { } b.hidden = true; };
+}
+function renderEdit() {
+  document.querySelectorAll('.esec').forEach((e) => { e.hidden = !(e.dataset.tab === S.tab || e.dataset.tab === '*'); });
+  document.querySelectorAll('.seg button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === S.tab)));
+  const vis = S.status && S.status.visibility;
+  $('visBadge').hidden = !VIS[vis]; if (VIS[vis]) $('visBadge').textContent = '공개 범위: ' + VIS[vis];
+  $('eWho').textContent = S.job ? ' · ' + S.job : '';
+  $('hotN').textContent = S.meta.hotspots.length ? ' ' + S.meta.hotspots.length : '';
+  $('bSave').disabled = !dirty(); $('dirtyNote').hidden = !dirty();
+  hotUi();
+  if (S.tab === 'info') fillInfo();
+  if (S.tab === 'hot') renderHotList();
+  if (S.tab === 'place') renderPlan();
+}
+document.querySelector('.seg').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-tab]'); if (!b) return;
+  if (S.picking) { send('pick', { cancel: true }); setPicking(false); }
+  S.tab = b.dataset.tab; S.armed = null; renderEdit(); kick();
+  if (PHONE()) sheet(S.tab !== 'hot');                   // 설명 표시는 VR 화면을 보며 붙이므로 판을 내린다
+  $('pb').scrollTop = 0;
+});
+
+/* 정보 */
+function fillInfo() {
+  const i = S.meta.info;
+  if (document.activeElement !== $('fTitle')) $('fTitle').value = i.title || '';
+  if (document.activeElement !== $('fArea')) $('fArea').value = fin(i.area_m2) ? i.area_m2 : '';
+  if (document.activeElement !== $('fRooms')) $('fRooms').value = fin(i.rooms) ? i.rooms : '';
+  if (document.activeElement !== $('fNote')) $('fNote').value = i.note || '';
+  $('cTitle').textContent = (i.title || '').length + '/' + LIM.title; $('cNote').textContent = (i.note || '').length + '/' + LIM.note;
+  $('fPy').textContent = fin(i.area_m2) ? '= ' + fmtPy(i.area_m2) : '';
+  const pa = S.plan && S.plan.area;
+  $('areaHint').innerHTML = '광고에는 <b>건축물대장 전용면적</b>을 적어 주세요.' + (pa ? ' 평면도로 잰 방 안쪽 합계는 ' + esc(fmtArea(r2(pa))) + ' 로, 벽 두께가 빠져 대장 면적보다 작습니다(참고용).' : '');
+}
+$('fTitle').addEventListener('input', () => { S.meta.info.title = $('fTitle').value.slice(0, LIM.title); $('cTitle').textContent = S.meta.info.title.length + '/' + LIM.title; changed(); });
+$('fNote').addEventListener('input', () => { S.meta.info.note = $('fNote').value.slice(0, LIM.note); $('cNote').textContent = S.meta.info.note.length + '/' + LIM.note; changed(); });
+$('fArea').addEventListener('input', () => { const v = parseFloat($('fArea').value); S.meta.info.area_m2 = isFinite(v) && v >= 0 ? r2(Math.min(v, 100000)) : null; $('fPy').textContent = fin(S.meta.info.area_m2) ? '= ' + fmtPy(S.meta.info.area_m2) : ''; changed(); });
+$('fRooms').addEventListener('input', () => { const v = parseInt($('fRooms').value, 10); S.meta.info.rooms = isFinite(v) ? clamp(v, 0, 99) : null; changed(); });
+function stepRooms(d) { const v = fin(S.meta.info.rooms) ? S.meta.info.rooms : (d > 0 ? 0 : 1); S.meta.info.rooms = clamp(v + d, 0, 99); $('fRooms').value = S.meta.info.rooms; changed(); }
+$('rMinus').onclick = () => stepRooms(-1); $('rPlus').onclick = () => stepRooms(1);
+
+/* 설명 표시 (hotspot) */
+function renderHotList() {
+  const by = S.spots.map((s) => [s, S.meta.hotspots.map((h, i) => [h, i]).filter(([h]) => h.spot === s.id)]);
+  by.sort((a, b) => (a[0].id === S.cur ? -1 : b[0].id === S.cur ? 1 : 0));
+  const html = by.filter(([s, l]) => l.length || s.id === S.cur).map(([s, l]) =>
+    '<h2 style="margin:6px 0 2px">' + esc(s.name) + (s.id === S.cur ? ' <small>지금 보는 지점</small>' : '') + '</h2>' +
+    (l.length ? l.map(([h, i], k) => '<div class="hrow' + (i === S.selHot ? ' sel' : '') + '" data-i="' + i + '"><span class="n">' + (k + 1) + '</span><span class="tx"><b>' + esc(h.title) + '</b><small>' + esc(h.text || '설명 없음') + '</small></span><span class="ops">' +
+      '<button class="btn sm" data-a="look" aria-label="' + esc(h.title) + ' 보기">보기</button><button class="btn sm" data-a="edit" aria-label="' + esc(h.title) + ' 고치기">고치기</button></span></div>').join('')
+      : '<p class="empty">이 지점에는 아직 설명이 없습니다.</p>')).join('');
+  $('eHotList').innerHTML = html || '<p class="empty">아직 설명 표시가 없습니다.</p>';
+  $('eHotList').querySelectorAll('.hrow').forEach((r) => r.querySelectorAll('button').forEach((b) => b.onclick = () => {
+    const i = +r.dataset.i; S.selHot = i;
+    if (b.dataset.a === 'look') { lookAt(i); closePop(); if (PHONE()) sheet(false); }
+    else openHotDialog(i);
+    renderHotList(); kick();
+  }));
+}
+async function addHere() {
+  if (S.meta.hotspots.length >= LIM.hot) { toast('설명 표시는 ' + LIM.hot + '개까지 붙일 수 있습니다.', true); return; }
+  const v = await viewNow();
+  if (!v) { toast('지금 보는 방향을 읽지 못했습니다. VR 화면이 다 열린 뒤 다시 눌러 주세요.', true); return; }
+  S.dlgDraft = { spot: v.spot || S.cur, yaw: r2(wrap180(v.yaw)), pitch: r2(clamp(v.pitch, -89, 89)), title: '', text: '' };
+  openHotDialog(-1);
+}
+$('addHere').onclick = addHere; $('bAddHot').onclick = () => { if (PHONE()) sheet(false); addHere(); };
+/* 👆 눌러서 고르기: pano.html cmd:"pick" → 다음 한 번 누른 곳 → event:"pick" {spot,yaw,pitch} (계약 5.1 v0.4) */
+function hotUi() {
+  const on = !!(S.edit && S.tab === 'hot' && S.tour);
+  $('cross').hidden = $('hotBar').hidden = !on || !!S.picking;
+  $('pickCancel').hidden = !on || !S.picking;
+  $('bPick').textContent = S.picking ? '고르는 중… 누르면 취소' : '👆 VR 화면에서 눌러 고르기';
+}
+function setPicking(on) { S.picking = !!on; hotUi(); }
+function startPick() {
+  if (S.picking) { send('pick', { cancel: true }); setPicking(false); return; }
+  if (!S.ready) { toast('VR 화면이 다 열린 뒤 눌러 주세요.', true); return; }
+  if (S.meta.hotspots.length >= LIM.hot) { toast('설명 표시는 ' + LIM.hot + '개까지 붙일 수 있습니다.', true); return; }
+  setPicking(true); send('pick'); if (PHONE()) sheet(false);
+}
+function onPick(d) {
+  if (!S.picking && !S.edit) return;
+  setPicking(false);
+  if (d.cancelled || !S.edit || !fin(d.yaw) || !fin(d.pitch)) return;
+  S.dlgDraft = { spot: d.spot || S.cur, yaw: r2(wrap180(+d.yaw)), pitch: r2(clamp(+d.pitch, -89, 89)), title: '', text: '' };
+  openHotDialog(-1);
+}
+$('pickHere').onclick = startPick; $('bPick').onclick = startPick;
+$('pickCancel').onclick = () => { send('pick', { cancel: true }); setPicking(false); };
+function openHotDialog(i) {
+  const h = i >= 0 ? S.meta.hotspots[i] : S.dlgDraft; if (!h) return;
+  S.dlgIdx = i;
+  $('dhTitle').textContent = i >= 0 ? '설명 고치기' : '설명 붙이기';
+  $('dhSub').textContent = spotName(h.spot) + ' · 방향 ' + Math.round(wrap180(h.yaw)) + '°, 높이 ' + Math.round(h.pitch) + '°';
+  $('hT').value = h.title || ''; $('hX').value = h.text || ''; countHot();
+  $('hDel').hidden = $('hMove').hidden = i < 0;
+  $('hOk').textContent = i >= 0 ? '고치기' : '붙이기';
+  const d = $('dlgHot'); if (!d.open) d.showModal();
+  setTimeout(() => $('hT').focus(), 50);
+}
+function countHot() { $('cHotT').textContent = $('hT').value.length + '/' + LIM.hT; $('cHotX').textContent = $('hX').value.length + '/' + LIM.hX; }
+$('hT').addEventListener('input', countHot); $('hX').addEventListener('input', countHot);
+$('hX').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); $('hotForm').requestSubmit(); } });
+$('hCancel').onclick = () => $('dlgHot').close();
+$('hotForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const title = cleanText($('hT').value).slice(0, LIM.hT), text = cleanText($('hX').value).slice(0, LIM.hX);
+  if (!title) { $('hT').focus(); toast('제목을 적어 주세요.', true); return; }
+  if (BAD_TEXT.test(title) || BAD_TEXT.test(text)) { (BAD_TEXT.test(title) ? $('hT') : $('hX')).focus(); toast(BAD_MSG, true); return; }
+  if (S.dlgIdx >= 0) Object.assign(S.meta.hotspots[S.dlgIdx], { title, text });
+  else { S.meta.hotspots.push(Object.assign({}, S.dlgDraft, { title, text })); S.selHot = S.meta.hotspots.length - 1; }
+  $('dlgHot').close(); changed(); renderHotList();
+  toast(S.dlgIdx >= 0 ? '설명을 고쳤습니다.' : '설명을 붙였습니다. 저장을 눌러야 모두에게 보입니다.');
+});
+$('hDel').onclick = () => {
+  const h = S.meta.hotspots[S.dlgIdx]; if (!h) return;
+  if (!window.confirm('"' + h.title + '" 설명을 지울까요?')) return;
+  S.meta.hotspots.splice(S.dlgIdx, 1); S.selHot = -1; closePop();
+  $('ov').querySelectorAll('.pin').forEach((p) => p.remove());
+  $('dlgHot').close(); changed(); renderHotList(); toast('설명을 지웠습니다.');
+};
+$('hMove').onclick = async () => {
+  const h = S.meta.hotspots[S.dlgIdx], v = await viewNow(); if (!h || !v) return;
+  Object.assign(h, { spot: v.spot || S.cur, yaw: r2(wrap180(v.yaw)), pitch: r2(clamp(v.pitch, -89, 89)) });
+  $('dlgHot').close(); changed(); renderHotList(); toast('지금 화면 가운데로 옮겼습니다.');
+};
+
+/* 지점 위치 (평면도 위에 끌어 놓기 → pano.html cmd:"place") */
+function planAr() { const im = $('peImg'); return im.naturalWidth ? im.naturalHeight / im.naturalWidth : 0.75; }
+function renderPlan() {
+  const has = !!(S.plan && S.plan.png);
+  $('peWrap').hidden = !has; $('noPlan').hidden = has;
+  if (!has) return;
+  const im = $('peImg');
+  if (im.dataset.src !== S.plan.png) { im.dataset.src = S.plan.png; im.onload = () => renderPlan(); im.onerror = () => { $('peWrap').hidden = true; $('noPlan').hidden = false; $('noPlan').textContent = '평면도 그림을 불러오지 못했습니다.'; }; im.src = S.plan.png; }
+  $('planFrom').textContent = S.plan.label || '';
+  $('peChips').innerHTML = S.spots.map((s) => '<button class="pchip' + (S.meta.placements[s.id] ? ' placed' : '') + (s.id === S.cur ? ' cur' : '') + (S.armed === s.id ? ' armed' : '') + '" data-id="' + esc(s.id) + '"><span class="d"></span>' + esc(s.name) + '</button>').join('');
+  const cp = S.meta.placements[S.cur];
+  $('rotL').disabled = $('rotR').disabled = $('unplace').disabled = !cp;
+  $('peMap').classList.toggle('armed', !!S.armed);
+  drawPlanSvg();
+}
+function drawPlanSvg() {
+  const ar = planAr(), svg = $('peSvg');
+  svg.setAttribute('viewBox', '0 0 1 ' + ar.toFixed(4));
+  let h = '<path id="peCone" d="" fill="rgba(56,189,248,.32)" stroke="rgba(14,116,144,.9)" stroke-width="0.004"/><line id="peArm" stroke="#0369a1" stroke-width="0.005" stroke-dasharray="0.012 0.008"/><circle id="peHandle" r="0.028" fill="#fff" stroke="#0284c7" stroke-width="0.008" style="cursor:grab" data-h="1"/>';
+  S.spots.forEach((s) => {
+    const p = S.meta.placements[s.id]; if (!p) return;
+    const cur = s.id === S.cur, x = p.xy[0], y = p.xy[1] * ar;
+    h += '<g data-id="' + esc(s.id) + '" style="cursor:grab"><circle cx="' + x + '" cy="' + y + '" r="0.045" fill="transparent"/><circle cx="' + x + '" cy="' + y + '" r="' + (cur ? 0.026 : 0.021) + '" fill="' + (cur ? '#0ea5e9' : '#334155') + '" stroke="#fff" stroke-width="0.007"/>' +
+      '<text x="' + x + '" y="' + (y - 0.036) + '" text-anchor="middle" font-size="0.034" font-weight="700" fill="#0f172a" stroke="#fff" stroke-width="0.009" paint-order="stroke" style="font-family:var(--sans)">' + esc(s.name) + '</text></g>';
+  });
+  svg.innerHTML = h;
+  updateCone(curView());
+}
+function updateCone(v) {
+  const cone = $('peCone'), hd = $('peHandle'), arm = $('peArm'); if (!cone) return;
+  const p = S.meta.placements[S.cur];
+  if (!p) { cone.setAttribute('d', ''); hd.setAttribute('display', 'none'); arm.setAttribute('display', 'none'); return; }
+  const ar = planAr(), x = p.xy[0], y = p.xy[1] * ar, yaw = v ? v.yaw : 0;
+  const base = fin(p.yaw_on_plan) ? p.yaw_on_plan : 0, a = (base + yaw) * D2R, R = 0.16;
+  const W = frame.clientWidth || 1, H = frame.clientHeight || 1, half = Math.min(1.3, Math.atan(Math.tan(((v && v.fov) || 75) / 2 * D2R) * W / H));
+  const p1 = [x + Math.sin(a - half) * R, y - Math.cos(a - half) * R], p2 = [x + Math.sin(a + half) * R, y - Math.cos(a + half) * R];
+  cone.setAttribute('d', 'M' + x + ' ' + y + 'L' + p1[0].toFixed(4) + ' ' + p1[1].toFixed(4) + 'A' + R + ' ' + R + ' 0 0 1 ' + p2[0].toFixed(4) + ' ' + p2[1].toFixed(4) + 'Z');
+  const hx = x + Math.sin(a) * (R + 0.03), hy = y - Math.cos(a) * (R + 0.03);
+  hd.setAttribute('display', ''); hd.setAttribute('cx', hx.toFixed(4)); hd.setAttribute('cy', hy.toFixed(4));
+  arm.setAttribute('display', ''); arm.setAttribute('x1', x); arm.setAttribute('y1', y); arm.setAttribute('x2', hx.toFixed(4)); arm.setAttribute('y2', hy.toFixed(4));
+}
+function setPlace(id, xy, yawOnPlan) {
+  if (xy === null) { delete S.meta.placements[id]; send('place', { spot: id, xy: null, yaw_on_plan: null }); }
+  else {
+    const old = S.meta.placements[id] || {};
+    const yop = yawOnPlan !== undefined ? yawOnPlan : (fin(old.yaw_on_plan) ? old.yaw_on_plan : guessYaw(id));
+    S.meta.placements[id] = { xy: [r2(clamp(xy[0], 0, 1), 4), r2(clamp(xy[1], 0, 1), 4)], yaw_on_plan: fin(yop) ? r2(wrap180(yop), 1) : 0 };
+    send('place', { spot: id, xy: S.meta.placements[id].xy, yaw_on_plan: S.meta.placements[id].yaw_on_plan });
+  }
+  changed({ quiet: true }); renderPlan();
+}
+function guessYaw(id) {                  // 같은 촬영 묶음(frame)이면 지점끼리 방향 기준이 같다 → 이미 맞춘 지점의 값을 빌린다
+  const t = S.tour && S.tour.spots, me = t && t.find((s) => s.id === id);
+  const o = t && t.find((s) => s.id !== id && S.meta.placements[s.id] && fin(S.meta.placements[s.id].yaw_on_plan) && (s.frame || 1) === ((me && me.frame) || 1));
+  return o ? S.meta.placements[o.id].yaw_on_plan : null;
+}
+function mapXY(cx, cy) { const r = $('peImg').getBoundingClientRect(); if (cx < r.left || cx > r.right || cy < r.top || cy > r.bottom) return null; return [(cx - r.left) / r.width, (cy - r.top) / r.height]; }
+{ // 지점 이름 칩: 끌어 놓기 또는 누르고 평면도 누르기
+  let drag = null;
+  $('peChips').addEventListener('pointerdown', (e) => {
+    const b = e.target.closest('.pchip'); if (!b) return;
+    drag = { id: b.dataset.id, x: e.clientX, y: e.clientY, moved: false, ghost: null };
+    b.setPointerCapture(e.pointerId);
+  });
+  $('peChips').addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 8) {
+      drag.moved = true; drag.ghost = document.createElement('div'); drag.ghost.className = 'dragghost'; drag.ghost.textContent = spotName(drag.id); document.body.appendChild(drag.ghost);
+    }
+    if (drag.ghost) { drag.ghost.style.left = e.clientX + 'px'; drag.ghost.style.top = e.clientY + 'px'; }
+  });
+  const end = (e) => {
+    if (!drag) return;
+    const d = drag; drag = null; if (d.ghost) d.ghost.remove();
+    if (d.moved) { const xy = mapXY(e.clientX, e.clientY); if (xy) { S.armed = null; if (d.id !== S.cur) goto(d.id); setPlace(d.id, xy); toast(spotName(d.id) + ' 을(를) 놓았습니다.'); } return; }
+    S.armed = S.armed === d.id ? null : d.id;
+    if (d.id !== S.cur) goto(d.id);
+    renderPlan();
+    if (S.armed) toast('평면도에서 ' + spotName(d.id) + ' 자리를 누르세요.');
+  };
+  $('peChips').addEventListener('pointerup', end);
+  $('peChips').addEventListener('pointercancel', () => { if (drag && drag.ghost) drag.ghost.remove(); drag = null; });
+}
+{ // 평면도: 놓은 점 옮기기·방향 돌리기·눌러서 놓기
+  let op = null;
+  const svgPt = (e) => { const xy = mapXY(e.clientX, e.clientY) || (() => { const r = $('peImg').getBoundingClientRect(); return [clamp((e.clientX - r.left) / r.width, 0, 1), clamp((e.clientY - r.top) / r.height, 0, 1)]; })(); return xy; };
+  $('peMap').addEventListener('pointerdown', (e) => {
+    const g = e.target.closest('g[data-id]'), hd = e.target.closest('[data-h]');
+    if (hd && S.meta.placements[S.cur]) { op = { kind: 'rot' }; }
+    else if (g) { op = { kind: 'move', id: g.dataset.id, x: e.clientX, y: e.clientY, moved: false }; }
+    else if (S.armed) { const xy = mapXY(e.clientX, e.clientY); if (xy) { const id = S.armed; S.armed = null; setPlace(id, xy); toast(spotName(id) + ' 을(를) 놓았습니다.'); } return; }
+    else return;
+    $('peMap').setPointerCapture(e.pointerId); e.preventDefault();
+  });
+  $('peMap').addEventListener('pointermove', (e) => {
+    if (!op) return;
+    if (op.kind === 'rot') {
+      const p = S.meta.placements[S.cur], r = $('peImg').getBoundingClientRect();
+      const px = r.left + p.xy[0] * r.width, py = r.top + p.xy[1] * r.height;
+      const ang = Math.atan2(e.clientX - px, -(e.clientY - py)) / D2R, v = curView();
+      p.yaw_on_plan = r2(wrap180(ang - (v ? v.yaw : 0)), 1); updateCone(v); op.changed = true;
+    } else {
+      if (!op.moved && Math.hypot(e.clientX - op.x, e.clientY - op.y) < 6) return;
+      op.moved = true; const xy = svgPt(e); S.meta.placements[op.id].xy = [r2(xy[0], 4), r2(xy[1], 4)]; drawPlanSvg();
+    }
+  });
+  const end = () => {
+    if (!op) return; const o = op; op = null;
+    if (o.kind === 'rot' && o.changed) { const p = S.meta.placements[S.cur]; setPlace(S.cur, p.xy, p.yaw_on_plan); }
+    else if (o.kind === 'move') { if (o.moved) setPlace(o.id, S.meta.placements[o.id].xy); else if (o.id !== S.cur) goto(o.id); }
+  };
+  $('peMap').addEventListener('pointerup', end); $('peMap').addEventListener('pointercancel', end);
+}
+function rot(d) { const p = S.meta.placements[S.cur]; if (!p) return; setPlace(S.cur, p.xy, wrap180((fin(p.yaw_on_plan) ? p.yaw_on_plan : 0) + d)); }
+$('rotL').onclick = () => rot(-15); $('rotR').onclick = () => rot(15);
+$('unplace').onclick = () => { if (S.meta.placements[S.cur]) { setPlace(S.cur, null); toast(spotName(S.cur) + ' 을(를) 평면도에서 뺐습니다.'); } };
+
+/* 저장: POST edit.py op=pano_meta (계약 2절, 헤더 X-Edit-Key) */
+let saving = false;
+async function save() {
+  if (saving || !dirty()) return;
+  if (!S.job) { toast('작업 번호가 없어 저장할 수 없습니다.', true); return; }
+  // edit.py 와 같은 정리·검사를 먼저 한다 (틀리면 서버가 400 을 돌려준다)
+  const i0 = S.meta.info;
+  const m = { placements: S.meta.placements,
+    hotspots: S.meta.hotspots.map((h) => ({ spot: h.spot, yaw: r2(h.yaw), pitch: r2(h.pitch), title: cleanText(h.title), text: cleanText(h.text) })),
+    info: { title: cleanText(i0.title), area_m2: fin(i0.area_m2) ? r2(i0.area_m2) : null, rooms: fin(i0.rooms) ? Math.round(i0.rooms) : null, note: cleanText(i0.note) } };
+  const badAt = BAD_TEXT.test(m.info.title) ? 'info' : BAD_TEXT.test(m.info.note) ? 'info' : m.hotspots.findIndex((h) => BAD_TEXT.test(h.title) || BAD_TEXT.test(h.text));
+  if (badAt === 'info') { S.tab = 'info'; renderEdit(); if (PHONE()) sheet(true); toast('매물 정보에 ' + BAD_MSG, true); return; }
+  if (badAt >= 0) { S.tab = 'hot'; S.selHot = badAt; renderEdit(); openHotDialog(badAt); toast(BAD_MSG, true); return; }
+  const empty = m.hotspots.findIndex((h) => !h.title);
+  if (empty >= 0) { S.tab = 'hot'; renderEdit(); openHotDialog(empty); toast('설명 표시에 제목을 적어 주세요.', true); return; }
+  const body = JSON.stringify(Object.assign({ op: 'pano_meta', job_id: S.job }, m));
+  if (body.length > LIM.body) { toast('내용이 너무 깁니다. 설명을 줄여 주세요.', true); return; }
+  saving = true; const b = $('bSave'); b.disabled = true; b.textContent = '저장 중…';
+  const snap = metaStr(), clean = JSON.stringify(m);
+  try {
+    const r = await fetch(API + 'edit.py', { method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json', 'X-Edit-Key': S.key }, body });
+    const d = await r.json().catch(() => ({}));
+    if (r.status === 403) {
+      toast('관리 키가 맞지 않아 저장하지 못했습니다. 관리 링크를 다시 확인해 주세요.', true);
+      try { const o = storedKeys(); if (o[S.job] === S.key) { delete o[S.job]; localStorage.setItem('kgeo_keys', JSON.stringify(o)); } } catch (e) { }
+    }
+    else if (!r.ok || !d.ok) toast('저장하지 못했습니다' + (d.error ? ': ' + d.error : ' (HTTP ' + r.status + ')') + '. 편집 내용은 이 브라우저에 남아 있습니다.', true);
+    else {
+      if (metaStr() === snap) { S.meta.hotspots = m.hotspots; S.meta.info = m.info; fillInfo(); }   // 저장 중 더 고치지 않았으면 정리된 값으로 맞춘다
+      S.saved = clean; storeKey(S.job, S.key); toast('저장했습니다. 링크를 여는 모든 사람에게 보입니다.'); setOg();
+    }
+  } catch (e) { toast('저장하지 못했습니다. 인터넷 연결을 확인해 주세요. 편집 내용은 이 브라우저에 남아 있습니다.', true); }
+  finally { saving = false; b.textContent = '저장'; changed({ quiet: true }); }
+}
+$('bSave').onclick = save;
+window.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 's' && S.edit) { e.preventDefault(); save(); } });
+window.addEventListener('beforeunload', (e) => { if (dirty()) { e.preventDefault(); e.returnValue = ''; } });
+$('bKeyCopy').onclick = () => copyText(editUrl(), '관리 링크를 복사했습니다. 다른 사람에게 보내지 마세요.');
+$('bShareCopy').onclick = () => copyText(shareUrl(), '공유 링크를 복사했습니다 (고칠 수 없는 보기 전용 링크).');
+$('bEditOff').onclick = () => {
+  if (dirty() && !window.confirm('저장하지 않은 편집이 있습니다. 편집을 끝낼까요? (이 브라우저에는 남아 있습니다)')) return;
+  history.replaceState(null, '', location.pathname + location.search);
+  S.edit = false; S.selHot = -1; S.armed = null; $('ov').innerHTML = '';
+  if (dirty()) { S.meta = normMeta(JSON.parse(S.saved)); sendMeta(); frame.src = panoSrc(); }
+  renderHead(); renderAll(); sheet(false);
+};
+window.addEventListener('hashchange', () => { if (hashKey() !== S.key) location.reload(); });
+
+/* ── 시작 ── */
+if (EMBED) document.body.classList.add('embed');
+fitSheet();
+load();
+</script>
+</body>
+</html>

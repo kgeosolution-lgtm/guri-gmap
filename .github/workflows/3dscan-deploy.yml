@@ -29,8 +29,8 @@ jobs:
 
           $src = Join-Path $env:GITHUB_WORKSPACE '3dscan_payload'
           $expected = [ordered]@{
-            'site/3dscan/index.html' = '621a709b52c0879c526d101bb520b546cac97a66bbf5b75d6fcddc9174943c29'
-            'site/3dscan/viewer.js' = '4c89e007c76ae14113bfb59a373618704b5ea38cc784908386481a432aa6b28b'
+            'site/3dscan/index.html' = '0a0ec3f122a78e7def4d25080b74ff2f61f524f2ee34755184c9e165a331fdbf'
+            'site/3dscan/viewer.js' = 'fd17ec7ab813e8a0e02b7c61070e718a8fdfc9f7cf3b4fe9655f8542861f99d8'
             'site/3dscan/viewer.css' = '414ff47ca031c5dfc2bb3ff6b42750a88db52fe24fe74a5b30dac45abcb9ca2c'
             'site/3dscan/splat.html' = '43eb24761772fb52bd271afe86a4e3381f587c29636cfc089b5f2507648938ba'
             'site/3dscan/ortho.html' = '123ae7a46fc70ca7a312338a70f2045135654c06628fadd978c996a5306938ee'
@@ -38,7 +38,9 @@ jobs:
             'site/3dscan/walk.js' = '0981c0752e74c4a99e69a6578b7c826dd47e0f4d460cfe7ab65738c349fbeb83'
             'site/3dscan/capture_ar.html' = 'f7d74a7eb64752fe485bcd1a64695e615f0f88ded38267045ebad56d887b21e2'
             'site/3dscan/capture_pano.html' = 'de2c19db0f9deb9614cd59543ef1f0abc7216bb79d625ad926d66c28d12baec0'
-            'site/3dscan/pano.html' = '8b5f32fe23866d19248edec4cfa5e91a900ef52d09ed2f217cb00bcdaf07687f'
+            'site/3dscan/pano.html' = 'df9c3df06cb7b8e305a093572b12e15d1c048a1da3adbbd75954d74194f191d4'
+            'site/3dscan/tour.html' = '136703641e85fee9d04e40709955b4431f01f6900889f79f8d10533f8cf78ee3'
+            'site/3dscan/og_tour.jpg' = 'f2ac7e9f100e114142d195c0338e29ed748e9b7b63b885c08fb5fe087c5eeddb'
             'site/3dscan/targets/trench_board.pdf' = 'a1f0af16b6d7effbe722ec97e746bdf6014f0a906162b00e9a8ff60ea311f06f'
             'site/3dscan/capture.html' = '8e8e8be943994c6964cf64a97d56346f172fb4519c8bc8ab477c9ddd22342e3c'
             'site/3dscan/glb.web.config' = '40f7eadd4d140ac1ad31fe5543f165d51f4e83fd2cf4af96acb308ef6bd77273'
@@ -123,7 +125,7 @@ jobs:
 
           # ── 파일 설치
           New-Item -ItemType Directory -Force -Path $site, $upload | Out-Null
-          foreach ($f in 'index.html','viewer.js','viewer.css','splat.html','ortho.html','utility.html','capture.html','walk.js','capture_ar.html','capture_pano.html','pano.html') { Copy-Item -LiteralPath (Join-Path $src ('site\3dscan\' + $f)) -Destination (Join-Path $site $f) -Force }
+          foreach ($f in 'index.html','viewer.js','viewer.css','splat.html','ortho.html','utility.html','capture.html','walk.js','capture_ar.html','capture_pano.html','pano.html','tour.html','og_tour.jpg') { Copy-Item -LiteralPath (Join-Path $src ('site\3dscan\' + $f)) -Destination (Join-Path $site $f) -Force }
           if (Test-Path -LiteralPath (Join-Path $src 'site\3dscan\targets')) {
             New-Item -ItemType Directory -Force -Path (Join-Path $site 'targets') | Out-Null
             Copy-Item -Path (Join-Path $src 'site\3dscan\targets\*') -Destination (Join-Path $site 'targets') -Force

@@ -104,6 +104,19 @@ button{font-family:inherit;color:inherit;background:none;border:0;cursor:pointer
   border:1px solid var(--border2)}
 .hot:hover .ring,.hot:focus-visible .ring{border-color:var(--accent);transform:rotateX(66deg) scale(1.12)}
 .hot:focus-visible{outline:none}
+/* 설명 표시 (meta.json hotspots) */
+.ihot{position:absolute;left:0;top:0;pointer-events:auto;display:flex;align-items:center;gap:6px;transform-origin:0 0;padding:0;background:none;border:0;cursor:pointer}
+.ihot .dot{width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.95);color:#0369a1;
+  font:800 17px/1 Georgia,serif;box-shadow:0 0 0 3px rgba(56,189,248,.55),0 2px 8px rgba(0,0,0,.45);animation:ipulse 2.4s ease-in-out infinite}
+.ihot .tl{margin-top:-17px;white-space:nowrap;font-size:12.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:rgba(8,11,15,.72);border:1px solid var(--border2);color:var(--text);max-width:180px;overflow:hidden;text-overflow:ellipsis}
+.ihot.on .dot{background:var(--accent);color:#fff}
+@keyframes ipulse{0%,100%{box-shadow:0 0 0 3px rgba(56,189,248,.55),0 2px 8px rgba(0,0,0,.45)}50%{box-shadow:0 0 0 7px rgba(56,189,248,.25),0 2px 8px rgba(0,0,0,.45)}}
+.icard{position:fixed;left:50%;bottom:calc(var(--safe-b) + 112px);transform:translateX(-50%);z-index:25;width:min(380px,calc(100% - 24px));background:var(--s1);border:1px solid var(--border2);
+  border-radius:14px;padding:14px 14px 12px;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+.icard b{display:block;font-size:16px;padding-right:34px}
+.icard p{margin-top:6px;font-size:14px;color:var(--text2);white-space:pre-line;line-height:1.5;max-height:40vh;overflow:auto}
+.icard button{position:absolute;right:8px;top:8px;width:30px;height:30px;border-radius:8px;color:var(--text2);font-size:18px}
+#stage.picking{cursor:crosshair}
 
 /* 알림 */
 .center{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;pointer-events:none}
@@ -182,6 +195,7 @@ body.embed .bar{padding-top:8px}
 
 <div class="center" id="center"><div class="box"><div class="spin"></div><b id="cMain">VR 투어를 불러오는 중…</b><p id="cSub"></p></div></div>
 <div class="toast" id="toast"></div>
+<div class="icard" id="iCard" hidden role="dialog" aria-live="polite"><b id="iTitle"></b><p id="iText"></p><button id="iClose" aria-label="닫기">×</button></div>
 
 <aside class="edit" id="edit" hidden>
   <h3>✎ 투어 편집</h3>
@@ -215,7 +229,8 @@ const S = {
   yaw: 0, pitch: 0, fov: 75, fovMin: 30, fovMax: 100,
   drag: null, pointers: new Map(), vel: [0, 0], lastMove: 0, interacted: false, auto: true,
   gyro: false, gyroOff: 0, gyroQ: null, anim: null, busy: false, dirty: true, tileT: 0,
-  edit: { pick: false }, hq: P.get('hq') !== '0'
+  edit: { pick: false }, hq: P.get('hq') !== '0',
+  meta: { hotspots: [], placements: {}, info: {} }, pickMode: false, tap: null, iOpen: -1
 };
 
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
@@ -381,6 +396,7 @@ async function init() {
     $('tTitle').textContent = tour.title || 'VR 투어';
     document.title = (tour.title ? tour.title + ' · ' : '') + 'kgeoScan VR 투어';
     emit('ready', { title: tour.title || '', spots: tour.spots.map((x) => ({ id: x.id, name: x.name || x.id })) });
+    await loadMeta();
     buildSpotList(); buildMini();
     const first = spotById(P.get('spot')) || spotById(tour.start) || tour.spots[0];
     const y = parseFloat(P.get('yaw')), p = parseFloat(P.get('pitch')), f = parseFloat(P.get('fov'));
@@ -398,6 +414,55 @@ async function init() {
   }
 }
 function spotById(id) { return id && S.tour ? S.tour.spots.find((s) => s.id === id) || null : null; }
+
+/* ── 공유 페이지가 저장한 meta.json (docs/share_contract.md 3절): 지점 평면도 위치·설명 표시·매물 정보 ── */
+async function loadMeta() {
+  try {
+    const r = await fetch(new URL('meta.json', S.base).href, { cache: 'no-cache' });
+    if (!r.ok) return;
+    const m = await r.json();
+    applyMeta(m, false);
+  } catch (e) { }
+}
+function cleanHotspots(list) {
+  return (Array.isArray(list) ? list : []).filter((h) => h && typeof h.spot === 'string' && isFinite(h.yaw) && isFinite(h.pitch)).slice(0, 300)
+    .map((h) => ({ spot: h.spot, yaw: +h.yaw, pitch: clamp(+h.pitch, -89, 89), title: String(h.title || '').slice(0, 80), text: String(h.text || '').slice(0, 2000) }));
+}
+function applyPlacements() {           // meta.json 의 위치 → (그 위에) 주소의 &pos=
+  const pl = S.meta.placements || {};
+  S.tour.spots.forEach((s) => {
+    const q = pl[s.id];
+    if (q && Array.isArray(q.xy) && q.xy.length === 2 && isFinite(q.xy[0]) && isFinite(q.xy[1])) { s.plan_xy = [clamp(+q.xy[0], 0, 1), clamp(+q.xy[1], 0, 1)]; if (isFinite(q.yaw_on_plan)) s.yaw_on_plan = +q.yaw_on_plan; }
+  });
+  S.tour.spots.forEach((s) => { const q = POS[s.id]; if (q) { s.plan_xy = q.xy; if (q.yaw != null) s.yaw_on_plan = q.yaw; } });
+}
+function applyMeta(m, live) {
+  if (!m || typeof m !== 'object') return;
+  if ('hotspots' in m) S.meta.hotspots = cleanHotspots(m.hotspots);
+  if (m.placements && typeof m.placements === 'object') { S.meta.placements = m.placements; if (S.tour) applyPlacements(); }
+  if (m.info && typeof m.info === 'object') S.meta.info = m.info;
+  if (live && S.spot) { closeInfo(); buildHots(); renderMini(); S.dirty = true; }
+}
+function showInfo(i) {
+  const h = S.meta.hotspots[i]; if (!h) return;
+  S.iOpen = i; $('iTitle').textContent = h.title || '설명'; $('iText').textContent = h.text || ''; $('iCard').hidden = false;
+  $('hots').querySelectorAll('.ihot').forEach((b) => b.classList.toggle('on', +b.dataset.i === i));
+  emit('hotspot', { spot: h.spot, index: i, title: h.title });
+}
+function closeInfo() { S.iOpen = -1; $('iCard').hidden = true; $('hots').querySelectorAll('.ihot').forEach((b) => b.classList.remove('on')); }
+$('iClose').onclick = closeInfo;
+/* 화면 고르기 (공유 페이지가 설명을 붙일 자리): 다음 한 번 누른 곳의 방향을 돌려준다 */
+function startPick(on) {
+  S.pickMode = !!on; stage.classList.toggle('picking', S.pickMode);
+  if (S.pickMode) toast('설명을 붙일 곳을 누르세요 (Esc 취소)');
+}
+function pickAt(cx, cy) {
+  const r = canvas.getBoundingClientRect();
+  const v = new THREE.Vector3((cx - r.left) / r.width * 2 - 1, -((cy - r.top) / r.height * 2 - 1), 0.5).unproject(camera).sub(camera.position);
+  const yp = yawPitchOf(v);
+  startPick(false);
+  emit('pick', { spot: S.spot ? S.spot.id : null, yaw: +wrap180(yp[0]).toFixed(2), pitch: +yp[1].toFixed(2) });
+}
 
 /* ── 지점 이동 ── */
 async function showSpot(spot, link) {
@@ -465,6 +530,16 @@ function buildHots() {
     b._dir = dirOf(l.yaw, isFinite(l.pitch) ? l.pitch : -18, 100);
     el.appendChild(b);
   });
+  (S.meta.hotspots || []).forEach((h, i) => {
+    if (h.spot !== S.spot.id) return;
+    const b = document.createElement('button');
+    b.className = 'ihot' + (i === S.iOpen ? ' on' : ''); b.dataset.i = i; b.setAttribute('aria-label', '설명: ' + (h.title || ''));
+    b.innerHTML = '<span class="dot">i</span>' + (h.title ? '<span class="tl">' + esc(h.title) + '</span>' : '');
+    b.addEventListener('pointerdown', (e) => e.stopPropagation());
+    b.addEventListener('click', (e) => { e.stopPropagation(); S.auto = false; if (S.iOpen === i) closeInfo(); else showInfo(i); });
+    b._dir = dirOf(h.yaw, h.pitch, 100);
+    el.appendChild(b);
+  });
 }
 function placeHots() {
   const w = canvas.clientWidth, h = canvas.clientHeight, v = new THREE.Vector3(), fwd = new THREE.Vector3();
@@ -483,7 +558,7 @@ function renderSpotUI() {
   $('tSpot').textContent = (s.name || s.id) + (S.tour.spots.length > 1 ? ' · ' + (i + 1) + '/' + S.tour.spots.length : '');
   $('spots').querySelectorAll('.sp').forEach((b) => b.classList.toggle('cur', b.dataset.id === s.id));
   const cur = $('spots').querySelector('.sp.cur'); if (cur) cur.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
-  buildHots(); renderMini();
+  closeInfo(); buildHots(); renderMini();
   $('compass').hidden = northYaw() == null;
   if (EDIT) renderEdit();
   emit('spot', { spot: s.id, name: s.name || s.id, index: i, count: S.tour.spots.length });
@@ -496,8 +571,8 @@ function buildMini() {
     const old = S.tour.floorplan && S.tour.floorplan.image ? new URL(S.tour.floorplan.image, S.base).href : null;
     if (old !== PLAN_URL) S.tour.spots.forEach((s) => { s.plan_xy = null; delete s.yaw_on_plan; });     // 다른 그림의 좌표는 쓰지 않는다
     S.tour.floorplan = { image: PLAN_URL, src: 'param', north_deg: isFinite(parseFloat(P.get('plan_north'))) ? parseFloat(P.get('plan_north')) : null };
-    S.tour.spots.forEach((s) => { const q = POS[s.id]; if (q) { s.plan_xy = q.xy; if (q.yaw != null) s.yaw_on_plan = q.yaw; } });
   }
+  applyPlacements();
   const fp = S.tour.floorplan;
   if (!fp || !fp.image) { $('mini').hidden = true; return; }
   $('mini').hidden = false;
@@ -565,6 +640,7 @@ const stage = $('stage');
 function stopAuto() { S.auto = false; }
 stage.addEventListener('pointerdown', (e) => {
   stopAuto(); S.interacted = true;
+  S.tap = { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId };
   stage.setPointerCapture(e.pointerId);
   S.pointers.set(e.pointerId, [e.clientX, e.clientY]);
   if (S.pointers.size === 1) { S.drag = { x: e.clientX, y: e.clientY, t: performance.now() }; S.vel = [0, 0]; stage.classList.add('drag'); }
@@ -585,6 +661,8 @@ stage.addEventListener('pointermove', (e) => {
   S.drag = { x: e.clientX, y: e.clientY, t: now }; S.dirty = true;
 });
 function endPointer(e) {
+  if (S.pickMode && S.tap && S.tap.id === e.pointerId && e.type === 'pointerup' && S.pointers.size === 1 &&
+      Math.hypot(e.clientX - S.tap.x, e.clientY - S.tap.y) < 8 && performance.now() - S.tap.t < 700) pickAt(e.clientX, e.clientY);
   S.pointers.delete(e.pointerId);
   if (S.pointers.size < 2) S.pinch = null;
   if (S.pointers.size === 0) { stage.classList.remove('drag'); if (S.drag && performance.now() - S.drag.t > 80) S.vel = [0, 0]; S.drag = null; }
@@ -597,6 +675,7 @@ stage.addEventListener('dblclick', (e) => { stopAuto(); const f0 = S.fov, f1 = f
 document.addEventListener('gesturestart', (e) => e.preventDefault());
 window.addEventListener('keydown', (e) => {
   if (e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
+  if (e.key === 'Escape') { if (S.pickMode) { startPick(false); emit('pick', { cancelled: true }); } else closeInfo(); }
   const st = { ArrowLeft: [-5, 0], ArrowRight: [5, 0], ArrowUp: [0, 5], ArrowDown: [0, -5] }[e.key];
   if (st) { stopAuto(); S.yaw += st[0]; S.pitch = clamp(S.pitch + st[1], -88, 88); S.dirty = true; e.preventDefault(); }
   if (e.key === '+' || e.key === '=') zoom(0.85);
@@ -697,6 +776,10 @@ window.addEventListener('message', (e) => {
   else if (d.cmd === 'view') { if (isFinite(d.yaw)) S.yaw = +d.yaw; if (isFinite(d.pitch)) S.pitch = clamp(+d.pitch, -88, 88); if (isFinite(d.fov)) S.fov = clamp(+d.fov, S.fovMin, S.fovMax); S.auto = false; S.dirty = true; }
   else if (d.cmd === 'hq') setHQ(!!d.on);
   else if (d.cmd === 'place' && S.tour) placeSpot(d.spot, d.xy === undefined ? undefined : d.xy, d.yaw_on_plan);
+  else if (d.cmd === 'meta') applyMeta(d, true);
+  else if (d.cmd === 'hotspots') applyMeta({ hotspots: d.hotspots }, true);
+  else if (d.cmd === 'pick') { if (d.cancel) { if (S.pickMode) { startPick(false); emit('pick', { cancelled: true }); } } else startPick(true); }
+  else if (d.cmd === 'getview') emit('view', { spot: S.spot ? S.spot.id : null, yaw: +wrap180(S.yaw).toFixed(2), pitch: +S.pitch.toFixed(2), fov: +S.fov.toFixed(1) });
   else if (d.cmd === 'placements' && S.tour) emit('placements', { spots: placements() });
 });
 function setHQ(on) { S.hq = on; $('bHQ').classList.toggle('on', on); if (S.view) S.view.updateTiles(); S.dirty = true; }
@@ -707,7 +790,7 @@ setHQ(S.hq);
    rayAt(u,v): 등장방형 좌표(0~1) → 지점 세계(세션 프레임, z 위) 방향.  pointAt(u,v): spot.depth 와 pose3d 가 있을 때 장면 좌표 [x,y,z] (지금은 null) */
 function rayAt(u, v) { const y = (u - 0.5) * 2 * Math.PI, p = (0.5 - v) * Math.PI; return [Math.sin(y) * Math.cos(p), Math.cos(y) * Math.cos(p), Math.sin(p)]; }
 function pointAt(u, v) { return null; }
-window.kgeoPano = { rayAt, pointAt, state: S, place: placeSpot, placements };
+window.kgeoPano = { rayAt, pointAt, state: S, place: placeSpot, placements, setMeta: (m) => applyMeta(m, true), meta: () => S.meta, pick: startPick };
 
 /* ── 편집 (&edit=1) ── */
 function mergeEdit(tour, e) {
