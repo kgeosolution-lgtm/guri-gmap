@@ -37,7 +37,7 @@ jobs:
             'site/3dscan/utility.html' = '807d30ed9367a42c97949c11365d39059c70282ee69d37fc2e6039fd2ac5f7fd'
             'site/3dscan/walk.js' = '0981c0752e74c4a99e69a6578b7c826dd47e0f4d460cfe7ab65738c349fbeb83'
             'site/3dscan/capture_ar.html' = 'f7d74a7eb64752fe485bcd1a64695e615f0f88ded38267045ebad56d887b21e2'
-            'site/3dscan/capture_pano.html' = 'de2c19db0f9deb9614cd59543ef1f0abc7216bb79d625ad926d66c28d12baec0'
+            'site/3dscan/capture_pano.html' = 'f944d0f59b0dcd4d701e310e39f1a69293f5f8c269f8a96308a8d06881e1bbf5'
             'site/3dscan/pano.html' = 'df9c3df06cb7b8e305a093572b12e15d1c048a1da3adbbd75954d74194f191d4'
             'site/3dscan/tour.html' = '136703641e85fee9d04e40709955b4431f01f6900889f79f8d10533f8cf78ee3'
             'site/3dscan/og_tour.jpg' = 'f2ac7e9f100e114142d195c0338e29ed748e9b7b63b885c08fb5fe087c5eeddb'

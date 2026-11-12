@@ -156,6 +156,8 @@ button{font-family:inherit}
 .recent li .rt{flex:1;min-width:0}
 .recent li .rt span,.recent li .rt small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .recent li .btn{flex:none;white-space:nowrap}
+.recent li{flex-wrap:wrap}
+.recent li .rt{flex:1 1 150px}
 .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);z-index:80;opacity:0;pointer-events:none;
   background:var(--s1);border:1px solid var(--border2);border-radius:10px;padding:10px 14px;font-size:14px;transition:.25s;max-width:calc(100% - 32px);text-align:center}
 .toast.on{opacity:1;transform:translateX(-50%)}
@@ -317,6 +319,8 @@ button{font-family:inherit}
       <label class="visopt"><input type="radio" name="vis" value="public"><span><b>🌐 공개</b><small>지도와 목록에 나와 누구나 볼 수 있어요.</small></span></label>
       <label class="visopt"><input type="radio" name="vis" value="private"><span><b>🔒 비공개</b><small>관리 링크가 있는 나만 볼 수 있어요.</small></span></label>
     </div>
+    <!-- 얼굴 흐림 선택: 서버에 얼굴 모델(worker/models/face_detection_yunet_2023mar.onnx)이 배포된 뒤 hidden 을 뗀다 (그 전엔 약속할 수 없음) -->
+    <label class="opt" id="blurFacesOpt" hidden><input type="checkbox" id="blurFaces" checked><span>사람 얼굴 흐리게 (권장) — 지나가던 사람이 찍혀도 알아볼 수 없게 서버가 흐립니다</span></label>
     <div class="lbl">촬영 위치</div>
     <div class="loc" id="loc"><span class="dot"></span><div style="min-width:0"><div class="main" id="locMain">위치를 아직 재지 않았습니다</div><div class="subl" id="locSub">지도에 VR 투어를 놓는 데 씁니다. 건물 안이면 수십 m 오차가 날 수 있습니다.</div></div>
       <button class="btn sm" id="locBtn">위치 재기</button></div>
@@ -366,6 +370,8 @@ button{font-family:inherit}
     <div class="mng" id="resManage" hidden>🔑 <b>관리 링크</b> — 이 링크가 있어야 나중에 공개 범위·제목·VR 투어를 고칠 수 있어요. 잃어버리면 다시 받을 수 없으니 저장해 두세요.
       <span class="mono" id="resManageUrl"></span>
       <button class="btn sm" id="resManageCopy" type="button">관리 링크 복사</button> <span id="resVis"></span></div>
+    <div class="mng" id="resShare" hidden>🔗 <b>매물 공유 페이지</b> — 링크·QR 코드·다른 사이트 삽입 코드를 만들고, 평면도 배치·설명 표시를 고칠 수 있어요.
+      <div class="row" style="margin-top:8px"><a class="btn sm primary" id="resShareBtn" target="_blank" rel="noopener">🔗 매물 공유 페이지 열기</a></div></div>
     <ul class="steps">
       <li id="rs1" class="done"><span class="ic">✓</span><div>업로드<small id="rs1m"></small></div></li>
       <li id="rs2" class="wait"><span class="ic">·</span><div>360° 사진 만들기<small>대기 중</small></div></li>
@@ -652,7 +658,7 @@ button{font-family:inherit}
   function saveState() {
     clearTimeout(saveT);
     saveT = setTimeout(function () {
-      var st = { t: Date.now(), title: $('title').value, note: $('note').value, vis: visChoice(), lat: S.lat, lon: S.lon, acc: S.acc, locSrc: S.locSrc,
+      var st = { t: Date.now(), title: $('title').value, note: $('note').value, vis: visChoice(), blurFaces: $('blurFaces').checked, lat: S.lat, lon: S.lon, acc: S.acc, locSrc: S.locSrc,
         spots: S.spots.map(function (sp) { var c = Object.assign({}, sp); c.shots = sp.shots.map(function (s) { var x = Object.assign({}, s); ['blob', 'url', 'tiny', 'thumb', '_R', '_why', '_mark'].forEach(function (k) { delete x[k]; }); return x; }); ['thumbUrl', '_cov', '_covPct', '_ghosted', 'vshots'].forEach(function (k) { delete c[k]; }); if (c.video) { c.video = Object.assign({}, c.video); delete c.video.blob; } return c; }) };
       dbTx('state', 'readwrite', function (s) { s.put(st, 'cur'); });
     }, 300);
@@ -2027,7 +2033,7 @@ button{font-family:inherit}
   }
   function spotsJSON(spots) {
     return {
-      version: 1, app: 'web-pano/1', created: new Date().toISOString(), title: $('title').value.trim().slice(0, 100),
+      version: 1, app: 'web-pano/1', created: new Date().toISOString(), title: $('title').value.trim().slice(0, 100), blur_faces: $('blurFaces').checked,
       device: { ua: navigator.userAgent.slice(0, 200), ios: IS_IOS, sim: !!SIM, cams: C.devices, cam_label: SIM ? 'sim' : C.label, cam_w: C.w, cam_h: C.h }, frame: 'session',
       north_yaw: (spots.find(function (s) { return s.north_yaw != null; }) || {}).north_yaw || null,
       spots: spots.map(function (sp, i) {
@@ -2092,6 +2098,7 @@ button{font-family:inherit}
     fd.append('app', 'web-pano/1');
     fd.append('client_id', cid);
     fd.append('visibility', visChoice());
+    fd.append('blur_faces', $('blurFaces').checked ? '1' : '0');
     fd.append('lat', S.lat.toFixed(7)); fd.append('lon', S.lon.toFixed(7));
     if (S.elev != null) fd.append('elev', S.elev.toFixed(1));
     if (meta.north_yaw != null) fd.append('heading', (((-meta.north_yaw) % 360 + 360) % 360).toFixed(1));   // 세션 yaw 0 의 진북 방위
@@ -2134,6 +2141,13 @@ button{font-family:inherit}
   function editKeys() { var o = lsGet(KEYS_KEY, {}); return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {}; }
   function saveEditKey(job, key) { var o = editKeys(); o[job] = key; lsSet(KEYS_KEY, o); }
   function manageUrl(job) { var k = editKeys()[job]; return location.origin + MAIN_VIEWER + '?job=' + encodeURIComponent(job) + (k ? '#key=' + encodeURIComponent(k) : ''); }
+  var TOUR_PAGE = '/app/3dscan/tour.html';
+  function shareUrl(job) { var k = editKeys()[job]; return location.origin + TOUR_PAGE + '?job=' + encodeURIComponent(job) + (k ? '#key=' + encodeURIComponent(k) : ''); }
+  function showShare(job, done) {
+    var box = $('resShare'); if (!box) return;
+    box.hidden = !(job && done);
+    if (!box.hidden) $('resShareBtn').href = shareUrl(job);
+  }
   function showManage(job, vis) {
     var box = $('resManage'); if (!box) return;
     if (!job || !editKeys()[job]) { box.hidden = true; return; }
@@ -2148,6 +2162,7 @@ button{font-family:inherit}
   }
   $('resManageCopy').addEventListener('click', function () { copyText($('resManageUrl').textContent, $('resManageUrl'), '관리 링크를 복사했어요. 잃어버리지 않게 저장해 두세요.'); });
   document.querySelectorAll('input[name="vis"]').forEach(function (r) { r.addEventListener('change', function () { saveState(); }); });
+  $('blurFaces').addEventListener('change', function () { saveState(); });
   function uploadDone(d, f) {
     uploadEnd();
     if (d.edit_key) saveEditKey(d.job_id, d.edit_key);
@@ -2187,9 +2202,10 @@ button{font-family:inherit}
       setStep('rs3', 'done', '✓', '둘러볼 수 있습니다');
       var v = $('viewBtn'); v.hidden = false; v.href = VIEWER + '?job=' + encodeURIComponent(pollJob);
       var e = $('editBtn'); e.hidden = false; e.href = VIEWER + '?job=' + encodeURIComponent(pollJob) + '&edit=1';
+      showShare(pollJob, true);
       if (d.pano_url) loadServerQuality(pollJob, d.pano_url);
-    } else if (ps === 'failed') setStep('rs3', 'fail', '✕', '다시 찍어 올려 주세요 (사진은 이 기기에 남아 있습니다)');
-    else setStep('rs3', 'wait', '·', '-');
+    } else if (ps === 'failed') { setStep('rs3', 'fail', '✕', '다시 찍어 올려 주세요 (사진은 이 기기에 남아 있습니다)'); showShare(pollJob, false); }
+    else { setStep('rs3', 'wait', '·', '-'); showShare(pollJob, false); }
   }
   /* 서버 품질 (tour.json 의 지점별 등급) → 나쁜 지점은 다시 찍기를 권한다 */
   var qualJob = null;
@@ -2247,6 +2263,7 @@ button{font-family:inherit}
     var l = jobsLoad(); $('secRecent').hidden = !l.length;
     $('recentList').innerHTML = l.slice(0, 8).map(function (j) {
       return '<li><div class="rt"><span>' + esc(j.title || j.job_id) + '</span><small>' + shortTime(j.t) + ' · ' + (j.spots || '?') + '곳 · ' + esc(j.st || '') + (VIS_LABEL[j.vis] ? ' · ' + VIS_LABEL[j.vis] : '') + '</small></div><a class="btn sm" href="' + VIEWER + '?job=' + encodeURIComponent(j.job_id) + '">보기</a>' +
+        (j.st === '완료' ? '<a class="btn sm ghost" target="_blank" rel="noopener" href="' + esc(shareUrl(j.job_id)) + '" title="링크·QR 코드·삽입 코드, 평면도 배치·설명 표시">공유 페이지</a>' : '') +
         (editKeys()[j.job_id] ? '<button class="btn sm ghost" type="button" data-mng="' + esc(j.job_id) + '">관리 링크</button>' : '') + '</li>';
     }).join('');
     $('recentList').querySelectorAll('button[data-mng]').forEach(function (b) { b.onclick = function () { copyText(manageUrl(b.dataset.mng), null, '관리 링크를 복사했어요. 잃어버리지 않게 저장해 두세요.'); }; });
@@ -2267,6 +2284,7 @@ button{font-family:inherit}
     if (st && Date.now() - st.t < 7 * 86400e3 && Array.isArray(st.spots) && st.spots.length) {
       if (!$('title').value) $('title').value = st.title || '';
       if (!$('note').value) $('note').value = st.note || '';
+      if (st.blurFaces === false) $('blurFaces').checked = false;
       if (st.vis && VIS_LABEL[st.vis]) { var vr = document.querySelector('input[name="vis"][value="' + st.vis + '"]'); if (vr) vr.checked = true; }
       if (st.lat != null && S.lat == null) setLoc(st.lat, st.lon, st.acc, st.locSrc || 'gps');
       S.spots = st.spots.map(function (sp) { sp.shots = (sp.shots || []).map(function (s) { return s; }); return sp; });
