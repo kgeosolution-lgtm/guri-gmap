@@ -757,7 +757,7 @@ def step_publish_rest(slpk, service_name, title):
     return slpk_item_id, scene_item_id, scene_url
 
 
-def step_register(meta, las_info, glb_url, slpk_item_id, scene_item_id, scene_url, thumb_url="", ortho_url=""):
+def step_register(meta, las_info, glb_url, slpk_item_id, scene_item_id, scene_url, thumb_url="", ortho_url="", pano_url=""):
     layer = CFG["points_layer_url"]
     token = get_token(CFG["server_url"])
     info = http_json(layer, {"f": "json", "token": token})
@@ -782,6 +782,8 @@ def step_register(meta, las_info, glb_url, slpk_item_id, scene_item_id, scene_ur
         feature["attributes"]["thumb_url"] = thumb_url or None
     if "ortho_url" in layer_fields and ortho_url:
         feature["attributes"]["ortho_url"] = ortho_url
+    if "pano_url" in layer_fields and pano_url:            # 레이어에 필드가 없으면 뷰어가 thumb_url(<job>.jpg)에서 <job>_pano/tour.json 을 찾는다
+        feature["attributes"]["pano_url"] = pano_url
     out = http_json(layer + "/addFeatures", {"features": json.dumps([feature]), "f": "json", "token": token})
     res = out["addResults"][0]
     if not res.get("success"):
@@ -860,6 +862,97 @@ def video_job(meta, q, out_dir, job_id):
     log(f"웹 3D 작업 완료 {round(time.time() - T0, 1)}s")
 
 
+def _run_stitch(cmd, q, log_path, timeout):
+    """pano_stitch.py 실행: stdout 의 'PROGRESS <0-100> <문구>' 를 큐 메시지로 (1초에 한 번까지). → (종료 코드, stderr 마지막 줄)"""
+    import threading
+    err_path = log_path + ".err"
+    env = dict(os.environ, PYTHONIOENCODING="utf-8")
+    with open(log_path, "a", encoding="utf-8") as lf, open(err_path, "w", encoding="utf-8") as ef:
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=ef, text=True, encoding="utf-8", errors="replace", env=env)
+        killed = []
+
+        def _kill():
+            killed.append(1)
+            proc.kill()
+        timer = threading.Timer(timeout, _kill)
+        timer.start()
+        last = 0.0
+        try:
+            for line in proc.stdout:
+                lf.write(line)
+                if line.startswith("PROGRESS "):
+                    parts = line.rstrip("\r\n").split(" ", 2)
+                    try:
+                        pct = max(0, min(100, int(float(parts[1]))))
+                    except (IndexError, ValueError):
+                        continue
+                    text = parts[2] if len(parts) > 2 else ""
+                    if time.time() - last >= 1.0 or pct >= 100:
+                        last = time.time()
+                        q.update(message=f"VR 투어 만드는 중 {pct}% — {text}"[:200], pano_message=text[:200], pano_progress=pct)
+            rc = proc.wait()
+        finally:
+            timer.cancel()
+    try:
+        tail = [l.strip() for l in open(err_path, "r", encoding="utf-8", errors="replace") if l.strip()]
+    except OSError:
+        tail = []
+    if killed:
+        return -1, "VR 투어 만들기가 시간 안에 끝나지 않았습니다"
+    return rc, (tail[-1] if tail else "")
+
+
+def pano_job(meta, q, out_dir, job_id):
+    """mode=pano (VR 투어, docs/pano_contract.md 2절): worker/pano_stitch.py 로 지점마다 360° 등장방형 → <job>_pano/ 서빙
+    → GPS 위치에 지도 점 등록 (GLB 없음). 일부 지점 실패는 성공으로 두고 tour.json.failed 로 알린다."""
+    pano_out = os.path.join(out_dir, "pano")
+    shutil.rmtree(pano_out, ignore_errors=True)
+    n_spots = int((meta.get("pano") or {}).get("spots") or 1)
+    q.update(step=1, message=f"VR 투어 만드는 중 (지점 {n_spots}곳, 지점마다 30초 안팎)", pano_status="processing",
+             pano_message="360° 사진 이어 붙이는 중", pano_progress=0)
+    cmd = [CFG["worker_python"], "-I", os.path.join(CFG["worker_dir"], "pano_stitch.py"), meta["pano_zip"],
+           "--out", pano_out, "--title", meta.get("title") or ""]
+    timeout = int(min(max(600, 150 * n_spots), max(600, CFG.get("pipeline_timeout_sec", 1800) - 120)))
+    rc, last_err = _run_stitch(cmd, q, os.path.join(out_dir, "pano_stdout.log"), timeout)
+    tour_path = os.path.join(pano_out, "tour.json")
+    if rc != 0 or not os.path.exists(tour_path):
+        msg = last_err if rc == 2 and last_err else (last_err if rc == -1 else "VR 투어를 만들지 못했습니다 (이어 붙이기 오류)")
+        q.update(pano_status="failed", pano_message=msg[:300])
+        log(f"pano_stitch 실패 (종료 코드 {rc}): {last_err}")
+        raise RuntimeError(msg)
+    tour = json.load(open(tour_path, "r", encoding="utf-8"))
+    spots, failed = tour.get("spots") or [], tour.get("failed") or []
+    if not spots:
+        msg = "모든 지점을 이어 붙이지 못했습니다 — " + "; ".join(str(f.get("error") or "") for f in failed[:2])[:200]
+        q.update(pano_status="failed", pano_message=msg)
+        raise RuntimeError(msg)
+    serve = os.path.join(CFG["glb_serve_dir"], f"{job_id}_pano")
+    shutil.rmtree(serve, ignore_errors=True)
+    shutil.copytree(pano_out, serve)
+    pano_url = f"{CFG['glb_serve_url']}/{job_id}_pano/tour.json"
+    log(f"VR 투어 서빙: {pano_url} (지점 {len(spots)}곳, 실패 {len(failed)}곳)")
+    first = next((s for s in spots if s.get("id") == tour.get("start")), spots[0])
+    if first.get("thumb") and os.path.exists(os.path.join(pano_out, first["thumb"])):
+        shutil.copy2(os.path.join(pano_out, first["thumb"]), os.path.join(out_dir, "thumb.jpg"))
+    thumb_url = step_thumb(meta, out_dir, job_id)
+    g = meta["georef"]
+    from pyproj import Transformer
+    x, y = Transformer.from_crs("EPSG:4326", f"EPSG:{CFG.get('utm_epsg', 32652)}", always_xy=True).transform(g["lon"], g["lat"])
+    z = float(g.get("elev", 0.0))
+    las_info = dict(points=0, coord_x=x, coord_y=y, coord_z=z, bbox=[x, y, z, x, y, z])
+    oid = None
+    if CFG.get("portal_enabled", True):
+        q.update(step=6, message="지도에 등록 중", thumb_url=thumb_url or None)
+        oid = step_register(meta, las_info, "", "", "", "", thumb_url, pano_url=pano_url)
+    msg = f"VR 투어 완료 — 지점 {len(spots)}곳" + (f" (이어 붙이지 못한 지점 {len(failed)}곳)" if failed else "")
+    with open(os.path.join(out_dir, "pipeline_result.json"), "w", encoding="utf-8") as f:
+        json.dump(dict(job_id=job_id, mode="pano", pano_url=pano_url, thumb_url=thumb_url, objectid=oid, spots=len(spots),
+                       failed=len(failed), seconds=round(time.time() - T0, 1)), f, ensure_ascii=False, indent=2)
+    q.update(step=7, status="done", message=msg, pano_status="done", pano_message=msg, pano_url=pano_url, pano_progress=100,
+             thumb_url=thumb_url or None, **({"objectid": oid} if oid else {}))
+    log(f"VR 투어 작업 완료 {round(time.time() - T0, 1)}s")
+
+
 def rebuild_glb(meta, q):
     """대기열 항목 kind=rebuild_glb: 끝난 Stray 스캔을 지금의 워커로 다시 처리해 서빙 GLB(+면 촬영 정사영상)만 바꾼다.
     Portal Scene·LAS·점 속성은 그대로(같은 glb_url). out → out_prev 로 한 세대만 남긴다.
@@ -895,6 +988,8 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
     if meta.get("mode") in ("video", "photos"):              # 웹 3D 현장조사
         return video_job(meta, q, out_dir, job_id)
+    if meta.get("mode") == "pano":                           # VR 투어 (지점마다 360° 실사 사진)
+        return pano_job(meta, q, out_dir, job_id)
     service_name = "kgeoscan_" + time.strftime("%Y%m%d_%H%M%S")
     prev_slpk = [f for f in os.listdir(out_dir) if f.endswith(".slpk")]
     if prev_slpk:

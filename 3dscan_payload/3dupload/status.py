@@ -1,5 +1,5 @@
 """GET /app/3dupload/status.py?job_id=xxxxxxxx -> 큐 파일 내용 (status, step, step_name, message, title, scan_type, scene_item_id, glb_url, thumb_url,
-splat_status pending|processing|done|failed, splat_url, splat_message, ortho_url, area)"""
+splat_status pending|processing|done|failed, splat_url, splat_message, ortho_url, area, pano_status, pano_message, pano_url)"""
 import json
 import os
 import sys
@@ -32,6 +32,9 @@ def main():
         "trench": q.get("trench"), "utilities_url": q.get("utilities_url"), "utility_report_url": q.get("utility_report_url"),
         # 웹 굴착 기록 후처리 (docs/web_trench_contract.md 4절): pending|processing|done|skipped|failed
         "trench_post": q.get("trench_post"), "trench_post_message": q.get("trench_post_message"),
+        # VR 투어 (docs/pano_contract.md 2절): pending|processing|done|failed, pano_url = tour.json 공개 주소
+        "pano_status": q.get("pano_status"), "pano_message": q.get("pano_message"), "pano_url": q.get("pano_url"),
+        "pano_progress": q.get("pano_progress"), "pano": q.get("pano"),
         "updated_at": q.get("updated_at"), "error_detail": q.get("error_detail"),
     })
 

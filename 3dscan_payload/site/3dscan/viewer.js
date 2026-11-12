@@ -78,6 +78,8 @@ require([
   const SPLAT_PAGE = "splat.html?v=43eb247617";          // 배포(deploy.mjs stampAssets)가 ?v=해시 를 붙인다
   const UTILITY_PAGE = "utility.html?v=807d30ed93";                   // 굴착 기록 3D X-ray (배포가 ?v=해시 를 붙인다)
   let _utilInfo = null;                                  // 현재 스캔의 굴착 기록 {url, report} (utilities.json 이 있을 때만)
+  const PANO_PAGE = "pano.html?v=03ec41aea5";                                       // 🥽 VR 투어 360° 실사 (배포가 ?v=해시 를 붙인다)
+  let _panoInfo = null;                                  // 현재 스캔의 VR 투어 {url, count} (<job>_pano/tour.json 이 있을 때만)
 
   /* ── MapView ── */
   const webmap = new WebMap({ portalItem: { id: WEBMAP_ID } });
@@ -796,6 +798,34 @@ require([
     if (g("vtabUtil")) { g("vtabUtil").style.display = ""; g("vtabUtil").textContent = `⛏ 지하시설물 ${_utilInfo.count}`; }
     applyViewMode();
   }
+  /* ── 🥽 VR 투어(360° 실사): 서버가 <job>_pano/tour.json 을 GLB·썸네일 옆에 둔다 (docs/pano_contract.md 2절)
+     "✦ 3D"(스플랫)와 따로 탭을 둔다. 레이어에 pano_url 필드가 없어도 glb_url·thumb_url·splat_url 의 작업 번호로 찾는다 ── */
+  function panoUrlFor(a) {
+    if (!a) return "";
+    if (a.pano_url) return a.pano_url;
+    for (const k of ["glb_url", "thumb_url", "splat_url"]) {
+      const m = a[k] && String(a[k]).match(/^(.*\/)([0-9a-f]{8})\.(?:glb|jpg|splat)(?:\?.*)?$/i);
+      if (m) return m[1] + m[2] + "_pano/tour.json";
+    }
+    return "";
+  }
+  function panoPageUrl(embed) {
+    const q = PANO_PAGE.includes("?") ? "&" : "?";
+    return PANO_PAGE + q + "tour=" + encodeURIComponent(_panoInfo.url) + (embed ? "&embed=1" : "");
+  }
+  async function probePano(attrs) {
+    const url = panoUrlFor(attrs);
+    if (!url) return;
+    let j;
+    try { const r = await fetch(url, { cache: "no-store" }); if (!r.ok) return; j = await r.json(); } catch (e) { return; }
+    if (currentAttrs !== attrs || !j || !(j.spots || []).length) return;
+    _panoInfo = { url, count: j.spots.length };
+    const g = id => document.getElementById(id);
+    if (g("viewerTabs")) g("viewerTabs").style.display = "flex";
+    if (g("vtabPano")) { g("vtabPano").style.display = ""; g("vtabPano").title = `VR 투어 — 360° 실사 사진 ${_panoInfo.count}곳을 오가며 둘러보기`; }
+    if (!attrs.glb_url && !attrs.splat_url) setViewMode("pano");     // VR 투어만 있는 스캔은 바로 연다
+    else applyViewMode();
+  }
   window.openUtilReport = function() {
     if (_utilInfo && _utilInfo.report) window.open(_utilInfo.report, "_blank");
   };
@@ -804,6 +834,7 @@ require([
     removeOrthoOverlay();
     _viewMode = "glb";
     _utilInfo = null;
+    _panoInfo = null;
     const g = id => document.getElementById(id);
     const tabs = g("viewerTabs");
     if (tabs) tabs.style.display = (attrs.splat_url || attrs.ortho_url) ? "flex" : "none";
@@ -811,16 +842,19 @@ require([
     if (g("vtabSplat")) g("vtabSplat").style.display = attrs.splat_url ? "" : "none";
     if (g("vtabOrtho")) g("vtabOrtho").style.display = attrs.ortho_url ? "" : "none";
     if (g("vtabUtil")) g("vtabUtil").style.display = "none";
+    if (g("vtabPano")) g("vtabPano").style.display = "none";
     applyViewMode();
     probeUtilities(attrs);
+    probePano(attrs);
   }
   function applyViewMode() {
-    const splat = _viewMode === "splat", ortho = _viewMode === "ortho", glb = _viewMode === "glb", util = _viewMode === "util";
+    const splat = _viewMode === "splat", ortho = _viewMode === "ortho", glb = _viewMode === "glb", util = _viewMode === "util", pano = _viewMode === "pano";
     const g = id => document.getElementById(id);
     if (g("vtabGlb"))      g("vtabGlb").classList.toggle("active", glb);
     if (g("vtabSplat"))    g("vtabSplat").classList.toggle("active", splat);
     if (g("vtabOrtho"))    g("vtabOrtho").classList.toggle("active", ortho);
     if (g("vtabUtil"))     g("vtabUtil").classList.toggle("active", util);
+    if (g("vtabPano"))     g("vtabPano").classList.toggle("active", pano);
     if (g("btnMeasure"))   g("btnMeasure").style.display   = glb ? "" : "none";
     if (g("btnTop"))       g("btnTop").style.display       = glb ? "" : "none";
     if (g("btnSplatOpen")) g("btnSplatOpen").style.display = glb ? "none" : "";
@@ -828,7 +862,7 @@ require([
     if (g("btnUtilReport")) g("btnUtilReport").style.display = _utilInfo && _utilInfo.report ? "" : "none";
     const badge = document.querySelector(".viewer-badge");
     if (badge) badge.textContent = splat ? "Gaussian Splat · 3DGS Viewer" : ortho ? "Orthophoto · 정사영상" :
-      util ? "Underground Utilities · 지하시설물" : "3D Object · GLB Viewer";
+      util ? "Underground Utilities · 지하시설물" : pano ? "VR Tour · VR 투어" : "3D Object · GLB Viewer";
   }
   /* ── 정사영상: 지도 위 제자리에 겹치기 (바닥 정사영상만 좌표가 있음) ── */
   let _orthoLayer = null;
@@ -862,22 +896,24 @@ require([
     if (mode === "splat" && !currentAttrs.splat_url) return;
     if (mode === "ortho" && !currentAttrs.ortho_url) return;
     if (mode === "util" && !_utilInfo) return;
+    if (mode === "pano" && !_panoInfo) return;
     if (mode === _viewMode) return;
     if (mode !== "ortho") removeOrthoOverlay();
     _viewMode = mode;
     applyViewMode();
     const sceneDiv = document.getElementById("sceneDiv"), loadingEl = document.getElementById("sceneLoading");
-    if (mode === "splat" || mode === "ortho" || mode === "util") {
+    if (mode === "splat" || mode === "ortho" || mode === "util" || mode === "pano") {
       destroyGLB();                                   // 폰 GPU 메모리를 아끼려 메시 뷰어를 내리고 한 가지만 띄운다
       removeSplatFrame();
       sceneDiv.style.display = "none";
       loadingEl.style.display = "none";
       const f = document.createElement("iframe");
       f.id = "splatFrame";
-      f.title = mode === "ortho" ? "Orthophoto Viewer" : mode === "util" ? "Underground Utility Viewer" : "Gaussian Splat Viewer";
-      f.setAttribute("allow", "fullscreen");
+      f.title = mode === "ortho" ? "Orthophoto Viewer" : mode === "util" ? "Underground Utility Viewer" : mode === "pano" ? "VR Tour Viewer" : "Gaussian Splat Viewer";
+      f.setAttribute("allow", mode === "pano" ? "fullscreen; gyroscope; accelerometer" : "fullscreen");   // VR 투어: 폰 기울여 보기
       f.allowFullscreen = true;
-      f.src = mode === "ortho" ? orthoPageUrl(currentAttrs.ortho_url) : mode === "util" ? utilityPageUrl() : splatPageUrl(currentAttrs.splat_url);
+      f.src = mode === "ortho" ? orthoPageUrl(currentAttrs.ortho_url) : mode === "util" ? utilityPageUrl() :
+        mode === "pano" ? panoPageUrl(true) : splatPageUrl(currentAttrs.splat_url);
       sceneDiv.parentNode.insertBefore(f, sceneDiv);
       _splatFrame = f;
     } else {
@@ -888,6 +924,7 @@ require([
   window.openSplatPage = function() {
     if (_viewMode === "ortho" && currentAttrs?.ortho_url) { window.open(orthoPageUrl(currentAttrs.ortho_url), "_blank"); return; }
     if (_viewMode === "util" && _utilInfo) { window.open(utilityPageUrl(), "_blank"); return; }
+    if (_viewMode === "pano" && _panoInfo) { window.open(panoPageUrl(false), "_blank"); return; }
     if (!currentAttrs?.splat_url) return;
     window.open(splatPageUrl(currentAttrs.splat_url), "_blank");
   };
@@ -906,7 +943,7 @@ require([
 
   /* ── sceneDiv 전체화면 (Fullscreen API) ── */
   window.openFullscreen = function() {
-    const el = (_viewMode === "splat" && _splatFrame) ? _splatFrame : document.getElementById("sceneDiv");
+    const el = (_viewMode !== "glb" && _splatFrame) ? _splatFrame : document.getElementById("sceneDiv");
     if (!el) return;
     const req = el.requestFullscreen
       || el.webkitRequestFullscreen
@@ -1437,7 +1474,8 @@ async function trackJob(jobId, title) {
             document.getElementById("doneModalTitle").textContent = "✓ 처리 완료!";
             document.getElementById("doneModalMsg").innerHTML =
               `<strong style="color:var(--text)">${esc(title)}</strong> 스캔이 처리되어 지도에 등록되었습니다.` +
-              (sd.mode === "video" ? "<br><span style='color:var(--acc-o)'>📱 영상 현장조사: 3D(스플랫)는 GPU 가 카메라 위치를 계산한 뒤 만듭니다(보통 10~30분). 끝나면 목록에서 열어 ✦ 스플랫으로 봅니다.</span>"
+              (sd.mode === "pano" ? "<br><span style='color:var(--accent)'>🥽 VR 투어: 보기를 누르면 360° 사진으로 지점 사이를 오가며 둘러봅니다.</span>"
+                : sd.mode === "video" ? "<br><span style='color:var(--acc-o)'>📱 영상 현장조사: 3D(스플랫)는 GPU 가 카메라 위치를 계산한 뒤 만듭니다(보통 10~30분). 끝나면 목록에서 열어 ✦ 3D 로 봅니다.</span>"
                 : sd.scene_item_id ? "" : "<br><span style='color:var(--text3)'>Scene 레이어(SLPK)는 생성되지 않아 GLB 뷰어로만 볼 수 있습니다.</span>") +
               (sd.mode !== "video" && (sd.splat_status === "pending" || sd.splat_status === "processing")
                 ? "<br><span style='color:var(--acc-o)'>✦ 사진 기반 스플랫은 GPU 워커가 몇 분 뒤 추가합니다. 끝나면 목록에서 다시 열어 ✦ 스플랫 탭을 누르세요.</span>" : "") +

@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d1117">
+<meta name="color-scheme" content="dark">
+<meta name="format-detection" content="telephone=no">
+<title>kgeoScan VR 투어</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230d1117'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%2338bdf8'/%3E%3C/svg%3E">
+<!--
+  kgeoScan VR 투어 뷰어 (360° 실사 파노라마) — 계약: docs/pano_contract.md 3·5·5.1·6·7절
+  열기: ?job=<job_id> (status.py 의 pano_url) 또는 ?tour=<tour.json URL>
+  선택: &spot=s02 &yaw= &pitch= &fov= (처음 보는 곳) · &edit=1 (연결·시작 방향·평면도 위치 편집 → tour.json 내려받기)
+        &embed=1 (메인 뷰어의 🥽 VR 투어 탭 iframe: 로고·공유 숨김, postMessage 로 알림 — 5.1절) · &hq=0 (미리보기만, 데이터 아끼기)
+  three.js 0.165 (MIT, jsdelivr) — 사이트의 splat.html·utility.html 과 같은 판. 한 파일, 빌드 없음.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js" } }</script>
+<style>
+:root{
+  --bg:#080b0f; --s1:#0d1117; --s2:#121820; --s3:#18212d;
+  --border:rgba(255,255,255,.08); --border2:rgba(255,255,255,.14);
+  --accent:#38bdf8; --acc-g:#34d399; --acc-o:#fb923c; --acc-r:#f87171;
+  --text:#f0f6ff; --text2:#94a3b8; --text3:#546880;
+  --glass:rgba(13,17,23,.72);
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+  --sans:'Pretendard Variable','Pretendard',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif;
+  --safe-t:env(safe-area-inset-top); --safe-b:env(safe-area-inset-bottom);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);overflow:hidden}
+body{font-family:var(--sans);color:var(--text);font-size:14px;line-height:1.45;-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent;
+  -webkit-user-select:none;user-select:none;overscroll-behavior:none}
+[hidden]{display:none !important}
+button{font-family:inherit;color:inherit;background:none;border:0;cursor:pointer;touch-action:manipulation}
+#stage{position:fixed;inset:0;touch-action:none;cursor:grab}
+#stage.drag{cursor:grabbing}
+#c{width:100%;height:100%;display:block}
+#hots{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+
+/* 머리 */
+.bar{position:fixed;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;gap:10px;
+  padding:calc(var(--safe-t) + 10px) 12px 18px;background:linear-gradient(rgba(8,11,15,.92),rgba(8,11,15,.62) 62%,rgba(8,11,15,0));pointer-events:none}
+.bar>*{pointer-events:auto}
+.logo{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--accent);display:flex;align-items:center;gap:7px;text-decoration:none;flex:none}
+.logo i{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent)}
+.ttl{min-width:0;flex:1}
+.ttl b{display:block;font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.ttl small{display:block;font-size:12px;color:#cbd5e1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.ib{width:40px;height:40px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;flex:none;
+  background:var(--glass);border:1px solid var(--border2);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.ib svg{width:20px;height:20px}
+.ib.on{color:#03131f;background:var(--accent);border-color:var(--accent)}
+.ib:active{transform:scale(.96)}
+
+/* 오른쪽 조작 */
+.side{position:fixed;right:12px;top:50%;transform:translateY(-50%);z-index:20;display:flex;flex-direction:column;gap:8px}
+/* 나침반 */
+.compass{position:fixed;left:12px;top:calc(var(--safe-t) + 64px);z-index:20;width:44px;height:44px;border-radius:50%;
+  background:var(--glass);border:1px solid var(--border2);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.compass svg{width:100%;height:100%;transition:none}
+
+/* 지점 목록 */
+.spots{position:fixed;left:0;right:0;bottom:0;z-index:20;padding:22px 12px calc(var(--safe-b) + 12px);
+  background:linear-gradient(rgba(8,11,15,0),rgba(8,11,15,.85) 45%);display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;
+  -webkit-overflow-scrolling:touch;pointer-events:auto}
+.spots::-webkit-scrollbar{display:none}
+.sp{flex:none;width:112px;border-radius:10px;overflow:hidden;background:var(--s2);border:2px solid transparent;text-align:left;position:relative}
+.sp img{display:block;width:100%;height:56px;object-fit:cover;background:var(--s3)}
+.sp span{display:block;padding:5px 8px 6px;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sp.cur{border-color:var(--accent)}
+.sp.cur span{color:var(--accent)}
+.sp em{position:absolute;top:4px;left:4px;font-style:normal;font-family:var(--mono);font-size:10.5px;background:rgba(8,11,15,.75);border-radius:5px;padding:1px 5px;color:var(--text2)}
+
+/* 미니맵 */
+.mini{position:fixed;right:64px;top:calc(var(--safe-t) + 64px);z-index:20;width:220px;border-radius:12px;overflow:hidden;
+  background:rgba(240,242,245,.94);border:1px solid var(--border2);box-shadow:0 6px 24px rgba(0,0,0,.35)}
+.mini .hd{display:flex;align-items:center;justify-content:space-between;padding:5px 6px 5px 10px;background:var(--glass);color:var(--text);font-size:12px;font-weight:600}
+.mini .hd button{width:28px;height:24px;border-radius:6px;color:var(--text2)}
+.mini .map{position:relative}
+.mini .map img{display:block;width:100%;height:auto}
+.mini .map svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.mini.fold .map{display:none}
+.mini.pick .map{cursor:crosshair;outline:3px solid var(--acc-o);outline-offset:-3px}
+
+/* 바닥 원·화살표 */
+.hot{position:absolute;left:0;top:0;pointer-events:auto;width:96px;height:96px;margin:-48px 0 0 -48px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.hot .ring{width:74px;height:74px;border-radius:50%;border:4px solid rgba(255,255,255,.95);box-shadow:0 0 0 2px rgba(0,0,0,.25),inset 0 0 0 2px rgba(0,0,0,.2),0 0 18px rgba(56,189,248,.55);
+  transform:rotateX(66deg);background:radial-gradient(rgba(56,189,248,.25),rgba(56,189,248,0) 70%);transition:transform .15s,border-color .15s}
+.hot .arr{position:absolute;top:22px;width:30px;height:30px;color:#fff;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
+.hot .lbl{position:absolute;top:70px;white-space:nowrap;font-size:12.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:rgba(8,11,15,.72);
+  border:1px solid var(--border2)}
+.hot:hover .ring,.hot:focus-visible .ring{border-color:var(--accent);transform:rotateX(66deg) scale(1.12)}
+.hot:focus-visible{outline:none}
+
+/* 알림 */
+.center{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.box{pointer-events:auto;max-width:min(420px,calc(100% - 32px));background:var(--s1);border:1px solid var(--border2);border-radius:14px;padding:18px 18px 16px;text-align:center}
+.box b{display:block;font-size:16px;margin-bottom:6px}
+.box p{color:var(--text2);font-size:13.5px}
+.box a{display:inline-flex;margin-top:12px;color:var(--accent)}
+.spin{width:34px;height:34px;border-radius:50%;border:3px solid rgba(56,189,248,.2);border-top-color:var(--accent);animation:sp 0.9s linear infinite;margin:0 auto 10px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.toast{position:fixed;left:50%;bottom:calc(var(--safe-b) + 120px);transform:translateX(-50%) translateY(20px);z-index:40;opacity:0;pointer-events:none;
+  background:var(--s1);border:1px solid var(--border2);border-radius:10px;padding:9px 14px;font-size:13.5px;transition:.25s;max-width:calc(100% - 32px)}
+.toast.on{opacity:1;transform:translateX(-50%)}
+.hint{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:15;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:8px;
+  color:#fff;font-size:13.5px;font-weight:600;text-shadow:0 1px 4px rgba(0,0,0,.7);transition:opacity .6s}
+.hint svg{width:54px;height:54px;filter:drop-shadow(0 1px 3px rgba(0,0,0,.6));animation:sw 2.2s ease-in-out infinite}
+@keyframes sw{0%,100%{transform:translateX(-16px)}50%{transform:translateX(16px)}}
+.fade{position:fixed;inset:0;z-index:12;background:#000;opacity:0;pointer-events:none;transition:opacity .25s}
+
+/* 편집 */
+.edit{position:fixed;left:12px;bottom:calc(var(--safe-b) + 112px);z-index:25;width:min(340px,calc(100% - 24px));max-height:calc(100% - 220px);overflow:auto;
+  background:var(--s1);border:1px solid var(--border2);border-radius:12px;padding:12px;-webkit-user-select:text;user-select:text}
+.edit h3{font-size:13px;color:var(--acc-o);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.edit .row{display:flex;gap:6px;align-items:center;margin-top:6px}
+.edit input{flex:1;min-width:0;font:inherit;font-size:14px;color:var(--text);background:var(--s2);border:1px solid var(--border2);border-radius:7px;padding:7px 9px}
+.edit .b{flex:none;font-size:12.5px;font-weight:600;padding:7px 9px;border-radius:7px;background:var(--s2);border:1px solid var(--border2)}
+.edit .b.p{background:var(--accent);color:#03131f;border-color:var(--accent)}
+.edit .ln{display:flex;gap:6px;align-items:center;padding:6px 0;border-top:1px solid var(--border)}
+.edit .ln span{flex:1;min-width:0;font-size:13px}
+.edit .ln small{display:block;font-family:var(--mono);font-size:11px;color:var(--text3)}
+.edit .note{font-size:12px;color:var(--text3);margin-top:8px}
+.edit .q{font-size:12px;color:var(--text2);margin-top:4px}
+
+.ib.hqb{font-family:var(--mono);font-size:12px;font-weight:600}
+.ib.hqb:not(.on){color:var(--text3)}
+body.embed .logo{display:none}
+body.embed .bar{padding-top:8px}
+@media (max-width:640px){
+  .mini{right:auto;left:12px;top:auto;bottom:calc(var(--safe-b) + 108px);width:150px}
+  .compass{top:calc(var(--safe-t) + 60px)}
+  .side{top:auto;bottom:calc(var(--safe-b) + 108px);transform:none}
+  .sp{width:96px}.sp img{height:48px}
+  .edit{bottom:auto;top:calc(var(--safe-t) + 60px);max-height:45%}
+  .ttl b{font-size:14px}
+}
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="c"></canvas><div id="hots"></div></div>
+<div class="fade" id="fade"></div>
+
+<header class="bar">
+  <a class="logo" href="/app/3dscan/" title="kgeoScan"><i></i>kgeoScan</a>
+  <div class="ttl"><b id="tTitle">VR 투어</b><small id="tSpot">불러오는 중…</small></div>
+  <button class="ib" id="bShare" title="이 장면 링크 공유" aria-label="링크 공유"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg></button>
+</header>
+
+<button class="compass" id="compass" hidden title="북쪽 보기" aria-label="북쪽 보기"><svg viewBox="0 0 44 44"><g id="needle"><path d="M22 6l5 16h-10z" fill="#f87171"/><path d="M22 38l-5-16h10z" fill="#94a3b8"/><text x="22" y="5.5" text-anchor="middle" font-size="6.5" font-weight="700" fill="#f0f6ff" font-family="sans-serif">N</text></g></svg></button>
+
+<div class="side">
+  <button class="ib" id="bIn" title="확대" aria-label="확대"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+  <button class="ib" id="bOut" title="축소" aria-label="축소"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
+  <button class="ib hqb on" id="bHQ" title="고화질 (끄면 미리보기만 — 데이터 절약)" aria-label="고화질 켜고 끄기">HD</button>
+  <button class="ib" id="bGyro" hidden title="휴대폰을 움직여 둘러보기" aria-label="기울여 보기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M3 9c-1.3 2-1.3 4 0 6M21 9c1.3 2 1.3 4 0 6"/></svg></button>
+  <button class="ib" id="bFull" title="전체 화면" aria-label="전체 화면"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+</div>
+
+<div class="mini" id="mini" hidden>
+  <div class="hd"><span>평면도</span><button id="miniFold" aria-label="평면도 접기">–</button></div>
+  <div class="map" id="miniMap"><img id="miniImg" alt="평면도"><svg id="miniSvg" viewBox="0 0 1 1" preserveAspectRatio="none"></svg></div>
+</div>
+
+<nav class="spots" id="spots" aria-label="지점"></nav>
+
+<div class="hint" id="hint" hidden><svg viewBox="0 0 48 48" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 30V14a3 3 0 016 0v10l7.5 1.6a3 3 0 012.4 3.4L32.5 38H21l-6.5-7a2.6 2.6 0 013.5-3.8z"/><path d="M6 14l-3 3 3 3M42 14l3 3-3 3"/></svg><span>끌어서 둘러보세요</span></div>
+
+<div class="center" id="center"><div class="box"><div class="spin"></div><b id="cMain">VR 투어를 불러오는 중…</b><p id="cSub"></p></div></div>
+<div class="toast" id="toast"></div>
+
+<aside class="edit" id="edit" hidden>
+  <h3>✎ 투어 편집</h3>
+  <div class="row"><input id="eName" maxlength="30" aria-label="지점 이름"><button class="b" id="eStart">시작 방향 = 지금</button></div>
+  <div id="eLinks"></div>
+  <div class="row"><button class="b" id="ePlan">평면도에 위치 찍기</button><button class="b" id="eRevert">편집 지우기</button><button class="b p" id="eSave">tour.json 받기</button></div>
+  <div class="q" id="eQual"></div>
+  <p class="note">편집은 이 브라우저에만 임시 저장됩니다. 받은 tour.json 을 서버 작업 폴더의 pano/ 에 올리면 모두에게 반영됩니다.</p>
+</aside>
+
+<script type="module">
+import * as THREE from 'three';
+
+const $ = (id) => document.getElementById(id);
+const P = new URLSearchParams(location.search);
+const API = '/app/3dupload/';
+const D2R = Math.PI / 180;
+const MOBILE = matchMedia('(pointer:coarse)').matches || /iP(hone|ad|od)|Android/.test(navigator.userAgent);
+const EDIT = P.get('edit') === '1';
+const EMBED = P.get('embed') === '1' || window.self !== window.top;
+if (EMBED) document.body.classList.add('embed');
+const MAX_TILES = MOBILE ? 6 : 8;            // 동시에 올려 둘 고해상도 조각 (2048² 한 장 ≈ 16 MB GPU)
+const R_BASE = 500, R_TILE = 490;
+
+const S = {
+  tour: null, tourUrl: '', base: null, spot: null, view: null, old: null,
+  yaw: 0, pitch: 0, fov: 75, fovMin: 30, fovMax: 100,
+  drag: null, pointers: new Map(), vel: [0, 0], lastMove: 0, interacted: false, auto: true,
+  gyro: false, gyroOff: 0, gyroQ: null, anim: null, busy: false, dirty: true, tileT: 0,
+  edit: { pick: false }, hq: P.get('hq') !== '0'
+};
+
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+let toastT = 0;
+function toast(msg) { const e = $('toast'); e.textContent = msg; e.className = 'toast on'; clearTimeout(toastT); toastT = setTimeout(() => { e.className = 'toast'; }, 2600); }
+function center(main, sub, spin) {
+  const c = $('center');
+  if (main == null) { c.hidden = true; return; }
+  c.hidden = false; $('cMain').textContent = main; $('cSub').innerHTML = sub || '';
+  c.querySelector('.spin').hidden = !spin;
+}
+const wrap180 = (a) => ((a + 180) % 360 + 360) % 360 - 180;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const ease = (t) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+/* ── three.js ── */
+const canvas = $('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x080b0f);
+const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 2000);
+camera.rotation.order = 'YXZ';
+const maxAniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+const loader = new THREE.TextureLoader();
+loader.setCrossOrigin('anonymous');
+
+// 등장방형 규약(계약 1.3): u = 0.5 + yaw/360 (yaw 시계 방향 +), v = 0.5 − pitch/180.
+// 안에서 보는 구(x 뒤집음)에서 그 방향 = (−cosθ·cosψ, sinθ, −cosθ·sinψ)
+function dirOf(yaw, pitch, r = 1) {
+  const y = yaw * D2R, p = pitch * D2R;
+  return new THREE.Vector3(-Math.cos(p) * Math.cos(y) * r, Math.sin(p) * r, -Math.cos(p) * Math.sin(y) * r);
+}
+function yawPitchOf(v) { const n = v.clone().normalize(); return [Math.atan2(-n.z, -n.x) / D2R, Math.asin(clamp(n.y, -1, 1)) / D2R]; }
+function sphere(r, ws, hs, phiS, phiL, thS, thL) { const g = new THREE.SphereGeometry(r, ws, hs, phiS, phiL, thS, thL); g.scale(-1, 1, 1); return g; }
+function loadTex(url, mip = true) {
+  return new Promise((res, rej) => {
+    loader.load(url, (t) => {
+      t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = maxAniso;
+      t.generateMipmaps = mip; t.minFilter = mip ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter;
+      res(t);
+    }, undefined, () => rej(new Error('사진을 불러오지 못했습니다: ' + url)));
+  });
+}
+const abs = (p) => new URL(p, S.base).href;
+
+class SpotView {
+  constructor(spot, layer) {
+    this.spot = spot; this.group = new THREE.Group(); this.layer = layer; this.tiles = []; this.loading = 0; this.dead = false; this.opacity = 1;
+    this.baseMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1, depthTest: false, depthWrite: false });
+    this.base = new THREE.Mesh(sphere(R_BASE, 96, 48), this.baseMat);
+    this.base.renderOrder = layer * 10;
+    this.base.visible = false;
+    this.group.add(this.base);
+    const T = spot.tiles;
+    if (T && T.cols && T.rows && T.url) {
+      for (let r = 0; r < T.rows; r++) for (let c = 0; c < T.cols; c++) {
+        const phiL = 2 * Math.PI / T.cols, thL = Math.PI / T.rows;
+        const mat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 1, depthTest: false, depthWrite: false });
+        const m = new THREE.Mesh(sphere(R_TILE, Math.max(8, 64 / T.cols | 0), Math.max(8, 48 / T.rows | 0), c * phiL, phiL, r * thL, thL), mat);
+        m.renderOrder = layer * 10 + 1; m.visible = false;
+        const samples = [];
+        for (let i = 0; i <= 4; i++) for (let j = 0; j <= 4; j++) {
+          const u = (c + j / 4) / T.cols, v = (r + i / 4) / T.rows;
+          samples.push(dirOf((u - 0.5) * 360, (0.5 - v) * 180, 100));
+        }
+        this.tiles.push({ r, c, mesh: m, mat, state: 0, used: 0, samples, url: abs(T.url.replace('{r}', r).replace('{c}', c)) });
+        this.group.add(m);
+      }
+    }
+    scene.add(this.group);
+  }
+  async loadBase() {
+    const sp = this.spot;
+    const t = await loadTex(abs(sp.preview || sp.pano));
+    if (this.dead) { t.dispose(); return; }
+    this.baseMat.map = t; this.baseMat.needsUpdate = true; this.base.visible = true; S.dirty = true;
+  }
+  setOpacity(o) { this.opacity = o; this.baseMat.opacity = o; this.tiles.forEach((t) => { t.mat.opacity = o; }); }
+  setLayer(l) { this.layer = l; this.base.renderOrder = l * 10; this.tiles.forEach((t) => { t.mesh.renderOrder = l * 10 + 1; }); }
+  visibleTiles() {
+    const out = new Set();
+    if (!this.tiles.length) return out;
+    camera.updateMatrixWorld(); camera.updateProjectionMatrix();
+    const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd);
+    const v = new THREE.Vector3();
+    this.tiles.forEach((t, k) => {
+      for (const s of t.samples) {
+        if (s.dot(fwd) <= 0) continue;
+        v.copy(s).project(camera);
+        if (Math.abs(v.x) < 1.25 && Math.abs(v.y) < 1.25) { out.add(k); break; }
+      }
+    });
+    // 보는 방향이 든 조각은 늘
+    const T = this.spot.tiles, u = ((S.yaw / 360 + 0.5) % 1 + 1) % 1, vv = clamp(0.5 - S.pitch / 180, 0, 0.9999);
+    out.add(Math.floor(vv * T.rows) * T.cols + Math.floor(u * T.cols));
+    return out;
+  }
+  updateTiles() {
+    if (!this.tiles.length || !this.base.visible || this.dead) return;
+    if (!S.hq) { this.tiles.forEach((t) => { t.mesh.visible = false; }); return; }
+    this.tiles.forEach((t) => { if (t.state === 2) t.mesh.visible = true; });
+    const vis = this.visibleTiles(), now = performance.now();
+    vis.forEach((k) => { this.tiles[k].used = now; });
+    const want = [...vis].filter((k) => this.tiles[k].state === 0);
+    while (this.loading < 2 && want.length) {
+      const t = this.tiles[want.shift()];
+      t.state = 1; this.loading++;
+      loadTex(t.url).then((tex) => {
+        this.loading--;
+        if (this.dead) { tex.dispose(); return; }
+        t.mat.map = tex; t.mat.needsUpdate = true; t.mesh.visible = true; t.state = 2; t.used = performance.now(); S.dirty = true;
+        this.evict(); this.updateTiles();
+      }).catch(() => { this.loading--; t.state = 3; });
+    }
+  }
+  evict() {
+    const loaded = this.tiles.filter((t) => t.state === 2);
+    if (loaded.length <= MAX_TILES) return;
+    loaded.sort((a, b) => a.used - b.used);
+    for (let i = 0; i < loaded.length - MAX_TILES; i++) {
+      const t = loaded[i]; t.mesh.visible = false; if (t.mat.map) { t.mat.map.dispose(); t.mat.map = null; } t.state = 0;
+    }
+  }
+  dispose() {
+    this.dead = true; scene.remove(this.group);
+    if (this.baseMat.map) this.baseMat.map.dispose();
+    this.baseMat.dispose(); this.base.geometry.dispose();
+    this.tiles.forEach((t) => { if (t.mat.map) t.mat.map.dispose(); t.mat.dispose(); t.mesh.geometry.dispose(); });
+  }
+}
+
+/* ── 투어 불러오기 ── */
+function editKey() { return 'kgeoscan_pano_edit:' + S.tourUrl; }
+async function resolveTourUrl() {
+  const t = P.get('tour');
+  if (t) return t;
+  const job = (P.get('job') || '').replace(/[^A-Za-z0-9_-]/g, '');
+  if (!job) throw new Error('열 투어가 없습니다. 주소에 ?job= 또는 ?tour= 가 필요합니다.');
+  for (;;) {
+    const r = await fetch(API + 'status.py?job_id=' + job, { cache: 'no-store' });
+    if (r.status === 404) throw new Error('작업을 찾을 수 없습니다 (' + job + ')');
+    const d = await r.json().catch(() => ({}));
+    if (d.pano_url) return d.pano_url;
+    if (!d.pano_status && d.mode && d.mode !== 'pano') throw new Error('이 작업에는 VR 투어가 없습니다 (3D 보기를 쓰세요)');
+    const st = d.pano_status || d.status;
+    if (st === 'failed') throw new Error('파노라마를 만들지 못했습니다' + (d.pano_message || d.message ? ': ' + (d.pano_message || d.message) : ''));
+    center('VR 투어를 만드는 중…', esc(d.pano_message || d.message || '지점마다 1~2분 걸립니다. 이 화면은 저절로 새로 고칩니다.'), true);
+    await new Promise((res) => setTimeout(res, 8000));
+  }
+}
+async function init() {
+  try {
+    S.tourUrl = await resolveTourUrl();
+    S.base = new URL(S.tourUrl, location.href);
+    const r = await fetch(S.base.href, { cache: 'no-cache' });
+    if (!r.ok) throw new Error('tour.json 을 불러오지 못했습니다 (HTTP ' + r.status + ')');
+    const tour = await r.json();
+    if (!tour || !Array.isArray(tour.spots) || !tour.spots.length) throw new Error('투어에 지점이 없습니다' + (tour && tour.failed && tour.failed.length ? ' — ' + tour.failed.map((f) => f.error).join(', ') : ''));
+    if (EDIT) { try { const e = JSON.parse(localStorage.getItem(editKey()) || 'null'); if (e && Array.isArray(e.spots)) { mergeEdit(tour, e); toast('이 브라우저의 편집 내용을 불러왔습니다'); } } catch (e) { } }
+    S.tour = tour;
+    $('tTitle').textContent = tour.title || 'VR 투어';
+    document.title = (tour.title ? tour.title + ' · ' : '') + 'kgeoScan VR 투어';
+    emit('ready', { title: tour.title || '', spots: tour.spots.map((x) => ({ id: x.id, name: x.name || x.id })) });
+    buildSpotList(); buildMini();
+    const first = spotById(P.get('spot')) || spotById(tour.start) || tour.spots[0];
+    const y = parseFloat(P.get('yaw')), p = parseFloat(P.get('pitch')), f = parseFloat(P.get('fov'));
+    S.yaw = isFinite(y) ? y : (first.start_yaw || 0);
+    S.pitch = isFinite(p) ? clamp(p, -85, 85) : (first.start_pitch || 0);
+    if (isFinite(f)) S.fov = clamp(f, S.fovMin, S.fovMax);
+    if (isFinite(y)) S.auto = false;
+    await showSpot(first, null);
+    center(null);
+    const h = $('hint'); h.hidden = false; setTimeout(() => { h.style.opacity = 0; setTimeout(() => { h.hidden = true; }, 700); }, 2600);
+    if (EDIT) { $('edit').hidden = false; renderEdit(); }
+  } catch (e) {
+    center('VR 투어를 열 수 없습니다', esc(e.message || e) + (EMBED ? '' : '<br><a href="/app/3dscan/">kgeoScan 지도로</a>'), false);
+    emit('error', { message: String(e.message || e) });
+  }
+}
+function spotById(id) { return id && S.tour ? S.tour.spots.find((s) => s.id === id) || null : null; }
+
+/* ── 지점 이동 ── */
+async function showSpot(spot, link) {
+  if (S.busy) return;
+  S.busy = true;
+  const prev = S.view;
+  const nv = new SpotView(spot, prev ? prev.layer + 1 : 1);
+  const sameFrame = !S.spot || (S.spot.frame || 1) === (spot.frame || 1);
+  const fovBefore = S.fov;
+  try {
+    const loadP = nv.loadBase();
+    if (link && isFinite(link.yaw)) {               // 그 방향으로 다가가며(확대) 다음 지점을 받는다
+      const y0 = S.yaw, p0 = S.pitch, f0 = S.fov, dy = wrap180(link.yaw - y0);
+      await animate(420, (t) => { const k = ease(t); S.yaw = y0 + dy * k; S.pitch = p0 + (Math.max(-12, Math.min(0, p0)) - p0) * k; S.fov = f0 - 18 * k; });
+    }
+    if (prev) { nv.setOpacity(0); }
+    await Promise.race([loadP, new Promise((res, rej) => setTimeout(() => rej(new Error('사진을 불러오는 데 너무 오래 걸립니다')), 20000))]);
+    S.spot = spot; S.view = nv;
+    if (!sameFrame || (link && !isFinite(link.yaw))) { S.yaw = spot.start_yaw || 0; S.pitch = 0; }
+    if (prev) {
+      const f1 = S.fov, fT = link ? f1 + 18 : f1;
+      await animate(link ? 380 : 300, (t) => { const k = ease(t); nv.setOpacity(k); S.fov = f1 + (fT - f1) * k; });
+      prev.dispose();
+    }
+    nv.setOpacity(1); nv.setLayer(1);
+    S.dirty = true;
+    renderSpotUI();
+    nv.updateTiles();
+    const u = new URL(location.href); u.searchParams.set('spot', spot.id); u.searchParams.delete('yaw'); u.searchParams.delete('pitch'); u.searchParams.delete('fov');
+    history.replaceState(null, '', u.href);
+  } catch (e) {
+    nv.dispose();
+    S.fov = fovBefore; S.dirty = true;
+    toast(e.message || '지점을 열지 못했습니다');
+  } finally { S.busy = false; }
+}
+function animate(ms, fn) {
+  if (S.animEnd) S.animEnd();               // 앞 애니메이션은 끝 상태로 마치고 기다리던 쪽을 풀어 준다 (전환 중 확대 등)
+  return new Promise((res) => {
+    const t0 = performance.now();
+    const end = () => { S.anim = null; S.animEnd = null; fn(1); S.dirty = true; res(); };
+    S.animEnd = end;
+    S.anim = (now) => { const t = Math.min(1, (now - t0) / ms); if (t >= 1) { end(); return; } fn(t); S.dirty = true; };
+  });
+}
+
+/* ── 화면 요소 ── */
+function buildSpotList() {
+  const el = $('spots');
+  el.innerHTML = S.tour.spots.map((s, i) => '<button class="sp" data-id="' + esc(s.id) + '"><img loading="lazy" alt="" src="' + esc(abs(s.thumb || s.preview)) + '"><em>' + (i + 1) + '</em><span>' + esc(s.name || s.id) + '</span></button>').join('');
+  el.hidden = S.tour.spots.length < 2 && !EDIT;
+  el.querySelectorAll('.sp').forEach((b) => b.addEventListener('click', () => { const s = spotById(b.dataset.id); if (s && s !== S.spot) { S.auto = false; showSpot(s, linkTo(s.id)); } }));
+}
+function linkTo(id) { return S.spot ? (S.spot.links || []).find((l) => l.to === id && isFinite(l.yaw)) || null : null; }
+function buildHots() {
+  const el = $('hots'); el.innerHTML = '';
+  (S.spot.links || []).forEach((l) => {
+    if (l.yaw == null || !isFinite(l.yaw)) return;
+    const tgt = spotById(l.to); if (!tgt) return;
+    const b = document.createElement('button');
+    b.className = 'hot'; b.setAttribute('aria-label', (l.label || tgt.name || l.to) + '(으)로 이동');
+    b.innerHTML = '<span class="ring"></span><svg class="arr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 14l6-6 6 6"/></svg><span class="lbl">' + esc(l.label || tgt.name || l.to) + '</span>';
+    b.addEventListener('pointerdown', (e) => e.stopPropagation());
+    b.addEventListener('click', (e) => { e.stopPropagation(); S.auto = false; showSpot(tgt, l); });
+    b._dir = dirOf(l.yaw, isFinite(l.pitch) ? l.pitch : -18, 100);
+    el.appendChild(b);
+  });
+}
+function placeHots() {
+  const w = canvas.clientWidth, h = canvas.clientHeight, v = new THREE.Vector3(), fwd = new THREE.Vector3();
+  camera.getWorldDirection(fwd);
+  $('hots').childNodes.forEach((b) => {
+    if (!b._dir || b._dir.dot(fwd) <= 0) { b.style.display = 'none'; return; }
+    v.copy(b._dir).project(camera);
+    const x = (v.x + 1) / 2 * w, y = (1 - v.y) / 2 * h;
+    if (x < -60 || x > w + 60 || y < -60 || y > h + 60) { b.style.display = 'none'; return; }
+    b.style.display = '';
+    b.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
+  });
+}
+function renderSpotUI() {
+  const s = S.spot, i = S.tour.spots.indexOf(s);
+  $('tSpot').textContent = (s.name || s.id) + (S.tour.spots.length > 1 ? ' · ' + (i + 1) + '/' + S.tour.spots.length : '');
+  $('spots').querySelectorAll('.sp').forEach((b) => b.classList.toggle('cur', b.dataset.id === s.id));
+  const cur = $('spots').querySelector('.sp.cur'); if (cur) cur.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+  buildHots(); renderMini();
+  $('compass').hidden = northYaw() == null;
+  if (EDIT) renderEdit();
+  emit('spot', { spot: s.id, name: s.name || s.id, index: i, count: S.tour.spots.length });
+}
+function northYaw() { const s = S.spot; const n = s && isFinite(s.north_yaw) ? s.north_yaw : (S.tour && isFinite(S.tour.north_yaw) ? S.tour.north_yaw : null); return n == null ? null : +n; }
+
+/* 미니맵 (계약 6절) */
+function buildMini() {
+  const fp = S.tour.floorplan;
+  if (!fp || !fp.image) { $('mini').hidden = true; return; }
+  $('mini').hidden = false;
+  $('miniImg').src = abs(fp.image);
+  if (MOBILE && window.innerWidth < 640) $('mini').classList.add('fold');
+  $('miniFold').textContent = $('mini').classList.contains('fold') ? '+' : '–';
+}
+function planYaw(s) {
+  if (isFinite(s.yaw_on_plan)) return +s.yaw_on_plan;
+  const fp = S.tour.floorplan, n = northYaw();
+  if (fp && isFinite(fp.north_deg) && n != null) return fp.north_deg - n;
+  return null;
+}
+function renderMini() {
+  const fp = S.tour.floorplan; if (!fp || !fp.image) return;
+  const ar = (fp.height || 1) / (fp.width || 1), svg = $('miniSvg');
+  svg.setAttribute('viewBox', '0 0 1 ' + ar.toFixed(4));
+  let h = '<path id="cone" d="" fill="rgba(56,189,248,.35)" stroke="rgba(14,116,144,.8)" stroke-width="0.004"/>';
+  S.tour.spots.forEach((s) => {
+    if (!Array.isArray(s.plan_xy)) return;
+    const cur = s === S.spot;
+    h += '<circle data-id="' + esc(s.id) + '" cx="' + s.plan_xy[0] + '" cy="' + s.plan_xy[1] * ar + '" r="' + (cur ? 0.026 : 0.02) + '" fill="' + (cur ? '#0ea5e9' : '#334155') + '" stroke="#fff" stroke-width="0.007" style="cursor:pointer"><title>' + esc(s.name || s.id) + '</title></circle>';
+  });
+  svg.innerHTML = h;
+  svg.querySelectorAll('circle').forEach((c) => c.addEventListener('click', (e) => { if (S.edit.pick) return; e.stopPropagation(); const s = spotById(c.dataset.id); if (s && s !== S.spot) { S.auto = false; showSpot(s, linkTo(s.id)); } }));
+  updateCone();
+}
+function updateCone() {        // 보는 방향 부채꼴만 고친다 (점은 지점이 바뀔 때 renderMini 가 그린다)
+  const fp = S.tour && S.tour.floorplan, s = S.spot, cone = $('cone');
+  if (!fp || !s || !cone) return;
+  const py = Array.isArray(s.plan_xy) ? planYaw(s) : null;
+  if (py == null) { cone.setAttribute('d', ''); return; }
+  const ar = (fp.height || 1) / (fp.width || 1), x = s.plan_xy[0], y = s.plan_xy[1] * ar;
+  const a = (py + S.yaw) * D2R, half = Math.min(1.4, Math.atan(Math.tan(S.fov / 2 * D2R) * camera.aspect)), R = 0.16;
+  const p1 = [x + Math.sin(a - half) * R, y - Math.cos(a - half) * R], p2 = [x + Math.sin(a + half) * R, y - Math.cos(a + half) * R];
+  cone.setAttribute('d', 'M' + x + ' ' + y + 'L' + p1[0].toFixed(4) + ' ' + p1[1].toFixed(4) + 'A' + R + ' ' + R + ' 0 0 1 ' + p2[0].toFixed(4) + ' ' + p2[1].toFixed(4) + 'Z');
+}
+
+/* ── 조작 ── */
+const stage = $('stage');
+function stopAuto() { S.auto = false; }
+stage.addEventListener('pointerdown', (e) => {
+  stopAuto(); S.interacted = true;
+  stage.setPointerCapture(e.pointerId);
+  S.pointers.set(e.pointerId, [e.clientX, e.clientY]);
+  if (S.pointers.size === 1) { S.drag = { x: e.clientX, y: e.clientY, t: performance.now() }; S.vel = [0, 0]; stage.classList.add('drag'); }
+  if (S.pointers.size === 2) { const p = [...S.pointers.values()]; S.pinch = { d: Math.hypot(p[0][0] - p[1][0], p[0][1] - p[1][1]), fov: S.fov }; S.drag = null; }
+});
+stage.addEventListener('pointermove', (e) => {
+  if (!S.pointers.has(e.pointerId)) return;
+  S.pointers.set(e.pointerId, [e.clientX, e.clientY]);
+  if (S.pointers.size === 2 && S.pinch) {
+    const p = [...S.pointers.values()], d = Math.hypot(p[0][0] - p[1][0], p[0][1] - p[1][1]);
+    S.fov = clamp(S.pinch.fov * S.pinch.d / Math.max(d, 10), S.fovMin, S.fovMax); S.dirty = true; return;
+  }
+  if (!S.drag || S.gyro) return;
+  const k = S.fov / canvas.clientHeight, now = performance.now();
+  const dx = e.clientX - S.drag.x, dy = e.clientY - S.drag.y, dt = Math.max(1, now - S.drag.t);
+  S.yaw -= dx * k; S.pitch = clamp(S.pitch + dy * k, -88, 88);
+  S.vel = [-dx * k / dt * 16, dy * k / dt * 16];
+  S.drag = { x: e.clientX, y: e.clientY, t: now }; S.dirty = true;
+});
+function endPointer(e) {
+  S.pointers.delete(e.pointerId);
+  if (S.pointers.size < 2) S.pinch = null;
+  if (S.pointers.size === 0) { stage.classList.remove('drag'); if (S.drag && performance.now() - S.drag.t > 80) S.vel = [0, 0]; S.drag = null; }
+  else if (S.pointers.size === 1) { const p = [...S.pointers.values()][0]; S.drag = { x: p[0], y: p[1], t: performance.now() }; }
+}
+stage.addEventListener('pointerup', endPointer);
+stage.addEventListener('pointercancel', endPointer);
+stage.addEventListener('wheel', (e) => { e.preventDefault(); stopAuto(); S.fov = clamp(S.fov * Math.exp(e.deltaY * 0.0012), S.fovMin, S.fovMax); S.dirty = true; }, { passive: false });
+stage.addEventListener('dblclick', (e) => { stopAuto(); const f0 = S.fov, f1 = f0 > 55 ? 40 : 75; animate(300, (t) => { S.fov = f0 + (f1 - f0) * ease(t); }); });
+document.addEventListener('gesturestart', (e) => e.preventDefault());
+window.addEventListener('keydown', (e) => {
+  if (e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
+  const st = { ArrowLeft: [-5, 0], ArrowRight: [5, 0], ArrowUp: [0, 5], ArrowDown: [0, -5] }[e.key];
+  if (st) { stopAuto(); S.yaw += st[0]; S.pitch = clamp(S.pitch + st[1], -88, 88); S.dirty = true; e.preventDefault(); }
+  if (e.key === '+' || e.key === '=') zoom(0.85);
+  if (e.key === '-') zoom(1 / 0.85);
+});
+function zoom(k) { stopAuto(); const f0 = S.fov, f1 = clamp(S.fov * k, S.fovMin, S.fovMax); animate(200, (t) => { S.fov = f0 + (f1 - f0) * t; }); }
+$('bIn').onclick = () => zoom(0.8);
+$('bOut').onclick = () => zoom(1.25);
+$('bFull').onclick = () => {
+  const d = document;
+  if (d.fullscreenElement || d.webkitFullscreenElement) (d.exitFullscreen || d.webkitExitFullscreen).call(d);
+  else { const el = d.documentElement, f = el.requestFullscreen || el.webkitRequestFullscreen; if (f) { const p = f.call(el); if (p && p.catch) p.catch(() => toast('전체 화면을 쓸 수 없습니다')); } else toast('이 브라우저는 전체 화면을 지원하지 않습니다'); }
+};
+$('miniFold').onclick = () => { const m = $('mini'); m.classList.toggle('fold'); $('miniFold').textContent = m.classList.contains('fold') ? '+' : '–'; };
+$('compass').onclick = () => { const n = northYaw(); if (n == null) return; stopAuto(); const y0 = S.yaw, dy = wrap180(n - y0), p0 = S.pitch; animate(500, (t) => { const k = ease(t); S.yaw = y0 + dy * k; S.pitch = p0 * (1 - k); }); };
+$('bShare').onclick = () => {
+  const u = new URL(location.href);
+  if (S.spot) u.searchParams.set('spot', S.spot.id);
+  u.searchParams.set('yaw', (wrap180(S.yaw)).toFixed(1)); u.searchParams.set('pitch', S.pitch.toFixed(1)); u.searchParams.set('fov', S.fov.toFixed(0));
+  u.searchParams.delete('edit'); u.searchParams.delete('embed');
+  const url = u.href;
+  if (navigator.share && MOBILE) { navigator.share({ title: document.title, url }).catch(() => { }); return; }
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(() => toast('지금 보는 장면의 링크를 복사했습니다')).catch(() => window.prompt('링크', url));
+  else window.prompt('링크', url);
+};
+
+/* 기울여 보기 (자이로) — DeviceOrientation → 보는 방향 (화면 회전 반영) */
+const zee = new THREE.Vector3(0, 0, 1), q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)), eul = new THREE.Euler(), q0 = new THREE.Quaternion();
+function onGyro(e) {
+  if (e.alpha == null || e.beta == null) return;
+  const orient = ((screen.orientation && screen.orientation.angle) || window.orientation || 0) * D2R;
+  eul.set(e.beta * D2R, e.alpha * D2R, -e.gamma * D2R, 'YXZ');
+  const q = new THREE.Quaternion().setFromEuler(eul).multiply(q1).multiply(q0.setFromAxisAngle(zee, -orient));
+  const [y, p] = yawPitchOf(new THREE.Vector3(0, 0, -1).applyQuaternion(q));
+  if (S.gyroOff == null) S.gyroOff = S.yaw - y;
+  S.yaw = y + S.gyroOff; S.pitch = clamp(p, -88, 88); S.dirty = true;
+}
+function setGyro(on) {
+  S.gyro = on; $('bGyro').classList.toggle('on', on);
+  if (on) { S.gyroOff = null; stopAuto(); window.addEventListener('deviceorientation', onGyro); toast('휴대폰을 움직여 둘러보세요'); }
+  else window.removeEventListener('deviceorientation', onGyro);
+}
+if (MOBILE && typeof window.DeviceOrientationEvent !== 'undefined') {
+  $('bGyro').hidden = false;
+  $('bGyro').onclick = () => {
+    if (S.gyro) return setGyro(false);
+    const D = window.DeviceOrientationEvent;
+    if (typeof D.requestPermission === 'function') D.requestPermission().then((r) => r === 'granted' ? setGyro(true) : toast('동작 센서 권한이 필요합니다')).catch(() => toast('동작 센서 권한을 받지 못했습니다'));
+    else setGyro(true);
+  };
+}
+
+/* ── 그리기 ── */
+function resize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  const portrait = h > w;
+  S.fovMax = portrait ? 110 : 100;
+  if (!S.sized) { S.fov = portrait ? 90 : 75; S.sized = true; const f = parseFloat(P.get('fov')); if (isFinite(f)) S.fov = f; }
+  S.fov = clamp(S.fov, S.fovMin, S.fovMax);
+  S.dirty = true;
+}
+window.addEventListener('resize', resize);
+resize();
+let lastT = performance.now();
+function loop(now) {
+  requestAnimationFrame(loop);
+  const dt = Math.min(64, now - lastT); lastT = now;
+  if (S.anim) S.anim(now);
+  if (!S.drag && !S.gyro && (Math.abs(S.vel[0]) > 0.01 || Math.abs(S.vel[1]) > 0.01)) {
+    S.yaw += S.vel[0] * dt / 16; S.pitch = clamp(S.pitch + S.vel[1] * dt / 16, -88, 88);
+    const d = Math.pow(0.9, dt / 16); S.vel[0] *= d; S.vel[1] *= d; S.dirty = true;
+  }
+  if (S.auto && S.view && !S.busy) { S.yaw += dt * 0.0025; S.dirty = true; }     // 처음엔 천천히 돈다 (만지면 멈춤)
+  if (!S.dirty) return;
+  S.dirty = false;
+  camera.fov = S.fov; camera.updateProjectionMatrix();
+  camera.rotation.set(S.pitch * D2R, Math.PI / 2 - S.yaw * D2R, 0);
+  renderer.render(scene, camera);
+  placeHots();
+  const n = northYaw();
+  if (n != null) $('needle').setAttribute('transform', 'rotate(' + (n - S.yaw).toFixed(1) + ' 22 22)');
+  if (now - S.tileT > 150) { S.tileT = now; if (S.view && !S.busy) S.view.updateTiles(); updateCone(); }
+}
+requestAnimationFrame(loop);
+document.addEventListener('visibilitychange', () => { S.dirty = true; });
+
+/* ── 메인 뷰어와 주고받기 (계약 5.1절) — 같은 출처(origin)끼리만 ── */
+function emit(event, extra) {
+  if (window.parent === window) return;
+  try { window.parent.postMessage(Object.assign({ type: 'kgeo-pano', event }, extra || {}), location.origin); } catch (e) { }
+}
+window.addEventListener('message', (e) => {
+  if (e.origin !== location.origin || !e.data || e.data.type !== 'kgeo-pano') return;
+  const d = e.data;
+  if (d.cmd === 'goto' && S.tour) { const s = spotById(d.spot); if (s && s !== S.spot) showSpot(s, linkTo(s.id)); }
+  else if (d.cmd === 'view') { if (isFinite(d.yaw)) S.yaw = +d.yaw; if (isFinite(d.pitch)) S.pitch = clamp(+d.pitch, -88, 88); if (isFinite(d.fov)) S.fov = clamp(+d.fov, S.fovMin, S.fovMax); S.auto = false; S.dirty = true; }
+  else if (d.cmd === 'hq') setHQ(!!d.on);
+});
+function setHQ(on) { S.hq = on; $('bHQ').classList.toggle('on', on); if (S.view) S.view.updateTiles(); S.dirty = true; }
+$('bHQ').onclick = () => { setHQ(!S.hq); toast(S.hq ? '고화질로 봅니다' : '미리보기 화질로 봅니다 (데이터 절약)'); };
+setHQ(S.hq);
+
+/* ── 측정 자리 (계약 7절, 나중 단계) ──
+   rayAt(u,v): 등장방형 좌표(0~1) → 지점 세계(세션 프레임, z 위) 방향.  pointAt(u,v): spot.depth 와 pose3d 가 있을 때 장면 좌표 [x,y,z] (지금은 null) */
+function rayAt(u, v) { const y = (u - 0.5) * 2 * Math.PI, p = (0.5 - v) * Math.PI; return [Math.sin(y) * Math.cos(p), Math.cos(y) * Math.cos(p), Math.sin(p)]; }
+function pointAt(u, v) { return null; }
+window.kgeoPano = { rayAt, pointAt, state: S };
+
+/* ── 편집 (&edit=1) ── */
+function mergeEdit(tour, e) {
+  const by = {}; e.spots.forEach((s) => { by[s.id] = s; });
+  tour.spots.forEach((s) => { const x = by[s.id]; if (!x) return; ['name', 'links', 'start_yaw', 'start_pitch', 'plan_xy'].forEach((k) => { if (k in x) s[k] = x[k]; }); });
+}
+function saveEdit() {
+  try { localStorage.setItem(editKey(), JSON.stringify({ t: Date.now(), spots: S.tour.spots.map((s) => ({ id: s.id, name: s.name, links: s.links, start_yaw: s.start_yaw, start_pitch: s.start_pitch, plan_xy: s.plan_xy })) })); } catch (e) { }
+}
+function renderEdit() {
+  const s = S.spot; if (!s) return;
+  $('eName').value = s.name || '';
+  const links = s.links || [];
+  $('eLinks').innerHTML = S.tour.spots.filter((o) => o !== s).map((o) => {
+    const l = links.find((x) => x.to === o.id);
+    const st = l ? (isFinite(l.yaw) && l.yaw != null ? '연결됨 · ' + Math.round(wrap180(l.yaw)) + '°' : '방향 없음') : '연결 안 됨';
+    return '<div class="ln"><span>' + esc(o.name || o.id) + '<small>' + st + '</small></span><button class="b" data-a="set" data-id="' + esc(o.id) + '">지금 방향으로</button>' + (l ? '<button class="b" data-a="del" data-id="' + esc(o.id) + '">×</button>' : '') + '</div>';
+  }).join('');
+  const q = s.quality || {};
+  $('eQual').textContent = q.grade ? '품질 ' + ({ good: '좋음', fair: '보통', poor: '나쁨' }[q.grade] || q.grade) + ' · 이음선 어긋남 p90 ' + (q.seam_px_p90 == null ? '—' : q.seam_px_p90 + ' px') + ' · 사진 ' + (q.used || '?') + '/' + (q.shots || '?') + '장' : '';
+  $('eLinks').querySelectorAll('button').forEach((b) => b.onclick = () => {
+    const o = spotById(b.dataset.id); if (!o) return;
+    s.links = (s.links || []).filter((x) => x.to !== o.id);
+    if (b.dataset.a === 'set') {
+      const yaw = +wrap180(S.yaw).toFixed(2), pitch = +clamp(S.pitch, -40, -5).toFixed(1);
+      s.links.push({ to: o.id, yaw, pitch, label: o.name || o.id });
+      const back = (o.links || []).find((x) => x.to === s.id);
+      if ((!back || back.yaw == null) && (s.frame || 1) === (o.frame || 1)) {     // 반대쪽이 비어 있으면 +180° 로 채운다
+        o.links = (o.links || []).filter((x) => x.to !== s.id);
+        o.links.push({ to: s.id, yaw: +wrap180(yaw + 180).toFixed(2), pitch: -18, label: s.name || s.id });
+      }
+      toast((o.name || o.id) + ' 연결: ' + Math.round(yaw) + '°');
+    } else {
+      o.links = (o.links || []).filter((x) => x.to !== s.id);
+    }
+    saveEdit(); buildHots(); renderEdit(); S.dirty = true;
+  });
+}
+if (EDIT) {
+  $('eName').addEventListener('change', () => { S.spot.name = $('eName').value.trim() || S.spot.id; saveEdit(); buildSpotList(); renderSpotUI(); });
+  $('eStart').onclick = () => { S.spot.start_yaw = +wrap180(S.yaw).toFixed(2); S.spot.start_pitch = +S.pitch.toFixed(1); saveEdit(); toast('시작 방향을 지금 보는 방향으로 정했습니다'); };
+  $('ePlan').onclick = () => {
+    if (!S.tour.floorplan || !S.tour.floorplan.image) { toast('이 투어에는 평면도가 없습니다'); return; }
+    S.edit.pick = !S.edit.pick; $('mini').classList.toggle('pick', S.edit.pick); $('mini').classList.remove('fold');
+    $('ePlan').textContent = S.edit.pick ? '평면도를 누르세요…' : '평면도에 위치 찍기';
+  };
+  $('miniMap').addEventListener('click', (e) => {
+    if (!S.edit.pick) return;
+    const r = $('miniImg').getBoundingClientRect();
+    S.spot.plan_xy = [+((e.clientX - r.left) / r.width).toFixed(4), +((e.clientY - r.top) / r.height).toFixed(4)];
+    if (S.spot.yaw_on_plan == null && S.tour.spots.some((o) => isFinite(o.yaw_on_plan))) S.spot.yaw_on_plan = S.tour.spots.find((o) => isFinite(o.yaw_on_plan)).yaw_on_plan;
+    S.edit.pick = false; $('mini').classList.remove('pick'); $('ePlan').textContent = '평면도에 위치 찍기';
+    saveEdit(); renderMini(); toast('평면도 위치를 정했습니다');
+  });
+  $('eRevert').onclick = () => { if (!window.confirm('이 브라우저에 저장한 편집을 지우고 원래 투어로 되돌릴까요?')) return; try { localStorage.removeItem(editKey()); } catch (e) { } location.reload(); };
+  $('eSave').onclick = () => {
+    const blob = new Blob([JSON.stringify(S.tour, null, 1)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'tour.json'; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  };
+}
+
+init();
+</script>
+</body>
+</html>

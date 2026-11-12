@@ -9,6 +9,8 @@ POST /app/3dupload/upload.py  (multipart/form-data)
   굴착 기록: trench_mode=1 (+ scan_type=survey). 웹 촬영(mode=video|photos)은 docs/web_trench_contract.md 1절:
              sensors_file (sensors.json ≤5 MB), marks_file (marks2d.json ≤1 MB) — 둘 다 선택, JSON 이어야 한다
   굴착 허가 정보(모든 모드, 선택): permit_no, owner_org, surveyor, org (각 100자) → job.json permit → 조서
+  mode=pano (VR 투어, docs/pano_contract.md 1절): pano_file (pano_spots.zip: spots.json + sNN/NNNN.jpg), lon, lat (필수),
+             spot_count, shot_count (참고). 서버가 지점마다 360° 등장방형을 만든다 (pipeline → worker/pano_stitch.py)
 
 응답: {"job_id": "..."}  또는 {"error": "..."}
 중복 방지: 같은 제목·같은 원본 파일 이름으로 24시간 안에 만든 작업(실패 제외)이 있으면 새로 만들지 않고 그 job_id 를 돌려준다
@@ -20,11 +22,14 @@ POST /app/3dupload/upload.py  (multipart/form-data)
 """
 import email
 import email.policy
+import io
 import json
 import os
+import re
 import sys
 import time
 import uuid
+import zipfile
 
 # msvcrt.setmode 는 쓰지 않는다: 파이썬은 Windows 에서 표준 입출력을 이미 바이너리로 연다(확인함).
 # IIS 에서 HTTP/2 요청일 때 stdin/stdout 에 setmode 를 부르면 응답이 끊기고(RST), GET 에서는 502 가 났다.
@@ -36,12 +41,55 @@ MAX_TITLE = 100
 MAX_BODY = 1024 * 1024 * 1024  # 1 GB (web.config 의 maxAllowedContentLength 와 맞춤)
 ALLOWED = {"scan_zip": (".zip",), "las_file": (".las", ".laz"), "glb_file": (".glb", ".gltf"),
            "video_file": (".mp4", ".mov", ".m4v", ".webm", ".3gp"),   # video: 웹 3D 현장조사 (기본 카메라 영상 → GPU 스플랫)
-           "photo_files": (".jpg", ".jpeg", ".png", ".heic", ".heif", ".webp")}   # photos: 같은 현장조사의 사진 여러 장 (화질 권장)
+           "photo_files": (".jpg", ".jpeg", ".png", ".heic", ".heif", ".webp"),   # photos: 같은 현장조사의 사진 여러 장 (화질 권장)
+           "pano_file": (".zip",)}                       # pano: VR 투어 촬영 묶음 (docs/pano_contract.md 1.1)
 MIN_PHOTOS, MAX_PHOTOS = 10, 300
 # 웹 굴착 기록 부속 파일 (docs/web_trench_contract.md 1절): 필드 이름 → (저장 이름, 최대 바이트)
 TRENCH_FILES = {"sensors_file": ("sensors.json", 5 * 1024 * 1024), "marks_file": ("marks2d.json", 1024 * 1024)}
 PERMIT_FIELDS = ("permit_no", "owner_org", "surveyor", "org")
 MAX_PERMIT = 100
+# VR 투어 묶음 검사 (docs/pano_contract.md 1절 '서버 검사')
+PANO_MIN_SPOTS, PANO_MAX_SPOTS, PANO_MIN_SHOTS, PANO_MAX_SHOTS = 1, 30, 6, 1500
+PANO_NAME = re.compile(r"^(spots\.json|s\d{2}/|s\d{2}/\d{4}\.jpe?g)$")
+
+
+def check_pano_zip(payload):
+    """pano_spots.zip 검사 → {"spots": n, "shots": m}. 틀리면 사람이 읽을 ValueError.
+    이름은 spots.json 과 sNN/NNNN.jpg 만 (경로 조작·다른 파일 거부), 지점 1~30, 지점마다 사진 6장 이상, 전체 1500장 이하"""
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(payload))
+        infos = zf.infolist()
+    except (zipfile.BadZipFile, ValueError, OSError):
+        raise ValueError("VR 투어 묶음(zip)을 열 수 없습니다. 다시 올려 주세요")
+    per_spot, has_spots = {}, False
+    for zi in infos:
+        n = zi.filename
+        if "\\" in n or n.startswith("/") or ".." in n or not PANO_NAME.match(n):
+            raise ValueError(f"VR 투어 묶음에 허용되지 않는 파일이 있습니다: {n[:60]}")
+        if n == "spots.json":
+            has_spots = True
+        elif not n.endswith("/"):
+            per_spot[n[:3]] = per_spot.get(n[:3], 0) + 1
+    if not has_spots:
+        raise ValueError("VR 투어 묶음에 spots.json 이 없습니다")
+    try:
+        doc = json.loads(zf.read("spots.json").decode("utf-8-sig"))
+    except (UnicodeDecodeError, ValueError, KeyError):
+        raise ValueError("spots.json 을 읽을 수 없습니다")
+    spots = doc.get("spots") if isinstance(doc, dict) else None
+    if not isinstance(spots, list) or not (PANO_MIN_SPOTS <= len(spots) <= PANO_MAX_SPOTS):
+        raise ValueError(f"촬영 지점은 {PANO_MIN_SPOTS}~{PANO_MAX_SPOTS}곳이어야 합니다")
+    total = sum(per_spot.values())
+    if total > PANO_MAX_SHOTS:
+        raise ValueError(f"사진은 최대 {PANO_MAX_SHOTS}장까지 올릴 수 있습니다 ({total}장)")
+    for sp in spots:
+        sid = str((sp or {}).get("id") or "") if isinstance(sp, dict) else ""
+        if not re.fullmatch(r"s\d{2}", sid):
+            raise ValueError("spots.json 의 지점 id 형식이 맞지 않습니다")
+        if per_spot.get(sid, 0) < PANO_MIN_SHOTS:
+            name = (sp.get("name") or sid)[:20]
+            raise ValueError(f"'{name}' 지점 사진이 {per_spot.get(sid, 0)}장입니다. 지점마다 {PANO_MIN_SHOTS}장 이상 필요합니다 — 그 지점을 다시 찍어 주세요")
+    return {"spots": len(spots), "shots": total}
 
 
 def clean_text(value, limit):
@@ -187,9 +235,10 @@ def main():
         return respond({"error": "제목을 입력해 주세요"}, "400 Bad Request")
     note = (fields.get("note") or "")[:500]
     mode = (fields.get("mode") or "legacy").lower()
-    if mode not in ("stray", "legacy", "objcap", "video", "photos"):
-        return respond({"error": "mode는 stray, objcap, video, photos 또는 legacy"}, "400 Bad Request")
+    if mode not in ("stray", "legacy", "objcap", "video", "photos", "pano"):
+        return respond({"error": "mode는 stray, objcap, video, photos, pano 또는 legacy"}, "400 Bad Request")
     web3d = mode in ("video", "photos")                  # 웹 3D 현장조사 (기본 카메라, LiDAR 없음)
+    pano = mode == "pano"                                 # VR 투어 (지점마다 제자리 360° 사진, docs/pano_contract.md)
     scan_type = (fields.get("scan_type") or ("survey" if web3d else "home")).lower()
     if scan_type not in ("home", "survey"):
         return respond({"error": "scan_type은 home 또는 survey"}, "400 Bad Request")
@@ -233,7 +282,8 @@ def main():
     except Exception:
         site_id = None                                     # 장소 연결은 부가 기능 — 업로드는 막지 않는다
 
-    source_name = (files.get("scan_zip") or files.get("video_file") or files.get("photo_files") or files.get("las_file") or ("", b""))[0] or ""
+    source_name = (files.get("scan_zip") or files.get("video_file") or files.get("photo_files") or files.get("pano_file")
+                   or files.get("las_file") or ("", b""))[0] or ""
     if mode == "photos":                                   # 사진 모드: 첫 파일 이름 + 장수로 중복 판정
         source_name = f"{source_name}+{len(files.get('photo_files*', []))}"
     client_id = (fields.get("client_id") or "")[:64]
@@ -286,6 +336,24 @@ def main():
                     with open(os.path.join(pdir, f"{i:04d}{ext}"), "wb") as out:
                         out.write(payload)
                 meta["photos_dir"], meta["photo_count"] = pdir, len(photos)
+        elif pano:                           # VR 투어: 촬영 묶음 zip 검사 → pano_spots.zip (스티칭은 pipeline 에서)
+            lon, lat = fields.get("lon"), fields.get("lat")
+            if not lon or not lat:
+                raise ValueError("촬영 위치(lon, lat)가 필요합니다. 위치 권한을 허용하거나 좌표를 입력해 주세요")
+            meta["georef"] = {
+                "lon": float(lon), "lat": float(lat),
+                "elev": float(fields.get("elev") or cfg.get("default_elev", 0.0)),
+                "heading": float(fields.get("heading") or 0.0),
+            }
+            item = files.get("pano_file")
+            if not item or not item[1]:
+                raise ValueError("VR 투어 촬영 묶음(pano_file)이 없습니다")
+            if os.path.splitext(item[0])[1].lower() not in ALLOWED["pano_file"]:
+                raise ValueError("pano_file 은 zip 이어야 합니다")
+            meta["pano"] = check_pano_zip(item[1])
+            meta["pano_zip"] = os.path.join(job_dir, "pano_spots.zip")
+            with open(meta["pano_zip"], "wb") as out:
+                out.write(item[1])
         elif mode in ("stray", "objcap"):    # objcap: Apple Object Capture zip (model/ OBJ + images/ + poses.json)
             lon, lat = fields.get("lon"), fields.get("lat")
             if not lon or not lat:
@@ -318,10 +386,12 @@ def main():
              "source_name": source_name, "client_id": client_id, "app": (fields.get("app") or "")[:60],
              "splat_requested": splat_requested, "object": obj, "area": area, "site_id": site_id, "trench": q_trench,
              "status": "pending", "step": 0, "message": "대기 중", "created_at": meta["created_at"]}
+    if pano:
+        queue.update(pano_status="pending", pano_message="VR 투어 만들기 대기 중", pano=meta.get("pano"))
     with open(os.path.join(cfg["jobs_dir"], job_id + ".json"), "w", encoding="utf-8") as f:
         json.dump(queue, f, ensure_ascii=False, indent=2)
     respond({"job_id": job_id, "mode": mode, "scan_type": scan_type, "object_mode": bool(obj), "site_id": site_id,
-             "trench": q_trench, "permit": bool(permit)})
+             "trench": q_trench, "permit": bool(permit), **({"pano": meta.get("pano")} if pano else {})})
 
 
 if __name__ == "__main__":

@@ -187,7 +187,8 @@ canvas { display: block; }
         <!-- 메시 / 스플랫 전환 (scan_points.splat_url 이 있을 때만 표시) -->
         <div class="viewer-tabs" id="viewerTabs" style="display:none">
           <button type="button" class="vtab active" id="vtabGlb" onclick="setViewMode('glb')" title="LiDAR 메시 — 치수 측정 가능">◈ 메시</button>
-          <button type="button" class="vtab" id="vtabSplat" onclick="setViewMode('splat')" title="가우시안 스플랫 — 사진처럼 보이는 기록">✦ 스플랫</button>
+          <button type="button" class="vtab" id="vtabSplat" onclick="setViewMode('splat')" title="3D — 사진처럼 보이는 가우시안 스플랫, 🚶 걸어보기">✦ 3D</button>
+          <button type="button" class="vtab" id="vtabPano" style="display:none" onclick="setViewMode('pano')" title="VR 투어 — 제자리에서 찍은 360° 실사 사진으로 둘러보기">🥽 VR 투어</button>
           <button type="button" class="vtab" id="vtabOrtho" onclick="setViewMode('ortho')" title="정사영상 — 위/정면에서 본 실측 고해상도 사진">▦ 정사영상</button>
           <button type="button" class="vtab" id="vtabUtil" style="display:none" onclick="setViewMode('util')" title="굴착 기록 — 드러난 관·케이블 3D X-ray, 깊이·측점·조서">⛏ 지하시설물</button>
         </div>
@@ -449,6 +450,6 @@ canvas { display: block; }
   <div class="toast-step" id="tStep"></div>
 </div>
 
-<script src="viewer.js?v=71dae1bd36"></script>
+<script src="viewer.js?v=b8b626bb06"></script>
 </body>
 </html>
