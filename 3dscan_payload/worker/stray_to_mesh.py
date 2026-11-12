@@ -26,6 +26,9 @@ import numpy as np
 import open3d as o3d
 import open3d.core as o3c
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # -I 로 돌 때도 같은 폴더 모듈을 찾도록
+from video_rows import iter_video_rows  # noqa: E402
+
 # 기본 256x192(4:3). 16:9 영상 형식(앱 면 촬영 무음 4K, 2026-10-29)이면 깊이도 256x144 라 main() 이 첫 깊이 파일로 다시 정한다
 DEPTH_W, DEPTH_H = 256, 192
 # ARKit camera (x right, y up, z backward)  ->  OpenCV camera (x right, y down, z forward)
@@ -223,11 +226,13 @@ def main():
               f"bad tracking {sum(tr in BAD_TRACKING for _, tr in qual.values())}")
     used = skipped_track = 0
     t1 = time.time()
-    for i in range(n):
-        ok, bgr = cap.read()
-        if not ok:
-            print(f"video ended early at frame {i}")
+    cap.release()
+    last_row = -1
+    # 디코딩 순서가 아니라 패킷 PTS 로 odometry 행을 찾는다 (앱 영상은 첫 프레임이 감춰져 한 프레임 어긋남, video_rows.py)
+    for i, bgr in iter_video_rows(os.path.join(args.data, "rgb.mp4"), log=print):
+        if i >= n:
             break
+        last_row = i
         if i % args.every or i not in avail_set:
             continue
         if qual.get(frames[i]["idx"], (0, "normal"))[1] in BAD_TRACKING:
@@ -247,7 +252,8 @@ def main():
         used += 1
         if used % 100 == 0:
             print(f"  integrated {used} frames (frame {i}/{n}) {time.time() - t1:.1f}s")
-    cap.release()
+    if last_row < n - 2:
+        print(f"video ended early at row {last_row} of {n}")
     print(f"integration: {used} frames in {time.time() - t1:.1f}s"
           + (f" (skipped {skipped_track} bad-tracking frames)" if skipped_track else ""))
 

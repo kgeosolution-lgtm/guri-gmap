@@ -35,6 +35,7 @@ import open3d.core as o3c
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from stray_to_mesh import read_odometry, read_frame_quality, blur_factor, F_ARKIT_TO_CV  # noqa: E402
+from video_rows import iter_video_rows  # noqa: E402
 
 TILE = 1024
 UP = np.array([0.0, 1.0, 0.0])
@@ -62,35 +63,32 @@ def video_views(data, frames, Fx, n_keep, tmp, log):
     path = os.path.join(data, "rgb.mp4")
     cap = cv2.VideoCapture(path)
     n = min(int(cap.get(cv2.CAP_PROP_FRAME_COUNT)), len(frames))
+    cap.release()
     win = max(1, n // n_keep)
     best = {}
     qual = read_frame_quality(data)   # 앱의 흔들림 예측·추적 상태 (없으면 {})
-    for i in range(n):
-        ok, bgr = cap.read()
-        if not ok:
+    # i = odometry 행 (패킷 PTS 로 짝지음, video_rows.py — 앱 영상은 첫 프레임이 감춰져 디코딩 순서와 한 프레임 어긋남)
+    for i, bgr in iter_video_rows(path, log=log):
+        if i >= n:
             break
-        s = cv2.Laplacian(cv2.cvtColor(cv2.resize(bgr, (480, 360)), cv2.COLOR_BGR2GRAY), cv2.CV_64F).var()
+        s =cv2.Laplacian(cv2.cvtColor(cv2.resize(bgr, (480, 360)), cv2.COLOR_BGR2GRAY), cv2.CV_64F).var()
         if qual:
             s *= blur_factor(qual, frames[i]["idx"])
         w = i // win
         if w not in best or s > best[w][0]:
             best[w] = (s, i)
-    cap.release()
     chosen = sorted(i for _, i in best.values())
-    cap = cv2.VideoCapture(path)
     views, j = [], 0
-    for i in range(n):
-        ok, bgr = cap.read()
-        if not ok:
+    for i, bgr in iter_video_rows(path):
+        if i >= n or j >= len(chosen):
             break
-        if j < len(chosen) and i == chosen[j]:
+        if i == chosen[j]:
             f = os.path.join(tmp, f"kf_{i:06d}.jpg")
             cv2.imwrite(f, bgr, [cv2.IMWRITE_JPEG_QUALITY, 95])
             h, w = bgr.shape[:2]
             fr = frames[i]
             views.append(dict(path=f, T_WC=fr["T_WC"] @ Fx, K=fr["K"], w=w, h=h))
             j += 1
-    cap.release()
     log(f"video keyframes: {len(views)} of {n} frames (window {win})")
     return views
 

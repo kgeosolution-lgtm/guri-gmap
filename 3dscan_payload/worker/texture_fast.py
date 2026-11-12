@@ -25,20 +25,21 @@ import open3d.core as o3c
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from stray_to_mesh import read_odometry, read_frame_quality, blur_factor, F_ARKIT_TO_CV  # noqa: E402
+from video_rows import iter_video_rows  # noqa: E402
 
 
 def pick_keyframes(video_path, frames, n_keep, log, qual=None):
     """Read the video once; within each window keep the sharpest frame (variance of Laplacian,
-    scaled down by the app's per-frame blur estimate / tracking state when frame_quality.csv exists)."""
+    scaled down by the app's per-frame blur estimate / tracking state when frame_quality.csv exists).
+    Frames are paired with odometry rows by packet PTS (video_rows.py) — the app hides the first frame."""
     cap = cv2.VideoCapture(video_path)
     n = min(int(cap.get(cv2.CAP_PROP_FRAME_COUNT)), len(frames))
+    cap.release()
     win = max(1, n // n_keep)
     best = {}  # window -> (score, idx, rgb)
-    i = 0
     t0 = time.time()
-    while i < n:
-        ok, bgr = cap.read()
-        if not ok:
+    for i, bgr in iter_video_rows(video_path, log=log):
+        if i >= n:
             break
         small = cv2.cvtColor(cv2.resize(bgr, (480, 360), interpolation=cv2.INTER_AREA), cv2.COLOR_BGR2GRAY)
         score = cv2.Laplacian(small, cv2.CV_64F).var()
@@ -47,8 +48,6 @@ def pick_keyframes(video_path, frames, n_keep, log, qual=None):
         w = i // win
         if w not in best or score > best[w][0]:
             best[w] = (score, i, cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB))
-        i += 1
-    cap.release()
     keys = sorted(best.values(), key=lambda t: t[1])
     log(f"keyframes: {len(keys)} of {n} frames (window {win}); sharpness "
         f"min {min(k[0] for k in keys):.0f} max {max(k[0] for k in keys):.0f} ({time.time() - t0:.1f}s)")

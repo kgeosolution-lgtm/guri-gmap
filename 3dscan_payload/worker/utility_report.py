@@ -81,8 +81,31 @@ try:
 except Exception:          # pragma: no cover
     Image = ImageDraw = ImageFont = None
 
-VERSION = "0.1"
 HERE = os.path.dirname(os.path.abspath(__file__))
+try:                       # 영상 프레임 ↔ odometry 행 (앱 영상은 첫 프레임이 감춰져 디코딩 순서와 한 프레임 어긋남)
+    if HERE not in sys.path:
+        sys.path.insert(0, HERE)
+    from video_rows import iter_video_grabs
+except Exception:          # pragma: no cover
+    iter_video_grabs = None
+
+
+def _video_grabs(path):
+    """(odometry 행, cap) — video_rows.py 가 없으면 디코딩 순서 그대로"""
+    if iter_video_grabs is not None:
+        yield from iter_video_grabs(path)
+        return
+    cap = cv2.VideoCapture(path)
+    j = 0
+    try:
+        while cap.grab():
+            yield j, cap
+            j += 1
+    finally:
+        cap.release()
+
+
+VERSION = "0.1"
 ROOT = os.path.dirname(HERE)
 KST = dt.timezone(dt.timedelta(hours=9))
 
@@ -1168,20 +1191,17 @@ def read_views(V, need, log):
     out = {}
     vids = [i for i in need if V.kind[i] == "video"]
     if vids and V.video:
-        want = {int(V.idx[i]): i for i in vids}
-        cap = cv2.VideoCapture(V.video["path"])
+        # 영상 자세는 odometry 행 순서로 Views 앞쪽에 쌓였다 → k 번째 영상 자세 = 행 k
+        row_of = {int(v): r for r, v in enumerate(np.flatnonzero(np.asarray(V.kind) == "video"))}
+        want = {row_of[i]: i for i in vids}
         last = max(want)
-        k = 0
-        while k <= last:
-            ok = cap.grab()
-            if not ok:
+        for r, cap in _video_grabs(V.video["path"]):
+            if r > last:
                 break
-            if k in want:
+            if r in want:
                 ok, im = cap.retrieve()
                 if ok:
-                    out[want[k]] = im
-            k += 1
-        cap.release()
+                    out[want[r]] = im
     for i in need:
         if V.kind[i] == "hires":
             try:
@@ -2641,13 +2661,10 @@ def make_video(ctx, out_path, log):
         a = min(1.0, (f + 1) / max(1, out_fps * 0.6))
         w.write(painter.card("intro", a))
         nwr += 1
-    cap = cv2.VideoCapture(V.video["path"])
     start = ctx.start_dt
     t_first = V.t[vids[0]]
-    k = 0
-    while k < n_src:
-        ok = cap.grab()
-        if not ok:
+    for k, cap in _video_grabs(V.video["path"]):      # k = odometry 행 (디코딩 순서 아님)
+        if k >= n_src:
             break
         if k % step == 0:
             ok, fr = cap.retrieve()
@@ -2658,8 +2675,6 @@ def make_video(ctx, out_path, log):
             t_text = tt.strftime("%Y-%m-%d %H:%M:%S") if tt else f"+{(V.t[vi] - t_first):.1f}s"
             w.write(painter.footage(fr, vi, t_text))
             nwr += 1
-        k += 1
-    cap.release()
     n_out = int(prm["outro_s"] * out_fps)
     for f in range(n_out):
         a = min(1.0, (n_out - f) / max(1, out_fps * 0.5))
