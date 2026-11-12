@@ -386,8 +386,10 @@ def op_download(cfg, job_id):
         if not path:
             return respond({"error": f"{which} 파일이 서버에 없음"}, "404 Not Found")
         ctype, name = "application/json", which + ".json"
+    elif which == "pano":                                           # VR 투어 원본 묶음 (이어 붙이기 개선용, 2026-11-12)
+        path, ctype, name = meta.get("pano_zip") or "", "application/zip", "pano_spots.zip"
     else:
-        return respond({"error": "file 은 zip, mesh, video, photos, sensors, marks2d 중 하나"}, "400 Bad Request")
+        return respond({"error": "file 은 zip, mesh, video, photos, sensors, marks2d, pano 중 하나"}, "400 Bad Request")
     if not path or not os.path.exists(path):
         return respond({"error": f"{which} 파일이 서버에 없음"}, "404 Not Found")
     size = os.path.getsize(path)
