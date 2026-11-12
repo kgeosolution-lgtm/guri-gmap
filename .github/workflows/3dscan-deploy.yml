@@ -29,10 +29,10 @@ jobs:
 
           $src = Join-Path $env:GITHUB_WORKSPACE '3dscan_payload'
           $expected = [ordered]@{
-            'site/3dscan/index.html' = '1f449936bb8002a6f8d53c012da325461c0c11c36edbbbb1654db8dc337ba2eb'
-            'site/3dscan/viewer.js' = 'fe8953d1ff39e20098bb3f62cb0e15bbad940e82470489edb23314bf201b426a'
+            'site/3dscan/index.html' = '04983d7484fa25538e285c8095a9794ed8a3d883bc9ec509180248c995459a0c'
+            'site/3dscan/viewer.js' = '71dae1bd36a1ca9e9b7ae45cf70e84ae09d1c426fac4c563fa0e40c1c1ee39aa'
             'site/3dscan/viewer.css' = '591202f96bef530a1509cbd7328aaf60c2db6199d48fc832017f0e58239ecd00'
-            'site/3dscan/splat.html' = 'da8f1ec90893e602ae6c954cb18b4dc6f51f181904dcd5c185dd645ee9831873'
+            'site/3dscan/splat.html' = '43eb24761772fb52bd271afe86a4e3381f587c29636cfc089b5f2507648938ba'
             'site/3dscan/ortho.html' = '123ae7a46fc70ca7a312338a70f2045135654c06628fadd978c996a5306938ee'
             'site/3dscan/utility.html' = '807d30ed9367a42c97949c11365d39059c70282ee69d37fc2e6039fd2ac5f7fd'
             'site/3dscan/walk.js' = '0981c0752e74c4a99e69a6578b7c826dd47e0f4d460cfe7ab65738c349fbeb83'

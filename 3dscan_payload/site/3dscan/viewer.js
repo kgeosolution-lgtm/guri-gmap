@@ -70,10 +70,12 @@ require([
   let _glbMaxDim    = 1;
   let _glbDist      = 3;
   const _ms = { on: false, pts: [], objs: [], text: "" };   // 거리 측정 상태
+  let _walk = null;                         // 🚶 걸어보기 (walk.js, 집·방 스캔일 때만)
   let _viewMode   = "glb";                  // 사이드바 뷰어 모드: "glb"(메시) | "splat"(가우시안 스플랫 iframe)
   let _splatFrame = null;                   // splat.html iframe
+  const WALK_JS = "walk.js?v=0981c0752e";                                          // 🚶 걸어보기 모듈 (배포 때 ?v=해시 를 붙이면 좋다)
   const ORTHO_PAGE = "ortho.html?v=123ae7a46f";                       // 배포(deploy.mjs stampAssets)가 ?v=해시 를 붙인다
-  const SPLAT_PAGE = "splat.html?v=da8f1ec908";          // 배포(deploy.mjs stampAssets)가 ?v=해시 를 붙인다
+  const SPLAT_PAGE = "splat.html?v=43eb247617";          // 배포(deploy.mjs stampAssets)가 ?v=해시 를 붙인다
   const UTILITY_PAGE = "utility.html?v=807d30ed93";                   // 굴착 기록 3D X-ray (배포가 ?v=해시 를 붙인다)
   let _utilInfo = null;                                  // 현재 스캔의 굴착 기록 {url, report} (utilities.json 이 있을 때만)
 
@@ -368,6 +370,8 @@ require([
   /* ════ Three.js GLB 뷰어 ════ */
   function destroyGLB() {
     clearMeasure(true);
+    if (_walk) { _walk.destroy(); _walk = null; }
+    if (document.getElementById("btnWalk")) document.getElementById("btnWalk").style.display = "none";
     _glbModel = null;
     if (glbAnimFrame) { cancelAnimationFrame(glbAnimFrame); glbAnimFrame = null; }
     if (glbRenderer)  { glbRenderer.dispose(); glbRenderer = null; }
@@ -499,6 +503,7 @@ require([
           keys[e.code] = true;
           // R키: 뷰 리셋
           if (e.code === 'KeyR') {
+            if (_walk) _walk.exit();
             glbCamera.position.set(dist * 0.6, dist * 0.5, dist);
             glbControls.target.set(0, 0, 0);
             glbControls.update();
@@ -604,11 +609,14 @@ require([
           if (keys['KeyE'] || keys['PageDown'])   { glbCamera.position.addScaledVector(up,   -moveSpeed); glbControls.target.addScaledVector(up,   -moveSpeed); moved=true; }
           if (moved) glbControls.update();
 
+          if (_walk) _walk.tick();                // 걷기 중이면 카메라·조작 중심을 걷기가 정한다 (WASD 는 walk.js 가 가로챔)
           glbControls.update();
           glbRenderer.render(glbScene, glbCamera);
           updateMeasureLabel();
+          if (_walk) _walk.draw();
         }
         animate();
+        setupWalk(model, glbUrl, container);
       },
       (xhr) => {
         if (xhr.total) {
@@ -624,6 +632,53 @@ require([
     );
 
     window.addEventListener("resize", resizeGLB);
+  }
+
+  /* ════ 🚶 걸어보기 (walk.js — splat.html 과 같은 모듈) ════
+     바닥이 있고 2 m² 넘게 걸을 수 있는 스캔(집·방)일 때만 버튼을 보인다. 평면도: attrs.floorplan_url → <job>_floorplan.json */
+  function loadWalkJs() {
+    if (window.KgeoWalk) return Promise.resolve(true);
+    if (!loadWalkJs._p) loadWalkJs._p = new Promise(res => {
+      const s = document.createElement("script");
+      s.src = WALK_JS; s.onload = () => res(!!window.KgeoWalk); s.onerror = () => res(false);
+      document.head.appendChild(s);
+    });
+    return loadWalkJs._p;
+  }
+  async function setupWalk(model, glbUrl, container) {
+    if (!(await loadWalkJs()) || model !== _glbModel) return;
+    const off = model.position.toArray();                  // 모델을 가운데로 옮긴 만큼 (평면도 ARKit 좌표 → 화면 좌표)
+    const fpUrl = (currentAttrs && currentAttrs.floorplan_url) || String(glbUrl).replace(/\.glb(\?.*)?$/i, "_floorplan.json");
+    const fp = fpUrl !== String(glbUrl) ? await KgeoWalk.loadFloorplan(fpUrl) : null;
+    if (model !== _glbModel) return;
+    const plan = fp ? KgeoWalk.floorplanWorld(fp, off) : null;
+    const pts = KgeoWalk.pointsFromObject3D(THREE, model, { max: 400000 });
+    const S = KgeoWalk.analyze(pts.P, { floorPts: pts.up, floorY: plan ? plan.floorY : undefined, ceilY: plan ? plan.ceilY : undefined,
+                                        floorSrc: "floorplan", solidMin: 1, obsTol: 0, plan });
+    const indoor = (currentAttrs && currentAttrs.scan_type === "home") || plan || S.ceilY != null;   // 굴착·야외 스캔엔 안 보인다
+    if (!S.ok || !S.walkable || !indoor || model !== _glbModel) return;
+    const help = document.getElementById("glbHelp"), helpOrbit = help ? help.innerHTML : "";
+    _walk = KgeoWalk.create({
+      THREE, camera: glbCamera, dom: glbRenderer.domElement, container, getControls: () => glbControls,
+      scene: S, plan, isBusy: () => _ms.on, mapCorner: "bl", mapSize: isMobile() ? 110 : 140,
+      onChange: on => {
+        const b = document.getElementById("btnWalk");
+        if (b) { b.classList.toggle("active", on); b.textContent = on ? "↩ 둘러보기" : "🚶 걸어보기"; }
+        if (help) help.innerHTML = !on ? helpOrbit : isMobile() ? "바닥 탭: 이동 &nbsp;|&nbsp; 드래그: 둘러보기 &nbsp;|&nbsp; 미니맵 탭: 그 자리로"
+          : "바닥 클릭: 이동 &nbsp;|&nbsp; 드래그: 둘러보기 &nbsp;|&nbsp; 휠: 확대 &nbsp;|&nbsp; WASD: 걷기 &nbsp;|&nbsp; Esc: 나가기";
+      },
+    });
+    let b = document.getElementById("btnWalk");
+    if (!b) {
+      b = document.createElement("button");
+      b.className = "vctrl"; b.id = "btnWalk"; b.type = "button";
+      b.title = "집 안을 눈높이로 걸어 다니기 — 바닥을 누르면 그 자리로, 미니맵을 누르면 그 방으로";
+      const ref = document.getElementById("btnTop");
+      if (ref) ref.parentNode.insertBefore(b, ref);
+    }
+    b.textContent = "🚶 걸어보기"; b.style.display = "";
+    b.onclick = () => _walk && _walk.toggle();
+    console.info("[walk]", `floor ${S.floorY.toFixed(3)} (${plan ? "floorplan" : "estimate"}) voxel ${S.v.toFixed(3)} footprint ${S.footprintM2.toFixed(1)} m2`);
   }
 
   /* ════ 거리 측정 · 평면 보기 ════ */
@@ -679,7 +734,7 @@ require([
     lbl.style.top     = ((1 - mid.y) / 2 * c.clientHeight) + "px";
   }
   window.clearMeasure = clearMeasure;
-  window._glbRefs = () => ({ scene: glbScene, camera: glbCamera, model: _glbModel, controls: glbControls, ms: _ms });   // 콘솔 디버그용
+  window._glbRefs = () => ({ scene: glbScene, camera: glbCamera, model: _glbModel, controls: glbControls, ms: _ms, walk: _walk });   // 콘솔 디버그용
   window.toggleMeasure = function() {
     if (!_glbModel) return;
     _ms.on = !_ms.on;
@@ -690,6 +745,7 @@ require([
   };
   window.viewTop = function() {
     if (!glbCamera || !glbControls) return;
+    if (_walk) _walk.exit();
     glbCamera.position.set(0.001, _glbDist * 1.25, 0.001);
     glbControls.target.set(0, 0, 0);
     glbControls.update();
@@ -698,7 +754,11 @@ require([
   /* ════ 가우시안 스플랫 (사진 기반 3D 기록) — splat.html 을 iframe 으로 ════
      scan_points.splat_url 은 GPU 워커(worker_gpu/splat_worker.py)가 학습을 마치면 채운다.
      three r128 전역 스크립트와 스플랫 라이브러리(three 0.165 모듈)가 한 페이지에 못 있으므로 전용 페이지를 띄운다. */
-  function splatPageUrl(url) { return SPLAT_PAGE + (SPLAT_PAGE.includes("?") ? "&" : "?") + "model=" + encodeURIComponent(url); }
+  function splatPageUrl(url) {               // 홈스캔이면 home=1 → 스플랫 페이지가 천장이 안 찍혀도 🚶 걸어보기를 보인다
+    return SPLAT_PAGE + (SPLAT_PAGE.includes("?") ? "&" : "?") + "model=" + encodeURIComponent(url) +
+      (currentAttrs && currentAttrs.scan_type === "home" ? "&home=1" : "") +
+      (currentAttrs && currentAttrs.floorplan_url ? "&floorplan=" + encodeURIComponent(currentAttrs.floorplan_url) : "");
+  }
   function removeSplatFrame() {
     if (_splatFrame) { try { _splatFrame.src = "about:blank"; } catch (e) {} _splatFrame.remove(); _splatFrame = null; }
     const sceneDiv = document.getElementById("sceneDiv"), loadingEl = document.getElementById("sceneLoading");
