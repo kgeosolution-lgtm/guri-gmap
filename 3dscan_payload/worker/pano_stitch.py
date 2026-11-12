@@ -1368,7 +1368,7 @@ def main(argv=None):
     ap.add_argument("--no-k1", action="store_true")
     ap.add_argument("--sig-f", type=float, default=0.15, help="초점 사전값 표준편차 (log). 렌즈 초점비를 아는 기기면 작게")
     ap.add_argument("--no-ba", action="store_true", help="묶음 조정 없이 센서 회전만 쓴다 (비교용)")
-    ap.add_argument("--f-ratio-free", action="store_true", help="초광각도 기본 렌즈처럼 ±10 % 안에서 초점을 잰다")
+    ap.add_argument("--f-ratio-free", action="store_true", help="초광각도 기본 렌즈처럼 ±10 %% 안에서 초점을 잰다")
     ap.add_argument("--ultra-band", type=float, default=0.03, help="초광각 초점이 기기 초점비에서 이만큼 넘게 벗어나면 고정 (시차 흡수 방지)")
     ap.add_argument("--f-ratio", type=float, default=None, help="초점 초기값 = 긴 변 × 이 값 (spots.json cam.f_ratio 보다 우선)")
     ap.add_argument("--f-lo", type=float, default=0.90, help="초점이 초기값의 이 배수보다 작아지면 초기값으로 고정")
