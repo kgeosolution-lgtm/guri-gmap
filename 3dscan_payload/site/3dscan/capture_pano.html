@@ -217,6 +217,14 @@ button{font-family:inherit}
 .endlist li b{flex:1;min-width:0}
 .endlist li small{color:var(--text2);font-size:12.5px}
 .endlist li.warn small{color:var(--acc-o)}
+.sq{margin-top:12px;padding:12px;border-radius:10px;border:1px solid rgba(251,146,60,.5);background:rgba(251,146,60,.08);font-size:14px}
+.sq.ok{border-color:rgba(52,211,153,.45);background:rgba(52,211,153,.07)}
+.sq b{display:block;margin-bottom:6px}
+.sq .it{padding:8px 0;border-top:1px solid var(--border)}
+.sq .it:first-of-type{border-top:0}
+.sq .it ul{margin:4px 0 6px 18px;color:var(--text2);font-size:13px}
+.sq .it .btn{min-height:44px;font-size:14px}
+.rvwarn{margin-top:8px;padding:8px 10px;border-radius:8px;background:rgba(251,146,60,.12);border:1px solid rgba(251,146,60,.5);color:#fed7aa;font-size:13.5px;font-weight:600}
 /* 찍는 법 */
 .tut{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center;padding:16px}
 .tutbox{width:100%;max-width:420px;background:var(--s1);border:1px solid var(--border2);border-radius:16px;padding:14px 14px calc(14px + env(safe-area-inset-bottom))}
@@ -320,6 +328,7 @@ button{font-family:inherit}
       <li id="rs3" class="wait"><span class="ic">·</span><div>VR 투어 준비<small>-</small></div></li>
     </ul>
     <p class="hint" id="resNet"></p>
+    <div class="sq" id="resQual" hidden></div>
     <div class="row"><a class="btn primary" id="viewBtn" hidden>VR 투어 보기</a><a class="btn" id="editBtn" hidden>연결 편집</a><button class="btn ghost" id="newBtn">새 VR 투어 촬영</button></div>
   </section>
 
@@ -425,6 +434,7 @@ button{font-family:inherit}
   <div class="sheet tall" id="sheetReview" hidden>
     <h3 id="rvTitle">확인</h3>
     <p id="rvSum">미리보기 만드는 중…</p>
+    <p class="rvwarn" id="rvWarn" hidden></p>
     <canvas id="rvCanvas" width="480" height="240"></canvas>
     <p class="small">폰에서 대충 이어 붙인 미리보기예요. 서버에서 더 깨끗하게 만듭니다. 문제 있는 사진을 누르면 그 자리만 다시 찍어요.</p>
     <div class="rv" id="rvGrid"></div>
@@ -1321,7 +1331,12 @@ button{font-family:inherit}
       return '<button class="' + (s._mark ? 'mark' : '') + '" data-i="' + i + '" aria-label="사진 ' + (i + 1) + (s._mark ? ' 다시 찍기로 표시됨' : '') + '"><img alt="" src="' + (s.thumb || '') + '"><em>' + (i + 1) + '</em>' + (s._why && s._why.length ? '<span>' + esc(s._why.join('·')) + '</span>' : '') + '</button>';
     }).join('');
     $('rvGrid').querySelectorAll('button').forEach(function (b) { b.onclick = function () { var s = sp.shots[+b.dataset.i]; s._mark = !s._mark; renderReview(sp); }; });
-    $('rvRetake').hidden = !k; $('rvRetake').textContent = '표시한 ' + k + '장만 다시 찍기';
+    // 지점 전체가 나쁘면(어두움·흐림이 30 % 넘거나 덮음 90 % 미만) 전체 다시 찍기를 앞세운다
+    var n = sp.shots.length || 1, dk = sp.shots.filter(function (x) { return (x._why || []).indexOf('어두움') >= 0; }).length, bl = sp.shots.filter(function (x) { return (x._why || []).indexOf('흐림') >= 0; }).length;
+    var whole = dk / n > 0.3 ? '방이 너무 어두워요 — 조명을 켜고 이 지점을 다시 찍기를 권합니다' : bl / n > 0.3 ? '흔들린 사진이 많아요 — 더 천천히, 멈췄다 찍으며 다시 찍기를 권합니다' : (sp._covPct == null ? 1 : sp._covPct) < 0.9 ? '빈 곳이 많아요 — 이 지점을 다시 찍기를 권합니다' : '';
+    $('rvWarn').hidden = !whole; $('rvWarn').textContent = whole ? '⚠ ' + whole : '';
+    $('rvAll').classList.toggle('primary', !!whole); $('rvAll').classList.toggle('ghost', !whole);
+    $('rvRetake').hidden = !k || !!whole; $('rvRetake').textContent = '표시한 ' + k + '장만 다시 찍기';
     $('rvOk').textContent = k ? '그대로 두고 다음으로' : '좋아요 — 다음으로';
     $('rvOk').classList.toggle('primary', !k);
   }
@@ -1339,7 +1354,7 @@ button{font-family:inherit}
     if (Cap.targets.every(function (x) { return x.done; })) { showReview(sp); return; }
     startShoot(); camMsg('표시한 ' + mk.length + '곳만 다시 찍어요 — 파란 점을 따라가세요', 'ok'); msgT = performance.now() + 2000;
   };
-  function retakeAll(sp) { sp.shots.forEach(function (s) { dbDelShot(s.key); }); sp.shots = []; sp.next = null; sp.seq = 0; sp._cov = null; beginSpot(sp); renderSpots(); }
+  function retakeAll(sp) { sp.shots.forEach(function (s) { dbDelShot(s.key); }); sp.shots = []; sp.next = null; sp.seq = 0; sp._cov = null; sp.serverGrade = null; beginSpot(sp); renderSpots(); }
   $('rvAll').onclick = function () { var sp = Cap.rvSpot; if (sp && window.confirm('‘' + sp.name + '’ 사진 ' + sp.shots.length + '장을 지우고 처음부터 다시 찍을까요?')) retakeAll(sp); };
 
   /* ── 지점 흐름 (확인 → 이름 → 밝기 → 촬영 → 미리보기 → 다음 방향 → 걸어가기 → … → 끝 확인) ── */
@@ -1380,7 +1395,7 @@ button{font-family:inherit}
     name = String(name || '').trim().slice(0, 30);
     var sp = Cap.retake;
     if (sp) {
-      sp.shots.forEach(function (s) { dbDelShot(s.key); }); sp.shots = []; sp.next = null; sp.seq = 0; if (name) sp.name = name;
+      sp.shots.forEach(function (s) { dbDelShot(s.key); }); sp.shots = []; sp.next = null; sp.seq = 0; sp.serverGrade = null; if (name) sp.name = name;
     } else {
       if (S.spots.length >= MAX_SPOTS) { toast('지점은 ' + MAX_SPOTS + '개까지입니다', 'warn'); return; }
       var used = {}; S.spots.forEach(function (s) { used[s.id] = 1; });
@@ -1490,6 +1505,7 @@ button{font-family:inherit}
   /* ── 지점 목록 ── */
   function spotStatus(sp) {
     var n = sp.shots.length, tc = sp.targetCount || 0, d = sp.shots.filter(function (s) { return s.target; }).length;
+    if (sp.serverGrade === 'poor' || sp.serverGrade === 'failed') return ['사진 ' + n + '장 · 서버 품질 ' + (sp.serverGrade === 'poor' ? '나쁨' : '실패') + ' — 다시 찍기를 권합니다', 'warn'];
     if (n < MIN_SHOTS) return ['사진 ' + n + '장 — 더 찍어야 합니다', 'warn'];
     if (tc && d < tc) return ['사진 ' + n + '장 · 점 ' + d + '/' + tc + ' (빈 곳은 흐리게)', 'warn'];
     return ['사진 ' + n + '장' + (sp.next ? ' · 다음 지점 방향 ✓' : ''), ''];
@@ -1664,15 +1680,57 @@ button{font-family:inherit}
   function renderResult(d) {
     var ps = d.pano_status || (d.status === 'failed' ? 'failed' : d.status === 'done' ? 'processing' : d.status === 'processing' ? 'processing' : 'pending');
     if (ps === 'pending') setStep('rs2', 'run', '…', d.message || '대기열에서 차례를 기다리는 중');
-    else if (ps === 'processing') setStep('rs2', 'run', '⟳', d.pano_message || d.message || '지점마다 360° 를 만드는 중 (지점당 1~2분)');
+    else if (ps === 'processing') setStep('rs2', 'run', '⟳', (isFinite(d.pano_progress) ? Math.round(d.pano_progress) + '% · ' : '') + (d.pano_message || d.message || '지점마다 360° 를 만드는 중 (지점당 1~2분)'));
     else if (ps === 'done') setStep('rs2', 'done', '✓', d.pano_message || '완료');
     else setStep('rs2', 'fail', '✕', d.pano_message || d.message || '실패');
     if (ps === 'done') {
       setStep('rs3', 'done', '✓', '둘러볼 수 있습니다');
       var v = $('viewBtn'); v.hidden = false; v.href = VIEWER + '?job=' + encodeURIComponent(pollJob);
       var e = $('editBtn'); e.hidden = false; e.href = VIEWER + '?job=' + encodeURIComponent(pollJob) + '&edit=1';
+      if (d.pano_url) loadServerQuality(pollJob, d.pano_url);
     } else if (ps === 'failed') setStep('rs3', 'fail', '✕', '다시 찍어 올려 주세요 (사진은 이 기기에 남아 있습니다)');
     else setStep('rs3', 'wait', '·', '-');
+  }
+  /* 서버 품질 (tour.json 의 지점별 등급) → 나쁜 지점은 다시 찍기를 권한다 */
+  var qualJob = null;
+  function loadServerQuality(job, url) {
+    if (qualJob === job) return; qualJob = job;
+    fetch(url, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(renderServerQuality).catch(function () { qualJob = null; });
+  }
+  function spotAdvice(sp) {
+    var q = sp.quality || {}, k8 = (sp.width || 8192) / 8192, why = [];
+    if (q.linked === 0 || (q.used && q.linked != null && q.linked < q.used * 0.5)) why.push('사진끼리 맞출 무늬가 부족해요 — 너무 어둡거나 흔들렸을 수 있어요. 조명을 켜고 멈췄다 찍어 주세요');
+    if (q.coverage != null && q.coverage < 0.93) why.push('빈 곳이 있어요 — 화면의 점을 모두 찍어 주세요');
+    if ((q.guards || []).length) why.push('폰 자리가 많이 움직였어요 — 폰을 가슴 앞 제자리에 두고 몸이 폰 둘레를 돌아 주세요');
+    if (q.seam_px_p90 != null && q.seam_px_p90 > 20 * k8) why.push('이음새가 어긋나요 — 폰을 중심으로 천천히 돌려 주세요 (폰 삼각대가 있으면 더 좋아요)');
+    if (!why.length) why.push('품질이 낮게 나왔어요 — 밝게, 천천히, 폰을 중심으로 다시 찍어 보세요');
+    return why;
+  }
+  function renderServerQuality(t) {
+    var el = $('resQual'), spots = (t && t.spots) || [], failed = (t && t.failed) || [];
+    var bad = spots.filter(function (x) { return x.quality && x.quality.grade === 'poor'; });
+    S.spots.forEach(function (sp) {
+      var x = spots.filter(function (y) { return y.id === sp.id; })[0];
+      sp.serverGrade = x && x.quality ? x.quality.grade : (failed.some(function (f) { return f.id === sp.id; }) ? 'failed' : sp.serverGrade);
+    });
+    saveState(); renderSpots();
+    el.hidden = false;
+    if (!bad.length && !failed.length) {
+      el.className = 'sq ok';
+      el.innerHTML = '<b>✓ 모든 지점이 잘 만들어졌어요</b>' + spots.map(function (x) { return esc(x.name || x.id) + ' ' + ({ good: '좋음', fair: '보통' }[x.quality && x.quality.grade] || ''); }).join(' · ');
+      return;
+    }
+    var items = bad.map(function (x) { return { id: x.id, name: x.name || x.id, why: spotAdvice(x) }; })
+      .concat(failed.map(function (f) { return { id: f.id, name: (S.spots.filter(function (y) { return y.id === f.id; })[0] || {}).name || f.id, why: ['만들지 못했어요: ' + (f.error || '알 수 없는 오류')] }; }));
+    el.className = 'sq';
+    el.innerHTML = '<b>⚠ 다시 찍기를 권하는 지점이 있어요</b>' + items.map(function (it) {
+      var local = S.spots.filter(function (y) { return y.id === it.id && y.shots; })[0];
+      return '<div class="it"><b>' + esc(it.name) + '</b><ul>' + it.why.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') + '</ul>' +
+        (local ? '<button class="btn sm" data-id="' + esc(it.id) + '">‘' + esc(it.name) + '’ 다시 찍기</button>' : '') + '</div>';
+    }).join('') + '<p class="hint">다시 찍은 뒤 ‘VR 투어 만들기 — 올리기’를 다시 누르면 새 VR 투어가 만들어집니다. 나머지 지점 사진은 이 기기에 그대로 있어요.</p>';
+    el.querySelectorAll('button[data-id]').forEach(function (b) {
+      b.onclick = function () { var sp = S.spots.filter(function (y) { return y.id === b.dataset.id; })[0]; if (sp) startCapture(sp, null); };
+    });
   }
   $('newBtn').onclick = function () {
     if (!window.confirm('찍은 지점과 사진을 이 기기에서 지우고 새 VR 투어를 시작할까요?')) return;
@@ -1717,7 +1775,7 @@ button{font-family:inherit}
     renderSpots(); renderRecent();
     if (!S.lat && !SIM && navigator.permissions && navigator.permissions.query) navigator.permissions.query({ name: 'geolocation' }).then(function (p) { if (p.state === 'granted') locMeasure(); }).catch(function () { });
   });
-  window.kgeoPanoCapture = { S: S, O: O, Cap: Cap, spotsJSON: spotsJSON, roughStitch: roughStitch, flagShots: flagShots, ensureTiny: ensureTiny };      // 시험용
+  window.kgeoPanoCapture = { S: S, O: O, Cap: Cap, spotsJSON: spotsJSON, roughStitch: roughStitch, flagShots: flagShots, ensureTiny: ensureTiny, renderServerQuality: renderServerQuality };      // 시험용
 })();
 </script>
 </body>
