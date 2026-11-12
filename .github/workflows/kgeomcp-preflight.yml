@@ -1,46 +1,104 @@
-name: kgeoMCP prepare Git startup
+name: kgeoMCP access add
 on:
   push:
     branches: [codex/kgeomcp-server-bootstrap]
 permissions:
   contents: read
 jobs:
-  prepare:
+  access:
     runs-on: [self-hosted, Windows, X64, guri-preview]
-    timeout-minutes: 3
+    timeout-minutes: 5
     steps:
-      - name: Prepare administrator startup command
+      - name: Add one requested account when missing and verify active configuration
         shell: powershell
         run: |
+          $ErrorActionPreference = 'Stop'
+          $accessScript = @'
+          param([Parameter(Mandatory=$true)][string]$AllowedUsersJson,[switch]$Apply)
           $ErrorActionPreference='Stop'
-          $script = @'
-          param([switch]$Apply)
-          $ErrorActionPreference='Stop'
-          $runnerRoot='D:\actions-runner-kgeomcp'
-          $gate='D:\services\kgeo-mcp-deploy-gate\runner-job-gate.ps1'
-          $taskName='KGEO-MCP-GitRunner'
-          $runner=Get-Content -LiteralPath (Join-Path $runnerRoot '.runner') -Raw | ConvertFrom-Json
-          if($runner.gitHubUrl -ne 'https://github.com/kgeosolution-lgtm/kgeoMCP' -or $runner.agentName -ne 'kgeodata-kgeomcp'){throw 'Unexpected registered runner'}
-          if(!(Test-Path -LiteralPath $gate)){throw 'Production workflow gate is missing'}
-          $listener=Join-Path $runnerRoot 'bin\Runner.Listener.exe'
-          if(!(Test-Path -LiteralPath $listener)){throw 'Runner application is missing'}
-          if((Get-Content -LiteralPath (Join-Path $runnerRoot '.env') -Raw).Trim() -ne ('ACTIONS_RUNNER_HOOK_JOB_STARTED='+$gate)){throw 'Runner gate configuration mismatch'}
-          if(Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue){throw 'Task already exists; inspect before repeating setup'}
-          Write-Output 'Impact: create only KGEO-MCP-GitRunner at startup as NETWORK SERVICE. Existing connector, ArcGIS, IIS and static sites are preserved.'
-          Write-Output 'Recovery: Stop-ScheduledTask -TaskName KGEO-MCP-GitRunner; Disable-ScheduledTask -TaskName KGEO-MCP-GitRunner'
-          if(!$Apply){Write-Output 'Preflight passed. Run with -Apply from Administrator PowerShell.';exit 0}
-          $identity=[Security.Principal.WindowsIdentity]::GetCurrent()
-          if(!(New-Object Security.Principal.WindowsPrincipal($identity)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)){throw 'Administrator PowerShell is required to register the startup task'}
-          $action=New-ScheduledTaskAction -Execute $listener -Argument 'run' -WorkingDirectory $runnerRoot
-          $trigger=New-ScheduledTaskTrigger -AtStartup
-          $principal=New-ScheduledTaskPrincipal -UserId 'NT AUTHORITY\NETWORK SERVICE' -LogonType ServiceAccount -RunLevel Limited
-          $settings=New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew -StartWhenAvailable
-          Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings | Out-Null
-          Start-ScheduledTask -TaskName $taskName
-          Start-Sleep -Seconds 5
-          Get-ScheduledTask -TaskName $taskName | Select-Object TaskName,State
-          Write-Output 'Task created. Next verify the private GitHub runner is online and run the production workflow; Running alone is not deployment acceptance.'
+          $remoteRoot='D:\services\kgeo-mcp-remote'
+          $configPath=Join-Path $remoteRoot 'config.json'
+          $activePath=Join-Path $remoteRoot 'active-config.json'
+          $taskName='KGEO-MCP-Remote'
+          if(!$AllowedUsersJson.Trim().StartsWith('[') -or !$AllowedUsersJson.Trim().EndsWith(']')){throw 'Explicit JSON account array required'}
+          # Windows PowerShell 5.1 can wrap the pipeline's JSON array as one nested item.
+          $decoded=ConvertFrom-Json -InputObject $AllowedUsersJson
+          $requested=@($decoded)
+          if($requested.Count -lt 1 -or $requested.Count -gt 32){throw 'An explicit account allowlist is required'}
+          foreach($name in $requested){if($name -isnot [string] -or $name -cnotmatch '^[A-Za-z0-9_.@-]{1,128}$'){throw 'Invalid account identifier'}}
+          if(@($requested | Sort-Object -Unique).Count -ne $requested.Count){throw 'Duplicate account identifiers'}
+          $before=Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+          if($before.baseUrl -ne 'https://kgeodata.com/app/kgeomcp' -or $before.app.portal -ne 'https://kgeodata.com/portal' -or $before.port -ne 4187){throw 'Unexpected target service'}
+          if(!(Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue)){throw 'Remote connector task is missing'}
+          $health=Invoke-RestMethod 'http://127.0.0.1:4187/app/kgeomcp/health.json'
+          if($health.health -ne 'ready'){throw 'Connector must be healthy before changing access'}
+          $releaseId=$health.releaseId
+          Write-Output 'Impact: replace only the kgeoMCP account allowlist and restart KGEO-MCP-Remote. ArcGIS accounts and Portal permissions are not changed.'
+          if(!$Apply){Write-Output ('Preflight passed. Requested accounts: '+$requested.Count);exit 0}
+          $backup=Join-Path $remoteRoot ('config.before-access-'+[guid]::NewGuid().ToString('N')+'.json')
+          Copy-Item -LiteralPath $configPath -Destination $backup
+          $stopped=$false
+          $changed=$false
+          function Wait-PortClosed {
+           for($i=0;$i -lt 30;$i++){
+            if(!(Get-NetTCPConnection -LocalPort 4187 -State Listen -ErrorAction SilentlyContinue)){return}
+            Start-Sleep -Seconds 1
+           }
+           throw 'Connector port is still occupied; no unrelated process will be stopped'
+          }
+          try {
+           Stop-ScheduledTask -TaskName $taskName
+           $stopped=$true
+           Wait-PortClosed
+           $before.allowedUsers=@($requested)
+           $next=Join-Path $remoteRoot ('config.next-access-'+[guid]::NewGuid().ToString('N')+'.json')
+           [IO.File]::WriteAllText($next,($before | ConvertTo-Json -Depth 30),(New-Object Text.UTF8Encoding($false)))
+           Move-Item -LiteralPath $next -Destination $configPath -Force
+           $changed=$true
+           Start-ScheduledTask -TaskName $taskName
+           $verified=$false
+           for($i=0;$i -lt 45;$i++){
+            Start-Sleep -Seconds 1
+            try {
+             $live=Invoke-RestMethod 'http://127.0.0.1:4187/app/kgeomcp/health.json'
+             $active=Get-Content -LiteralPath $activePath -Raw | ConvertFrom-Json
+             $stored=Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+             $activeDiff=@(Compare-Object -CaseSensitive -ReferenceObject @($requested) -DifferenceObject @($active.allowedUsers))
+             $storedDiff=@(Compare-Object -CaseSensitive -ReferenceObject @($requested) -DifferenceObject @($stored.allowedUsers))
+             if($live.health -eq 'ready' -and $live.releaseId -eq $releaseId -and $activeDiff.Count -eq 0 -and $storedDiff.Count -eq 0){$verified=$true;break}
+            } catch { }
+           }
+           if(!$verified){throw 'Active account allowlist was not verified'}
+           $old=Get-Content -LiteralPath $backup -Raw | ConvertFrom-Json
+           $old.allowedUsers=@()
+           $stored.allowedUsers=@()
+           if(($old | ConvertTo-Json -Depth 30 -Compress) -cne ($stored | ConvertTo-Json -Depth 30 -Compress)){throw 'Unexpected unrelated configuration change'}
+           @{verified=$true;accountCount=$requested.Count;configuredAndActiveMatch=$true;version=$live.version;releaseId=$live.releaseId;backup=$backup;otherSettingsPreserved=$true} | ConvertTo-Json
+          } catch {
+           if($stopped){
+            try {
+             Stop-ScheduledTask -TaskName $taskName
+             Wait-PortClosed
+             if($changed){Copy-Item -LiteralPath $backup -Destination $configPath -Force}
+             Start-ScheduledTask -TaskName $taskName
+             Write-Output 'Previous configuration restored and connector restart requested. Verify health before retrying.'
+            } catch { Write-Output ('Automatic recovery needs operator inspection. Configuration backup: '+$backup) }
+           }
+           throw 'Account access update was not verified; inspect recovery state. Do not report success.'
+          }
           '@
-          $file='D:\services\kgeo-mcp-remote\enable-git-deploy.ps1'
-          [IO.File]::WriteAllText($file,$script,(New-Object Text.UTF8Encoding($false)))
-          & $file
+          $accessFile = Join-Path $env:RUNNER_TEMP 'kgeomcp-update-access.ps1'
+          [IO.File]::WriteAllText($accessFile,$accessScript,(New-Object Text.UTF8Encoding($false)))
+          $configPath = 'D:\services\kgeo-mcp-remote\config.json'
+          $add = 'ngiiadmin'
+          $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+          $current = @($config.allowedUsers)
+          if($current.Count -lt 1){throw 'The existing restricted allowlist is missing'}
+          if($current -ccontains $add){Write-Output ('Already allowed. No change. Accounts: ' + $current.Count); exit 0}
+          # Write access is checked before anything stops; the file is not changed here.
+          $stream = [IO.File]::Open($configPath,[IO.FileMode]::Open,[IO.FileAccess]::ReadWrite,[IO.FileShare]::ReadWrite); $stream.Close()
+          $next = @($current) + @($add)
+          $json = ConvertTo-Json -InputObject @($next) -Compress
+          & $accessFile -AllowedUsersJson $json
+          & $accessFile -AllowedUsersJson $json -Apply
+          Write-Output ('Accounts before: ' + $current.Count + ', after: ' + $next.Count)
