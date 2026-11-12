@@ -35,6 +35,7 @@ def main():
         # VR 투어 (docs/pano_contract.md 2절): pending|processing|done|failed, pano_url = tour.json 공개 주소
         "pano_status": q.get("pano_status"), "pano_message": q.get("pano_message"), "pano_url": q.get("pano_url"),
         "pano_progress": q.get("pano_progress"), "pano": q.get("pano"),
+        "pano_stderr": q.get("pano_stderr") if q.get("pano_status") == "failed" else None,   # 실패 원인 (스티처 stderr 끝)
         # 📐 집·방 평면도 (worker/floorplan.py): <job>_floorplan.json (urls.svg·png·dxf 가 안에 있다)
         "floorplan_url": q.get("floorplan_url"),
         "updated_at": q.get("updated_at"), "error_detail": q.get("error_detail"),

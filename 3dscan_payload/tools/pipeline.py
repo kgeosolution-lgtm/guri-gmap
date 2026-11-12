@@ -952,6 +952,7 @@ def _run_stitch(cmd, q, log_path, timeout):
         tail = [l.strip() for l in open(err_path, "r", encoding="utf-8", errors="replace") if l.strip()]
     except OSError:
         tail = []
+    _run_stitch.tail = tail[-20:]                     # 실패 원인 보기용 (status.py pano_stderr)
     if killed:
         return -1, "VR 투어 만들기가 시간 안에 끝나지 않았습니다"
     return rc, (tail[-1] if tail else "")
@@ -973,7 +974,8 @@ def pano_job(meta, q, out_dir, job_id):
     tour_path = os.path.join(pano_out, "tour.json")
     if rc != 0 or not os.path.exists(tour_path):
         msg = last_err if rc == 2 and last_err else (last_err if rc == -1 else "VR 투어를 만들지 못했습니다 (이어 붙이기 오류)")
-        q.update(pano_status="failed", pano_message=msg[:300])
+        q.update(pano_status="failed", pano_message=msg[:300],
+                 pano_stderr=(f"exit {rc}\n" + "\n".join(getattr(_run_stitch, "tail", []) or []))[-4000:])
         log(f"pano_stitch 실패 (종료 코드 {rc}): {last_err}")
         raise RuntimeError(msg)
     tour = json.load(open(tour_path, "r", encoding="utf-8"))
