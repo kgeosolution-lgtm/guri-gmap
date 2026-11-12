@@ -37,7 +37,7 @@ jobs:
             'site/3dscan/utility.html' = '807d30ed9367a42c97949c11365d39059c70282ee69d37fc2e6039fd2ac5f7fd'
             'site/3dscan/walk.js' = '0981c0752e74c4a99e69a6578b7c826dd47e0f4d460cfe7ab65738c349fbeb83'
             'site/3dscan/capture_ar.html' = 'fd04a3e695c0ccfadde5e984eb93681464466b349e362ea5fdb4b0a0a805e61e'
-            'site/3dscan/capture_pano.html' = '976243a7ec39b1bcf0ca64d14b4bf50e81944aa3207b7b254784040677c5b52d'
+            'site/3dscan/capture_pano.html' = '46eb9bc20992f29d006c3c5e0299e106d14060a603630b5eda8b62329cb21a09'
             'site/3dscan/pano.html' = '03ec41aea5e8db386cb47852bb22c8681b7e8848cdf01190dc1647f533608243'
             'site/3dscan/targets/trench_board.pdf' = 'a1f0af16b6d7effbe722ec97e746bdf6014f0a906162b00e9a8ff60ea311f06f'
             'site/3dscan/capture.html' = '01a151638904f036124b8ca089fb3dc3df88a7891742931cbbe606cd07740e57'
@@ -76,7 +76,7 @@ jobs:
             'worker/media_check.py' = '083044d78af7dfdd5e3118b37ca2e4ceb28b47132b2ecef6971969e5c1f68896'
             'worker/utility_extract.py' = '5dd63a4aee15ee6ac79613bbb4ce8551eef70d5f72f354cae0fa1634741b77de'
             'worker/utility_report.py' = '50df2a31e359ceca0fa4f5ca541bb096c0a71a7bef720e1d556cf19f24f770b0'
-            'worker/pano_stitch.py' = '7055b8689dd9d0ff08281ee18ec87f8763deb29a455c46509dc2c793909fd023'
+            'worker/pano_stitch.py' = '37ce96e060a24a19f89ab36e4ea85587f0682ff32e4433c5312f22a435c96764'
             'config/kgeoscan.example.json' = 'bf94b0186dc4eb33a29e43fb9b9b9132ec13b85ace6a1915c065737bfa95c964'
             'requirements.txt' = '4703521a52b31751fac24f008578a24cbad28d3ba1bd7c95351184a6e75cfc5c'
           }

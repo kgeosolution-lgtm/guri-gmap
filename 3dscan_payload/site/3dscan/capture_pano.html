@@ -651,11 +651,30 @@ button{font-family:inherit}
     if (isAbs) { O.absSeen = performance.now(); O.compass = camHeading(e.alpha, e.beta, e.gamma || 0); O.compassAcc = null; if (O.src !== 'abs') return; }
     else { O.relSeen = performance.now(); if (O.src !== 'rel') { if (O.src === 'abs') return; O.src = 'rel'; } }
     var sa = screenAngle();
+    O.Rdev = mul(mul(Rz(e.alpha * D2R), Rx(e.beta * D2R)), Ry((e.gamma || 0) * D2R));
     setR(devR(e.alpha, e.beta, e.gamma || 0, sa), { alpha: rnd(e.alpha, 2), beta: rnd(e.beta, 2), gamma: rnd(e.gamma || 0, 2), screen: sa, abs: isAbs || e.absolute === true });
   }
+  /* 몸을 축으로 도는지 (시차의 주원인): 가속도(중력 뺀 값)를 세계 축으로 돌려 새는 적분으로 수평 속도를 얻고,
+     돌리는 동안 r = |수평 속도| / 회전 속도 를 모은다. 폰을 제자리에서 돌리면 r ≈ 0.05~0.1 m, 몸을 축으로 돌면 0.3 m 이상 */
+  var MV = { t: 0, vx: 0, vy: 0, rs: [], warnT: 0 };
+  var BODY_R = 0.22;               // m — 이보다 크면 "몸 말고 폰을 돌려 주세요" (실촬영 move_r 기록으로 다시 맞출 것)
+  function onMotion(e) {
+    var a = e.acceleration, now = performance.now();
+    if (!a || a.x == null || !O.Rdev) { MV.t = now; return; }
+    var dt = Math.max(0.005, Math.min(0.1, (now - (MV.t || now)) / 1000)); MV.t = now;
+    var w = apply(O.Rdev, [a.x, a.y, a.z]), TAU = 2.0, k = Math.exp(-dt / TAU);
+    MV.vx = MV.vx * k + w[0] * dt; MV.vy = MV.vy * k + w[1] * dt;
+    if (O.rate > 20 && Cap.phase === 'shoot') {
+      var om = O.rate * D2R, att = om * TAU / Math.sqrt(1 + om * om * TAU * TAU);     // 새는 적분이 돌아가는 속도를 깎는 비율을 되돌린다
+      MV.rs.push(Math.hypot(MV.vx, MV.vy) / om / att);
+      if (MV.rs.length > 240) MV.rs.shift();
+    }
+  }
+  function moveRadius() { if (MV.rs.length < 12) return null; var v = MV.rs.slice().sort(function (x, y) { return x - y; }); return v[v.length >> 1]; }
   function startOrient() {
     if (O.on) return; O.on = true;
     if (SIM) return;
+    window.addEventListener('devicemotion', onMotion, true);
     window.addEventListener('deviceorientation', onOrient, true);
     if ('ondeviceorientationabsolute' in window) window.addEventListener('deviceorientationabsolute', onOrient, true);
     // 자이로 없는 폰: 1.5초 안에 상대 방향이 안 오면 절대(나침반) 방향을 쓴다 (흔들림 큼)
@@ -689,7 +708,7 @@ button{font-family:inherit}
   /* ── 카메라 ── */
   // 렌즈: 아이폰 사파리는 enumerateDevices 이름으로 고른다 (Back Ultra Wide Camera / 후면 초광각 카메라).
   // 듀얼·트리플 같은 가상 카메라는 렌즈를 저절로 바꿔 시야가 변하므로 피한다. 이름은 카메라 권한을 받은 뒤에만 보인다.
-  var F_RATIO = { ultra: 0.37, wide: 0.72 };      // 초점 ≈ 긴 변 × 이 값 (초광각 13 mm, 기본 24~26 mm 환산). 스티처가 ±10 % 안에서 다시 잰다
+  var F_RATIO = { ultra: 0.40, wide: 0.72 };      // 초점 ≈ 긴 변 × 이 값. 초광각 0.40 = 아이폰 16 Pro 영상 스트림 실측(2026-11-12), 기본 24~26 mm 환산
   var C = { stream: null, track: null, ic: null, open: false, loop: 0, lens: 'wide', label: '', devices: [], ultraId: null, wideId: null, curId: null, w: 0, h: 0 };
   function isFrontLabel(l) { return /front|전면|user|selfie|facing front/i.test(l); }
   function isVirtualLabel(l) { return /dual|triple|듀얼|트리플/i.test(l); }
@@ -880,12 +899,15 @@ button{font-family:inherit}
     var s = srcSize(), w = Math.min(s[0] || 3, s[1] || 4), h = Math.max(s[0] || 3, s[1] || 4), f = fpx(w, h);
     return [2 * Math.atan(w / 2 / f) / D2R, 2 * Math.atan(h / 2 / f) / D2R];
   }
-  function planTargets(hfov, vfov) {      // worker/pano_test.py plan_targets 와 같은 식 (겹침 32 %)
-    function nFor(p) { var need = 360 * Math.cos(p * D2R) / (hfov * 0.68), ns = [6, 8, 10, 12, 14, 16, 18, 20, 24]; for (var i = 0; i < ns.length; i++) if (ns[i] >= need) return ns[i]; return 24; }
+  function planTargets(hfov, vfov) {      // worker/pano_test.py plan_targets 와 같은 식
+    // 2026-11-12 실촬영 반영: 초광각은 줄당 8장(겹침 45 %)으로 짝을 더 잡고, 바로 아래는 찍지 않는다
+    // (손에 든 폰으로 바로 아래를 찍으면 몸·발이 크게 찍힌다 — 스티처가 −62° 아래를 바닥색으로 메우고 로고를 얹는다)
+    var ov = vfov >= 95 ? 0.55 : 0.68;
+    function nFor(p) { var need = 360 * Math.cos(p * D2R) / (hfov * ov), ns = [6, 8, 10, 12, 14, 16, 18, 20, 24]; for (var i = 0; i < ns.length; i++) if (ns[i] >= need) return ns[i]; return 24; }
     var rows = vfov >= 95 ? [{ name: 'up', pitch: 30, off: 0 }, { name: 'down', pitch: -30, off: 0.5 }]          // 초광각: 2줄
       : [{ name: 'mid', pitch: 0, off: 0 }, { name: 'up', pitch: 45, off: 0.5 }, { name: 'down', pitch: -45, off: 0.5 }];
     rows.forEach(function (r) { r.n = Math.max(6, nFor(r.pitch)); });
-    return { rows: rows, zenith: true, nadir: true, hfov: rnd(hfov, 1), vfov: rnd(vfov, 1) };
+    return { rows: rows, zenith: true, nadir: false, hfov: rnd(hfov, 1), vfov: rnd(vfov, 1) };
   }
   function makeTargets(plan, yaw0) {
     var out = [];
@@ -915,7 +937,7 @@ button{font-family:inherit}
       var fv = fovNow(); sp.plan = planTargets(fv[0], fv[1]);
       Cap.targets = makeTargets(sp.plan, y0);
     }
-    sp.targetCount = Cap.targets.length; sp._cov = null;
+    sp.targetCount = Cap.targets.length; sp._cov = null; MV.rs = []; sp.bodyTurns = 0;
     $('camName').textContent = sp.name;
     hideSheets(); updateCount(); renderLens();
     camMsg('밝기 확인 중…');
@@ -1108,6 +1130,7 @@ button{font-family:inherit}
       var left = Cap.targets.filter(function (t) { return !t.done; }).length;
       if (dark) camMsg('조명을 켜 주세요 — 너무 어두워요', 'warn');
       else if (O.rate > 35) camMsg('너무 빨라요 — 천천히 돌려 주세요', 'warn');
+      else if (now - MV.warnT < 3500) camMsg('몸 말고 폰을 돌려 주세요 — 폰은 가슴 앞 제자리, 발을 옮겨 몸이 폰 둘레를 돌아요', 'warn');
       else if (sug && !sug.pole && Math.abs(roll) > 20) camMsg('폰을 세로로 똑바로 세워 주세요', 'warn');
       else if (aligned && (!steady || blurWait)) camMsg('잠깐 멈춰 주세요', 'warn');
       else if (aligned) camMsg('그대로…', 'ok');
@@ -1169,6 +1192,8 @@ button{font-family:inherit}
     Cap.busy = true;
     var R = Rm || O.R, raw = O.raw, rate = O.rate, compass = O.compass, cAcc = O.compassAcc, tms = Date.now(), lens = curLens();
     var fc = grabFrame(sp), dw = fc.width, dh = fc.height, m = measure(fc, dw, dh), tiny = tinyOf(fc);
+    var mr = moveRadius(); MV.rs = [];
+    if (mr != null && mr > BODY_R) { MV.warnT = performance.now(); sp.bodyTurns = (sp.bodyTurns || 0) + 1; if (sp.bodyTurns === 2) toast('몸을 축으로 돌고 있어요 — 폰 삼각대(1만 원 안팎)를 쓰면 이음새가 거의 사라져요', 'warn'); }
     var useHQ = C.ic && $('hq').checked && !SIM;
     var flash = function () { var f = $('flash'); f.classList.add('on'); setTimeout(function () { f.classList.remove('on'); }, 70); vibrate(30); shutterSound(); };
     if (!useHQ) flash(); else camMsg('그대로… (고화질)', 'ok');
@@ -1187,7 +1212,7 @@ button{font-family:inherit}
           q: quat(R).map(function (x) { return rnd(x, 7); }), yaw: rnd(a[0], 2), pitch: rnd(a[1], 2), roll: rnd(a[2], 2), rate: rnd(rate, 1),
           raw: raw, compass: compass == null ? null : rnd(compass, 1), compass_acc: cAcc == null ? null : rnd(cAcc, 0),
           lum: rnd(m.lum, 1), sharp: rnd(m.sharp, 1), sharp_ratio: holdMax ? rnd(Math.min(2, m.sharp / holdMax), 2) : null,
-          size: r.blob.size, crc: crc32(buf), key: sp.id + '/' + n + '/' + tms, dw: dw, dh: dh };
+          size: r.blob.size, crc: crc32(buf), key: sp.id + '/' + n + '/' + tms, dw: dw, dh: dh, move_r: mr == null ? null : rnd(mr, 2) };
         shot.blob = r.blob; shot.tiny = tiny.data; shot.thumb = tiny.url;
         sp.shots.push(shot); sp._cov = null;
         if (t) t.done = true;
@@ -1334,7 +1359,9 @@ button{font-family:inherit}
     // 지점 전체가 나쁘면(어두움·흐림이 30 % 넘거나 덮음 90 % 미만) 전체 다시 찍기를 앞세운다
     var n = sp.shots.length || 1, dk = sp.shots.filter(function (x) { return (x._why || []).indexOf('어두움') >= 0; }).length, bl = sp.shots.filter(function (x) { return (x._why || []).indexOf('흐림') >= 0; }).length;
     var whole = dk / n > 0.3 ? '방이 너무 어두워요 — 조명을 켜고 이 지점을 다시 찍기를 권합니다' : bl / n > 0.3 ? '흔들린 사진이 많아요 — 더 천천히, 멈췄다 찍으며 다시 찍기를 권합니다' : (sp._covPct == null ? 1 : sp._covPct) < 0.9 ? '빈 곳이 많아요 — 이 지점을 다시 찍기를 권합니다' : '';
-    $('rvWarn').hidden = !whole; $('rvWarn').textContent = whole ? '⚠ ' + whole : '';
+    var body = sp.shots.filter(function (x) { return x.move_r != null && x.move_r > BODY_R; }).length;
+    var hint = !whole && body >= 3 ? '몸을 축으로 돈 사진이 ' + body + '장이에요 — 가까운 물건이 끊겨 보일 수 있어요. 폰을 가슴 앞 제자리에 두고 발을 옮겨 돌거나, 폰 삼각대를 쓰면 좋아요' : '';
+    $('rvWarn').hidden = !(whole || hint); $('rvWarn').textContent = whole ? '⚠ ' + whole : hint ? 'ℹ ' + hint : '';
     $('rvAll').classList.toggle('primary', !!whole); $('rvAll').classList.toggle('ghost', !whole);
     $('rvRetake').hidden = !k || !!whole; $('rvRetake').textContent = '표시한 ' + k + '장만 다시 찍기';
     $('rvOk').textContent = k ? '그대로 두고 다음으로' : '좋아요 — 다음으로';
@@ -1573,7 +1600,7 @@ button{font-family:inherit}
         return { id: sp.id, index: i + 1, name: sp.name, frame: sp.frame || 1, started: sp.started, ended: sp.ended || null, start_yaw: sp.start_yaw || 0,
           north_yaw: sp.north_yaw == null ? null : sp.north_yaw, plan: sp.plan || null, next: sp.next || null,
           cam: sp.shots.length ? { w: sp.shots[0].w, h: sp.shots[0].h, src: sp.shots[0].src, lens: sp.lens || 'wide', f_ratio: F_RATIO[sp.lens || 'wide'], label: sp.camLabel || null } : null,
-          shots: sp.shots.map(function (s) { return { file: s.file, t: s.t, w: s.w, h: s.h, src: s.src, lens: s.lens || sp.lens || 'wide', target: s.target, q: s.q, yaw: s.yaw, pitch: s.pitch, roll: s.roll, rate: s.rate, lum: s.lum, sharp: s.sharp, sharp_ratio: s.sharp_ratio, raw: s.raw, compass: s.compass, compass_acc: s.compass_acc }; }) };
+          shots: sp.shots.map(function (s) { return { file: s.file, t: s.t, w: s.w, h: s.h, src: s.src, lens: s.lens || sp.lens || 'wide', target: s.target, q: s.q, yaw: s.yaw, pitch: s.pitch, roll: s.roll, rate: s.rate, lum: s.lum, sharp: s.sharp, sharp_ratio: s.sharp_ratio, move_r: s.move_r, raw: s.raw, compass: s.compass, compass_acc: s.compass_acc }; }) };
       })
     };
   }

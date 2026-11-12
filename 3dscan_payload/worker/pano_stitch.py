@@ -488,11 +488,14 @@ def image_roi(cam, W, H, margin, wrap_margin):
     return u0, u1, v0, v1, full
 
 
-def warp_roi(img, cam, W, H, roi, want_img=True, interp=cv2.INTER_LINEAR):
+def warp_roi(img, cam, W, H, roi, want_img=True, interp=cv2.INTER_LINEAR, disp=None):
     u0, u1, v0, v1 = roi[:4]
     us = np.arange(u0, u1, dtype=np.float32)
     vs = np.arange(v0, v1, dtype=np.float32)
-    d = eq_dirs(us[None, :], vs[:, None], W, H)
+    if disp is not None:              # 광류 국소 정합: 출력 화소 (u,v) 는 원래 (u+du, v+dv) 방향을 본다
+        d = eq_dirs(us[None, :] + disp[0], vs[:, None] + disp[1], W, H)
+    else:
+        d = eq_dirs(us[None, :], vs[:, None], W, H)
     px, py, ok = project(d, cam)
     xn = (px - cam.cx) / (cam.w / 2.0)
     yn = (py - cam.cy) / (cam.h / 2.0)
@@ -566,7 +569,7 @@ def pole_view_R(which):
     return np.diag([1.0, -1.0, -1.0]) if which == "nadir" else np.eye(3)
 
 
-def fill_pole(eq, covered, which, mode, radius_deg, S=1536, fov_deg=110.0):
+def fill_pole(eq, covered, which, mode, radius_deg, S=1536, fov_deg=110.0, cut_deg=0.0):
     """극 둘레를 직선 투영으로 펴서 구멍을 흐림 메우기(+천저 로고)한 뒤 등장방형으로 되돌린다"""
     H, W = eq.shape[:2]
     f = (S / 2) / math.tan(fov_deg / 2 * D2R)
@@ -589,6 +592,22 @@ def fill_pole(eq, covered, which, mode, radius_deg, S=1536, fov_deg=110.0):
             if (m & cen).any():
                 hole_r = max(hole_r, float(ang[m].max()))
     hole_r = min(hole_r, 40.0)
+    if cut_deg > 0:                               # 일부러 비운 바닥(촬영자 몸·발): 바깥 고리를 안쪽으로 거울처럼 접어 메운다
+        rc = f * math.tan(cut_deg * D2R)
+        rb = 1.1 * rc                                                         # 접는 기준: 합성 가장자리의 어두운 테 바깥
+        rr_safe = np.maximum(rr, 1e-3)
+        r_src = np.minimum(2 * rb - rr, rb + 0.6 * rc)
+        sx = (cam.cx + (g[None, :] - cam.cx) / rr_safe * r_src).astype(np.float32)
+        sy = (cam.cy + (g[:, None] - cam.cy) / rr_safe * r_src).astype(np.float32)
+        mir = cv2.remap(view, sx, sy, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
+        mir = cv2.GaussianBlur(mir, (0, 0), 9)                                # 물체 모양은 지우고 바닥 색만 남긴다
+        a_cut = np.clip((rb + 0.03 * rc - rr) / (0.08 * rc), 0, 1).astype(np.float32)
+        view = (view.astype(np.float32) * (1 - a_cut[..., None]) + mir.astype(np.float32) * a_cut[..., None]).astype(np.uint8)
+        hole = hole & (ang > cut_deg + 0.5)
+        hole_r = 0.0 if not hole.any() else hole_r
+        cut_alpha = a_cut
+    else:
+        cut_alpha = None
     if not hole.any() and mode != "logo":
         return eq, 0.0
     # 흐림 메우기 (1/4 해상도 inpaint → 흐림)
@@ -601,9 +620,11 @@ def fill_pole(eq, covered, which, mode, radius_deg, S=1536, fov_deg=110.0):
     filled = cv2.resize(filled, (S, S), interpolation=cv2.INTER_CUBIC)
     alpha = cv2.GaussianBlur(cv2.dilate(hole.astype(np.uint8) * 255, np.ones((9, 9), np.uint8)).astype(np.float32) / 255, (0, 0), 6)
     patch = view.astype(np.float32) * (1 - alpha[..., None]) + filled.astype(np.float32) * alpha[..., None]
+    if cut_alpha is not None:
+        alpha = np.maximum(alpha, cut_alpha)
     logo_r = 0.0
     if mode == "logo" and which == "nadir":
-        logo_r = max(radius_deg, hole_r + 1.5)
+        logo_r = max(radius_deg, hole_r + 1.5) if cut_deg <= 0 else radius_deg
         rp = f * math.tan(logo_r * D2R)
         disc = np.clip((rp - rr) / 2.0 + 0.5, 0, 1).astype(np.float32)        # 경계 부드럽게
         logo = np.zeros((S, S, 3), np.float32)
@@ -737,6 +758,210 @@ def seam_metrics(label, store, W_out, Wm, Hm, band=6):
     return float(np.median(v)), float(np.percentile(v, 90)), per
 
 
+# ───────────────────────── 이음선 (DP) · 광류 국소 정합 · 바닥 (2026-11-12 실기기 반영) ─────────────────────────
+# 실촬영(아이폰 16 Pro 0.5×)은 몸을 축으로 돌아 카메라가 수십 cm 움직였다 → 1~1.5 m 물체가 4~8° 어긋나 겹쳐 보였다.
+# ① 다른 사진들과 혼자 다른 화소(지나간 사람·촬영자 몸)를 빼고 ② 차이가 적은 곳으로 DP 이음선을 내고
+# ③ 이음선 근처는 DIS 광류로 두 사진을 반씩 당겨 맞춘다(이음선에서 멀어지면 0). 바닥(위도 −62° 아래)은 비우고 메운다.
+
+def roi_cols(s, Wc):
+    return np.arange(s["u0"], s["u0"] + s["g"].shape[1]) % Wc
+
+
+def canvas_crop(s, Wc, vv0, vv1, uu0, uu1, key="g"):
+    """사진 조각 s(캔버스 좌표 u0·v0 의 ROI 배열)에서 캔버스 영역 [vv0:vv1, uu0:uu1](u 는 펼친 값)을 꺼낸다. 0/360 경계는 ±Wc 로 맞춘다"""
+    arr, ok = s[key], s["ok"]
+    h, w = ok.shape
+    shp = (vv1 - vv0, uu1 - uu0) + arr.shape[2:]
+    out = np.zeros(shp, np.float32)
+    val = np.zeros((vv1 - vv0, uu1 - uu0), bool)
+    for sh in (-Wc, 0, Wc):
+        a0, a1 = max(uu0, s["u0"] + sh), min(uu1, s["u0"] + sh + w)
+        b0, b1 = max(vv0, s["v0"]), min(vv1, s["v0"] + h)
+        if a1 <= a0 or b1 <= b0:
+            continue
+        out[b0 - vv0:b1 - vv0, a0 - uu0:a1 - uu0] = arr[b0 - s["v0"]:b1 - s["v0"], a0 - s["u0"] - sh:a1 - s["u0"] - sh]
+        val[b0 - vv0:b1 - vv0, a0 - uu0:a1 - uu0] |= ok[b0 - s["v0"]:b1 - s["v0"], a0 - s["u0"] - sh:a1 - s["u0"] - sh]
+    return out, val
+
+
+def canvas_add(s, Wc, vv0, uu0, field, key="disp"):
+    """canvas_crop 의 반대: 캔버스 영역 값을 사진 조각 배열(s[key], 모양 (2,h,w))에 더한다"""
+    h, w = s["ok"].shape
+    fh, fw = field.shape[1:]
+    for sh in (-Wc, 0, Wc):
+        a0, a1 = max(uu0, s["u0"] + sh), min(uu0 + fw, s["u0"] + sh + w)
+        b0, b1 = max(vv0, s["v0"]), min(vv0 + fh, s["v0"] + h)
+        if a1 <= a0 or b1 <= b0:
+            continue
+        s[key][:, b0 - s["v0"]:b1 - s["v0"], a0 - s["u0"] - sh:a1 - s["u0"] - sh] += field[:, b0 - vv0:b1 - vv0, a0 - uu0:a1 - uu0]
+
+
+def consensus_exclude(st, Wc, Hc, dev=30.0, agree=12.0, band=64):
+    """3장 이상 겹친 화소에서 혼자만 다른 사진(지나간 사람·촬영자 몸)은 그 화소를 쓰지 않게 ok 에서 뺀다. 뺀 화소 수"""
+    N = len(st)
+    removed = 0
+    for b0 in range(0, Hc, band):
+        b1 = min(Hc, b0 + band)
+        stack = np.full((N, b1 - b0, Wc), np.nan, np.float32)
+        for k, s in enumerate(st):
+            h = s["g"].shape[0]
+            a0, a1 = max(b0, s["v0"]), min(b1, s["v0"] + h)
+            if a1 <= a0:
+                continue
+            sub = np.where(s["ok"][a0 - s["v0"]:a1 - s["v0"]], s["g"][a0 - s["v0"]:a1 - s["v0"]], np.nan)
+            stack[k][a0 - b0:a1 - b0, roi_cols(s, Wc)] = sub
+        cnt = np.sum(~np.isnan(stack), axis=0)
+        if not (cnt >= 3).any():
+            continue
+        with np.errstate(all="ignore"):
+            import warnings
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                med = np.nanmedian(stack, axis=0)
+        devs = np.abs(stack - med[None])
+        nok = np.sum(devs <= agree, axis=0)
+        bad = (devs > dev) & (cnt >= 3)[None] & (nok >= 2)[None]
+        for k, s in enumerate(st):
+            h = s["g"].shape[0]
+            a0, a1 = max(b0, s["v0"]), min(b1, s["v0"] + h)
+            if a1 <= a0:
+                continue
+            bk = bad[k, a0 - b0:a1 - b0][:, roi_cols(s, Wc)]
+            if bk.any():
+                bk = cv2.dilate(bk.astype(np.uint8), np.ones((5, 5), np.uint8)) > 0
+                sub = s["ok"][a0 - s["v0"]:a1 - s["v0"]]
+                removed += int((sub & bk).sum())
+                s["ok"][a0 - s["v0"]:a1 - s["v0"]] = sub & ~bk
+    return removed
+
+
+def dp_seam_labels(st, Wc, Hc, fallback):
+    """DpSeamFinder(COLOR_GRAD) 로 이음선. 0/360 경계: 가장 적게 겹친 경도에서 캔버스를 자르고, 그곳을 지나는 사진은 둘로 나눈다"""
+    cov = np.zeros(Wc, np.int32)
+    mid0, mid1 = Hc // 3, 2 * Hc // 3
+    for s in st:
+        h = s["g"].shape[0]
+        a0, a1 = max(mid0, s["v0"]), min(mid1, s["v0"] + h)
+        if a1 > a0:
+            cov[roi_cols(s, Wc)] += s["ok"][a0 - s["v0"]:a1 - s["v0"]].any(axis=0)
+    u_cut = int(np.argmin(np.convolve(cov, np.ones(9), mode="same")))
+    imgs, corners, masks, owner = [], [], [], []
+    for k, s in enumerate(st):
+        cs = (roi_cols(s, Wc) - u_cut) % Wc
+        brk = np.nonzero(np.diff(cs) < 0)[0]
+        segs = np.split(np.arange(len(cs)), brk + 1)
+        for seg in segs:
+            if len(seg) < 2:
+                continue
+            m = s["ok"][:, seg[0]:seg[-1] + 1]
+            if not m.any():
+                continue
+            imgs.append(np.ascontiguousarray(s["img"][:, seg[0]:seg[-1] + 1]).astype(np.float32))
+            masks.append(m.astype(np.uint8) * 255)
+            corners.append((int(cs[seg[0]]), int(s["v0"])))
+            owner.append((k, seg[0], seg[-1] + 1))
+    out = cv2.detail_DpSeamFinder("COLOR_GRAD").find(imgs, corners, masks)
+    out_masks = out[1] if isinstance(out, tuple) and len(out) == 2 and isinstance(out[1], (list, tuple)) else out
+    lab = np.full((Hc, Wc), -1, np.int16)
+    for (k, c0, c1), m, (x0, y0) in zip(owner, out_masks, corners):
+        m = (m.get() if hasattr(m, "get") else np.asarray(m)) > 0
+        h, w = m.shape
+        rows = np.arange(y0, y0 + h)
+        cols = (np.arange(x0, x0 + w) + u_cut) % Wc
+        sub = lab[np.ix_(rows, cols)]
+        sub[m] = k
+        lab[np.ix_(rows, cols)] = sub
+    miss = (lab < 0) & (fallback >= 0)
+    lab[miss] = fallback[miss]
+    return lab, u_cut
+
+
+def label_pairs(label, Wc):
+    """서로 맞닿은 사진 짝 → 경계 화소 목록 (0/360 이어짐 포함)"""
+    a = label
+    Hc = a.shape[0]
+    pairs = {}
+    right = np.roll(a, -1, 1)
+    bh = (a != right) & (a >= 0) & (right >= 0)
+    ys, xs = np.nonzero(bh)
+    for y, x, p, q in zip(ys, xs, a[ys, xs], right[ys, xs]):
+        pairs.setdefault((int(min(p, q)), int(max(p, q))), []).append((y, x))
+    down = np.zeros_like(a)
+    down[:-1] = a[1:]
+    bv = np.zeros_like(bh)
+    bv[:-1] = (a[:-1] != a[1:]) & (a[:-1] >= 0) & (a[1:] >= 0)
+    ys, xs = np.nonzero(bv)
+    for y, x, p, q in zip(ys, xs, a[ys, xs], down[ys, xs]):
+        pairs.setdefault((int(min(p, q)), int(max(p, q))), []).append((y, x))
+    return pairs
+
+
+def flow_align_fields(st, label, Wc, Hc, sigma=28.0, max_flow=70.0):
+    """이음선 양쪽을 DIS 광류로 맞추는 변형장. st[k]['disp'] (2,h,w) 에 쌓는다 (캔버스 px). 반환: 짝별 광류 크기 중앙값"""
+    dis = cv2.DISOpticalFlow_create(cv2.DISOPTICAL_FLOW_PRESET_MEDIUM)
+    for s in st:
+        s["disp"] = np.zeros((2,) + s["ok"].shape, np.float32)
+    stats = {}
+    pad = int(3 * sigma)
+    for (i, j), pts in label_pairs(label, Wc).items():
+        if len(pts) < 8:
+            continue
+        pts = np.array(pts)
+        yy, xx = pts[:, 0], pts[:, 1]
+        xu = xx[0] + ((xx - xx[0] + Wc // 2) % Wc) - Wc // 2
+        vv0, vv1 = max(0, int(yy.min()) - pad), min(Hc, int(yy.max()) + pad + 1)
+        uu0, uu1 = int(xu.min()) - pad, int(xu.max()) + pad + 1
+        if (vv1 - vv0) * (uu1 - uu0) > 4e6:
+            continue
+        gi, oi = canvas_crop(st[i], Wc, vv0, vv1, uu0, uu1)
+        gj, oj = canvas_crop(st[j], Wc, vv0, vv1, uu0, uu1)
+        both = oi & oj
+        if both.sum() < 200:
+            continue
+        g8i = np.clip(gi, 0, 255).astype(np.uint8)
+        g8j = np.clip(gj, 0, 255).astype(np.uint8)
+        fl = dis.calc(g8i, g8j, None)
+        fb = dis.calc(g8j, g8i, None)
+        hh, ww = g8i.shape
+        gx, gy = np.meshgrid(np.arange(ww, dtype=np.float32), np.arange(hh, dtype=np.float32))
+        back = cv2.remap(fb, gx + fl[..., 0], gy + fl[..., 1], cv2.INTER_LINEAR)
+        cons = np.hypot(fl[..., 0] + back[..., 0], fl[..., 1] + back[..., 1])
+        good = (both & (cons < 2.0)).astype(np.float32)
+        # 믿을 만한 곳의 광류를 부드럽게 펴서 메운다 (정규화 컨볼루션)
+        den = cv2.GaussianBlur(good, (0, 0), 8) + 1e-4
+        F = np.stack([cv2.GaussianBlur(fl[..., c] * good, (0, 0), 8) / den for c in (0, 1)])
+        mag = np.hypot(F[0], F[1])
+        F *= np.minimum(1.0, max_flow / np.maximum(mag, 1e-6))[None]
+        # 무게: 이음선에서 멀어질수록 0, 겹침 밖은 0
+        bmask = np.full((hh, ww), 255, np.uint8)
+        bmask[yy - vv0, xu - uu0] = 0
+        dist = cv2.distanceTransform(bmask, cv2.DIST_L2, 5)
+        wgt = np.exp(-(dist ** 2) / (2 * sigma ** 2)) * cv2.GaussianBlur(both.astype(np.float32), (0, 0), 6)
+        wgt *= np.minimum(1.0, den / 0.3)                       # 광류를 믿을 화소가 드문 곳은 덜
+        canvas_add(st[i], Wc, vv0, uu0, -0.5 * F * wgt[None])
+        canvas_add(st[j], Wc, vv0, uu0, 0.5 * F * wgt[None])
+        sel = (good > 0) & (dist < 6)
+        if sel.sum() > 20:
+            stats[(i, j)] = float(np.median(np.hypot(fl[..., 0], fl[..., 1])[sel]))
+    return stats
+
+
+def disp_fullres(s, Wc, W, H, u0, u1, v0, v1):
+    """Ws 해상도 변형장 s['disp'] 를 전체 해상도 ROI 격자로 (px, 전체 해상도 단위)"""
+    k = Wc / W
+    us = np.arange(u0, u1, dtype=np.float32)
+    vs = np.arange(v0, v1, dtype=np.float32)
+    w_s = s["ok"].shape[1]
+    mx = ((us * k - s["u0"]) % Wc).astype(np.float32)
+    mx = np.where(mx > w_s - 0.5 + 0.5 * (Wc - w_s), mx - Wc, mx).astype(np.float32)   # ROI 밖은 경계 밖 값으로
+    my = (vs * k - s["v0"]).astype(np.float32)
+    MX = np.broadcast_to(mx[None, :], (len(vs), len(us))).astype(np.float32)
+    MY = np.broadcast_to(my[:, None], (len(vs), len(us))).astype(np.float32)
+    du = cv2.remap(s["disp"][0], MX, MY, cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=0) / k
+    dv = cv2.remap(s["disp"][1], MX, MY, cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=0) / k
+    return du, dv
+
+
 # ───────────────────────── 지점 하나 ─────────────────────────
 def pick_size(req, f_med):
     native = 2 * PI * f_med
@@ -772,9 +997,13 @@ def stitch_spot(src, spot, out_dir, opts, prog=lambda p, m: None):
     gid = np.array([c[2] for c in cams])
     cam_meta = spot.get("cam") or {}
     f_hint = cam_meta.get("f_px")
-    f_ratio = cam_meta.get("f_ratio")             # 촬영 페이지가 렌즈별로 준다 (초광각 0.37, 기본 0.72)
+    f_ratio = cam_meta.get("f_ratio")             # 촬영 페이지가 렌즈별로 준다 (초광각 0.40, 기본 0.72)
     if not (isinstance(f_ratio, (int, float)) and 0.2 < f_ratio < 1.5):
-        f_ratio = 0.37 if cam_meta.get("lens") == "ultra" else None
+        f_ratio = 0.40 if cam_meta.get("lens") == "ultra" else None
+    if cam_meta.get("lens") == "ultra" and f_ratio and f_ratio < 0.385:
+        f_ratio = 0.40                            # 2026-11-12 아이폰 16 Pro 실측: 초광각 영상 스트림 초점 ≈ 0.397 × 긴 변 (0.37 가정은 7 % 짧았음)
+    if opts.f_ratio:
+        f_ratio = opts.f_ratio
     camobjs = []
     for (w, h, g), R in zip(cams, R0):
         if f_ratio:
@@ -802,73 +1031,97 @@ def stitch_spot(src, spot, out_dir, opts, prog=lambda p, m: None):
                 pairs.append((i, j))
     rounds = [(opts.tol1, 0.85), (opts.tol2, 0.9)]
     M = None
+    # 초광각: 초점·k1 을 먼저 풀어 재고, 기기 초점비(0.40)에서 ±ultra_band 를 벗어나면 그 값으로 고정해 다시 한다.
+    # (시차 큰 실촬영 s02 는 시차를 초점 '확대'로 흡수해 +6.5 % 로 갔고, 깨끗한 자료는 0.7 % 안에서 정확히 잡힌다)
+    ultra = cam_meta.get("lens") == "ultra" and not opts.f_ratio_free
     fix_f = set()
     n_reset = 0
+    fixed_by_design = False
     pair_stats = {}
-    for rno, (tol, ratio) in enumerate(rounds):
-        prog(10 + rno * 25, f"{sid} 사진 짝 맞추는 중 ({rno + 1}/2)")
-        II, JJ, PA, PB = [], [], [], []
-        pair_stats = {}
-        for (i, j) in pairs:
-            r = guided_match(feats[i], feats[j], cams[i], cams[j], tol, ratio)
-            if r is None:
-                continue
-            pa, pb = r
-            if len(pa) > opts.max_per_pair:
-                sel = np.random.default_rng(i * 1000 + j).choice(len(pa), opts.max_per_pair, replace=False)
-                pa, pb = pa[sel], pb[sel]
-            II.append(np.full(len(pa), i))
-            JJ.append(np.full(len(pa), j))
-            PA.append(pa)
-            PB.append(pb)
-            pair_stats[(i, j)] = len(pa)
-        if not II:
-            M = None
-            break
-        M = {"ii": np.concatenate(II), "jj": np.concatenate(JJ), "pa": np.concatenate(PA), "pb": np.concatenate(PB)}
-        prog(20 + rno * 25, f"{sid} 자세 맞추는 중 ({rno + 1}/2) — 짝 {len(pair_stats)}개")
-        few = len(pair_stats) < N
-        fix_k1 = few or opts.no_k1 or bool(fix_f)
-
-        def ba(M, iters):
-            return bundle_adjust(cams, R0, gid, M, F, sig_rot_deg=opts.sig_rot, f0=f0g, fix_k1=fix_k1, fix_f=tuple(sorted(fix_f)), iters=iters,
-                                 sig_k=0.2 if (f_ratio and f_ratio < 0.5) else 0.1)
-        e = ba(M, 40)
-        # 이상치 빼고 한 번 더
-        keep = e < max(6.0, 4 * float(np.median(e)))
-        if keep.sum() < len(e):
-            M = {k: v[keep] for k, v in M.items()}
-            e = ba(M, 25)
-        # 안전장치: 초점이 초기값에서 너무 멀거나(몸을 축으로 돈 시차 등), 센서 자세에서 크게 벗어난 사진 → 되돌리고 다시
-        redo = False
-        for g in range(len(f0g)):
-            fr = cams[np.nonzero(gid == g)[0][0]].f / f0g[g]
-            k1g = cams[np.nonzero(gid == g)[0][0]].k1
-            k1_lim = 0.25 if (f_ratio and f_ratio < 0.5) else 0.06      # 초광각은 남은 왜곡이 클 수 있다
-            if (not (opts.f_lo <= fr <= opts.f_hi) or abs(k1g) > k1_lim) and g not in fix_f:
-                log(f"[{sid}] 초점 {fr:.3f}배·k1 {k1g:.3f} → 초기값으로 고정")
-                fix_f.add(g)
-                redo = True
-        bad = [k for k in range(N) if rot_angle_deg(cams[k].R, R0[k]) > opts.max_fix]
-        n_reset += len(bad)
-        if bad:
-            log(f"[{sid}] 센서 자세에서 {opts.max_fix}° 넘게 벗어난 사진 {len(bad)}장 → 센서 자세로 되돌림")
-            badset = set(bad)
-            keep = np.array([(a not in badset) and (b not in badset) for a, b in zip(M["ii"], M["jj"])])
-            M = {k: v[keep] for k, v in M.items()}
-            redo = True
-        if redo:
-            for k, c in enumerate(cams):
-                c.R = R0[k].copy()                 # 센서 자세에서 깨끗이 다시 시작
-                if gid[k] in fix_f:
-                    c.f = float(f0g[gid[k]])
-                    c.k1 = 0.0
-            fix_k1 = True
-            if len(M["ii"]) >= 10:
-                e = ba(M, 40)
-            else:
+    if opts.no_ba:
+        rounds = []                                # 센서 회전만 (비교·대비책)
+    attempt = 0
+    while True:
+        restart = False
+        for rno, (tol, ratio) in enumerate(rounds):
+            prog(10 + rno * 25, f"{sid} 사진 짝 맞추는 중 ({rno + 1}/2)")
+            II, JJ, PA, PB = [], [], [], []
+            pair_stats = {}
+            for (i, j) in pairs:
+                r = guided_match(feats[i], feats[j], cams[i], cams[j], tol, ratio)
+                if r is None:
+                    continue
+                pa, pb = r
+                if len(pa) > opts.max_per_pair:
+                    sel = np.random.default_rng(i * 1000 + j).choice(len(pa), opts.max_per_pair, replace=False)
+                    pa, pb = pa[sel], pb[sel]
+                II.append(np.full(len(pa), i))
+                JJ.append(np.full(len(pa), j))
+                PA.append(pa)
+                PB.append(pb)
+                pair_stats[(i, j)] = len(pa)
+            if not II:
                 M = None
                 break
+            M = {"ii": np.concatenate(II), "jj": np.concatenate(JJ), "pa": np.concatenate(PA), "pb": np.concatenate(PB)}
+            prog(20 + rno * 25, f"{sid} 자세 맞추는 중 ({rno + 1}/2) — 짝 {len(pair_stats)}개")
+            few = len(pair_stats) < N
+            fix_k1 = few or opts.no_k1 or bool(fix_f)
+
+            def ba(M, iters):
+                return bundle_adjust(cams, R0, gid, M, F, sig_rot_deg=opts.sig_rot, f0=f0g, fix_k1=fix_k1, fix_f=tuple(sorted(fix_f)), iters=iters,
+                                     sig_k=0.2 if (f_ratio and f_ratio < 0.5) else 0.1, sig_f=opts.sig_f)
+            e = ba(M, 40)
+            # 이상치 빼고 한 번 더
+            keep = e < max(6.0, 4 * float(np.median(e)))
+            if keep.sum() < len(e):
+                M = {k: v[keep] for k, v in M.items()}
+                e = ba(M, 25)
+            # 안전장치: 초점이 초기값에서 너무 멀거나(몸을 축으로 돈 시차 등), 센서 자세에서 크게 벗어난 사진 → 되돌리고 다시
+            redo = False
+            for g in range(len(f0g)):
+                fr = cams[np.nonzero(gid == g)[0][0]].f / f0g[g]
+                k1g = cams[np.nonzero(gid == g)[0][0]].k1
+                k1_lim = 0.25 if (f_ratio and f_ratio < 0.5) else 0.06      # 초광각은 남은 왜곡이 클 수 있다
+                lo, hi = (1 - opts.ultra_band, 1 + opts.ultra_band) if ultra else (opts.f_lo, opts.f_hi)
+                if (not (lo <= fr <= hi) or abs(k1g) > k1_lim) and g not in fix_f:
+                    fixed_by_design = fixed_by_design or ultra             # 초광각의 좁은 띠는 예상된 일 — 등급을 깎지 않는다
+                    log(f"[{sid}] 초점 {fr:.3f}배·k1 {k1g:.3f} → 초기값으로 고정")
+                    fix_f.add(g)
+                    redo = True
+            if ultra and attempt == 0 and fix_f:          # 초광각이 띠를 벗어남 → 짝 맞추기부터 고정 초점으로 다시
+                restart = True
+                break
+            bad = [k for k in range(N) if rot_angle_deg(cams[k].R, R0[k]) > opts.max_fix]
+            n_reset += len(bad)
+            if bad:
+                log(f"[{sid}] 센서 자세에서 {opts.max_fix}° 넘게 벗어난 사진 {len(bad)}장 → 센서 자세로 되돌림")
+                badset = set(bad)
+                keep = np.array([(a not in badset) and (b not in badset) for a, b in zip(M["ii"], M["jj"])])
+                M = {k: v[keep] for k, v in M.items()}
+                redo = True
+            if redo:
+                for k, c in enumerate(cams):
+                    c.R = R0[k].copy()                 # 센서 자세에서 깨끗이 다시 시작
+                    if gid[k] in fix_f:
+                        c.f = float(f0g[gid[k]])
+                        c.k1 = 0.0
+                fix_k1 = True
+                if len(M["ii"]) >= 10:
+                    e = ba(M, 40)
+                else:
+                    M = None
+                    break
+        if restart:
+            attempt = 1
+            for k, c in enumerate(cams):
+                c.R = R0[k].copy()
+                c.f = float(f0g[gid[k]])
+                c.k1 = 0.0
+            fix_f = set(range(len(f0g)))
+            n_reset = 0
+            continue
+        break
     match_err = e if M is not None else np.zeros(0)
     linked = np.zeros(N, bool)
     if M is not None:
@@ -895,13 +1148,12 @@ def stitch_spot(src, spot, out_dir, opts, prog=lambda p, m: None):
 
     Wg = 1024
     gains = gain_compensation(imgs, [c.scaled(Wg / W) for c in cams], lambda c, a, b: roi_at(c, a, b), Wg, Wg // 2)
-    # 이음선 (2048 폭): 가운데 가중 × 다른 사진과 다르면 감점
+    # 이음선 (2048 폭)
     prog(62, f"{sid} 이음선 정하는 중")
     Ws = min(2048, W)
     Hs = Ws // 2
-    sstore = []
-    sum_g = np.zeros((Hs, Ws), np.float32)
-    cnt = np.zeros((Hs, Ws), np.float32)
+    v_floor = int(round(Hs * (0.5 + opts.floor_cut / 180.0))) if opts.floor_cut > 0 else Hs      # 이 행부터 아래는 비우고 메운다
+    st = []
     for k in range(N):
         cs = cams[k].scaled(Ws / W)
         r = roi_at(cs, Ws, Hs)
@@ -909,25 +1161,34 @@ def stitch_spot(src, spot, out_dir, opts, prog=lambda p, m: None):
             r = (0, Ws, r[2], r[3], True)
         small = cv2.resize(imgs[k], (cs.w, cs.h), interpolation=cv2.INTER_AREA)
         wimg, ok, wgt = warp_roi(small, cs, Ws, Hs, r)
-        g = cv2.cvtColor(apply_gain(wimg, gains[k]), cv2.COLOR_BGR2GRAY).astype(np.float32)
-        cols = np.arange(r[0], r[1]) % Ws
-        sstore.append((r, cols, g, ok, wgt))
-        sum_g[r[2]:r[3], cols] += np.where(ok, g, 0)
-        cnt[r[2]:r[3], cols] += ok
-    mean_g = sum_g / np.maximum(cnt, 1)
+        wimg = apply_gain(wimg, gains[k])
+        if r[3] > v_floor:
+            ok[max(0, v_floor - r[2]):] = False
+        st.append({"u0": r[0], "v0": r[2], "img": wimg, "g": cv2.cvtColor(wimg, cv2.COLOR_BGR2GRAY).astype(np.float32), "ok": ok, "wgt": wgt})
+    n_ghost = consensus_exclude(st, Ws, Hs) if opts.deghost else 0
+    # 가운데 가중 이음선 (DP 가 못 정한 곳의 대비책이자 비교용)
     best = np.full((Hs, Ws), -1.0, np.float32)
-    label_s = np.full((Hs, Ws), -1, np.int16)
-    for k, (r, cols, g, ok, wgt) in enumerate(sstore):
-        sub_mean = mean_g[r[2]:r[3], cols]
-        sub_cnt = cnt[r[2]:r[3], cols]
-        pen = np.where(sub_cnt >= 3, np.exp(-np.abs(cv2.GaussianBlur(g - sub_mean, (0, 0), 2)) / 25.0), 1.0)
-        wv = np.where(ok, wgt * pen + 1e-4, -1)
-        cur = best[r[2]:r[3], cols]
+    label_v = np.full((Hs, Ws), -1, np.int16)
+    for k, s_ in enumerate(st):
+        cols = roi_cols(s_, Ws)
+        rows = slice(s_["v0"], s_["v0"] + s_["ok"].shape[0])
+        wv = np.where(s_["ok"], s_["wgt"] + 1e-4, -1)
+        cur = best[rows, cols]
         better = wv > cur
-        best[r[2]:r[3], cols] = np.where(better, wv, cur)
-        lab = label_s[r[2]:r[3], cols]
-        label_s[r[2]:r[3], cols] = np.where(better, k, lab)
-    del sstore, sum_g, cnt, mean_g, best
+        best[rows, cols] = np.where(better, wv, cur)
+        label_v[rows, cols] = np.where(better, k, label_v[rows, cols])
+    del best
+    label_s = label_v
+    if opts.seams == "dp":
+        try:
+            label_s, _ = dp_seam_labels(st, Ws, Hs, label_v)
+        except Exception as e:                     # DP 가 실패하면 가운데 가중으로
+            log(f"[{sid}] DP 이음선 실패 → 가운데 가중: {e}")
+            label_s = label_v
+    flow_stats = {}
+    if opts.flow_align:
+        prog(66, f"{sid} 가까운 물체 맞추는 중")
+        flow_stats = flow_align_fields(st, label_s, Ws, Hs, max_flow=opts.flow_max * Ws / 2048.0)
     # 전체 해상도 합성
     prog(70, f"{sid} 합성 중 ({W}×{H})")
     Mw = 384
@@ -939,15 +1200,21 @@ def stitch_spot(src, spot, out_dir, opts, prog=lambda p, m: None):
     for k in range(N):
         r = image_roi(cams[k], W, H, 2, wrap_margin=Mw)
         u0, u1, v0, v1, full = r
-        wimg, ok, _ = warp_roi(imgs[k], cams[k], W, H, r, interp=cv2.INTER_CUBIC)
+        disp = disp_fullres(st[k], Ws, W, H, u0, u1, v0, v1) if opts.flow_align else None
+        wimg, ok, _ = warp_roi(imgs[k], cams[k], W, H, r, interp=cv2.INTER_CUBIC, disp=disp)
+        del disp
         wimg = apply_gain(wimg, gains[k])
         us = np.arange(u0, u1)
         vs = np.arange(v0, v1)
-        lab = label_s[(vs * Hs // H)[:, None], ((us % W) * Ws // W)[None, :]]
+        lab = label_s[np.minimum(Hs - 1, vs * Hs // H)[:, None], ((us % W) * Ws // W)[None, :]]
         # 이음선 지도는 Ws 해상도라 경계 화소가 이 사진 밖일 수 있다 → 조금 넓혀 이웃 사진도 그 화소를 맡게 한다
         dil = 2 * (W // Ws) + 1
         mask = cv2.dilate((lab == k).astype(np.uint8), np.ones((dil, dil), np.uint8))
         mask = ((mask > 0) & ok).astype(np.uint8) * 255
+        if opts.floor_cut > 0:
+            vf = int(round(H * (0.5 + opts.floor_cut / 180.0)))
+            if v1 > vf:
+                mask[max(0, vf - v0):] = 0
         if mask.any():
             for sh in (-W, 0, W):
                 a = u0 + sh + Mw
@@ -971,6 +1238,7 @@ def stitch_spot(src, spot, out_dir, opts, prog=lambda p, m: None):
         mstore[k] = (su0 // 2, v0 // 2, g.astype(np.float32), okh)
         del wimg, ok, mask
         prog(70 + 18 * (k + 1) / N, f"{sid} 합성 중 {k + 1}/{N}")
+    del st
     res, rmask = blender.blend(None, None)
     eq = np.clip(res[:, Mw:Mw + W], 0, 255).astype(np.uint8)
     covered = rmask[:, Mw:Mw + W] > 0
@@ -987,7 +1255,7 @@ def stitch_spot(src, spot, out_dir, opts, prog=lambda p, m: None):
         os.makedirs(os.path.join(out_dir, sid), exist_ok=True)
         cv2.imwrite(os.path.join(out_dir, sid, "debug_covered.png"), cv2.resize(covered.astype(np.uint8) * 255, (1024, 512), interpolation=cv2.INTER_AREA))
     # 구멍 메우기
-    eq, nadir_r = fill_pole(eq, covered, "nadir", opts.nadir, opts.nadir_radius)
+    eq, nadir_r = fill_pole(eq, covered, "nadir", opts.nadir, opts.nadir_radius, cut_deg=(90 - opts.floor_cut) if opts.floor_cut > 0 else 0)
     zen_hole = not covered[: max(1, H // 18)].all()
     if zen_hole:
         eq, _ = fill_pole(eq, covered, "zenith", "blur", 0)
@@ -1008,16 +1276,18 @@ def stitch_spot(src, spot, out_dir, opts, prog=lambda p, m: None):
         vis[label_s < 0] = 0
         cv2.imwrite(os.path.join(d_spot, "debug_labels.png"), vis)
     me = match_err * scale_err
-    # 등급 (계약 4절): 8192 폭 px 기준을 출력 폭에 비례. 안전장치가 작동했으면(초점 고정·사진 되돌림 2장 이상) 나쁨
-    k8 = W / 8192.0
-    smed = s_med if s_med is not None else (float(np.median(me)) if len(me) else 99)
-    sp = s_p90 if s_p90 is not None else (float(np.percentile(me, 90)) if len(me) else 99)
+    # 등급 (계약 4절, 2026-11-12 실기기로 다시 맞춤): 이음선 어긋남을 각도로.
+    # good: 중앙값 ≤ 0.25° · p90 ≤ 1° / fair: ≤ 1° · ≤ 5° (가까운 물체 몇 군데 끊김은 있어도 겹쳐 보이지 않음) / 나머지 poor.
+    # 안전장치(초점이 엉뚱해 고정·사진 2장 이상 되돌림)가 작동하면 poor
+    deg = 360.0 / W
+    smed = (s_med if s_med is not None else (float(np.median(me)) if len(me) else 1e3)) * deg
+    sp = (s_p90 if s_p90 is not None else (float(np.percentile(me, 90)) if len(me) else 1e3)) * deg
     grade = "poor"
-    if smed <= 2.5 * k8 and sp <= 8 * k8 and coverage >= 0.98:
+    if smed <= 0.25 and sp <= 1.0 and coverage >= 0.98:
         grade = "good"
-    elif smed <= 5 * k8 and sp <= 20 * k8 and coverage >= 0.93:
+    elif smed <= 1.0 and sp <= 5.0 and coverage >= 0.93:
         grade = "fair"
-    if fix_f or n_reset >= 2:
+    if (fix_f and not fixed_by_design) or n_reset >= 2:
         grade = "poor"
     ypr = [R_to_ypr(c.R) for c in cams]
     rot_change = [rot_angle_deg(cams[k].R, R0[k]) for k in range(N)]
@@ -1030,7 +1300,8 @@ def stitch_spot(src, spot, out_dir, opts, prog=lambda p, m: None):
         "focal_px": [round(float(f), 1) for f in sorted({round(c.f * (keys[gid[k]][0] / c.w), 3) for k, c in enumerate(cams)})],
         "sensor_fix_deg_med": round(float(np.median(rot_change)), 2), "sensor_fix_deg_max": round(float(np.max(rot_change)), 2),
         "nadir_deg": round(nadir_r, 1),
-        "guards": (["focal_fixed"] if fix_f else []) + ([f"reset_{n_reset}"] if n_reset else []),
+        "seam_deg_med": round(smed, 2), "seam_deg_p90": round(sp, 2),
+        "guards": (["focal_fixed"] if (fix_f and not fixed_by_design) else []) + ([f"reset_{n_reset}"] if n_reset else []),
     }
     report = {
         "id": sid, "width": W, "height": H, "seconds": round(time.time() - t0, 1), "quality": quality,
@@ -1081,15 +1352,25 @@ def main(argv=None):
     ap.add_argument("--spots", default="", help="일부 지점만 (쉼표)")
     ap.add_argument("--title", default="")
     ap.add_argument("--quality", type=int, default=90)
-    ap.add_argument("--bands", type=int, default=5)
+    ap.add_argument("--bands", type=int, default=5, help="다중대역 합성 단계")
+    ap.add_argument("--seams", choices=("voronoi", "dp"), default="voronoi", help="voronoi = 사진 가운데 가중(기본). dp = 차이가 적은 곳으로 (실촬영에선 물체가 두 번 나와 기본 아님)")
+    ap.add_argument("--no-flow-align", dest="flow_align", action="store_false", help="이음선 근처 광류 국소 정합 끄기")
+    ap.add_argument("--flow-max", type=float, default=25.0, help="광류 정합으로 한 사진을 옮기는 최대 거리 (2048 폭 px, 25 ≈ 4.4°)")
+    ap.add_argument("--deghost", action="store_true", help="3장 이상 겹친 곳에서 혼자 다른 화소(지나간 사람) 빼기 — 시차가 큰 촬영에선 해로워 기본 끔")
+    ap.add_argument("--floor-cut", type=float, default=62.0, help="이 위도(°, 아래쪽) 아래는 촬영자 몸·발이 찍히므로 비우고 메운다. 0 = 끔")
     ap.add_argument("--features", type=int, default=2500)
     ap.add_argument("--work-long", type=int, default=1280, help="특징점 찾을 때 긴 변 (px)")
     ap.add_argument("--f0-ratio", type=float, default=0.78, help="초점 초기값 = 긴 변 × 이 값 (폰 기본 카메라 ≈ 26 mm)")
     ap.add_argument("--sig-rot", type=float, default=5.0, help="센서 자세 사전값 표준편차 (°)")
-    ap.add_argument("--tol1", type=float, default=8.0, help="1차 짝 예측 반경 (°)")
-    ap.add_argument("--tol2", type=float, default=2.5, help="2차 짝 예측 반경 (°)")
+    ap.add_argument("--tol1", type=float, default=5.0, help="1차 짝 예측 반경 (°). 좁을수록 시차 큰 가까운 물체·반복 무늬의 잘못된 짝이 준다")
+    ap.add_argument("--tol2", type=float, default=2.0, help="2차 짝 예측 반경 (°)")
     ap.add_argument("--max-per-pair", type=int, default=400)
     ap.add_argument("--no-k1", action="store_true")
+    ap.add_argument("--sig-f", type=float, default=0.15, help="초점 사전값 표준편차 (log). 렌즈 초점비를 아는 기기면 작게")
+    ap.add_argument("--no-ba", action="store_true", help="묶음 조정 없이 센서 회전만 쓴다 (비교용)")
+    ap.add_argument("--f-ratio-free", action="store_true", help="초광각도 기본 렌즈처럼 ±10 % 안에서 초점을 잰다")
+    ap.add_argument("--ultra-band", type=float, default=0.03, help="초광각 초점이 기기 초점비에서 이만큼 넘게 벗어나면 고정 (시차 흡수 방지)")
+    ap.add_argument("--f-ratio", type=float, default=None, help="초점 초기값 = 긴 변 × 이 값 (spots.json cam.f_ratio 보다 우선)")
     ap.add_argument("--f-lo", type=float, default=0.90, help="초점이 초기값의 이 배수보다 작아지면 초기값으로 고정")
     ap.add_argument("--f-hi", type=float, default=1.10)
     ap.add_argument("--max-fix", type=float, default=12.0, help="센서 자세에서 이만큼(°) 넘게 벗어난 사진은 센서 자세로 되돌린다")
