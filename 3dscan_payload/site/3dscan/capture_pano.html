@@ -1081,7 +1081,7 @@ button{font-family:inherit}
     var land = !SIM && (screenAngle() === 90 || screenAngle() === 270);
     $('camRot').hidden = !land || !Cap.spot;
     var R = O.R, s = srcSize();
-    if (!R || !s[0]) { if (C.open && !R && !SIM && now - (Cap.noR || (Cap.noR = now)) > 2500) camMsg('방향 센서 값이 오지 않습니다 — 설정 > Safari > 동작 및 방향 접근을 켜 주세요', 'warn'); return; }
+    if (!R || !s[0]) { if (C.open && !R && !SIM && now - (Cap.noR || (Cap.noR = now)) > 2500) camMsg('방향 센서 값이 오지 않아요 — Safari를 완전히 닫았다가(앱 전환 화면에서 위로 밀기) 다시 열고, 시작을 누른 뒤 ‘동작 및 방향 접근’ 창에서 ‘허용’을 눌러 주세요', 'warn'); return; }
     Cap.noR = 0;
     if (now - Live.t > 110) { Live.t = now; liveMeasure(); }
     var sc = Math.max(W / s[0], H / s[1]), F = fpx(s[0], s[1]) * sc, cx = W / 2, cy = H / 2;
@@ -1813,7 +1813,7 @@ button{font-family:inherit}
     var mp = askMotion();
     var cp = camOpen();
     mp.then(function (ok) {
-      if (!ok) { camMsg('동작·방향 권한이 필요합니다. 설정 > Safari > 동작 및 방향 접근을 켜고 다시 시도하세요', 'warn'); return; }
+      if (!ok) { camMsg('‘동작 및 방향’ 접근이 꺼져 있어요. 아이폰은 한 번 ‘취소’하면 Safari를 다시 열 때까지 다시 묻지 않습니다 → Safari를 완전히 닫았다가(앱 전환 화면에서 위로 밀기) 다시 열고, 시작을 누르면 뜨는 창에서 ‘허용’을 눌러 주세요. (또는 설정 → 앱 → Safari → 고급 → 웹 사이트 데이터에서 kgeodata.com 삭제)', 'warn'); return; }
       startOrient();
       return Promise.resolve(cp).catch(function () { }).then(function () {
         preShoot(function () {
