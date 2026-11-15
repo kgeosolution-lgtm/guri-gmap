@@ -12,7 +12,7 @@ POST /app/3dupload/upload.py  (multipart/form-data)
   mode=pano (VR 투어, docs/pano_contract.md 1절): pano_file (pano_spots.zip: spots.json + sNN/NNNN.jpg), lon, lat (필수),
              spot_count, shot_count (참고). 서버가 지점마다 360° 등장방형을 만든다 (pipeline → worker/pano_stitch.py)
 
-  공개 범위(모든 모드, docs/share_contract.md 1절): visibility = public | link(기본) | private
+  공개 범위(모든 모드, docs/share_contract.md 1절): visibility = public(기본, 2026-11-13) | link | private
              link·private 은 지도(scan_points)·최근 목록에 나오지 않고 링크(?job=)로만 연다
 
 응답: {"job_id": "...", "visibility": "...", "edit_key": "..."}  또는 {"error": "..."}
@@ -270,7 +270,7 @@ def main():
         else:
             area = area or {"mode": 1, "surface": "floor"}   # LiDAR 녹화만: 위에서 본 정사영상·깊이 지도
     permit = parse_permit(fields)
-    visibility = (fields.get("visibility") or "link").strip().lower()
+    visibility = (fields.get("visibility") or "public").strip().lower()   # 2026-11-13 사용자: 기본 공개
     if visibility not in VISIBILITIES:
         return respond({"error": "visibility 는 public, link, private 중 하나"}, "400 Bad Request")
 

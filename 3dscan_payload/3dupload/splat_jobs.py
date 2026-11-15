@@ -649,6 +649,28 @@ def op_status(cfg, job_id):
     respond(splat_summary(q, meta))
 
 
+def op_recent(cfg, n):
+    """운영 점검용 (워커 토큰 필요): 공개 범위와 상관없이 최근 작업 요약. 관리 키·경로·좌표는 내보내지 않는다 (2026-11-13)"""
+    try:
+        n = max(1, min(50, int(n or 20)))
+    except ValueError:
+        n = 20
+    jd = cfg["jobs_dir"]
+    rows = []
+    for name in os.listdir(jd):
+        if not name.endswith(".json"):
+            continue
+        try:
+            with open(os.path.join(jd, name), "r", encoding="utf-8") as f:
+                q = json.load(f)
+        except (OSError, ValueError):
+            continue
+        rows.append({k: q.get(k) for k in ("job_id", "title", "mode", "scan_type", "status", "step", "message", "visibility",
+                                           "splat_status", "pano_status", "trench_post", "kind", "created_at", "updated_at")})
+    rows.sort(key=lambda r: str(r.get("updated_at") or r.get("created_at") or ""), reverse=True)
+    respond({"jobs": rows[:n], "total": len(rows)})
+
+
 def main():
     cfg = load_config()
     err = check_token(cfg)
@@ -659,6 +681,8 @@ def main():
     method = os.environ.get("REQUEST_METHOD", "GET")
     if op == "list":
         return op_list(cfg)
+    if op == "recent":
+        return op_recent(cfg, p.get("n"))
     job_id = safe_job_id(p.get("job_id"))
     if not job_id:
         return respond({"error": "job_id 형식 오류"}, "400 Bad Request")

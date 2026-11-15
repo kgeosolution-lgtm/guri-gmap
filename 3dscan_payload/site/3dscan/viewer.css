@@ -1115,3 +1115,40 @@ body { height:100vh; height:100dvh; }
 .lp-mine-item select { font-size: 11px; background: var(--s2); color: var(--text2); border: 1px solid var(--border2); border-radius: 4px; padding: 1px 2px; }
 .lp-mine-item .st { font-size: 10px; color: var(--text3); white-space: nowrap; }
 .lp-mine-item button { font-size: 11px; background: transparent; border: 1px solid var(--border2); color: var(--text3); border-radius: 4px; cursor: pointer; padding: 1px 5px; }
+
+/* ════ 시작 화면 (2026-11-13) — 들어가면 무엇을 할지 고른다. 기존 색 토큰 사용 ════ */
+.start-sheet { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center;
+  background: rgba(8, 11, 15, .88); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  overflow-y: auto; }
+.start-sheet[hidden] { display: none !important; }
+body.start-open { overflow: hidden; }
+.start-box { width: min(880px, 100%); max-height: 100%; overflow-y: auto; background: var(--s1); border: 1px solid var(--border2);
+  border-radius: 16px; padding: 22px 22px 16px; box-shadow: 0 20px 60px rgba(0, 0, 0, .5); }
+.start-head { margin-bottom: 16px; }
+.start-logo { display: flex; align-items: center; gap: 8px; color: var(--accent); font-weight: 700; font-size: 13px; letter-spacing: .04em; }
+.start-logo .logo-pulse { position: static; }
+.start-head h1 { font-size: 22px; color: var(--text); margin: 8px 0 4px; text-wrap: balance; }
+.start-head p { color: var(--text2); font-size: 13.5px; line-height: 1.5; }
+.start-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+.start-card { display: flex; align-items: center; gap: 14px; min-height: 76px; padding: 14px 16px; text-align: left;
+  background: var(--s2); border: 1px solid var(--border2); border-radius: 12px; color: var(--text); text-decoration: none;
+  font: inherit; cursor: pointer; transition: border-color .15s, background .15s, transform .1s; }
+.start-card:hover, .start-card:focus-visible { border-color: var(--accent); background: var(--s3); outline: none; }
+.start-card:active { transform: scale(.985); }
+.start-card[hidden] { display: none !important; }
+.start-card .si { font-size: 26px; width: 38px; text-align: center; flex: none; }
+.start-card .st { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.start-card b { font-size: 15px; }
+.start-card small { color: var(--text2); font-size: 12.5px; line-height: 1.4; }
+.start-card.map { border-color: rgba(56, 189, 248, .45); }
+.start-skip { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 14px; color: var(--text2); font-size: 13px; cursor: pointer; }
+.start-skip small { color: var(--text3); }
+@media (max-width: 560px) {
+  .start-box { padding: 18px 14px 12px; border-radius: 14px; }
+  .start-head h1 { font-size: 20px; }
+  .start-grid { grid-template-columns: 1fr; gap: 8px; }
+  .start-card { min-height: 64px; padding: 12px 14px; }
+}
+/* 좁은 휴대폰: 머리줄 단추가 두 줄로 깨지지 않게 '📷 폰으로 촬영'은 ☰ 시작 화면으로 대신한다 */
+@media (max-width: 480px) { #btnCapture { display: none !important; } #btnStart { padding-left: 10px; padding-right: 10px; } }

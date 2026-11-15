@@ -315,8 +315,8 @@ button{font-family:inherit}
     <input class="inp" id="note" maxlength="500" placeholder="예: 84㎡ · 남향 · 2026년 11월 촬영">
     <div class="lbl">공개 범위</div>
     <div class="vis" id="visBox" role="radiogroup" aria-label="공개 범위">
-      <label class="visopt"><input type="radio" name="vis" value="link" checked><span><b>🔗 링크 공유</b><small>링크를 받은 사람만 봅니다. 지도·목록에는 나오지 않아요.</small></span></label>
-      <label class="visopt"><input type="radio" name="vis" value="public"><span><b>🌐 공개</b><small>지도와 목록에 나와 누구나 볼 수 있어요.</small></span></label>
+      <label class="visopt"><input type="radio" name="vis" value="public" checked><span><b>🌐 공개</b><small>지도와 목록에 나와 누구나 볼 수 있어요.</small></span></label>
+      <label class="visopt"><input type="radio" name="vis" value="link"><span><b>🔗 링크 공유</b><small>링크를 받은 사람만 봅니다. 지도·목록에는 나오지 않아요.</small></span></label>
       <label class="visopt"><input type="radio" name="vis" value="private"><span><b>🔒 비공개</b><small>관리 링크가 있는 나만 볼 수 있어요.</small></span></label>
     </div>
     <!-- 얼굴 흐림 선택: 서버에 얼굴 모델(worker/models/face_detection_yunet_2023mar.onnx)이 배포된 뒤 hidden 을 뗀다 (그 전엔 약속할 수 없음) -->
@@ -2137,7 +2137,7 @@ button{font-family:inherit}
   function uploadFail(msg) { if (!S.uploading) return; uploadEnd(); $('prog').hidden = true; var e = $('upErr'); e.hidden = false; e.textContent = '✕ ' + msg; }
   /* ── 공개 범위·관리 키 (docs/share_contract.md 1·2절): 키는 이 기기 localStorage['kgeo_keys'] 에만 둔다 (capture.html 과 같음) ── */
   var KEYS_KEY = 'kgeo_keys', MAIN_VIEWER = '/app/3dscan/', VIS_LABEL = { link: '🔗 링크 공유', public: '🌐 공개', private: '🔒 비공개' };
-  function visChoice() { var r = document.querySelector('input[name="vis"]:checked'); return r ? r.value : 'link'; }
+  function visChoice() { var r = document.querySelector('input[name="vis"]:checked'); return r ? r.value : 'public'; }
   function editKeys() { var o = lsGet(KEYS_KEY, {}); return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {}; }
   function saveEditKey(job, key) { var o = editKeys(); o[job] = key; lsSet(KEYS_KEY, o); }
   function manageUrl(job) { var k = editKeys()[job]; return location.origin + MAIN_VIEWER + '?job=' + encodeURIComponent(job) + (k ? '#key=' + encodeURIComponent(k) : ''); }

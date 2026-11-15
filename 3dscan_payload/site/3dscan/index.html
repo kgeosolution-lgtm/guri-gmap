@@ -20,7 +20,7 @@
 <!-- JSZip 은 ArcGIS 로더(AMD define)보다 먼저 읽어야 한다. 뒤에 두면 multipleDefine 으로 지도가 멈춤 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://js.arcgis.com/4.30/"></script>
-<link rel="stylesheet" href="viewer.css?v=414ff47ca0">
+<link rel="stylesheet" href="viewer.css?v=abc77d4c07">
 <style>
 /* 포커스 outline 제거 - ArcGIS 포함 */
 *, *:focus, *:active { outline: none !important; box-shadow: none !important; }
@@ -76,6 +76,26 @@ canvas { display: block; }
 <script src="/app/protect.js"></script></head>
 <body>
 
+<!-- ════ 시작 화면 (2026-11-13 사용자: "들어가면 골라 갈 수 있게") — viewer.js 의 openStart() ════ -->
+<div id="startSheet" class="start-sheet" hidden>
+  <div class="start-box" role="dialog" aria-modal="true" aria-labelledby="startTitle">
+    <div class="start-head">
+      <div class="start-logo"><span class="logo-pulse"></span>kgeoScan</div>
+      <h1 id="startTitle">무엇을 할까요?</h1>
+      <p>휴대폰만으로 찍어 3D·VR 투어·굴착 기록을 만들고, 지도에서 봅니다.</p>
+    </div>
+    <div class="start-grid">
+      <button type="button" class="start-card map" data-go="map"><span class="si">🗺</span><span class="st"><b>지도에서 기록 보기</b><small>올라온 3D·VR 투어·굴착 기록을 지도와 목록으로</small></span></button>
+      <a class="start-card" href="capture.html?trench=0"><span class="si">✦</span><span class="st"><b>3D 촬영</b><small>걸으며 영상·사진 → 공간·현장 3D</small></span></a>
+      <a class="start-card" href="capture_pano.html"><span class="si">🥽</span><span class="st"><b>VR 투어 촬영</b><small>제자리에서 두 바퀴 → 360° 매물 투어</small></span></a>
+      <a class="start-card" href="capture.html?trench=1"><span class="si">⛏</span><span class="st"><b>굴착 기록</b><small>드러난 관 → 위치·깊이·조서·DXF</small></span></a>
+      <button type="button" class="start-card" data-go="upload"><span class="si">📡</span><span class="st"><b>LiDAR 앱 스캔 올리기</b><small>kgeoScan 앱·Stray 녹화 zip</small></span></button>
+      <button type="button" class="start-card" data-go="mine" id="startMine" hidden><span class="si">📁</span><span class="st"><b>내 기록 <span id="startMineN"></span></b><small>이 기기에서 올린 기록 (링크 공유·비공개 포함)</small></span></button>
+    </div>
+    <label class="start-skip"><input type="checkbox" id="startSkip"> 다음부터 바로 지도 보기 <small>(위쪽 ☰ 시작 으로 언제든 다시 열 수 있어요)</small></label>
+  </div>
+</div>
+
 <!-- ════ HEADER ════ -->
 <header>
   <div class="logo">
@@ -85,6 +105,7 @@ canvas { display: block; }
   <div class="sep"></div>
   <div class="header-sub">LiDAR · 3D Scan Viewer</div>
   <div class="header-right">
+    <button type="button" class="hbtn" id="btnStart" onclick="openStart()" title="시작 화면 — 촬영·업로드·지도 보기 고르기">☰ 시작</button>
     <a class="hbtn" id="btnCapture" href="capture.html" style="text-decoration:none" title="LiDAR 없이 아무 폰 카메라로 — 사진 여러 장 또는 영상으로 3D 현장조사">📷 폰으로 촬영</a>
     <div id="uploadBtnWrap">
       <button class="hbtn primary" id="btnUpload" onclick="openModal()">
@@ -467,6 +488,6 @@ canvas { display: block; }
   <div class="toast-step" id="tStep"></div>
 </div>
 
-<script src="viewer.js?v=5c07df28ad"></script>
+<script src="viewer.js?v=5b06faaa8e"></script>
 </body>
 </html>

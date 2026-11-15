@@ -262,8 +262,8 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
     <textarea class="inp" id="note" maxlength="500" rows="2" placeholder="공사명, 관 종류, 특이사항"></textarea>
     <label class="lbl">공개 범위</label>
     <div class="vis" id="visBox" role="radiogroup" aria-label="공개 범위">
-      <label class="visopt"><input type="radio" name="vis" value="link" checked><span><b>🔗 링크 공유</b><small>링크를 받은 사람만 봅니다. 지도·목록에는 나오지 않아요.</small></span></label>
-      <label class="visopt"><input type="radio" name="vis" value="public"><span><b>🌐 공개</b><small>지도와 목록에 나와 누구나 볼 수 있어요.</small></span></label>
+      <label class="visopt"><input type="radio" name="vis" value="public" checked><span><b>🌐 공개</b><small>지도와 목록에 나와 누구나 볼 수 있어요.</small></span></label>
+      <label class="visopt"><input type="radio" name="vis" value="link"><span><b>🔗 링크 공유</b><small>링크를 받은 사람만 봅니다. 지도·목록에는 나오지 않아요.</small></span></label>
       <label class="visopt"><input type="radio" name="vis" value="private"><span><b>🔒 비공개</b><small>관리 링크가 있는 나만 볼 수 있어요.</small></span></label>
     </div>
   </section>
@@ -441,7 +441,7 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
   function emit(type, extra) { try { document.dispatchEvent(new CustomEvent('kgeoar', { detail: Object.assign({ type: type }, extra || {}) })); } catch (e) { } }
   /* ── 공개 범위·관리 키 (docs/share_contract.md 1·2절): 키는 이 기기 localStorage['kgeo_keys'] 에만 둔다 ── */
   var KEYS_KEY = 'kgeo_keys', VIS_LABEL = { link: '🔗 링크 공유', public: '🌐 공개', private: '🔒 비공개' };
-  function visChoice() { var r = document.querySelector('input[name="vis"]:checked'); return r ? r.value : 'link'; }
+  function visChoice() { var r = document.querySelector('input[name="vis"]:checked'); return r ? r.value : 'public'; }
   function editKeys() { var o = lsGet(KEYS_KEY, {}); return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {}; }
   function saveEditKey(job, key) { var o = editKeys(); o[job] = key; lsSet(KEYS_KEY, o); }
   function keyHeaders(job) { var k = editKeys()[job]; return k ? { headers: { 'X-Edit-Key': k } } : null; }

@@ -1869,3 +1869,50 @@ async function renderMine() {
     }).catch(() => { row.querySelector(".st").textContent = "확인 실패"; });
   }
 }
+
+/* ════ 시작 화면 (2026-11-13 사용자: "들어가면 골라 갈 수 있게") ════
+   ?job= 같은 바로가기 주소로 들어왔거나 '다음부터 바로 지도 보기'를 켰으면 띄우지 않는다. 위쪽 ☰ 시작 으로 다시 연다 */
+(function () {
+  const SKIP_KEY = "kgeo_start_skip";
+  const sheet = document.getElementById("startSheet");
+  if (!sheet) return;
+  const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const lsSet = (k, v) => { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} };
+  const mineCount = () => { try { return Object.keys(loadEditKeys()).length; } catch (e) { return 0; } };
+  window.openStart = function () {
+    const n = mineCount(), m = document.getElementById("startMine"), s = document.getElementById("startMineN");
+    if (m) m.hidden = !n;
+    if (s) s.textContent = n ? `(${n})` : "";
+    const cb = document.getElementById("startSkip");
+    if (cb) cb.checked = lsGet(SKIP_KEY) === "1";
+    sheet.hidden = false;
+    document.body.classList.add("start-open");
+  };
+  function closeStart() { sheet.hidden = true; document.body.classList.remove("start-open"); }
+  function openListPanel() {
+    const panel = document.getElementById("listPanel");
+    if (panel && panel.classList.contains("collapsed") && typeof window.toggleListPanel === "function") window.toggleListPanel();
+  }
+  sheet.addEventListener("click", e => {
+    if (e.target === sheet) { closeStart(); return; }
+    const b = e.target.closest("[data-go]");
+    if (!b) return;
+    const go = b.getAttribute("data-go");
+    closeStart();
+    if (go === "upload" && typeof window.openModal === "function") window.openModal();
+    else if (go === "upload" && typeof openModal === "function") openModal();
+    else if (go === "mine") {
+      openListPanel();
+      const box = document.getElementById("lpMine");
+      if (box) setTimeout(() => box.scrollIntoView({ behavior: "smooth", block: "start" }), 250);
+    } else if (go === "map" && window.matchMedia("(max-width: 768px)").matches) {
+      // 휴대폰: 지도부터 보이고 목록은 왼쪽 ▸ 로 연다 (그대로 둠)
+    }
+  });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && !sheet.hidden) closeStart(); });
+  const cb = document.getElementById("startSkip");
+  if (cb) cb.addEventListener("change", () => lsSet(SKIP_KEY, cb.checked ? "1" : null));
+  const p = new URLSearchParams(location.search);
+  const deep = ["job", "type", "site", "site_id", "oid", "id"].some(k => p.has(k)) || location.hash.length > 1;
+  if (!deep && lsGet(SKIP_KEY) !== "1") window.openStart();
+})();
