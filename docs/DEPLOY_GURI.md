@@ -241,15 +241,15 @@ PC 에서도 1·2·6·7·8 을 한 번 더.
 
 ## 7. GitHub 에서 할 일 (언제·무엇)
 
-| 언제                        | 파일                                                               | 할 일                                                                |
-| --------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------- |
-| 지금(완료)                  | `deploy.guri.json`, `scripts/build-deploy.mjs`, `package.json`     | 구리 빌드 명령 `npm run build:guri`(주소·사진·위젯 제거·zip) — 이 PR |
-| 키를 새로 발급했을 때만     | `public/maps/aerial.html` `NGII.apiKey` / `VW.key` / `KAKAO.jsKey` | 값 교체 후 PR → 다시 빌드. 도메인만 추가했으면 수정 없음             |
-| 사진을 구리 서버로 옮기면서 | `public/images/pet/`                                               | Git 에 올리지 않음(`.gitignore`). 로컬에 복사만                      |
-| 12월 동네소식 공개 때       | `src/config/site.config.ts` `features.newsHub`                     | `true` → 빌드·배포                                                   |
-| 유기동물 찾기 공개 때(내년) | `src/config/site.config.ts` `features.animalMap`                   | `true`                                                               |
-| 옮긴 뒤(선택)               | `public/maps/aerial.html` `cadastreUrl`                            | 연속지적도를 구리 서버에 게시하면 주소 교체                          |
-| 건드리지 않음               | `deploy.config.json`, `.github/workflows/guri-preview.yml`         | kgeodata 미리보기 자동 배포용. 구리 운영과 분리                      |
+| 언제                        | 파일                                                               | 할 일                                                                                  |
+| --------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| 지금(완료)                  | `deploy.guri.json`, `scripts/build-deploy.mjs`, `package.json`     | 구리 빌드 명령 `npm run build:guri`(주소·사진·위젯 제거·zip) — 이 PR                   |
+| 키를 새로 발급했을 때만     | `public/maps/aerial.html` `NGII.apiKey` / `VW.key` / `KAKAO.jsKey` | 값 교체 후 PR → 다시 빌드. 도메인만 추가했으면 수정 없음                               |
+| 사진을 구리 서버로 옮기면서 | `public/images/pet/`                                               | Git 에 올리지 않음(`.gitignore`). 로컬에 복사만                                        |
+| 12월 동네소식 공개 때       | `src/config/site.config.ts` `features.newsHub`                     | `true` → 빌드·배포                                                                     |
+| 유기동물 찾기 공개 때(내년) | `src/config/site.config.ts` `features.animalMap`                   | `true`                                                                                 |
+| 완료(2026-11-16)            | `public/maps/aerial.html` `cadastreUrl`                            | 연속지적도를 구리 포털 호스팅(`LSMD_CONT_LDREG_41310`)으로 교체함 — kgeodata 의존 없음 |
+| 건드리지 않음               | `deploy.config.json`, `.github/workflows/guri-preview.yml`         | kgeodata 미리보기 자동 배포용. 구리 운영과 분리                                        |
 
 ## 8. 이후 운영 (수정이 생겼을 때)
 

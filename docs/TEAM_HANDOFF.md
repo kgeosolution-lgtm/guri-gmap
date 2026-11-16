@@ -1093,3 +1093,9 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - `deploy.guri.json`(origin `https://www.guri.go.kr`, base `/gmapweb`, photoBase `/images/pet/`, reviewWidget false, zip true) + `scripts/build-deploy.mjs --config`: 검토 위젯 제거(홈은 `NEXT_PUBLIC_REVIEW_WIDGET=0` 로 layout 에서 안 넣음, 지도 4쪽은 shell:review 표식 제거, `review/` 폴더 삭제, 남아 있으면 빌드 실패), `deployment.json` commit 을 git 에서, `dist/gmapweb-날짜-커밋.zip`(루트에 내용, Windows 는 PowerShell Compress-Archive). `deploy.config.json`·site.config·미리보기 워크플로는 그대로.
 - `docs/DEPLOY_GURI.md` 전면 재작성: 결정 사항(주소 /gmapweb, 포털 zip 전달), 전체 순서 표(①~⑨), 12.1 오픈 방식 A/B 에 따른 마지막 단계, GitHub 에서 할 일 표.
 - 검증: `npm run build:guri`(사진 더미 포함) → 위젯 0건·`review/` 없음·zip 214 파일(루트에 index.html)·url·commit 확인, `npm run build:deploy` 는 그대로(위젯 포함), `tsc`, prettier, `git diff --check`. 브랜치 `work/kangmina-build-guri`.
+
+## 2026-11-16 항공사진 비교 연속지적도를 구리 포털 호스팅 서비스로 교체 (담당: 강민아)
+
+- 담당자가 연속지적도를 구리 포털에 게시(`Hosted/LSMD_CONT_LDREG_41310/FeatureServer`) → `aerial.html` `CITY.cadastreUrl` 을 그 주소(`/0`)로. 층 번호는 `resolveCadastreUrl` 이 폴리곤 층으로 맞추고, 지번·PNU 필드명은 `cadastreDef` 가 자동 탐색(표준 LSMD 필드 `JIBUN`·`PNU` 포함). PNU 가 문자 항목이면 `41310%` 로 구리시 필지만, 아니면 시 경계 클립만.
+- 이로써 kgeodata.com 의존은 미리보기용 사진 주소(`photoBase`)뿐. `docs/DEPLOY_GURI.md` 7장 표 갱신.
+- 검증: aerial `node --check`, `npm run build:deploy`, `git diff --check` 통과. 실제 지적도 표시는 미리보기 배포 후 담당자 확인 필요(서비스 공개 여부 포함). 브랜치 `work/kangmina-cadastre-guri`.

@@ -269,8 +269,9 @@ const CITY={
   dongUrl:"https://www.guri.go.kr/gmapsvr/rest/services/Hosted/%ED%96%89%EC%A0%95%EB%8F%99%EA%B2%BD%EA%B3%84/FeatureServer/0",
   dongNameField:'adm_dr_nm',
   sggCode:'41310',   /* 구리시 시군구 코드 — 지적도 PNU 앞 5자리로 구리시 필지만 고른다 */
-  /* 연속지적도(kgeodata ArcGIS Server, 사이트와 같은 서버) — 선만 그리고 지번을 크게 쓴다 */
-  cadastreUrl:'https://kgeodata.com/server/rest/services/Hosted/%EC%97%B0%EC%86%8D%EC%A7%80%EC%A0%81%EB%8F%84%ED%98%95%EC%A0%95%EB%B3%B4_20260208/FeatureServer/0',
+  /* 연속지적도(구리시 포털 호스팅, 2026-11-16 게시 LSMD_CONT_LDREG_41310 — 전엔 kgeodata ArcGIS Server) — 선만 그리고 지번을 크게 쓴다.
+   * 층 번호(/0)는 resolveCadastreUrl 이 서비스 목록을 보고 폴리곤 층으로 맞춘다. 필드명(지번·PNU)은 cadastreDef 가 자동으로 찾는다 */
+  cadastreUrl:'https://www.guri.go.kr/gmapsvr/rest/services/Hosted/LSMD_CONT_LDREG_41310/FeatureServer/0',
   vworldKey:""   /* 공식 브이월드 키 발급 시 입력 (테마지도와 동일) */
 };
 
@@ -808,7 +809,7 @@ function wfsUrl(type,rb,max){
 function xyToLL(x,y){ const ll=WMU? WMU.xyToLngLat(x,y) : [x/6378137*180/Math.PI,(2*Math.atan(Math.exp(y/6378137))-Math.PI/2)*180/Math.PI]; return [ll[0],ll[1]]; }
 function toLngLatDeep(c){ if(typeof c[0]==='number') return xyToLL(c[0],c[1]); return c.map(toLngLatDeep); }
 function geojsonToWgs84(j){ (j.features||[]).forEach(f=>{ if(f.geometry&&f.geometry.coordinates) f.geometry.coordinates=toLngLatDeep(f.geometry.coordinates); }); delete j.crs; return j; }
-/* 연속지적도: kgeodata 서비스를 그대로 그린다 — 구리시 필지만(PNU 앞 5자리), 채움 없이 선만, 지번을 11pt 로. 필드명은 서비스에서 자동으로 찾는다 */
+/* 연속지적도: 구리시 포털 호스팅 서비스를 그대로 그린다 — 구리시 필지만(PNU 앞 5자리), 채움 없이 선만, 지번을 11pt 로. 필드명은 서비스에서 자동으로 찾는다 */
 let cadLayer=null;
 const CAD_LABEL_MIN=3000;   /* 지번 레이블이 보이기 시작하는 축척(선보다 한 단계 더 확대) */
 function pickField(names,cands){ const low=names.map(n=>String(n).toLowerCase()); for(const c of cands){ const i=low.indexOf(c.toLowerCase()); if(i>-1) return names[i]; } for(const c of cands){ const i=low.findIndex(n=>n.indexOf(c.toLowerCase())>-1); if(i>-1) return names[i]; } return null; }
