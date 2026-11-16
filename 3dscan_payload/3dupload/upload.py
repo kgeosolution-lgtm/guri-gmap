@@ -482,6 +482,11 @@ def main():
             meta["pano"] = check_pano_zip(item[1])
             meta["pano_zip"] = os.path.join(job_dir, "pano_spots.zip")
             write_payload(item[1], meta["pano_zip"])
+            # 얼굴 흐림 (docs/pano_contract.md 3.0): 폼 필드가 있으면 그것이 정답 → pipeline 이 --blur-faces 0|1 로 넘긴다.
+            # 필드가 없으면 저장하지 않는다 (pano_stitch 가 spots.json blur_faces → 기본 켬)
+            bf = (fields.get("blur_faces") or "").strip().lower()
+            if bf:
+                meta["blur_faces"] = bf not in ("0", "false", "no", "off")
         elif mode in ("stray", "objcap"):    # objcap: Apple Object Capture zip (model/ OBJ + images/ + poses.json)
             lon, lat = fields.get("lon"), fields.get("lat")
             if not lon or not lat:

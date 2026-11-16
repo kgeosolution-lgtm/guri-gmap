@@ -987,6 +987,8 @@ def pano_job(meta, q, out_dir, job_id):
              pano_message="360° 사진 이어 붙이는 중", pano_progress=0)
     cmd = [CFG["worker_python"], "-I", os.path.join(CFG["worker_dir"], "pano_stitch.py"), meta["pano_zip"],
            "--out", pano_out, "--title", meta.get("title") or ""]
+    if isinstance(meta.get("blur_faces"), bool):        # 업로드 폼 blur_faces (없으면 spots.json → 기본 켬)
+        cmd += ["--blur-faces", "1" if meta["blur_faces"] else "0"]
     # 지점당 240초: 이 PC 실측 20~35초(초광각 10~20초), 서버 CPU 가 느려도 여유 (pano 세션 권고 2026-11-12)
     timeout = int(min(max(600, 240 * n_spots), max(600, CFG.get("pipeline_timeout_sec", 1800) - 120)))
     rc, last_err = _run_stitch(cmd, q, os.path.join(out_dir, "pano_stdout.log"), timeout)

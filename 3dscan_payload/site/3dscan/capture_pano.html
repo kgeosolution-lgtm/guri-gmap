@@ -321,8 +321,9 @@ button{font-family:inherit}
       <label class="visopt"><input type="radio" name="vis" value="link"><span><b>🔗 링크 공유</b><small>링크를 받은 사람만 봅니다. 지도·목록에는 나오지 않아요.</small></span></label>
       <label class="visopt"><input type="radio" name="vis" value="private"><span><b>🔒 비공개</b><small>관리 링크가 있는 나만 볼 수 있어요.</small></span></label>
     </div>
-    <!-- 얼굴 흐림 선택: 서버에 얼굴 모델(worker/models/face_detection_yunet_2023mar.onnx)이 배포된 뒤 hidden 을 뗀다 (그 전엔 약속할 수 없음) -->
-    <label class="opt" id="blurFacesOpt" hidden><input type="checkbox" id="blurFaces" checked><span>사람 얼굴 흐리게 (권장) — 지나가던 사람이 찍혀도 알아볼 수 없게 서버가 흐립니다</span></label>
+    <!-- 얼굴 흐림 (docs/pano_contract.md 3.0): 끄면 폼 blur_faces=0 + spots.json blur_faces:false → 서버 --blur-faces 0.
+         얼굴 모델 worker/models/face_detection_yunet_2023mar.onnx 는 운영 배포됨(2026-11-16). 옆·뒷모습은 놓칠 수 있어 '모두'라고 약속하지 않는다 -->
+    <label class="opt" id="blurFacesOpt"><input type="checkbox" id="blurFaces" checked><span>사람 얼굴 흐리게 (권장) — 지나가던 사람이 찍혀도 서버가 찾은 얼굴을 흐립니다. 옆·뒷모습은 놓칠 수 있어요.</span></label>
     <div class="lbl">촬영 위치</div>
     <div class="loc" id="loc"><span class="dot"></span><div style="min-width:0"><div class="main" id="locMain">위치를 아직 재지 않았습니다</div><div class="subl" id="locSub">지도에 VR 투어를 놓는 데 씁니다. 건물 안이면 수십 m 오차가 날 수 있습니다.</div></div>
       <button class="btn sm" id="locBtn">위치 재기</button></div>
