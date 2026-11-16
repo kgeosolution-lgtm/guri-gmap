@@ -122,8 +122,14 @@
   --k-line: var(--k-night-line); --k-line-2: rgba(233, 239, 241, .22);
   --k-ink: var(--k-night-ink); --k-ink-2: var(--k-night-ink-2); --k-ink-3: #74838E;
   --k-blue: #6EA2FF; --k-blue-soft: rgba(110, 162, 255, .16);
+  --k-ok: #4FD1A1;   --k-ok-soft: rgba(79, 209, 161, .15);
+  --k-warn: #F4B740; --k-warn-soft: rgba(244, 183, 64, .15);
+  --k-bad: #FF8A80;  --k-bad-soft: rgba(255, 138, 128, .16);
+  color: var(--k-ink);
   color-scheme: dark;
 }
+/* 페이지가 옛 색 이름을 토큰에 이을 때는 ':root, .k-night' 둘 다에 선언한다.
+   :root 에서만 이으면 값이 고정돼 물려 내려가 .k-night 안에서 어두운 값으로 바뀌지 않는다 */
 
 /* 움직임을 줄이도록 설정한 사람에게는 전환을 끈다 */
 @media (prefers-reduced-motion: reduce) {
