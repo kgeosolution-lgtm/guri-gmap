@@ -79,8 +79,12 @@ jobs:
             'worker/media_check.py' = '083044d78af7dfdd5e3118b37ca2e4ceb28b47132b2ecef6971969e5c1f68896'
             'worker/utility_extract.py' = '5dd63a4aee15ee6ac79613bbb4ce8551eef70d5f72f354cae0fa1634741b77de'
             'worker/utility_report.py' = '50df2a31e359ceca0fa4f5ca541bb096c0a71a7bef720e1d556cf19f24f770b0'
-            'worker/pano_stitch.py' = '9d5b7eaad352172c1e47735b7c7f9023f764b4eb969bf688ec99a7738f2f752b'
+            'worker/pano_stitch.py' = '4c85cb671f87698df739f5dd659490258e6760babdff6c7130604e1228b82a31'
             'worker/pano_video.py' = 'a0b96f4c34b15647ccaa795721c8677b501252a91a9700d6030c67298541f138'
+            'worker/pano_enhance.py' = 'afc72ec2d8d61f3206852639dde322922eb0bf53119cc1432af7cefdfe89ba5b'
+            'worker/models/face_detection_yunet_2023mar.onnx' = '8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4'
+            'worker/models/LICENSE_face_detection_yunet.txt' = 'c83b8120c50ccbd4c4f96edf53141bdd566ebb8f8e9227e415326aa1b1aba958'
+            'worker/models/NOTICE.txt' = '09b5616ccd7a494c5fa4198190cb15a05c22a0a16749037ae4501ff48b695d99'
             'config/kgeoscan.example.json' = 'bf94b0186dc4eb33a29e43fb9b9b9132ec13b85ace6a1915c065737bfa95c964'
             'requirements.txt' = '4703521a52b31751fac24f008578a24cbad28d3ba1bd7c95351184a6e75cfc5c'
           }
@@ -125,7 +129,7 @@ jobs:
 
           # ── 파일 설치
           New-Item -ItemType Directory -Force -Path $site, $upload | Out-Null
-          foreach ($f in 'index.html','viewer.js','viewer.css','splat.html','ortho.html','utility.html','capture.html','walk.js','capture_ar.html','capture_pano.html','pano.html','tour.html','og_tour.jpg') { Copy-Item -LiteralPath (Join-Path $src ('site\3dscan\' + $f)) -Destination (Join-Path $site $f) -Force }
+          foreach ($f in 'index.html','viewer.js','viewer.css','splat.html','ortho.html','utility.html','capture.html','walk.js','upload_queue.js','capture_ar.html','capture_pano.html','pano.html','tour.html','og_tour.jpg') { $p = Join-Path $src ('site\3dscan\' + $f); if (Test-Path -LiteralPath $p) { Copy-Item -LiteralPath $p -Destination (Join-Path $site $f) -Force } else { "SKIP site file (이번 배포에 없음): $f" } }
           if (Test-Path -LiteralPath (Join-Path $src 'site\3dscan\targets')) {
             New-Item -ItemType Directory -Force -Path (Join-Path $site 'targets') | Out-Null
             Copy-Item -Path (Join-Path $src 'site\3dscan\targets\*') -Destination (Join-Path $site 'targets') -Force
@@ -137,6 +141,10 @@ jobs:
           if ($LASTEXITCODE -ge 8) { throw 'copy 3dupload failed' }
           foreach ($f in Get-ChildItem -LiteralPath (Join-Path $src 'tools') -File) { Copy-Item -LiteralPath $f.FullName -Destination (Join-Path $tools $f.Name) -Force }
           foreach ($f in Get-ChildItem -LiteralPath (Join-Path $src 'worker') -File) { Copy-Item -LiteralPath $f.FullName -Destination (Join-Path $tools ('worker\' + $f.Name)) -Force }
+          if (Test-Path -LiteralPath (Join-Path $src 'worker\models')) {          # 모델 파일 (YuNet 얼굴 등, pano_enhance 가 __file__ 옆 models\ 에서 읽음)
+            New-Item -ItemType Directory -Force -Path (Join-Path $tools 'worker\models') | Out-Null
+            Copy-Item -Path (Join-Path $src 'worker\models\*') -Destination (Join-Path $tools 'worker\models') -Force
+          }
           Copy-Item -LiteralPath (Join-Path $src 'requirements.txt') -Destination (Join-Path $tools 'requirements.txt') -Force
           "FILES INSTALLED"
 

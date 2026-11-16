@@ -1430,6 +1430,12 @@ def main(argv=None):
     ap.add_argument("--video-max-per-pair", type=int, default=120)
     ap.add_argument("--video-sig-rot", type=float, default=1.5, help="영상 지점: 자세 사전값 표준편차 (°)")
     ap.add_argument("--no-clip-avoid", dest="clip_avoid", action="store_false", help="영상 지점: 날아간 화소 피하기 끄기")
+    ap.add_argument("--no-enhance", dest="enhance", action="store_false", help="자동 보정(지점 사이 밝기·색, 잡음, 톤, 얼굴 흐림) 끄기")
+    ap.add_argument("--blur-faces", type=int, choices=(0, 1), default=None, help="얼굴 흐림 1/0. 없으면 spots.json 의 blur_faces, 그것도 없으면 켬 (업로드 필드 blur_faces=0 이면 0 을 넘긴다)")
+    ap.add_argument("--face-model", default="", help="YuNet 얼굴 모델 (.onnx). 기본 worker/models/face_detection_yunet_2023mar.onnx")
+    ap.add_argument("--enhance-match", type=float, default=0.5, help="지점 사이 밝기를 얼마나 맞출지 (0~1, 흰색 균형은 늘 맞춤)")
+    ap.add_argument("--no-enhance-denoise", dest="enhance_denoise", action="store_false")
+    ap.add_argument("--no-enhance-tone", dest="enhance_tone", action="store_false")
     ap.add_argument("--debug", action="store_true")
     opts = ap.parse_args(argv)
     if opts.nadir == "none":
@@ -1472,6 +1478,43 @@ def main(argv=None):
             traceback.print_exc()
             failed.append({"id": sid, "error": f"스티칭 오류: {e}"})
     ok_ids = [s["id"] for s in spots_meta if s["id"] in results]
+    # 자동 보정 (docs/share_contract.md 4절): 지점 사이 밝기·색 맞춤 → 잡음 → 톤 → 얼굴 흐림. 이은 결과를 다시 읽어 고쳐 쓴다
+    enhance_root = {"applied": False}
+    if opts.enhance and ok_ids:
+        try:
+            import pano_enhance as pe
+            te = time.time()
+            blur_on = bool(opts.blur_faces) if opts.blur_faces is not None else bool(meta.get("blur_faces", True))
+            model = opts.face_model or pe.default_face_model()
+            progress(98, "자동 보정 중 (밝기·색·얼굴)")
+            stats = {}
+            for sid in ok_ids:
+                im = cv2.imread(os.path.join(opts.out, sid, "pano.jpg"))
+                if im is not None:
+                    stats[sid] = pe.spot_stats(im)
+            gains = pe.match_gains(stats, lum_frac=opts.enhance_match)
+            by_id = {r["id"]: r for r in reports}
+            for sid in ok_ids:
+                im = cv2.imread(os.path.join(opts.out, sid, "pano.jpg"))
+                if im is None:
+                    continue
+                t1 = time.time()
+                if opts.debug:                                 # 비교용: 보정 전
+                    cv2.imwrite(os.path.join(opts.out, sid, "debug_before_enhance.jpg"), im, [int(cv2.IMWRITE_JPEG_QUALITY), 92])
+                im2, info = pe.enhance_spot(im, gains.get(sid), opts, blur_on, model)
+                write_spot_outputs(im2, opts.out, sid, im2.shape[1], opts)
+                info["seconds"] = round(time.time() - t1, 1)
+                if sid in by_id:
+                    by_id[sid]["enhance"] = info
+                del im, im2
+            enhance_root = {"applied": True, "blur_faces": blur_on, "face_model": os.path.basename(model) if os.path.isfile(model) else None,
+                            "match_lum_frac": opts.enhance_match, "seconds": round(time.time() - te, 1)}
+            if blur_on and not os.path.isfile(model):
+                log(f"얼굴 흐림이 켜져 있지만 모델이 없습니다: {model} — 얼굴 흐림은 건너뜀")
+        except Exception as e:                                # 보정이 실패해도 투어는 낸다 (보정 전 결과가 이미 있다)
+            import traceback
+            traceback.print_exc()
+            enhance_root = {"applied": False, "error": str(e)}
     links = build_links(spots_meta, set(ok_ids))
     north = None
     tour_spots = []
@@ -1505,7 +1548,7 @@ def main(argv=None):
     with open(os.path.join(opts.out, "tour.json"), "w", encoding="utf-8") as fh:
         json.dump(tour, fh, ensure_ascii=False, indent=1)
     with open(os.path.join(opts.out, "stitch_report.json"), "w", encoding="utf-8") as fh:
-        json.dump({"generator": VERSION, "seconds": round(time.time() - t0, 1), "spots": reports, "failed": failed},
+        json.dump({"generator": VERSION, "seconds": round(time.time() - t0, 1), "spots": reports, "failed": failed, "enhance": enhance_root},
                   fh, ensure_ascii=False, indent=1)
     progress(100, f"완료 — 지점 {len(ok_ids)}개" + (f", 실패 {len(failed)}개" if failed else ""))
     if not ok_ids:

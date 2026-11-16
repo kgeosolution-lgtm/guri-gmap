@@ -1,0 +1,12 @@
+worker/models — 외부 모델 파일 고지
+
+face_detection_yunet_2023mar.onnx
+  - 용도: VR 투어 자동 보정의 사람 얼굴 흐림 (worker/pano_enhance.py, OpenCV cv2.FaceDetectorYN)
+  - 출처: OpenCV Zoo (https://github.com/opencv/opencv_zoo)
+          models/face_detection_yunet/face_detection_yunet_2023mar.onnx
+  - 저작권·라이선스: Copyright (c) 2020 Shiqi Yu — MIT License (원문: LICENSE_face_detection_yunet.txt)
+  - 크기: 232,589 바이트
+  - sha256: 8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4
+    (opencv_zoo 저장소의 Git LFS 포인터 oid 와 일치 확인, 2026-11-16)
+  - 받은 날: 2026-11-16 (사용자 허락: "받아도 돼요")
+  - 바꾸지 않고 그대로 쓴다. 이 파일·LICENSE·NOTICE 를 함께 배포한다.
