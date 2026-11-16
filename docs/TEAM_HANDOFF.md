@@ -1074,3 +1074,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 ## 2026-11-16 구리시 서버 배포 절차서 추가 (담당: 강민아)
 
 - `docs/DEPLOY_GURI.md`: 구리시 Machine 1(DMZ IIS)에 USB 로 반입하는 현장 절차 — 방문 전 준비(주소 확정, 외부 DNS/443 개통 확인, API 키 3종 도메인 재등록, kgeodata.com 잔여 의존 2건, 설정·빌드·USB), 현장 IIS 응용 프로그램 추가·404, 포털 공개 여부 확인(서비스 목록), LTE 검증 체크리스트, 문제별 조치, 이후 수동 운영. README 에 링크.
+
+## 2026-11-16 동물병원·동물약국 사진을 구리 서버 배포에 포함 (담당: 강민아)
+
+- `deploy.config.json` 에 `photoBase` 추가(미리보기 `https://kgeodata.com/guri/img/`). 빌드(`build-deploy.mjs`)가 `theme.html` 의 `IMG_BASE` 를 이 값으로 바꿔 넣고, 사이트 안 경로(`/images/pet/`)면 base 를 붙인다. 환경변수 `DEPLOY_PHOTO_BASE` 로 덮어쓰기 가능.
+- 구리 서버 배포: kgeodata 서버의 사진 폴더 내용을 `public/images/pet/`(`.gitignore`)에 복사하고 `photoBase: "/images/pet/"` 로 빌드하면 `out/images/pet/` 에 함께 담긴다. 폴더가 없으면 빌드가 `[경고]` 를 낸다(실패는 아님).
+- `docs/DEPLOY_GURI.md` 1-4·1-5·검증·문제 표 갱신(용량: 사이트 약 6MB + 사진).
+- 검증: 기본 빌드(IMG_BASE 그대로 kgeodata), 구리용 빌드(사진 없음 → 경고, 있음 → `out/images/pet/` 포함, `IMG_BASE="/gmaplife/images/pet/"`), prettier, `git diff --check` 통과. 브랜치 `work/kangmina-photo-local`.
