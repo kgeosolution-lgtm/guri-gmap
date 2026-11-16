@@ -1,8 +1,25 @@
-import { spawnSync } from 'node:child_process';
-import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
+import { spawnSync, execSync } from 'node:child_process';
+import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
-// 배포 주소는 deploy.config.json 한 곳(환경변수 DEPLOY_ORIGIN / DEPLOY_BASE 로 한 번만 덮어쓸 수 있음)
-const cfg = JSON.parse(readFileSync('deploy.config.json', 'utf8'));
+// 배포 설정 파일: 기본 deploy.config.json(kgeodata 미리보기), `--config deploy.guri.json`(구리 운영, npm run build:guri).
+// 환경변수 DEPLOY_ORIGIN / DEPLOY_BASE / DEPLOY_PHOTO_BASE 는 파일 값을 한 번만 덮어쓴다.
+const argi = process.argv.indexOf('--config');
+const cfgFile = argi > -1 ? process.argv[argi + 1] : 'deploy.config.json';
+if (!existsSync(cfgFile)) throw new Error(`배포 설정 파일이 없음: ${cfgFile}`);
+const cfg = JSON.parse(readFileSync(cfgFile, 'utf8'));
+console.log(`배포 설정: ${cfgFile}`);
+const reviewWidget = cfg.reviewWidget !== false; // false 면 결과물에서 검토 위젯 script 를 뺀다
+const commit =
+  process.env.GITHUB_SHA ||
+  (() => {
+    try {
+      return execSync('git rev-parse HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
+        .toString()
+        .trim();
+    } catch {
+      return 'local-verification';
+    }
+  })();
 const origin = (process.env.DEPLOY_ORIGIN ?? cfg.origin).replace(/\/+$/, '');
 const base = (process.env.DEPLOY_BASE ?? cfg.base).replace(/\/+$/, '');
 if (!/^https?:\/\/[^/]+$/.test(origin))
@@ -29,6 +46,7 @@ const result = spawnSync(process.execPath, ['node_modules/next/dist/bin/next', '
     NEXT_PUBLIC_BASE_PATH: base,
     NEXT_PUBLIC_MAPS_BASE: `${base}/maps`,
     NEXT_PUBLIC_SITE_ORIGIN: origin,
+    NEXT_PUBLIC_REVIEW_WIDGET: reviewWidget ? '1' : '0',
   },
 });
 if (result.status !== 0) process.exit(result.status || 1);
@@ -41,7 +59,15 @@ function walk(dir) {
 for (const file of walk('out')) {
   if (!/\.(html|css|js|json|txt|svg)$/.test(file)) continue;
   let text = readFileSync(file, 'utf8');
-  // 사진 폴더 주소(theme.html 의 IMG_BASE)를 deploy.config.json 값으로 — 사이트 안 경로면 아래 /images/ 치환이 base 를 붙인다
+  // 검토용 "수정 요청" 위젯 제거(reviewWidget:false) — 홈의 Next Script 태그와 지도 4쪽의 shell:review 표식
+  if (!reviewWidget && file.endsWith('.html')) {
+    text = text.replace(
+      /<!-- shell:review -->[\s\S]*?<!-- \/shell:review -->/g,
+      '<!-- shell:review: 제거됨(reviewWidget:false) -->',
+    );
+    text = text.replace(/<script[^>]*\/review\/review\.js[^>]*><\/script>/g, '');
+  }
+  // 사진 폴더 주소(theme.html 의 IMG_BASE)를 배포 설정 값으로 — 사이트 안 경로면 아래 /images/ 치환이 base 를 붙인다
   if (file.endsWith('maps/theme.html'))
     text = text.replace(/const IMG_BASE="[^"]*";/, `const IMG_BASE="${photoBase}";`);
   // 링크 미리보기 그림은 절대 주소여야 한다(지도 4쪽 정적 HTML)(아래 /images/ 치환보다 먼저)
@@ -63,7 +89,7 @@ for (const file of [
   'maps/scene.html',
   'maps/aerial.html',
   'images/guri-emblem.png',
-  'review/review.js',
+  ...(reviewWidget ? ['review/review.js'] : []),
 ]) {
   if (!existsSync(path.join('out', file))) throw new Error(`Missing output: ${file}`);
 }
@@ -86,7 +112,7 @@ writeFileSync(
   'out/deployment.json',
   JSON.stringify(
     {
-      commit: process.env.GITHUB_SHA || 'local-verification',
+      commit,
       branch: process.env.GITHUB_REF_NAME || 'local',
       builtAt: new Date().toISOString(),
       url: `${origin}${base}/`,
@@ -96,3 +122,34 @@ writeFileSync(
   ),
 );
 console.log(`Static deployment ready: out -> ${origin}${base}/`);
+if (!reviewWidget) {
+  rmSync('out/review', { recursive: true, force: true }); // 어느 페이지도 안 쓰므로 폴더째 뺀다
+  const left = walk('out').filter(
+    (f) => f.endsWith('.html') && /review\/review\.js/.test(readFileSync(f, 'utf8')),
+  );
+  if (left.length) throw new Error(`검토 위젯이 남아 있음: ${left.join(', ')}`);
+  console.log('검토 위젯(review.js) 제거됨');
+}
+// 포털 업로드·반입용 zip (out 의 내용이 zip 루트에 오도록)
+if (cfg.zip) {
+  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const name = `${cfg.zipName || 'site'}-${stamp}-${commit.slice(0, 7)}.zip`;
+  mkdirSync('dist', { recursive: true });
+  const zipPath = path.resolve('dist', name);
+  rmSync(zipPath, { force: true });
+  const r =
+    process.platform === 'win32'
+      ? spawnSync(
+          'powershell',
+          [
+            '-NoProfile',
+            '-Command',
+            `Compress-Archive -Path out\\* -DestinationPath "${zipPath}" -Force`,
+          ],
+          { stdio: 'inherit' },
+        )
+      : spawnSync('zip', ['-qr', zipPath, '.'], { cwd: 'out', stdio: 'inherit' });
+  if (r.status !== 0)
+    throw new Error('zip 생성 실패 — Windows 는 PowerShell, 그 외는 zip 명령이 필요');
+  console.log(`zip: dist/${name}`);
+}

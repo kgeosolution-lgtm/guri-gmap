@@ -8,3 +8,5 @@ npm-debug.log*
 __pycache__/
 # 동물병원·동물약국 사진(구리 서버 배포용, kgeodata 서버에서 복사) — 저장소에는 넣지 않는다
 public/images/pet/
+# 구리 서버 반입용 zip(npm run build:guri)
+dist
