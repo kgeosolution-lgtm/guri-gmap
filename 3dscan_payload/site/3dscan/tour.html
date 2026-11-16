@@ -29,16 +29,16 @@
 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="kgeo-ui.css?v=b6f5a762e0">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
 :root{
-  --bg:#080b0f; --s1:#0d1117; --s2:#121820; --s3:#18212d;
+  --bg:#0D141A; --s1:#121B23; --s2:#16212A; --s3:#1F2C36;
   --border:rgba(255,255,255,.08); --border2:rgba(255,255,255,.14);
-  --accent:#38bdf8; --acc-g:#34d399; --acc-o:#fb923c; --acc-r:#f87171;
+  --accent:#8DB6FF; --acc-g:#34d399; --acc-o:#fb923c; --acc-r:#f87171;
   --text:#f0f6ff; --text2:#94a3b8; --text3:#64748b;
   --glass:rgba(13,17,23,.78);
-  --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+  --mono:'Pretendard Variable','Pretendard',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
   --sans:'Pretendard Variable','Pretendard',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif;
   --safe-t:env(safe-area-inset-top); --safe-b:env(safe-area-inset-bottom);
   --vh:100vh; --peek:140px; --sheet:80vh; --pw:380px;
@@ -415,7 +415,7 @@ body.embed .ebar{position:fixed;left:0;right:0;bottom:0;height:52px;display:flex
 const $ = (id) => document.getElementById(id);
 const P = new URLSearchParams(location.search);
 const API = '/app/3dupload/';
-const PANO_PAGE = "pano.html?v=df9c3df06c";                                // 배포가 ?v=해시 를 붙여도 된다 (viewer.js 의 PANO_PAGE 와 같은 꼴)
+const PANO_PAGE = "pano.html?v=58b909c94d";                                // 배포가 ?v=해시 를 붙여도 된다 (viewer.js 의 PANO_PAGE 와 같은 꼴)
 const LAYER_ITEM = '1058978572fd43e799f7068330ff90d8';        // scan_points 포털 항목 (공개 기록의 같은 장소 찾기, viewer.js PT_ITEM_ID)
 const QR_JS = { src: 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js',
                 sri: 'sha384-mZT2gIty7ZDdOGkxfP6joZcYdMW1Jvj9dRlfpTmaJAKKXTqzygtB22k7FLe+KZC1' };   // MIT, Kazuhiko Arase

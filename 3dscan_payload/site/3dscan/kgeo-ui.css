@@ -1,0 +1,131 @@
+/* ════════════════════════════════════════════════════════════════════════
+   kgeoScan 디자인 기준 (2026-11-16) — 설명: docs/design_system.md
+   · 지도·목록·입력 = 밝은 '측량 도면 종이' / 3D·VR·카메라 = 어두운 '극장'(.k-night)
+   · 강조색은 측량 마킹 주황 하나 — '행동'(기록하기·주 버튼)에만. 글자는 잉크색(형광 조끼처럼)
+   · 기록 유형 색은 의미가 있는 곳(지도 핀·유형 표시)에만
+   이 파일은 모든 페이지가 같이 쓴다: index.html, capture*.html, tour.html …  (배포: deploy.mjs FILES)
+   ════════════════════════════════════════════════════════════════════════ */
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css");
+
+:root {
+  /* 종이 (밝은 화면) */
+  --k-paper:     #F3F5F4;   /* 바탕 — 살짝 푸른 회색의 도면 종이 */
+  --k-surface:   #FFFFFF;   /* 시트·카드 */
+  --k-surface-2: #EBEFED;   /* 입력칸·칩 바탕 */
+  --k-line:      #D9E0DD;   /* 가는 선 */
+  --k-line-2:    #C3CCC8;   /* 테두리 */
+  --k-ink:       #13202A;   /* 글자 — 도면 잉크 */
+  --k-ink-2:     #4C5A64;   /* 보조 글자 */
+  --k-ink-3:     #76838C;   /* 흐린 글자 (보조 설명) */
+
+  /* 행동 = 측량 마킹 주황. 위의 글자는 잉크색 (흰 글자는 대비가 모자람) */
+  --k-mark:       #FF6B2C;
+  --k-mark-press: #EE5A1B;
+  --k-mark-soft:  #FFE7DC;
+  --k-on-mark:    #13202A;
+
+  /* 선택·링크 = 도면 파랑 */
+  --k-blue:      #1C5FD4;
+  --k-blue-soft: #E5EEFB;
+
+  /* 상태 */
+  --k-ok:   #0F8A5F;  --k-ok-soft:   #DFF3EA;
+  --k-warn: #9A6200;  --k-warn-soft: #FDF0D5;
+  --k-bad:  #C2372D;  --k-bad-soft:  #FBE4E2;
+
+  /* 기록 유형 (지도 핀·유형 표시에만) */
+  --k-t-lidar:   #1C5FD4;   /* LiDAR 실측 */
+  --k-t-photo3d: #7440E8;   /* 3D 촬영 (가우시안 스플랫) */
+  --k-t-vr:      #0B8F7F;   /* VR 투어 */
+  --k-t-trench:  #E2A000;   /* 굴착 기록 */
+
+  /* 극장 (3D·VR·카메라) */
+  --k-night:      #0D141A;
+  --k-night-2:    #16212A;
+  --k-night-3:    #1F2C36;
+  --k-night-line: rgba(233, 239, 241, .13);
+  --k-night-ink:  #E9EFF1;
+  --k-night-ink-2:#9BA9B3;
+
+  /* 글꼴 — Pretendard 하나. 숫자는 표처럼 정렬(tabular) */
+  --k-font: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
+  --k-fs-xs: 12px;  --k-fs-s: 13px;  --k-fs-m: 15px;  --k-fs-l: 17px;
+  --k-fs-xl: 20px;  --k-fs-2xl: 24px; --k-fs-3xl: 30px;
+
+  /* 모서리 — 위계에 따라 다르게 */
+  --k-r-sheet: 20px;  --k-r-card: 14px;  --k-r-ctl: 10px;  --k-r-pill: 999px;
+
+  /* 그림자 — 지도 위에 '떠 있는' 것에만 */
+  --k-float: 0 1px 2px rgba(19, 32, 42, .10), 0 8px 24px rgba(19, 32, 42, .14);
+  --k-float-strong: 0 2px 4px rgba(19, 32, 42, .10), 0 16px 40px rgba(19, 32, 42, .22);
+
+  --k-ease: cubic-bezier(.2, .7, .2, 1);
+}
+
+/* ── 기본 ── */
+.k-ui, .k-ui button, .k-ui input, .k-ui select, .k-ui textarea { font-family: var(--k-font); }
+.k-num { font-variant-numeric: tabular-nums; }
+
+/* 키보드 포커스는 보이게 (마우스·터치 클릭에는 안 보임) */
+.k-ui :focus-visible { outline: 2px solid var(--k-blue); outline-offset: 2px; }
+
+/* ── 버튼 ── */
+.k-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 44px; padding: 0 18px; border-radius: var(--k-r-ctl);
+  font: 600 var(--k-fs-m)/1 var(--k-font); letter-spacing: -.01em; text-decoration: none; white-space: nowrap;
+  border: 1px solid var(--k-line-2); background: var(--k-surface); color: var(--k-ink); cursor: pointer;
+  transition: background .15s, border-color .15s, transform .08s;
+}
+.k-btn:hover { border-color: var(--k-ink-3); }
+.k-btn:active { transform: scale(.98); }
+.k-btn[disabled] { opacity: .45; cursor: not-allowed; transform: none; }
+.k-btn.primary { background: var(--k-mark); border-color: var(--k-mark); color: var(--k-on-mark); }
+.k-btn.primary:hover { background: var(--k-mark-press); border-color: var(--k-mark-press); }
+.k-btn.ghost { background: transparent; border-color: transparent; color: var(--k-ink-2); }
+.k-btn.ghost:hover { background: var(--k-surface-2); }
+.k-btn.small { min-height: 36px; padding: 0 12px; font-size: var(--k-fs-s); border-radius: 9px; }
+.k-btn.block { width: 100%; }
+
+/* ── 칩 (거르기·선택) ── */
+.k-chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border-radius: var(--k-r-pill);
+  border: 1px solid var(--k-line-2); background: var(--k-surface); color: var(--k-ink-2);
+  font: 600 var(--k-fs-s)/1 var(--k-font); white-space: nowrap; cursor: pointer;
+}
+.k-chip.active, .k-chip[aria-pressed="true"] { background: var(--k-ink); border-color: var(--k-ink); color: #fff; }
+.k-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--k-ink-3); }
+.k-dot.lidar { background: var(--k-t-lidar); } .k-dot.photo3d { background: var(--k-t-photo3d); }
+.k-dot.vr { background: var(--k-t-vr); } .k-dot.trench { background: var(--k-t-trench); }
+
+/* ── 카드·시트 ── */
+.k-card { background: var(--k-surface); border: 1px solid var(--k-line); border-radius: var(--k-r-card); }
+.k-float { box-shadow: var(--k-float); }
+
+/* ── 입력 ── */
+.k-field { display: flex; flex-direction: column; gap: 6px; }
+.k-field > label { font: 600 var(--k-fs-s)/1.3 var(--k-font); color: var(--k-ink-2); }
+.k-input {
+  width: 100%; min-height: 46px; padding: 0 14px; border-radius: var(--k-r-ctl);
+  border: 1px solid var(--k-line-2); background: var(--k-surface); color: var(--k-ink);
+  font: 400 16px/1.4 var(--k-font);   /* 16px: 아이폰이 입력할 때 화면을 확대하지 않게 */
+}
+.k-input::placeholder { color: var(--k-ink-3); }
+.k-input:focus { border-color: var(--k-blue); outline: none; box-shadow: 0 0 0 3px var(--k-blue-soft); }
+
+/* ── 유형 표시 (글자 + 점) ── */
+.k-type { display: inline-flex; align-items: center; gap: 6px; font: 600 var(--k-fs-xs)/1 var(--k-font); color: var(--k-ink-2); }
+
+/* ── 극장 (3D·VR·카메라): 이 안에서는 어두운 값으로 ── */
+.k-night {
+  --k-paper: var(--k-night); --k-surface: var(--k-night-2); --k-surface-2: var(--k-night-3);
+  --k-line: var(--k-night-line); --k-line-2: rgba(233, 239, 241, .22);
+  --k-ink: var(--k-night-ink); --k-ink-2: var(--k-night-ink-2); --k-ink-3: #74838E;
+  --k-blue: #6EA2FF; --k-blue-soft: rgba(110, 162, 255, .16);
+  color-scheme: dark;
+}
+
+/* 움직임을 줄이도록 설정한 사람에게는 전환을 끈다 */
+@media (prefers-reduced-motion: reduce) {
+  .k-ui *, .k-ui *::before, .k-ui *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}

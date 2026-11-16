@@ -26,12 +26,12 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230d1117'/%3E%3Cpath d='M5 12h22' stroke='%238b98a8' stroke-width='2'/%3E%3Ccircle cx='11' cy='20' r='4' fill='%23facc15'/%3E%3Ccircle cx='21' cy='21' r='3' fill='%2338bdf8'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="kgeo-ui.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
-  :root { --bg:#080b0f; --panel:rgba(13,17,23,.9); --panel2:#0d1117; --line:rgba(255,255,255,.12); --line2:rgba(255,255,255,.22);
-          --text:#e6edf6; --muted:#8b98a8; --dim:#5b6675; --accent:#38bdf8; --mark:#facc15; --warn:#f87171; --ok:#4ade80; --amber:#fbbf24;
-          --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  :root { --bg:#0D141A; --panel:rgba(13,17,23,.9); --panel2:#0d1117; --line:rgba(255,255,255,.12); --line2:rgba(255,255,255,.22);
+          --text:#e6edf6; --muted:#8b98a8; --dim:#5b6675; --accent:#8DB6FF; --mark:#facc15; --warn:#f87171; --ok:#4ade80; --amber:#fbbf24;
+          --mono:'Pretendard Variable','Pretendard',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
           --sans:'Pretendard Variable','Pretendard',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif; }
   * { box-sizing:border-box; }
   [hidden] { display:none !important; }
@@ -1496,7 +1496,7 @@ function drawSection(ctxOverride, Wd, Ht) {
   for (let k = Math.ceil(win.l0 * 10); k <= win.l1 * 10; k++) { c.strokeStyle = k % 5 ? 'rgba(255,255,255,.035)' : 'rgba(255,255,255,.08)'; c.beginPath(); c.moveTo(X(k / 10), mt); c.lineTo(X(k / 10), H - mb); c.stroke(); }
   for (let k = Math.ceil(win.y0 * 10); k <= win.y1 * 10; k++) { const y = Y(M.g0 + k / 10); c.strokeStyle = k % 5 ? 'rgba(255,255,255,.035)' : 'rgba(255,255,255,.08)'; c.beginPath(); c.moveTo(ml, y); c.lineTo(W - mr, y); c.stroke(); }
   // 왼쪽 깊이 자: 원지반(단면 중심) 기준 mm
-  c.font = '10px "IBM Plex Mono", monospace'; c.fillStyle = '#8b98a8'; c.textAlign = 'right'; c.textBaseline = 'middle';
+  c.font = '10px "Pretendard Variable", Pretendard, sans-serif'; c.fillStyle = '#8b98a8'; c.textAlign = 'right'; c.textBaseline = 'middle';
   for (let k = 0; k >= Math.floor(win.y0 * 2); k--) { const y = Y(M.g0 + k / 2); c.fillText(k === 0 ? '0' : fmm(-k * 500), ml - 6, y); c.strokeStyle = '#8b98a8'; c.beginPath(); c.moveTo(ml - 3, y); c.lineTo(ml, y); c.stroke(); }
   c.save(); c.translate(11, (mt + H - mb) / 2); c.rotate(-Math.PI / 2); c.textAlign = 'center'; c.fillText('깊이 (mm)', 0, 0); c.restore();
   // 메시 단면(흙·관 표면)
@@ -1539,7 +1539,7 @@ function drawSection(ctxOverride, Wd, Ht) {
     info.push({ G, U, col, bx0, by0, bx1, by1, top: G.reduce((a, b) => (b.top[1] > a.top[1] ? b : a)) });
   }
   // 굴착 폭·깊이 (메시 단면에서)
-  const MF = '600 10.5px "IBM Plex Mono", monospace';
+  const MF = '600 10.5px "Pretendard Variable", Pretendard, sans-serif';
   const dimLine = (x0, y0, x1, y1, col) => {
     const dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy) || 1, px = -dy / L * 4, py = dx / L * 4;
     c.strokeStyle = col; c.lineWidth = 1.2; c.setLineDash([]);
@@ -1590,7 +1590,7 @@ function drawSection(ctxOverride, Wd, Ht) {
   // 축척 막대 + 방향
   const L = niceLen(60, 1 / sc), bw = L * sc;
   c.strokeStyle = '#e6edf6'; c.lineWidth = 2; c.beginPath(); c.moveTo(W - mr - bw, H - 8); c.lineTo(W - mr, H - 8); c.moveTo(W - mr - bw, H - 12); c.lineTo(W - mr - bw, H - 8); c.moveTo(W - mr, H - 12); c.lineTo(W - mr, H - 8); c.stroke();
-  c.fillStyle = '#e6edf6'; c.textAlign = 'right'; c.textBaseline = 'bottom'; c.font = '10px "IBM Plex Mono", monospace';
+  c.fillStyle = '#e6edf6'; c.textAlign = 'right'; c.textBaseline = 'bottom'; c.font = '10px "Pretendard Variable", Pretendard, sans-serif';
   c.fillText(fmm(L * 1000) + ' mm', W - mr - bw - 6, H - 4);
   c.textAlign = 'left'; c.fillStyle = '#5b6675'; c.fillText('STA 증가 방향으로 본 단면 · 1:1', ml, H - 4);
   c.restore();
@@ -1599,7 +1599,7 @@ function hexA(hex, a) { const c = new THREE.Color(hex); return `rgba(${Math.roun
 function dimV(c, x, y0, y1, text, col, side) {
   c.strokeStyle = col; c.fillStyle = col; c.lineWidth = 1.2;
   c.beginPath(); c.moveTo(x, y0); c.lineTo(x, y1); c.moveTo(x - 4, y0); c.lineTo(x + 4, y0); c.moveTo(x - 4, y1); c.lineTo(x + 4, y1); c.stroke();
-  c.font = '600 10.5px "IBM Plex Mono", monospace';
+  c.font = '600 10.5px "Pretendard Variable", Pretendard, sans-serif';
   const tw = c.measureText(text).width + 6, my = (y0 + y1) / 2, lx = side === 'left' ? x - tw - 4 : x + 4;
   const ty = Math.abs(y1 - y0) < 16 ? Math.min(y0, y1) - 9 : my;
   c.fillStyle = 'rgba(8,11,15,.82)'; c.fillRect(lx, ty - 7, tw, 14);
@@ -1608,7 +1608,7 @@ function dimV(c, x, y0, y1, text, col, side) {
 function dimH(c, x0, x1, y, text, col) {
   c.strokeStyle = col; c.fillStyle = col; c.lineWidth = 1.2;
   c.beginPath(); c.moveTo(x0, y); c.lineTo(x1, y); c.moveTo(x0, y - 4); c.lineTo(x0, y + 4); c.moveTo(x1, y - 4); c.lineTo(x1, y + 4); c.stroke();
-  c.font = '600 10.5px "IBM Plex Mono", monospace';
+  c.font = '600 10.5px "Pretendard Variable", Pretendard, sans-serif';
   const tw = c.measureText(text).width + 6, mx = (x0 + x1) / 2;
   c.fillStyle = 'rgba(8,11,15,.82)'; c.fillRect(mx - tw / 2, y - 8, tw, 14); c.fillStyle = col; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(text, mx, y - 1);
 }
@@ -1904,7 +1904,7 @@ function composePNG() {
   const mpp = metersPerPx(camera.position.distanceTo(controls.target)), Lm = niceLen(80, mpp), bw = Lm / mpp;
   const sx = 152, sy = vh - 22;
   c.strokeStyle = '#e6edf6'; c.lineWidth = 2; c.beginPath(); c.moveTo(sx, sy - 5); c.lineTo(sx, sy); c.lineTo(sx + bw, sy); c.lineTo(sx + bw, sy - 5); c.stroke();
-  c.fillStyle = '#e6edf6'; c.font = '600 11px "IBM Plex Mono", monospace'; c.textBaseline = 'bottom';
+  c.fillStyle = '#e6edf6'; c.font = '600 11px "Pretendard Variable", Pretendard, sans-serif'; c.textBaseline = 'bottom';
   c.fillText((Lm >= 1 ? Lm + ' m' : Math.round(Lm * 1000) + ' mm') + ' (화면 중심 기준)', sx, sy - 7);
   // 방위
   if (S.xf && S.xf.north && !S.xf.bad) {
@@ -1912,14 +1912,14 @@ function composePNG() {
     c.save(); c.translate(cx, cy); c.fillStyle = 'rgba(13,17,23,.85)'; c.beginPath(); c.arc(0, 0, 20, 0, Math.PI * 2); c.fill();
     c.rotate(a); c.fillStyle = '#f87171'; c.beginPath(); c.moveTo(0, -15); c.lineTo(5, 1); c.lineTo(0, -2); c.lineTo(-5, 1); c.closePath(); c.fill();
     c.fillStyle = '#64748b'; c.beginPath(); c.moveTo(0, 15); c.lineTo(5, 1); c.lineTo(0, 4); c.lineTo(-5, 1); c.closePath(); c.fill();
-    c.restore(); c.fillStyle = '#e6edf6'; c.font = '600 10px "IBM Plex Mono", monospace'; c.textAlign = 'center'; c.textBaseline = 'top'; c.fillText('N', cx, cy + 22);
+    c.restore(); c.fillStyle = '#e6edf6'; c.font = '600 10px "Pretendard Variable", Pretendard, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'top'; c.fillText('N', cx, cy + 22);
   }
   // 단면 끼워 넣기
   if (SEC.on && SEC.model) {
     const iw = Math.min(460, vw * 0.45), ih = iw * 0.56, ix = vw - iw - 12, iy = vh - ih - 12;
     c.save(); c.translate(ix, iy);
     c.fillStyle = '#0a0e13'; c.fillRect(0, 0, iw, ih + 20);
-    c.fillStyle = '#38bdf8'; c.font = '600 11px "IBM Plex Mono", monospace'; c.textAlign = 'left'; c.textBaseline = 'middle'; c.fillText('단면 STA ' + fmtSta(SEC.model.sta), 8, 10);
+    c.fillStyle = '#38bdf8'; c.font = '600 11px "Pretendard Variable", Pretendard, sans-serif'; c.textAlign = 'left'; c.textBaseline = 'middle'; c.fillText('단면 STA ' + fmtSta(SEC.model.sta), 8, 10);
     c.translate(0, 20); drawSection(c, iw, ih);
     c.restore();
     c.strokeStyle = 'rgba(255,255,255,.25)'; c.lineWidth = 1; c.strokeRect(ix, iy, iw, ih + 20);
@@ -1935,13 +1935,13 @@ function composePNG() {
   const dt = fmtDate(S.meta.created_at || S.meta.captured_at);
   const sub = [`굴착 3D 기록 · ${S.meta.job_id || ''}`, dt ? '촬영 ' + dt : '', `저장 ${fmtDate(new Date().toISOString())}`,
     num(T.length_m) != null ? `굴착 ${T.length_m.toFixed(2)}×${num(T.width_m, 0).toFixed(2)}×${num(T.depth_max_m, 0).toFixed(2)} m` : '', `관 ${S.utils.length}개`].filter(Boolean).join('  ·  ');
-  c.fillStyle = '#8b98a8'; c.font = `${11.5 * s}px "IBM Plex Mono", monospace`; c.fillText(sub, 14 * s, 47 * s);
+  c.fillStyle = '#8b98a8'; c.font = `${11.5 * s}px "Pretendard Variable", Pretendard, sans-serif`; c.fillText(sub, 14 * s, 47 * s);
   const nb = S.clr.filter(x => x.mm < S.thrClr).length, sh = S.utils.filter(U => Math.min(...U.depth) < S.thrDep).length;
   c.textAlign = 'right'; c.font = `600 ${12 * s}px Pretendard, sans-serif`;
   c.fillStyle = nb || sh ? '#fca5a5' : '#86efac';
   c.fillText(nb || sh ? `⚠ 이격 부족 ${nb} · 얕은 매설 ${sh} (기준 ${S.thrClr} mm · ${S.thrDep.toFixed(2)} m)` : '이격·토피 기준 충족', W - 14 * s, 27 * s);
   // 꼬리글
-  c.fillStyle = '#5b6675'; c.font = `${10.5 * s}px "IBM Plex Mono", monospace`; c.textAlign = 'left';
+  c.fillStyle = '#5b6675'; c.font = `${10.5 * s}px "Pretendard Variable", Pretendard, sans-serif`; c.textAlign = 'left';
   c.fillText('kgeoScan · 굴착 3D 기록 (자동 추출 — 종류·깊이는 현장 확인 필요)', 14 * s, H + head + 17 * s);
   c.textAlign = 'right'; c.fillText(S.xf ? 'UTM 52N (EPSG:32652)' : '', W - 14 * s, H + head + 17 * s);
   return out;

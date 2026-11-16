@@ -12,18 +12,26 @@
 
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>kgeoScan Viewer</title>
-<link rel="stylesheet" href="https://js.arcgis.com/4.30/esri/themes/dark/main.css">
+<title>kgeoScan — 현장 3D·VR 기록 지도</title>
+<meta name="description" content="폰으로 찍은 현장·공간을 3D와 VR 투어로 남기고 지도에서 찾아보는 kgeoScan">
+<meta name="theme-color" content="#F3F5F4">
+<meta name="apple-mobile-web-app-title" content="kgeoScan">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="https://js.arcgis.com/4.30/esri/themes/light/main.css">
+<link rel="stylesheet" href="kgeo-ui.css?v=b6f5a762e0">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.min.js"></script>
 <!-- JSZip 은 ArcGIS 로더(AMD define)보다 먼저 읽어야 한다. 뒤에 두면 multipleDefine 으로 지도가 멈춤 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://js.arcgis.com/4.30/"></script>
-<link rel="stylesheet" href="viewer.css?v=abc77d4c07">
+<link rel="stylesheet" href="viewer.css?v=8c17a232d0">
 <style>
-/* 포커스 outline 제거 - ArcGIS 포함 */
-*, *:focus, *:active { outline: none !important; box-shadow: none !important; }
+/* 지도 캔버스의 ArcGIS 포커스 테두리만 없앤다. 다른 요소의 키보드 포커스는 보이게 둔다 (kgeo-ui.css :focus-visible) */
 .esri-view .esri-view-surface--inset-outline:focus::after { outline: none !important; }
 .esri-view-surface:focus { outline: none !important; }
 [data-node-ref] { outline: none !important; }
@@ -31,8 +39,8 @@
 /* 진행 단계 */
 .pp-step {
   display: flex; align-items: center; gap: 8px;
-  font-size: 11px; color: var(--text3);
-  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px; color: var(--text3);
+  font-family: var(--k-font);
   padding: 3px 0;
 }
 .pp-step.active { color: var(--accent); font-weight: 600; }
@@ -41,77 +49,82 @@
   width: 7px; height: 7px; border-radius: 50%;
   background: var(--border2); flex-shrink: 0;
 }
-.pp-step.active .pp-dot { background: var(--accent); box-shadow: 0 0 6px var(--accent); animation: blink 1s infinite; }
+.pp-step.active .pp-dot { background: var(--accent); box-shadow: 0 0 0 3px var(--k-blue-soft); }
 .pp-step.done   .pp-dot { background: var(--acc-g); }
 
-/* 포커스 outline 제거 */
-* { outline: none !important; }
 canvas { display: block; }
+canvas:focus, #viewDiv:focus { outline: none; }
 
 /* 제목 체크 */
-.title-check { font-size:11px; margin-top:4px; min-height:16px; font-family:'IBM Plex Mono',monospace; }
-.title-check.ok    { color:#34d399; }
-.title-check.error { color:#f87171; }
+.title-check { font-size:13px; margin-top:4px; min-height:16px; font-family:var(--k-font); }
+.title-check.ok    { color:var(--k-ok); }
+.title-check.error { color:var(--k-bad); }
 
 /* 업로드 진행 버튼 */
 #uploadBtnWrap { display:flex; align-items:center; gap:10px; }
 #uploadProgress {
   display:flex; align-items:center; gap:10px;
-  background:rgba(56,189,248,0.1); border:1px solid rgba(56,189,248,0.3);
-  border-radius:20px; padding:6px 14px; min-width:220px;
+  background:var(--k-blue-soft); border:1px solid rgba(28,95,212,.25);
+  border-radius:999px; padding:6px 14px; min-width:220px; cursor:pointer;
 }
 .up-spinner {
   width:16px; height:16px; border-radius:50%;
-  border:2px solid rgba(56,189,248,0.3);
-  border-top-color:#38bdf8;
+  border:2px solid rgba(28,95,212,.25);
+  border-top-color:var(--k-blue);
   animation:spin 0.8s linear infinite; flex-shrink:0;
 }
 .up-info { flex:1; }
-.up-title { font-size:12px; color:#e2e8f0; font-weight:500; margin-bottom:3px; }
-.up-bar-wrap { background:rgba(255,255,255,0.1); border-radius:10px; height:3px; margin-bottom:3px; }
-.up-bar { height:3px; border-radius:10px; background:#38bdf8; width:0%; transition:width 0.5s ease; }
-.up-step { font-size:10px; color:#94a3b8; }
+.up-title { font-size:13px; color:var(--k-ink); font-weight:600; margin-bottom:3px; }
+.up-bar-wrap { background:rgba(19,32,42,.1); border-radius:10px; height:3px; margin-bottom:3px; }
+.up-bar { height:3px; border-radius:10px; background:var(--k-blue); width:0%; transition:width 0.5s ease; }
+.up-step { font-size:12px; color:var(--k-ink-2); }
 @keyframes spin { to { transform:rotate(360deg); } }
 </style>
 <script src="/app/protect.js"></script></head>
-<body>
+<body class="k-ui">
 
 <!-- ════ 시작 화면 (2026-11-13 사용자: "들어가면 골라 갈 수 있게") — viewer.js 의 openStart() ════ -->
 <div id="startSheet" class="start-sheet" hidden>
   <div class="start-box" role="dialog" aria-modal="true" aria-labelledby="startTitle">
     <div class="start-head">
-      <div class="start-logo"><span class="logo-pulse"></span>kgeoScan</div>
-      <h1 id="startTitle">무엇을 할까요?</h1>
-      <p>휴대폰만으로 찍어 3D·VR 투어·굴착 기록을 만들고, 지도에서 봅니다.</p>
+      <div class="start-logo"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 1.5v5M12 17.5v5M1.5 12h5M17.5 12h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="2.6" fill="var(--k-mark)"/></svg><span>kgeo<b>Scan</b></span></div>
+      <h1 id="startTitle">무엇을 기록할까요?</h1>
+      <p>폰으로 찍은 현장과 공간을 3D·VR 투어로 남기고, 지도에서 다시 찾아봐요.</p>
+      <button type="button" class="start-close" data-go="map" aria-label="닫고 지도 보기">
+        <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
     </div>
     <div id="startPending" hidden></div>   <!-- 끊겨도 이어 올리기: 이 폰에 보관한 '올리지 못한 촬영' (upload_queue.js) -->
     <div class="start-grid">
-      <button type="button" class="start-card map" data-go="map"><span class="si">🗺</span><span class="st"><b>지도에서 기록 보기</b><small>올라온 3D·VR 투어·굴착 기록을 지도와 목록으로</small></span></button>
-      <a class="start-card" href="capture.html?trench=0"><span class="si">✦</span><span class="st"><b>3D 촬영 · 가우시안 스플랫</b><small>아무 폰 카메라로 걸으며 영상·사진 → 사진처럼 보이는 3D (실제 크기 재기는 안 됨)</small></span></a>
-      <a class="start-card" href="capture_pano.html"><span class="si">🥽</span><span class="st"><b>VR 투어 촬영 · 360° 실사</b><small>제자리에서 두 바퀴 → 지점별 360° 사진 투어 (매물 공유 페이지)</small></span></a>
-      <a class="start-card" href="capture.html?trench=1"><span class="si">⛏</span><span class="st"><b>굴착 기록 · 실측</b><small>인쇄한 기준판 + 영상 → 관 위치·지름·깊이, 조서·DXF</small></span></a>
-      <button type="button" class="start-card" data-go="upload"><span class="si">📡</span><span class="st"><b>LiDAR 스캔 올리기 · 실측 3D</b><small>아이폰 Pro LiDAR 앱(kgeoScan·Stray Scanner) 녹화 zip → 실측 메시·점군·평면도</small></span></button>
-      <button type="button" class="start-card" data-go="mine" id="startMine" hidden><span class="si">📁</span><span class="st"><b>내 기록 <span id="startMineN"></span></b><small>이 기기에서 올린 기록 (링크 공유·비공개 포함)</small></span></button>
+      <a class="start-card k-photo3d" href="capture.html?trench=0"><span class="si"><svg viewBox="0 0 28 28" width="28" height="28" aria-hidden="true"><path d="M14 3l9 5v12l-9 5-9-5V8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M5 8l9 5 9-5M14 13v12" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></span><span class="st"><b>3D 촬영</b><small>폰 카메라로 걸으며 찍으면 사진처럼 보이는 3D(가우시안 스플랫)가 만들어져요. 실제 크기 재기는 안 돼요.</small></span></a>
+      <a class="start-card k-vr" href="capture_pano.html"><span class="si"><svg viewBox="0 0 28 28" width="28" height="28" aria-hidden="true"><ellipse cx="14" cy="14" rx="11" ry="4.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14 3a11 11 0 1 1 0 22a11 11 0 1 1 0-22" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="14" cy="14" r="2" fill="currentColor"/></svg></span><span class="st"><b>VR 투어 촬영</b><small>방마다 제자리에서 폰을 두 바퀴 돌려 찍으면 360° 실사 투어와 공유 페이지가 생겨요.</small></span></a>
+      <a class="start-card k-trench" href="capture.html?trench=1"><span class="si"><svg viewBox="0 0 28 28" width="28" height="28" aria-hidden="true"><path d="M3 9h6l2 12h6l2-12h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="14" cy="17" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/></svg></span><span class="st"><b>굴착 기록</b><small>인쇄한 기준판과 함께 찍으면 드러난 관의 위치·지름·깊이와 조서·DXF가 나와요.</small></span></a>
+      <button type="button" class="start-card k-lidar" data-go="upload"><span class="si"><svg viewBox="0 0 28 28" width="28" height="28" aria-hidden="true"><rect x="8" y="3" width="12" height="22" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="14" cy="9" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M2.5 9.5a8 8 0 0 0 0 9M25.5 9.5a8 8 0 0 1 0 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><span class="st"><b>LiDAR 스캔 올리기</b><small>아이폰 Pro LiDAR 앱(kgeoScan·Stray Scanner)으로 녹화한 zip을 올리면 실측 3D·평면도가 나와요.</small></span></button>
     </div>
-    <label class="start-skip"><input type="checkbox" id="startSkip"> 다음부터 바로 지도 보기 <small>(위쪽 ☰ 시작 으로 언제든 다시 열 수 있어요)</small></label>
+    <div class="start-more">
+      <button type="button" class="start-link" data-go="map"><svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M2 5l5-2 6 2 5-2v12l-5 2-6-2-5 2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 3v12M13 5v12" stroke="currentColor" stroke-width="1.8"/></svg>지도에서 기록 보기</button>
+      <button type="button" class="start-link" data-go="mine" id="startMine" hidden><svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M3 5h5l2 2h7v9H3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>내 기록 <span id="startMineN" class="k-num"></span></button>
+    </div>
+    <label class="start-skip"><input type="checkbox" id="startSkip"> 다음부터 바로 지도 보기 <small>위쪽 ‘기록하기’로 언제든 다시 열 수 있어요</small></label>
   </div>
 </div>
 
 <!-- ════ HEADER ════ -->
 <header>
-  <div class="logo">
-    <div class="logo-pulse"></div>
-    kgeoScan
-  </div>
-  <div class="sep"></div>
-  <div class="header-sub">LiDAR · 3D Scan Viewer</div>
+  <a class="logo" href="./" aria-label="kgeoScan 지도 처음으로">
+    <svg class="logo-mark" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+      <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/>
+      <path d="M12 1.5v5M12 17.5v5M1.5 12h5M17.5 12h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="12" cy="12" r="2.6" fill="var(--k-mark)"/>
+    </svg>
+    <span class="logo-word">kgeo<b>Scan</b></span>
+  </a>
+  <div class="header-sub">현장 3D·VR 기록 지도</div>
   <div class="header-right">
-    <button type="button" class="hbtn" id="btnStart" onclick="openStart()" title="시작 화면 — 촬영·업로드·지도 보기 고르기">☰ 시작<span class="kq-badge" id="startBadge" hidden></span></button>
-    <a class="hbtn" id="btnCapture" href="capture.html" style="text-decoration:none" title="LiDAR 없이 아무 폰 카메라로 — 사진 여러 장 또는 영상으로 3D 현장조사">📷 폰으로 촬영</a>
     <div id="uploadBtnWrap">
-      <button class="hbtn primary" id="btnUpload" onclick="openModal()">
-        <span id="btnUploadIcon">＋</span>
-        <span id="btnUploadText">스캔 업로드</span>
+      <button class="hbtn" id="btnUpload" onclick="openModal()" title="아이폰 LiDAR 앱(kgeoScan·Stray Scanner)으로 녹화한 zip 올리기">
+        <span id="btnUploadIcon">↑</span>
+        <span id="btnUploadText">LiDAR 올리기</span>
       </button>
       <div id="uploadProgress" style="display:none" onclick="toggleProgressPopup()" title="진행 상황 보기" style="cursor:pointer">
         <div class="up-spinner"></div>
@@ -122,6 +135,10 @@ canvas { display: block; }
         </div>
       </div>
     </div>
+    <button type="button" class="hbtn primary" id="btnStart" onclick="openStart()" title="3D 촬영·VR 투어·굴착 기록·LiDAR 올리기 고르기">
+      <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+      기록하기<span class="kq-badge" id="startBadge" hidden></span>
+    </button>
   </div>
 </header>
 
@@ -129,24 +146,25 @@ canvas { display: block; }
 
   <!-- ════ LIST PANEL ════ -->
   <div id="listPanel">
-    <div class="lp-head">
+    <div class="lp-head" onclick="if(window.matchMedia('(max-width: 768px)').matches && !event.target.closest('button'))toggleListPanel()">
+      <span class="lp-grip" aria-hidden="true"></span>
       <div class="lp-title">
-        <span class="lp-icon">◈</span>
-        스캔 목록
-        <span class="lp-count" id="lpCount">—</span>
+        기록
+        <span class="lp-count k-num" id="lpCount">—</span>
       </div>
-      <button class="lp-collapse" id="btnLpCollapse" onclick="toggleListPanel()" title="목록 숨기기">◀</button>
+      <button class="lp-collapse" id="btnLpCollapse" onclick="toggleListPanel()" title="목록 접기·펼치기" aria-label="목록 접기·펼치기">◀</button>
     </div>
     <div class="lp-search">
-      <input class="lp-search-input" id="lpSearch" type="text"
-        placeholder="제목 검색..."
+      <svg class="lp-search-ic" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M13 13l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <input class="lp-search-input" id="lpSearch" type="search"
+        placeholder="제목·메모로 찾기" aria-label="기록 찾기"
         oninput="filterList(this.value)">
     </div>
-    <div class="lp-filters" id="lpFilters">
+    <div class="lp-filters" id="lpFilters" role="group" aria-label="기록 거르기">
       <button type="button" class="lp-chip active" data-type="" onclick="setTypeFilter('')">전체</button>
-      <button type="button" class="lp-chip home" data-type="home" onclick="setTypeFilter('home')">🏠 홈스캔</button>
-      <button type="button" class="lp-chip survey" data-type="survey" onclick="setTypeFilter('survey')">📋 현장조사</button>
-      <button type="button" class="lp-chip vr" data-type="vr" onclick="setTypeFilter('vr')" title="VR 투어가 있는 기록 (같은 장소 연결 포함)">🥽 VR 투어</button>
+      <button type="button" class="lp-chip home" data-type="home" onclick="setTypeFilter('home')">집·실내</button>
+      <button type="button" class="lp-chip survey" data-type="survey" onclick="setTypeFilter('survey')">현장</button>
+      <button type="button" class="lp-chip vr" data-type="vr" onclick="setTypeFilter('vr')" title="VR 투어가 있는 기록 (같은 장소 연결 포함)">VR 투어</button>
     </div>
     <!-- 내 기록: 이 기기에 관리 키가 있는 기록 (링크 공유·비공개 포함, docs/share_contract.md 2절) -->
     <div class="lp-mine" id="lpMine" hidden></div>
@@ -165,7 +183,7 @@ canvas { display: block; }
   <div id="viewDiv">
     <div id="mapLoading">
       <div class="spin"></div>
-      <div class="load-text">WebMap 불러오는 중...</div>
+      <div class="load-text">지도를 불러오는 중</div>
     </div>
   </div>
 
@@ -193,11 +211,8 @@ canvas { display: block; }
       </div>
       <div class="sb-title" id="sbTitle">—</div>
       <div class="sb-meta">
-        <span id="sbAuthor">—</span>
-        <span>·</span>
-        <span id="sbDate">—</span>
-        <span>·</span>
-        <span>UTM 52N</span>
+        <span id="sbAuthor" hidden>—</span>
+        <span id="sbDate" class="k-num">—</span>
       </div>
       <!-- 같은 장소 기록 (✦ 3D · 🥽 VR 투어 · 📐 평면도) — viewer.js probeLinks -->
       <div class="sb-links" id="sbLinks" style="display:none"></div>
@@ -211,32 +226,31 @@ canvas { display: block; }
         <div class="scene-load-text">3D 모델 로딩 중...</div>
       </div>
       <div class="viewer-overlay">
-        <div class="viewer-badge">3D Object · GLB Viewer</div>
+        
         <!-- 메시 / 스플랫 전환 (scan_points.splat_url 이 있을 때만 표시) -->
         <div class="viewer-tabs" id="viewerTabs" style="display:none">
-          <button type="button" class="vtab active" id="vtabGlb" onclick="setViewMode('glb')" title="LiDAR 메시 — 치수 측정 가능">◈ 메시</button>
-          <button type="button" class="vtab" id="vtabSplat" onclick="setViewMode('splat')" title="3D — 사진처럼 보이는 가우시안 스플랫, 🚶 걸어보기">✦ 3D</button>
-          <button type="button" class="vtab" id="vtabPano" style="display:none" onclick="setViewMode('pano')" title="VR 투어 — 제자리에서 찍은 360° 실사 사진으로 둘러보기">🥽 VR 투어</button>
-          <button type="button" class="vtab" id="vtabPlan" style="display:none" onclick="setViewMode('plan')" title="평면도 — 벽·문·창·치수·방 면적 (안목 기준 참고용)">📐 평면도</button>
-          <button type="button" class="vtab" id="vtabOrtho" onclick="setViewMode('ortho')" title="정사영상 — 위/정면에서 본 실측 고해상도 사진">▦ 정사영상</button>
-          <button type="button" class="vtab" id="vtabUtil" style="display:none" onclick="setViewMode('util')" title="굴착 기록 — 드러난 관·케이블 3D X-ray, 깊이·측점·조서">⛏ 지하시설물</button>
+          <button type="button" class="vtab active" id="vtabGlb" onclick="setViewMode('glb')" title="LiDAR 메시 — 치수 측정 가능">실측 모델</button>
+          <button type="button" class="vtab" id="vtabSplat" onclick="setViewMode('splat')" title="3D — 사진처럼 보이는 가우시안 스플랫, 🚶 걸어보기">사진 3D</button>
+          <button type="button" class="vtab" id="vtabPano" style="display:none" onclick="setViewMode('pano')" title="VR 투어 — 제자리에서 찍은 360° 실사 사진으로 둘러보기">VR 투어</button>
+          <button type="button" class="vtab" id="vtabPlan" style="display:none" onclick="setViewMode('plan')" title="평면도 — 벽·문·창·치수·방 면적 (안목 기준 참고용)">평면도</button>
+          <button type="button" class="vtab" id="vtabOrtho" onclick="setViewMode('ortho')" title="정사영상 — 위/정면에서 본 실측 고해상도 사진">정사영상</button>
+          <button type="button" class="vtab" id="vtabUtil" style="display:none" onclick="setViewMode('util')" title="굴착 기록 — 드러난 관·케이블 3D X-ray, 깊이·측점·조서">지하시설물</button>
         </div>
       </div>
       <!-- 우상단: 측정 · 평면 · 씬으로 보기 -->
       <div class="viewer-controls">
-        <button class="vctrl" id="btnMeasure" title="두 점을 클릭해 거리 재기 (M)" onclick="toggleMeasure()">📏 측정</button>
-        <button class="vctrl" id="btnTop" title="위에서 내려다보기 (평면)" onclick="viewTop()">⬇ 평면</button>
-        <button class="vctrl" id="btnSplatOpen" style="display:none" title="새 탭에서 크게" onclick="openSplatPage()">↗ 크게</button>
-        <button class="vctrl" id="btnOrthoMap" style="display:none" title="정사영상을 지도 위 제자리에 겹쳐 보기" onclick="toggleOrthoOverlay()">🗺 지도에 겹치기</button>
-        <button class="vctrl" id="btnUtilReport" style="display:none" title="굴착 조서(별표 38)·DXF·LandXML·GeoJSON·제출 동영상" onclick="openUtilReport()">📄 조서·산출물</button>
-        <button class="vctrl" id="btnTourShare" style="display:none" title="매물 공유 페이지 — 링크·QR 코드·다른 사이트 삽입 코드" onclick="openTourShare()">🔗 공유 페이지</button>
-        <button class="vctrl" title="Portal Scene Viewer 새 탭" onclick="openSceneViewer()">⧉ 씬</button>
+        <button class="vctrl" id="btnMeasure" title="두 점을 클릭해 거리 재기 (M)" onclick="toggleMeasure()">거리 재기</button>
+        <button class="vctrl" id="btnTop" title="위에서 내려다보기 (평면)" onclick="viewTop()">위에서 보기</button>
+        <button class="vctrl" id="btnSplatOpen" style="display:none" title="새 탭에서 크게" onclick="openSplatPage()">크게 보기</button>
+        <button class="vctrl" id="btnOrthoMap" style="display:none" title="정사영상을 지도 위 제자리에 겹쳐 보기" onclick="toggleOrthoOverlay()">지도에 겹치기</button>
+        <button class="vctrl" id="btnUtilReport" style="display:none" title="굴착 조서(별표 38)·DXF·LandXML·GeoJSON·제출 동영상" onclick="openUtilReport()">조서·산출물</button>
+        <button class="vctrl" id="btnTourShare" style="display:none" title="매물 공유 페이지 — 링크·QR 코드·다른 사이트 삽입 코드" onclick="openTourShare()">공유 페이지</button>
       </div>
       <!-- 측정 결과 -->
       <div class="measure-box" id="measureBox" style="display:none"></div>
       <!-- 우하단: 전체화면 -->
       <div class="viewer-controls-br">
-        <button class="vctrl" title="전체화면으로 보기" onclick="openFullscreen()">
+        <button class="vctrl" title="전체 화면으로 보기" aria-label="전체 화면으로 보기" onclick="openFullscreen()">
           ⤢
         </button>
       </div>
@@ -246,16 +260,16 @@ canvas { display: block; }
     <div class="sb-body">
 
       <div class="sb-section">
-        <div class="sec-label">📷 이 장소 기록 더하기</div>
+        <div class="sec-label">이 장소 기록 더하기</div>
         <div class="cap-row">
-          <a class="foot-btn ghost cap-btn" id="lnkCapVr" href="capture_pano.html">🥽 이 장소 VR 투어 찍기</a>
-          <a class="foot-btn ghost cap-btn" id="lnkCap3d" href="capture.html">✦ 이 장소 3D 찍기</a>
+          <a class="foot-btn ghost cap-btn" id="lnkCapVr" href="capture_pano.html">VR 투어 찍기</a>
+          <a class="foot-btn ghost cap-btn" id="lnkCap3d" href="capture.html">3D 촬영하기</a>
         </div>
-        <div class="cap-hint">같은 곳(20 m 안·30일 안)에서 찍으면 이 기록과 자동으로 묶여 탭으로 함께 보입니다.</div>
+        <div class="cap-hint">20 m 안에서 30일 안에 찍으면 이 기록과 자동으로 묶여 함께 보여요.</div>
       </div>
 
       <div class="sb-section">
-        <div class="sec-label">🗂 속성 정보</div>
+        <div class="sec-label">기록 정보</div>
         <div class="attr-table">
           <div class="attr-row">
             <div class="attr-key">제목</div>
@@ -266,44 +280,42 @@ canvas { display: block; }
             <div class="attr-val" id="aType">—</div>
           </div>
           <div class="attr-row">
-            <div class="attr-key">발행일시</div>
+            <div class="attr-key">올린 때</div>
             <div class="attr-val" id="aDate">—</div>
           </div>
           <div class="attr-row">
-            <div class="attr-key">비고</div>
+            <div class="attr-key">메모</div>
             <div class="attr-val" id="aNote">—</div>
           </div>
         </div>
       </div>
 
-      <div class="sb-section">
-        <div class="sec-label">🌐 Portal 아이템</div>
+      <!-- GIS 담당자용: ArcGIS 장면·포털 항목 (일반 사용자에게는 접어 둔다) -->
+      <details class="sb-section sb-expert">
+        <summary class="sec-label">전문가 정보 <small>ArcGIS 장면·포털 항목</small></summary>
         <div class="attr-table">
           <div class="attr-row">
-            <div class="attr-key">Scene ID</div>
+            <div class="attr-key">장면 ID</div>
             <div class="attr-val mono" id="aSceneId">—</div>
           </div>
           <div class="attr-row">
-            <div class="attr-key">Scene URL</div>
+            <div class="attr-key">포털</div>
             <div class="attr-val">
-              <a id="aSceneUrl" href="#" target="_blank">Portal에서 보기 →</a>
-            </div>
-          </div>
-          <div class="attr-row">
-            <div class="attr-key">상태</div>
-            <div class="attr-val">
-              <span class="badge badge-green">✓ 발행됨</span>
-              <span class="badge badge-blue" style="margin-left:4px">전체공개</span>
+              <a id="aSceneUrl" href="#" target="_blank" rel="noopener">포털 항목 열기</a>
             </div>
           </div>
         </div>
-      </div>
+        <div class="sb-expert-btns">
+          <button type="button" class="k-btn small" onclick="openSceneViewer()">ArcGIS 장면에서 보기</button>
+          <button type="button" class="k-btn small" onclick="openPortalItem()">포털 항목 열기</button>
+        </div>
+      </details>
 
     </div><!-- /sb-body -->
 
     <div class="sb-foot">
-      <button class="foot-btn primary" onclick="openSceneViewer()">⧉ 씬으로 보기</button>
-      <button class="foot-btn ghost"   onclick="openPortalItem()">Portal 아이템</button>
+      <button type="button" class="foot-btn primary" onclick="openFullscreen()">전체 화면으로 보기</button>
+      <button type="button" class="foot-btn ghost" id="btnCopyLink" onclick="copyRecordLink()">링크 복사</button>
     </div>
 
   </div><!-- /sidebar -->
@@ -337,10 +349,10 @@ canvas { display: block; }
         <div class="form-label">스캔 유형 *</div>
         <div class="mode-tabs">
           <button type="button" class="mode-tab type-tab active" id="typeHome" onclick="setScanType('home')">
-            🏠 홈스캔<small>집 구조 · 평면 · 치수</small>
+            집·실내<small>집 구조·평면도·치수</small>
           </button>
           <button type="button" class="mode-tab type-tab" id="typeSurvey" onclick="setScanType('survey')">
-            📋 현장조사<small>물건 · 문화재 · 특이사항 기록</small>
+            현장<small>시설물·문화재·특이사항 기록</small>
           </button>
         </div>
       </div>
@@ -420,7 +432,7 @@ canvas { display: block; }
     </div>
     <div class="modal-foot">
       <button class="hbtn" onclick="closeModal()">취소</button>
-      <button class="hbtn primary" onclick="startUpload()">처리 시작 →</button>
+      <button class="hbtn primary" onclick="startUpload()">올리고 처리 시작</button>
     </div>
   </div>
 </div>
@@ -434,12 +446,12 @@ canvas { display: block; }
 <!-- 진행상황 팝업 -->
 <div id="progressPopup" style="
   display:none; position:fixed; top:60px; right:16px;
-  background:var(--s2); border:1px solid rgba(56,189,248,0.3);
-  border-radius:8px; padding:16px 20px; z-index:250;
-  min-width:280px; box-shadow:0 8px 32px rgba(0,0,0,0.5);
+  background:var(--k-surface); border:1px solid var(--k-line);
+  border-radius:14px; padding:16px 20px; z-index:250;
+  min-width:280px; box-shadow:var(--k-float-strong);
 ">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-    <div style="font-size:12px;font-weight:700;color:var(--text);font-family:'IBM Plex Mono',monospace">처리 진행 상황</div>
+    <div style="font-size:15px;font-weight:700;color:var(--text)">처리 진행 상황</div>
     <button onclick="toggleProgressPopup()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px">✕</button>
   </div>
   <div id="ppTitle" style="font-size:13px;color:var(--accent);margin-bottom:10px;font-weight:600"></div>
@@ -447,15 +459,15 @@ canvas { display: block; }
     <div class="pp-step" id="ppStep0"><span class="pp-dot"></span>대기 중</div>
     <div class="pp-step" id="ppStep1"><span class="pp-dot"></span>입력 준비</div>
     <div class="pp-step" id="ppStep2"><span class="pp-dot"></span>융합 · 사진 텍스처</div>
-    <div class="pp-step" id="ppStep3"><span class="pp-dot"></span>좌표 · LAS</div>
-    <div class="pp-step" id="ppStep4"><span class="pp-dot"></span>GLB 준비</div>
-    <div class="pp-step" id="ppStep5"><span class="pp-dot"></span>SLPK 생성</div>
-    <div class="pp-step" id="ppStep6"><span class="pp-dot"></span>Portal 발행</div>
+    <div class="pp-step" id="ppStep3"><span class="pp-dot"></span>좌표·점군</div>
+    <div class="pp-step" id="ppStep4"><span class="pp-dot"></span>3D 모델 준비</div>
+    <div class="pp-step" id="ppStep5"><span class="pp-dot"></span>3D 장면 만들기</div>
+    <div class="pp-step" id="ppStep6"><span class="pp-dot"></span>지도에 올리기</div>
     <div class="pp-step" id="ppStep7"><span class="pp-dot"></span>완료</div>
   </div>
-  <div id="ppMsg" style="margin-top:10px;font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;min-height:14px"></div>
+  <div id="ppMsg" style="margin-top:10px;font-size:13px;color:var(--text3);min-height:14px"></div>
   <div style="margin-top:12px">
-    <div style="background:rgba(255,255,255,0.08);border-radius:10px;height:4px">
+    <div style="background:rgba(19,32,42,.1);border-radius:10px;height:4px">
       <div id="ppBar" style="height:4px;border-radius:10px;background:var(--accent);width:0%;transition:width 0.5s ease"></div>
     </div>
   </div>
@@ -466,7 +478,7 @@ canvas { display: block; }
   <div class="modal" style="width:380px">
     <div class="modal-head">
       <div class="modal-title">
-        <div class="modal-icon" style="background:rgba(52,211,153,.15)">✓</div>
+        <div class="modal-icon" style="background:var(--k-ok-soft);color:var(--k-ok)">✓</div>
         <span id="doneModalTitle">처리 완료!</span>
       </div>
     </div>
@@ -477,7 +489,7 @@ canvas { display: block; }
     </div>
     <div class="modal-foot">
       <button class="hbtn" onclick="closeDoneModal()">닫기</button>
-      <button class="hbtn primary" id="btnViewScene" onclick="viewDoneScene()">🔍 확대</button>
+      <button class="hbtn primary" id="btnViewScene" onclick="viewDoneScene()">기록 보기</button>
     </div>
   </div>
 </div>
@@ -490,7 +502,7 @@ canvas { display: block; }
 </div>
 
 <script src="upload_queue.js?v=831620d114"></script>
-<script src="viewer.js?v=86814618cd"></script>
+<script src="viewer.js?v=d7cb1cc390"></script>
 <script>
 /* 끊겨도 이어 올리기 (2026-11-16): 시작 화면에 '올리지 못한 촬영 N개', ☰ 시작 옆에 숫자 */
 (function () { if (!window.KgeoUpload) return; KgeoUpload.renderPending(document.getElementById('startPending'), { doneMax: 2 }); KgeoUpload.badge(document.getElementById('startBadge')); })();

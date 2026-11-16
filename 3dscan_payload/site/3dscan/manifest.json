@@ -1,0 +1,16 @@
+{
+  "name": "kgeoScan — 현장 3D·VR 기록",
+  "short_name": "kgeoScan",
+  "description": "폰으로 찍은 현장·공간을 3D와 VR 투어로 남기고 지도에서 찾아보기",
+  "lang": "ko",
+  "start_url": "/app/3dscan/?source=pwa",
+  "scope": "/app/3dscan/",
+  "display": "standalone",
+  "background_color": "#F3F5F4",
+  "theme_color": "#F3F5F4",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

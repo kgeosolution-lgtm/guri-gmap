@@ -2,10 +2,39 @@
    kgeoScan Viewer - Main Script (Three.js GLB Viewer)
    ============================================================ */
 function isMobile() { return window.matchMedia("(max-width: 768px)").matches; }
+const MOBILE_SHEET_PEEK = 80;          // 폰: 아래 목록 시트가 접혔을 때 보이는 높이 (viewer.css #listPanel 과 같게)
 const TYPE_INFO = {
-  home:   { label: "홈스캔",  icon: "🏠", color: [56, 189, 248] },
-  survey: { label: "현장조사", icon: "📋", color: [251, 146, 60] },
+  home:   { label: "집·실내", icon: "", color: [56, 189, 248] },
+  survey: { label: "현장",    icon: "", color: [251, 146, 60] },
 };
+/* 2026-11-16 디자인 개편 (docs/design_system.md): 기록 '종류'는 무엇으로 찍었는지 — 지도 핀 색·목록 표시.
+   scan_points 에는 종류 필드가 없어 산출물 주소로 가린다: glb 있으면 LiDAR 실측, 스플랫만 있으면 3D 촬영, 둘 다 없으면 VR 투어 */
+const KIND_INFO = {
+  lidar:   { label: "LiDAR 실측", color: [28, 95, 212] },
+  photo3d: { label: "3D 촬영",    color: [116, 64, 232] },
+  vr:      { label: "VR 투어",    color: [11, 143, 127] },
+  trench:  { label: "굴착 기록",  color: [226, 160, 0] },
+};
+function recKind(a) {
+  if (!a) return "photo3d";
+  if (a.glb_url) return "lidar";
+  if (a.splat_url) return "photo3d";
+  return "vr";
+}
+/* 앱 기본 제목 '스캔 20261110_1701' → '11월 10일 오후 5:01 스캔' (사람이 읽는 제목). 사용자가 붙인 제목은 그대로 */
+function displayTitle(a) {
+  const t = (a && a.scan_title) || "";
+  const m = t.match(/^스캔\s*(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(?:[-_].*)?$/);
+  if (!m) return t || "제목 없는 기록";
+  const h = +m[4], ap = h < 12 ? "오전" : "오후", h12 = h % 12 || 12;
+  return `${+m[2]}월 ${+m[3]}일 ${ap} ${h12}:${m[5]} 스캔`;
+}
+function fmtDateKo(v) {
+  if (!v) return "";
+  const d = new Date(v); if (isNaN(d)) return "";
+  const h = d.getHours(), ap = h < 12 ? "오전" : "오후";
+  return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 ${ap} ${h % 12 || 12}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
 function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 
 /* LINK-HELPERS-BEGIN ── 같은 장소 기록 묶기 (✦ 3D · 🥽 VR 투어 · 📐 평면도, 2026-11-12)
@@ -79,10 +108,11 @@ require([
   "esri/layers/TileLayer",
   "esri/layers/VectorTileLayer",
   "esri/layers/WebTileLayer",
+  "esri/widgets/Locate",
 ], function(
   esriConfig, WebMap, MapView, FeatureLayer, SimpleRenderer, UniqueValueRenderer, SimpleMarkerSymbol,
   Home, Zoom, BasemapToggle, Search, ScaleBar, Graphic,
-  Basemap, TileLayer, VectorTileLayer, WebTileLayer
+  Basemap, TileLayer, VectorTileLayer, WebTileLayer, Locate
 ) {
   /* ── 배경지도: WebMap 에 저장된 네이버 타일은 CORS 로 막혀 안 보이므로
         다른 kgeodata 앱(goyang1000_page/basemaps.js)과 같은 구성을 코드에서 만든다 ── */
@@ -96,11 +126,13 @@ require([
         ]
       });
     }
+    // 2026-11-16 디자인 개편: 두 지도가 같은 축척(1:1200만~1:300만)에서 겹쳐 지명이 두 번씩 보였다 →
+    // 세계 축척은 Esri, 1:1200만부터는 국토지리정보원 회색 지도만. 음영은 약하게 (지도는 배경, 핀이 주인공)
     return new Basemap({
-      title: "지형", id: "kgeo-gray",
+      title: "지도", id: "kgeo-gray",
       baseLayers: [
-        new TileLayer({ url: "https://services.arcgisonline.com/arcgis/rest/services/Elevation/World_Hillshade/MapServer", opacity: 0.65 }),
-        new VectorTileLayer({ url: "https://cdn.arcgis.com/sharing/rest/content/items/d9b6f47909c74f1fb5c7cefd14470e68/resources/styles/root.json", maxScale: 3000000 }),
+        new TileLayer({ url: "https://services.arcgisonline.com/arcgis/rest/services/Elevation/World_Hillshade/MapServer", opacity: 0.32 }),
+        new VectorTileLayer({ url: "https://cdn.arcgis.com/sharing/rest/content/items/d9b6f47909c74f1fb5c7cefd14470e68/resources/styles/root.json", maxScale: 12000000 }),
         new VectorTileLayer({ url: "https://kgeodata.com/server/rest/services/Hosted/NGII_GRAY_2026/VectorTileServer/resources/styles/root.json", minScale: 12000000, blendMode: "multiply" })
       ]
     });
@@ -128,10 +160,10 @@ require([
   let _splatFrame = null;                   // splat.html iframe
   const WALK_JS = "walk.js?v=0981c0752e";                                          // 🚶 걸어보기 모듈 (배포 때 ?v=해시 를 붙이면 좋다)
   const ORTHO_PAGE = "ortho.html?v=123ae7a46f";                       // 배포(deploy.mjs stampAssets)가 ?v=해시 를 붙인다
-  const SPLAT_PAGE = "splat.html?v=e89d05c1cd";          // 배포(deploy.mjs stampAssets)가 ?v=해시 를 붙인다
-  const UTILITY_PAGE = "utility.html?v=807d30ed93";                   // 굴착 기록 3D X-ray (배포가 ?v=해시 를 붙인다)
+  const SPLAT_PAGE = "splat.html?v=9afed2aa62";          // 배포(deploy.mjs stampAssets)가 ?v=해시 를 붙인다
+  const UTILITY_PAGE = "utility.html?v=72db0b3afa";                   // 굴착 기록 3D X-ray (배포가 ?v=해시 를 붙인다)
   let _utilInfo = null;                                  // 현재 스캔의 굴착 기록 {url, report} (utilities.json 이 있을 때만)
-  const PANO_PAGE = "pano.html?v=df9c3df06c";                                       // 🥽 VR 투어 360° 실사 (배포가 ?v=해시 를 붙인다)
+  const PANO_PAGE = "pano.html?v=58b909c94d";                                       // 🥽 VR 투어 360° 실사 (배포가 ?v=해시 를 붙인다)
   let _panoInfo = null;                                  // 현재 스캔의 VR 투어 {url, count, from?} (<job>_pano/tour.json 이 있을 때만, from = 같은 장소 다른 기록)
   let _sib3d = null;                                     // VR 투어만 있는 기록일 때 같은 장소의 3D 기록 속성 (✦ 3D·◈ 메시 탭을 거기서 빌린다)
   let _planInfo = null;                                  // 📐 평면도 {url, json, from?} (<job>_floorplan.json — 자기 것 우선, 없으면 같은 장소 기록)
@@ -211,20 +243,59 @@ require([
   window._pointLayer = pointLayer;      // 완료 팝업 → 확대 (require 밖에서 접근)
   window._mapView    = mapView;
 
-  // 스캔 유형별 색 (scan_type 필드가 레이어에 있을 때만; 없으면 기존 단일 심볼 유지)
-  function typeRenderer() {
-    const mk = c => new SimpleMarkerSymbol({ style: "circle", color: [c[0], c[1], c[2], 0.9], size: "14px", outline: { color: c, width: 2 } });
+  /* ── 지도 핀 (2026-11-16 디자인 개편, docs/design_system.md 2-8절): 기록 종류 색의 말뚝 핀 + 흰 테두리·흰 점.
+        종류는 산출물 주소로 가린다(recKind 와 같은 규칙, Arcade). 가까운 기록은 묶어 숫자로 (잉크색 원 + 마킹 주황 고리) ── */
+  function pinRing() {                      // 끝이 아래(12,0)인 물방울: 중심 (12,20) 반지름 11 원에 두 접선
+    const cx = 12, cy = 20, r = 11, a0 = -33.4, a1 = 213.4, pts = [[12, 0]];
+    for (let i = 0; i <= 28; i++) { const a = (a0 + (a1 - a0) * i / 28) * Math.PI / 180; pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); }
+    pts.push([12, 0]);
+    return pts.reverse();                   // 바깥 고리는 시계 방향
+  }
+  function circleRing(cx, cy, r) {
+    const pts = [];
+    for (let i = 0; i <= 24; i++) { const a = -i / 24 * Math.PI * 2; pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); }
+    return pts;
+  }
+  function pinSymbol(rgb, size) {
+    const fill = c => ({ type: "CIMPolygonSymbol", symbolLayers: [{ type: "CIMSolidFill", enable: true, color: c }] });
+    return {
+      type: "cim",
+      data: { type: "CIMSymbolReference", symbol: { type: "CIMPointSymbol", symbolLayers: [{
+        type: "CIMVectorMarker", enable: true, size: size || 28, anchorPoint: { x: 0, y: -0.5 }, anchorPointUnits: "Relative",
+        frame: { xmin: 0, ymin: 0, xmax: 24, ymax: 32 }, scaleSymbolsProportionally: true, respectFrame: true,
+        markerGraphics: [
+          { type: "CIMMarkerGraphic", geometry: { rings: [pinRing()] }, symbol: { type: "CIMPolygonSymbol", symbolLayers: [
+            { type: "CIMSolidStroke", enable: true, width: 1.6, color: [255, 255, 255, 255] },
+            { type: "CIMSolidFill", enable: true, color: [rgb[0], rgb[1], rgb[2], 255] }] } },
+          { type: "CIMMarkerGraphic", geometry: { rings: [circleRing(12, 20, 4.2)] }, symbol: fill([255, 255, 255, 255]) }   // 흰 점은 마지막(위)에
+        ]
+      }] } }
+    };
+  }
+  function kindRenderer() {
     return new UniqueValueRenderer({
-      field: "scan_type",
-      defaultSymbol: mk([148, 163, 184]),
-      uniqueValueInfos: Object.entries(TYPE_INFO).map(([v, t]) => ({ value: v, symbol: mk(t.color), label: t.label }))
+      valueExpression: "IIF(!IsEmpty($feature.glb_url), 'lidar', IIF(!IsEmpty($feature.splat_url), 'photo3d', 'vr'))",
+      valueExpressionTitle: "기록 종류",
+      defaultSymbol: pinSymbol([118, 131, 140]),
+      uniqueValueInfos: Object.entries(KIND_INFO).map(([v, k]) => ({ value: v, symbol: pinSymbol(k.color), label: k.label }))
     });
   }
+  pointLayer.renderer = kindRenderer();
+  pointLayer.featureReduction = {
+    type: "cluster", clusterRadius: "52px", clusterMinSize: "30px", clusterMaxSize: "46px", popupEnabled: false, maxScale: 4000,   // 확대하면 핀으로
+    symbol: { type: "simple-marker", color: [19, 32, 42, 0.92], outline: { color: [255, 107, 44, 1], width: 3 } },
+    labelingInfo: [{
+      deconflictionStrategy: "none", labelPlacement: "center-center",
+      labelExpressionInfo: { expression: "Text($feature.cluster_count, '#,###')" },
+      symbol: { type: "text", color: [255, 255, 255, 1], font: { size: 12, weight: "bold" } }
+    }]
+  };
+  mapView.highlightOptions = { color: [255, 107, 44, 1], haloOpacity: 1, fillOpacity: 0.15 };
+  let _dataExtent = null;                   // 기록이 있는 범위 (처음 화면·🏠)
   let _hasTypeField = false;
   pointLayer.load().then(() => {
     const names = new Set((pointLayer.fields || []).map(f => f.name.toLowerCase()));
     _hasTypeField = names.has("scan_type");
-    if (_hasTypeField) pointLayer.renderer = typeRenderer();
     const lf = document.getElementById("lpFilters");
     if (lf) lf.style.display = _hasTypeField ? "" : "none";
   }).catch(() => {});
@@ -237,22 +308,36 @@ require([
       .catch(() => {});
 
     loadListPanel();
-    if (isMobile() && _lpOpen) toggleListPanel();      // 폰: 지도 먼저, 목록은 왼쪽 탭으로
+    if (isMobile() && _lpOpen) toggleListPanel();      // 폰: 지도 먼저, 목록은 아래 시트(접힘)
+    if (isMobile()) mapView.padding = Object.assign({}, mapView.padding, { bottom: MOBILE_SHEET_PEEK });
     const typeParam = new URLSearchParams(window.location.search).get("type");
     if (typeParam && TYPE_INFO[typeParam]) setTypeFilter(typeParam);
 
     // ── 레이어뷰 등록
     mapView.whenLayerView(pointLayer).then(lv => { _layerView = lv; });
 
-    // ── 위젯 추가 - 지도 왼쪽에 배치 (우측은 사이드바에 가려짐)
-    mapView.ui.add(new Zoom({ view: mapView }), "top-left");
-    mapView.ui.add(new Home({ view: mapView }), "top-left");
+    // ── 위젯: PC 는 왼쪽 위(오른쪽은 기록 보기에 가려짐). 폰은 확대·축소 단추 없이(두 손가락) 오른쪽 위에 처음 위치·내 위치
+    const homeW = new Home({ view: mapView });
+    homeW.goToOverride = (view, params) => !_dataExtent ? view.goTo(params.target)
+      : view.goTo(_dataExtent.width === 0 ? { target: _dataExtent.center, zoom: 16 } : _dataExtent.clone().expand(1.4));
+    if (!isMobile()) mapView.ui.add(new Zoom({ view: mapView }), "top-left");
+    mapView.ui.add(homeW, isMobile() ? "top-right" : "top-left");
+    mapView.ui.add(new Locate({ view: mapView, scale: 5000, popupEnabled: false }), isMobile() ? "top-right" : "top-left");
     mapView.ui.add(new ScaleBar({ view: mapView, style: "line", unit: "metric" }), "bottom-left");
-    mapView.ui.add(new BasemapToggle({ view: mapView, nextBasemap: makeBasemap("imagery") }), "bottom-left");
+    mapView.ui.add(new BasemapToggle({ view: mapView, nextBasemap: makeBasemap("imagery") }), isMobile() ? "top-right" : "bottom-left");
 
     // URL 파라미터로 피처 자동 선택 (?select=<scene_item_id>)
     const urlParams    = new URLSearchParams(window.location.search);
     const autoSelectId = urlParams.get("select");
+    // 바로가기 주소가 아니면 처음 화면을 기록이 있는 곳에 맞춘다 (한반도 전체 대신)
+    const deepLink = ["select", "job", "site", "site_id", "oid", "id"].some(k => urlParams.has(k));
+    pointLayer.queryExtent().then(r => {
+      if (!r || !r.extent || !r.count) return;
+      _dataExtent = r.extent;
+      if (deepLink) return;
+      const tiny = r.count === 1;
+      mapView.goTo(tiny ? { target: r.extent.center, zoom: 16 } : _dataExtent.clone().expand(1.4), { duration: 0 }).catch(() => {});
+    }).catch(() => {});
     if (autoSelectId) {
       try {
         await pointLayer.load();
@@ -285,6 +370,10 @@ require([
     const res = await mapView.hitTest(e, { include: [pointLayer] });
     if (!res.results.length) return;
     const g = res.results[0].graphic;
+    if (g.isAggregate) {                    // 묶음 숫자를 누르면 그 자리로 두 단계 확대
+      mapView.goTo({ target: g.geometry, zoom: Math.min(mapView.zoom + 2, 19) }, { duration: 500, easing: "ease-out" }).catch(() => {});
+      return;
+    }
     const oid = g.attributes.OBJECTID || g.attributes.objectid;
     await mapView.goTo({ target: g.geometry, zoom: Math.max(mapView.zoom, 16) },
                        { duration: 600, easing: "ease-out" });
@@ -322,9 +411,9 @@ require([
     currentAttrs    = attrs;
     currentSceneUrl = attrs.scene_url || null;
 
-    const fmt = v => v ? new Date(v).toLocaleString('ko-KR') : "—";
+    const fmt = v => fmtDateKo(v) || "—";
 
-    document.getElementById("sbTitle").textContent    = attrs.scan_title || "—";
+    document.getElementById("sbTitle").textContent    = displayTitle(attrs);
     document.getElementById("sbAuthor").textContent   = attrs.author     || "—";
     document.getElementById("sbDate").textContent     = fmt(attrs.pub_date);
     document.getElementById("aTitle").textContent     = attrs.scan_title || "—";
@@ -332,10 +421,11 @@ require([
     document.getElementById("aNote").textContent      = attrs.note       || "—";
     document.getElementById("aSceneId").textContent   = attrs.scene_item_id || "—";
     const tinfo = TYPE_INFO[attrs.scan_type] || null;
+    const kind = recKind(attrs), kinfo = KIND_INFO[kind];
     const tag = document.getElementById("sbTypeTag");
-    tag.textContent = tinfo ? `${tinfo.icon} ${tinfo.label}` : "3D SCAN";
-    tag.className   = "sb-tag" + (tinfo ? " type-" + attrs.scan_type : "");
-    document.getElementById("aType").textContent = tinfo ? `${tinfo.icon} ${tinfo.label}` : "—";
+    tag.innerHTML = `<span class="k-dot ${kind}"></span>${esc(kinfo.label)}` + (tinfo ? ` <span class="sb-tag-sub">${esc(tinfo.label)}</span>` : "");
+    tag.className   = "sb-tag kind-" + kind;
+    document.getElementById("aType").textContent = kinfo.label + (tinfo ? ` (${tinfo.label})` : "");
     setVisTag(attrs._visibility || "public");          // 🌐 공개 / 🔗 링크 공유 / 🔒 비공개 (docs/share_contract.md 1절)
     // 📷 이 장소 기록 더하기: 같은 제목으로 시작하면 목록·같은 장소 묶기에서 한눈에 이어진다 (위치는 촬영 페이지가 GPS 로 잡는다)
     const capQ = (attrs.scan_title ? "title=" + encodeURIComponent(attrs.scan_title) : "") +
@@ -375,6 +465,20 @@ require([
     }
 
     setListActive(attrs.scene_item_id || attrs.OBJECTID || attrs.objectid);
+  };
+
+  /* 링크 복사 (2026-11-16): 지도에 있는 기록은 ?select=, 없으면 작업 번호 ?job= */
+  window.copyRecordLink = async function() {
+    const a = currentAttrs; if (!a) return;
+    const job = linkJobId(a);
+    const url = location.origin + location.pathname + (a.scene_item_id ? `?select=${encodeURIComponent(a.scene_item_id)}` : job ? `?job=${job}` : "");
+    const btn = document.getElementById("btnCopyLink");
+    let ok = false;
+    try { await navigator.clipboard.writeText(url); ok = true; } catch (e) {
+      try { const ta = Object.assign(document.createElement("textarea"), { value: url }); document.body.appendChild(ta); ta.select(); ok = document.execCommand("copy"); ta.remove(); } catch (e2) {}
+    }
+    if (!ok && navigator.share) { try { await navigator.share({ title: displayTitle(a), url }); return; } catch (e) {} }
+    if (btn) { const t = btn.dataset.label || (btn.dataset.label = btn.textContent); btn.textContent = ok ? "링크를 복사했어요" : "복사하지 못했어요"; setTimeout(() => { btn.textContent = t; }, 1800); }
   };
 
   window.closeSidebar = function() {
@@ -432,7 +536,7 @@ require([
       const pxVal = isMobile() ? 0 : (w.endsWith("vw")
         ? Math.round(window.innerWidth * parseFloat(w) / 100)
         : px);
-      mapView.padding = { top: 0, right: pxVal, bottom: 0, left: 0 };
+      mapView.padding = { top: 0, right: pxVal, bottom: isMobile() ? MOBILE_SHEET_PEEK : 0, left: 0 };
       // transition 완료 후 resize
       setTimeout(() => {
         try { mapView.resize(); } catch(e) {}
@@ -656,7 +760,7 @@ require([
           white-space:nowrap; letter-spacing:0.3px;
         `;
         helpEl.innerHTML = isMobile()
-          ? '한 손가락: 회전 &nbsp;|&nbsp; 두 손가락: 이동·줌 &nbsp;|&nbsp; 📏 측정: 두 점 터치'
+          ? '한 손가락 회전 · 두 손가락 이동·확대 · 거리 재기는 두 점 터치'
           : '좌클릭: 회전 &nbsp;|&nbsp; 우클릭: 이동 &nbsp;|&nbsp; 휠: 줌 &nbsp;|&nbsp; WASD: 이동 &nbsp;|&nbsp; R: 리셋 &nbsp;|&nbsp; M: 측정 &nbsp;|&nbsp; 더블클릭: 포커스';
         container.style.position = 'relative';
         container.appendChild(helpEl);
@@ -749,7 +853,7 @@ require([
       const ref = document.getElementById("btnTop");
       if (ref) ref.parentNode.insertBefore(b, ref);
     }
-    b.textContent = "🚶 걸어보기"; b.style.display = "";
+    b.textContent = "걸어보기"; b.style.display = "";
     b.onclick = () => _walk && _walk.toggle();
     console.info("[walk]", `floor ${S.floorY.toFixed(3)} (${plan ? "floorplan" : "estimate"}) voxel ${S.v.toFixed(3)} footprint ${S.footprintM2.toFixed(1)} m2`);
   }
@@ -960,13 +1064,13 @@ require([
     if (!box) return;
     const chips = [];
     info.forEach((x, i) => {
-      const a = x.it.a, d = linkDateLabel(a.pub_date), self = x.it === me;
+      const a = x.it.a, d0 = linkDateLabel(a.pub_date), d = d0 ? `${+d0.slice(0, 2)}월 ${+d0.slice(3)}일` : "", self = x.it === me;
       const k = esc(linkKey(a));
-      if (linkHas3D(a)) chips.push(`<button type="button" class="sb-link${self ? " self" : ""}" data-key="${k}" data-kind="3d" title="${self ? "지금 보는 기록" : esc(a.scan_title || "")}">✦ 3D${d ? " · " + d : ""}</button>`);
-      if (hasPano(x)) chips.push(`<button type="button" class="sb-link vr${self ? " self" : ""}" data-key="${k}" data-kind="pano" title="${esc(a.scan_title || "")} — 360° ${x.pano.spots.length}곳">🥽 VR 투어${d ? " · " + d : ""}</button>`);
+      if (linkHas3D(a)) chips.push(`<button type="button" class="sb-link${self ? " self" : ""}" data-key="${k}" data-kind="3d" title="${self ? "지금 보는 기록" : esc(a.scan_title || "")}">3D${d ? " " + d : ""}</button>`);
+      if (hasPano(x)) chips.push(`<button type="button" class="sb-link vr${self ? " self" : ""}" data-key="${k}" data-kind="pano" title="${esc(a.scan_title || "")} — 360° ${x.pano.spots.length}곳">VR 투어${d ? " " + d : ""}</button>`);
       if (hasPlan(x)) {
         const tot = x.plan.rooms.filter(r => !r.partial).reduce((s, r) => s + (r.area_m2 || 0), 0);
-        chips.push(`<button type="button" class="sb-link plan${self ? " self" : ""}" data-key="${k}" data-kind="plan" title="${esc(a.scan_title || "")} 평면도">📐 평면도${tot ? " " + tot.toFixed(1) + "m²" : ""}</button>`);
+        chips.push(`<button type="button" class="sb-link plan${self ? " self" : ""}" data-key="${k}" data-kind="plan" title="${esc(a.scan_title || "")} 평면도">평면도${tot ? " " + tot.toFixed(1) + " m²" : ""}</button>`);
       }
     });
     const others = info.length > 1;
@@ -1233,8 +1337,9 @@ require([
     const el = document.getElementById("lpList");
     if (!features.length) {
       el.innerHTML = _typeFilter === "vr"
-        ? '<div class="lp-empty">VR 투어가 아직 없습니다.<br><a class="lp-cap" href="capture_pano.html">🥽 VR 투어 찍기</a></div>'
-        : '<div class="lp-empty">등록된 스캔이 없습니다.<br>＋ 스캔 업로드로 추가하거나<br><a class="lp-cap" href="capture.html">📷 폰으로 촬영</a></div>';
+        ? '<div class="lp-empty"><b>아직 VR 투어가 없어요</b><span>방 한가운데서 폰을 두 바퀴 돌리면 360° 투어가 만들어져요.</span><a class="k-btn primary small" href="capture_pano.html">VR 투어 찍기</a></div>'
+        : _kw ? '<div class="lp-empty"><b>찾는 기록이 없어요</b><span>제목이나 메모의 다른 낱말로 찾아보세요.</span></div>'
+        : '<div class="lp-empty"><b>아직 기록이 없어요</b><span>폰 카메라로 현장을 찍으면 3D 기록이 이 지도에 올라와요.</span><a class="k-btn primary small" href="capture.html?trench=0">3D 촬영 시작</a></div>';
       return;
     }
     const now = Date.now();
@@ -1243,31 +1348,30 @@ require([
       const i   = _allFeatures.indexOf(feat);          // 필터된 목록에서도 원본 인덱스로 연결
       const a   = feat.attributes;
       const dt  = a.pub_date ? new Date(a.pub_date) : null;
-      const dtStr = dt ? (
-        String(dt.getMonth()+1).padStart(2,'0') + '.' +
-        String(dt.getDate()).padStart(2,'0') + ' ' +
-        String(dt.getHours()).padStart(2,'0') + ':' +
-        String(dt.getMinutes()).padStart(2,'0')
-      ) : '—';
+      const autoTitle = displayTitle(a) !== (a.scan_title || '');     // 제목이 이미 날짜면 날짜를 또 쓰지 않는다
+      const dtStr = dt && !autoTitle ? `${dt.getMonth() + 1}월 ${dt.getDate()}일` : '';
       const isNew = dt && (now - dt.getTime()) < DAY * 3;
       const sid = a.scene_item_id || '';
       const t   = TYPE_INFO[a.scan_type] || null;
+      const kind = recKind(a), k = KIND_INFO[kind];
       const thumb = a.thumb_url
-        ? `<img class="lp-thumb" src="${esc(a.thumb_url)}" loading="lazy" alt="" onerror="this.outerHTML='<div class=&quot;lp-thumb lp-thumb-none&quot;>◈</div>'">`
-        : `<div class="lp-thumb lp-thumb-none">${t ? t.icon : '◈'}</div>`;
-      return `<div class="lp-item" data-sid="${esc(sid)}" data-idx="${i}" onclick="onListItemClick(${i})">
+        ? `<img class="lp-thumb" src="${esc(a.thumb_url)}" loading="lazy" alt="" onerror="this.outerHTML='<div class=&quot;lp-thumb lp-thumb-none&quot;></div>'">`
+        : `<div class="lp-thumb lp-thumb-none"></div>`;
+      // 함께 볼 수 있는 것: 사진 3D(스플랫)·정사영상·VR 투어 — 글자로 짧게 (기호만으로는 뜻을 모른다)
+      const extras = [];
+      if (kind === "lidar" && a.splat_url) extras.push("사진 3D");
+      if (a.ortho_url) extras.push("정사영상");
+      if (_vrOwn.has(linkKey(a)) || _vrLinked.has(linkKey(a))) extras.push("VR 투어");
+      return `<div class="lp-item" data-sid="${esc(sid)}" data-idx="${i}" onclick="onListItemClick(${i})" role="button" tabindex="0" onkeydown="if(event.key==='Enter')onListItemClick(${i})">
         ${thumb}
         <div class="lp-item-body">
-          <div class="lp-item-title">${esc(a.scan_title || '—')}</div>
+          <div class="lp-item-title">${esc(displayTitle(a))}${isNew ? '<span class="lp-item-new">새 기록</span>' : ''}</div>
           <div class="lp-item-meta">
-            ${t ? `<span class="lp-item-type ${esc(a.scan_type)}">${t.icon} ${t.label}</span>` : ''}
-            <span class="lp-item-date">${dtStr}</span>
-            ${a.splat_url ? '<span class="lp-item-splat" title="가우시안 스플랫 있음">✦</span>' : ''}
-            ${a.ortho_url ? '<span class="lp-item-splat" title="정사영상 있음">▦</span>' : ''}
-            ${_vrOwn.has(linkKey(a)) ? '<span class="lp-item-vr" title="VR 투어 (360° 실사)">🥽 VR</span>'
-              : _vrLinked.has(linkKey(a)) ? '<span class="lp-item-vr linked" title="같은 장소에 VR 투어가 있습니다">🥽↔</span>' : ''}
-            ${isNew ? '<span class="lp-item-new">NEW</span>' : ''}
+            <span class="lp-item-kind"><span class="k-dot ${kind}"></span>${esc(k.label)}</span>
+            ${t ? `<span class="lp-item-type ${esc(a.scan_type)}">${esc(t.label)}</span>` : ''}
+            ${dtStr ? `<span class="lp-item-date k-num">${dtStr}</span>` : ''}
           </div>
+          ${extras.length ? `<div class="lp-item-extras">${extras.map(x => `<span>${esc(x)}</span>`).join('')}</div>` : ''}
         </div>
       </div>`;
     }).join('');
@@ -1317,9 +1421,11 @@ require([
     if (_typeFilter === "vr") fs = fs.filter(f => hasVr(f.attributes));          // 🥽 VR 투어 (자기 것 + 같은 장소 연결)
     else if (_typeFilter) fs = fs.filter(f => (f.attributes.scan_type || '') === _typeFilter);
     if (_kw) fs = fs.filter(f => (f.attributes.scan_title || '').toLowerCase().includes(_kw) ||
+                                 displayTitle(f.attributes).toLowerCase().includes(_kw) ||
+                                 KIND_INFO[recKind(f.attributes)].label.toLowerCase().includes(_kw) ||
                                  (f.attributes.note || '').toLowerCase().includes(_kw));
     document.getElementById("lpCount").textContent =
-      (fs.length !== _allFeatures.length ? fs.length + "/" : "") + _allFeatures.length;
+      fs.length !== _allFeatures.length ? `${fs.length} / ${_allFeatures.length}` : String(_allFeatures.length);
     renderList(fs);
   }
   window.filterList = function(val) { _kw = val.trim().toLowerCase(); applyListFilter(); };
@@ -1803,7 +1909,7 @@ let _visJob = null;                               // 지금 사이드바에 열�
 function setVisTag(v) {
   const t = document.getElementById("sbVisTag"); if (!t) return;
   const i = VIS_INFO[v] || VIS_INFO.public;
-  t.textContent = `${i.icon} ${i.label}`;
+  t.textContent = i.label;
   t.className = "sb-tag " + (v === "link" ? "vis-link" : v === "private" ? "vis-private" : "green");
 }
 function attrsFromStatus(sd) {
@@ -1887,11 +1993,11 @@ async function renderMine() {
   if (appBridge) {
     const up = sheet.querySelector('[data-go="upload"]');
     if (up && appLidar) {
-      up.querySelector(".st").innerHTML = "<b>LiDAR 스캔 · 실측 3D</b><small>이 앱으로 바로 촬영해 올리기 → 실측 메시·점군·평면도</small>";
+      up.querySelector(".st").innerHTML = "<b>LiDAR 스캔</b><small>이 앱으로 바로 찍어 올리면 실측 3D·평면도가 나와요. 크기를 잴 수 있어요.</small>";
       up.setAttribute("data-go", "app-lidar");
       const list = document.createElement("button");
-      list.type = "button"; list.className = "start-card"; list.setAttribute("data-go", "app-scans");
-      list.innerHTML = '<span class="si">📱</span><span class="st"><b>이 폰의 LiDAR 스캔</b><small>앱에 저장된 녹화 · 올리지 못한 것 다시 올리기</small></span>';
+      list.type = "button"; list.className = "start-card k-lidar"; list.setAttribute("data-go", "app-scans");
+      list.innerHTML = '<span class="si"><svg viewBox="0 0 28 28" width="28" height="28" aria-hidden="true"><rect x="6" y="5" width="16" height="19" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 11h8M10 15h8M10 19h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><span class="st"><b>이 폰의 LiDAR 스캔</b><small>앱에 저장된 녹화를 보고, 올리지 못한 것을 다시 올려요.</small></span>';
       up.after(list);
     } else if (up) {
       up.querySelector(".st small").textContent = "이 아이폰엔 LiDAR 가 없어요 — 다른 기기의 녹화 zip 올리기";

@@ -18,18 +18,19 @@
   라이브러리: three 0.165 + @mkkellogg/gaussian-splats-3d 0.4.7 (CDN, import map). SharedArrayBuffer 는 쓰지 않음(COOP/COEP 불필요).
   걸어보기: walk.js (메시 뷰어 viewer.js 와 같이 씀). 측정: 스플랫 광선 교차(불투명한 점 중심의 중앙값 깊이).
 -->
+<link rel="stylesheet" href="kgeo-ui.css?v=b6f5a762e0">
 <style>
-  :root { --bg:#080b0f; --text:#e2e8f0; --text2:#94a3b8; --accent:#38bdf8; --acc-o:#fb923c; --yel:#facc15; }
-  html, body { margin:0; height:100%; background:var(--bg); color:var(--text); font:13px/1.4 -apple-system, 'Pretendard', system-ui, sans-serif; overflow:hidden; }
+  :root { --bg:#0D141A; --text:#e2e8f0; --text2:#94a3b8; --accent:#8DB6FF; --acc-o:#fb923c; --yel:#facc15; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--text); font:13px/1.4 'Pretendard Variable','Pretendard',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif; overflow:hidden; }
   body { position:fixed; inset:0; touch-action:none; }
   canvas { display:block; outline:none; }
   #hud { position:fixed; left:10px; top:10px; z-index:10; pointer-events:none; display:flex; flex-direction:column; gap:4px; }
-  .pill { background:rgba(8,11,15,.78); border:1px solid rgba(56,189,248,.25); color:var(--accent); font-family:'IBM Plex Mono',ui-monospace,monospace;
+  .pill { background:rgba(8,11,15,.78); border:1px solid rgba(56,189,248,.25); color:var(--accent); font-family:'Pretendard Variable','Pretendard',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif,monospace;
           font-size:10px; letter-spacing:.4px; padding:3px 8px; border-radius:2px; width:fit-content; backdrop-filter:blur(6px); white-space:nowrap; }
   .pill.o { border-color:rgba(251,146,60,.35); color:var(--acc-o); }
   #ctl { position:fixed; right:10px; top:10px; z-index:10; display:flex; flex-wrap:wrap; justify-content:flex-end; gap:5px; max-width:calc(100% - 20px); }
   .btn { height:28px; padding:0 10px; background:rgba(13,17,23,.88); border:1px solid rgba(148,163,184,.35); color:var(--accent);
-         font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:11px; font-weight:600; border-radius:3px; cursor:pointer; backdrop-filter:blur(6px); white-space:nowrap; }
+         font-family:'Pretendard Variable','Pretendard',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif,monospace; font-size:11px; font-weight:600; border-radius:3px; cursor:pointer; backdrop-filter:blur(6px); white-space:nowrap; }
   .btn:hover { border-color:var(--accent); background:rgba(56,189,248,.12); }
   .btn.on { border-color:var(--yel); color:var(--yel); background:rgba(250,204,21,.12); }
   .btn.walk { background:rgba(56,189,248,.16); border-color:rgba(56,189,248,.6); color:#e0f2fe; }
@@ -41,7 +42,7 @@
   #load.done { opacity:0; pointer-events:none; }
   .spin { width:28px; height:28px; border-radius:50%; border:3px solid rgba(56,189,248,.25); border-top-color:var(--accent); animation:spin .9s linear infinite; }
   @keyframes spin { to { transform:rotate(360deg); } }
-  #loadText { font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:11px; color:var(--text2); }
+  #loadText { font-family:'Pretendard Variable','Pretendard',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif,monospace; font-size:11px; color:var(--text2); }
   #bar { width:180px; height:3px; background:rgba(255,255,255,.1); border-radius:3px; overflow:hidden; }
   #bar i { display:block; height:100%; width:0; background:var(--accent); transition:width .3s; }
   #err { position:fixed; inset:0; z-index:20; display:none; align-items:center; justify-content:center; padding:24px; text-align:center; color:#f87171; background:var(--bg); font-size:13px; line-height:1.7; }
