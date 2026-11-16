@@ -3,7 +3,8 @@
 
     powershell -ExecutionPolicy Bypass -File D:\kgeoHub\tools\3dscan\iis_tune.ps1 -DryRun    # 바꿀 것만 보기 (아무것도 안 바꿈)
     powershell -ExecutionPolicy Bypass -File D:\kgeoHub\tools\3dscan\iis_tune.ps1            # 적용
-    powershell -ExecutionPolicy Bypass -File D:\kgeoHub\tools\3dscan\iis_tune.ps1 -Undo      # 바로 전 상태로 되돌리기
+    powershell -ExecutionPolicy Bypass -File D:\kgeoHub\tools\3dscan\iis_tune.ps1 -Undo      # 바로 전 상태로 되돌리기 (가장 최근 실행만)
+    powershell -ExecutionPolicy Bypass -File D:\kgeoHub\tools\3dscan\iis_tune.ps1 -Fonts     # 지도 글꼴(약 6MB)도 압축 (2b 참고, 확인 실패 시 자동 복원)
 
   하는 일
     1. applicationHost.config 백업 (appcmd add backup kgeo-tune-<시각>) — -Undo 가 이것으로 되돌린다
@@ -23,6 +24,7 @@ param(
   [switch]$SkipHttps,
   [switch]$SkipCompression,
   [switch]$Hsts,
+  [switch]$Fonts,
   [int]$HstsMaxAge = 86400,
   [string]$HostName = 'kgeodata.com'
 )
@@ -124,6 +126,23 @@ if (-not $SkipCompression) {
   Run 'urlCompression static+dynamic on (server level)' @('set', 'config', '-section:system.webServer/urlCompression', '/doStaticCompression:True', '/doDynamicCompression:True', '/commit:apphost')
 }
 
+# ── 2b. 지도 글꼴 (-Fonts, 2026-11-16): 지도 지명·도로 이름 글꼴 파일(pbf, application/octet-stream)이 첫 화면의 약 6MB(63%)
+#     octet-stream 은 큰 파일 내려받기와 같은 형식이라, 압축 형식에 넣되 큰 파일이 나가는 곳은 실시간 압축을 끈다:
+#     포털 전체(항목 내려받기), 지도 서버 결과물(rest/directories)·관리(admin), 같은 IIS 의 다른 사이트(예전처럼).
+#     확인에서 이미 gzip 인 지도 타일이 두 번 압축되면(풀어도 gzip 머리) 이 실행 전으로 자동 복원한다
+if ($Fonts) {
+  Say 'Map fonts (application/octet-stream) - compressed under /server/rest/services only'
+  if (-not $site) { throw 'site not found for -Fonts' }
+  Run 'dynamic += application/octet-stream' @('set', 'config', '-section:system.webServer/httpCompression', "/+dynamicTypes.[@start,mimeType='application/octet-stream',enabled='True']", '/commit:apphost') -DupOk
+  foreach ($loc in @("$site/portal", "$site/server/rest/directories", "$site/server/admin")) {
+    Run "  no live compression at $loc (big downloads)" @('set', 'config', $loc, '-section:system.webServer/urlCompression', '/doDynamicCompression:False', '/commit:apphost')
+  }
+  foreach ($s in $sitesXml.appcmd.SITE) {
+    $n = $s.'SITE.NAME'
+    if ($n -ne $site) { Run "  no live compression on other site '$n' (as before)" @('set', 'config', $n, '-section:system.webServer/urlCompression', '/doDynamicCompression:False', '/commit:apphost') }
+  }
+}
+
 # ── 3. https: kgeodata.com·www 의 http 만 https://kgeodata.com 으로
 if (-not $SkipHttps) {
   Say 'HTTPS redirect (URL Rewrite global rule kgeo-https)'
@@ -180,8 +199,30 @@ if (-not $SkipCompression) {
   $ok = $LASTEXITCODE -eq 0; if (-not $ok) { $bad++ }
   Say ("  {0}  vector tile downloads and decodes" -f $(if ($ok) { 'OK ' } else { 'BAD' }))
 }
+if ($Fonts) {
+  Check 'map font file is gzip' (Head "https://$HostName/server/rest/services/Hosted/NGII_GRAY_2026/VectorTileServer/resources/fonts/NanumGothicOTF%20ExtraBold/44032-44287.pbf" @('-H', 'Accept-Encoding: gzip')) '(?mi)^Content-Encoding: gzip'
+  # 이미 gzip 으로 오는 지도 타일이 한 번 더 압축되지 않았는지: 한 번 푼 내용이 다시 gzip 머리(1F 8B)로 시작하면 두 번 압축된 것
+  $tmp = Join-Path $env:TEMP 'kgeo_tile_check.bin'
+  Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue
+  & $curl -s --compressed -o $tmp --max-time 30 "https://$HostName/server/rest/services/Hosted/NGII_GRAY_2026/VectorTileServer/tile/10/400/870.pbf"
+  $tb = if (Test-Path -LiteralPath $tmp) { [IO.File]::ReadAllBytes($tmp) } else { @() }
+  $ok = $tb.Length -gt 0 -and -not ($tb.Length -ge 2 -and $tb[0] -eq 0x1F -and $tb[1] -eq 0x8B); if (-not $ok) { $bad++ }
+  Say ("  {0}  vector tile not compressed twice ({1} bytes)" -f $(if ($ok) { 'OK ' } else { 'BAD' }), $tb.Length)
+  foreach ($s in $sitesXml.appcmd.SITE) {
+    if ($s.'SITE.NAME' -eq $site) { continue }
+    foreach ($bnd in @($s.site.bindings.binding)) {
+      if ($bnd.protocol -eq 'https' -and $bnd.bindingInformation -match ':443:(.+)$') { Check "other site https://$($Matches[1]) still 200" (Head "https://$($Matches[1])/" @()) '(?m)^HTTP/\S+ (200|30[1278])' }
+    }
+  }
+}
 if ($bad) {
   Say ''
+  if ($Fonts -and $bkName) {
+    Say "$bad check(s) failed - restoring the configuration from just before this run ($bkName) automatically"
+    & $appcmd restore backup $bkName
+    Say 'Restored. The earlier settings (compression, https) stay as they were before this run.'
+    exit 1
+  }
   Say "$bad check(s) failed. To undo everything right now:"
   Say "  powershell -ExecutionPolicy Bypass -File `"$PSCommandPath`" -Undo"
   exit 1
