@@ -46,7 +46,8 @@ import urllib.request
 # IIS 에서 HTTP/2 요청일 때 stdin/stdout 에 setmode 를 부르면 응답이 끊기고(RST), GET 에서는 502 가 났다.
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from common import job_visibility, load_config, query_params, respond, safe_job_id  # noqa: E402
+from common import (SPLAT_HQ_RUN_MSG, SPLAT_HQ_WAIT_MSG, job_visibility, load_config, query_params, respond,  # noqa: E402
+                    safe_job_id)
 
 MAX_BODY = 512 * 1024 * 1024          # .splat 업로드 상한 512 MB (가우시안 100만 ≈ 32 MB)
 STALE_HOURS_DEFAULT = 3
@@ -269,6 +270,7 @@ def splat_summary(q, meta):
         "mesh_available": os.path.exists(mesh), "objectid": q.get("objectid"),
         "object": q.get("object") or meta.get("object"), "object_region": q.get("object_region"),   # 물체 모드 (upload.py / pipeline.py 기록)
         "splat_full_url": q.get("splat_full_url"),
+        "splat_hq": q.get("splat_hq"),            # requested 이면 워커가 방 전용 설정(약 1시간)으로 (2026-11-17)
     }
 
 
@@ -371,7 +373,8 @@ def op_claim(cfg, job_id):
         return respond({"error": "원본 zip 이 서버에 없음"}, "410 Gone")
     worker = (query_params().get("worker") or "")[:60]
     q = update_queue(qp, splat_status="processing", splat_worker=worker, splat_started_at=now_str(),
-                     splat_message=("사진에서 3D 만드는 중 (GPU)" if is_photos(q, meta) else "영상에서 3D 만드는 중 (GPU)") if video else "GPU 워커 학습 중")
+                     splat_message=("사진에서 3D 만드는 중 (GPU)" if is_photos(q, meta) else "영상에서 3D 만드는 중 (GPU)") if video
+                     else SPLAT_HQ_RUN_MSG if q.get("splat_hq") == "requested" else "GPU 워커 학습 중")
     respond(splat_summary(q, meta))
 
 
@@ -550,7 +553,7 @@ def op_upload(cfg, job_id):
         summary = {k: stats.get(k) for k in ("gaussians", "gaussians_full", "object_mode", "train_seconds", "total_seconds", "test_psnr",
                                              "test_psnr_object", "peak_vram_gb", "iters", "strategy", "cap_max", "keyframes_train",
                                              "worker", "splat_bytes", "splat_full_bytes", "frames_used", "frames_total", "registered",
-                                             "sfm_seconds", "extract_seconds", "scale") if k in stats}
+                                             "sfm_seconds", "extract_seconds", "scale", "preset") if k in stats}
     registered, reg_msg, oid = False, "", q.get("objectid")
     public = job_visibility(meta if meta.get("visibility") else q) == "public"
     if public:
@@ -565,10 +568,23 @@ def op_upload(cfg, job_id):
     if thumb_url:
         extra["splat_thumb_url"] = thumb_url
     done_msg = ("3D 완료 (사진)" if is_photos(q, meta) else "3D 완료 (영상)") if video else "스플랫 완료" + (" (물체 모드)" if extra.get("splat_object_region") else "")
+    # 사진 3D 고화질 (2026-11-17): 워커 stats.preset=room_hq 면 완료, hq_failed 면 지난 결과를 다시 올린 것
+    hq_result = isinstance(stats, dict) and stats.get("preset") == "room_hq"
+    requeue_hq = False
+    if isinstance(stats, dict) and stats.get("hq_failed"):
+        extra["splat_hq"] = "failed"
+        done_msg = "고화질로 만들지 못해 이전 사진 3D를 그대로 둡니다"
+    elif hq_result:
+        extra["splat_hq"] = "done"
+        done_msg = "고화질 사진 3D 완료"
+    elif q.get("splat_hq") == "requested" and not video:
+        requeue_hq = True                                  # 빠른 설정이 끝나는 사이에 고화질을 골랐다 → 이어서 만든다
     q = update_queue(qp, splat_status="done", splat_url=splat_url, splat_full_url=full_url, splat_done_at=now_str(), splat_stats=summary,
                      splat_registered=registered, objectid=oid or q.get("objectid"),
                      splat_message=done_msg + ("" if registered or not public else " (scan_points 등록 실패: " + reg_msg + ")"),
                      **extra)
+    if requeue_hq:
+        q = update_queue(qp, splat_status="pending", splat_message=SPLAT_HQ_WAIT_MSG)
     if bundle_tmp:
         q = accept_bundle(qp, q, meta, bundle_tmp)
     respond({"job_id": job_id, "splat_url": splat_url, "splat_full_url": full_url, "bytes": len(blob), "registered": registered,
@@ -616,7 +632,8 @@ def op_fail(cfg, job_id):
     if not q:
         return respond({"error": "없는 작업"}, "404 Not Found")
     msg = (query_params().get("message") or "워커 실패")[:300]
-    q = update_queue(qp, splat_status="failed", splat_message=msg, splat_done_at=now_str())
+    hq = {"splat_hq": "failed"} if q.get("splat_hq") == "requested" else {}
+    q = update_queue(qp, splat_status="failed", splat_message=msg, splat_done_at=now_str(), **hq)
     respond(splat_summary(q, meta))
 
 

@@ -1648,3 +1648,11 @@ body.pseudo-full-open #sidebar { transform: none !important; z-index: 3000 !impo
 
 /* 기록을 열 때 화면 읽기 프로그램용으로 제목에 초점을 두지만 테두리는 그리지 않는다 */
 #sbTitle:focus { outline: none; }
+/* 사진 3D 고화질 (2026-11-17): 기록 주인만 보이는 칸·완료 알림 단추 */
+.sb-hq[hidden], .sb-hq [hidden] { display: none !important; }
+.hq-text { margin-bottom: 12px; color: var(--k-ink-2); font: 400 13.5px/1.6 var(--k-font); word-break: keep-all; }
+.hq-text b { color: var(--k-ink); font-weight: 700; }
+.sb-hq .k-btn { width: 100%; min-height: 44px; }
+.hq-offer { margin-top: 12px; padding: 12px; border: 1px solid var(--k-line); border-radius: 10px; background: var(--k-surface-2, var(--k-surface)); }
+.hq-offer .hq-text { margin-bottom: 10px; }
+.hq-offer .k-btn { width: 100%; min-height: 44px; }

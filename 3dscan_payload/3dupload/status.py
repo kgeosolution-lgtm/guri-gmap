@@ -9,7 +9,8 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from common import check_edit_key, job_visibility, load_config, load_job_files, query_params, read_edit_key, respond, safe_job_id  # noqa: E402
+from common import (check_edit_key, job_visibility, load_config, load_job_files, query_params, read_edit_key,  # noqa: E402
+                    respond, safe_job_id, splat_hq_block)
 
 STEP_NAMES = ["대기 중", "입력 준비", "융합·텍스처", "좌표·LAS", "GLB 준비", "SLPK 생성", "Portal 발행", "완료"]
 
@@ -45,6 +46,9 @@ def main():
         "step_name": STEP_NAMES[min(step, len(STEP_NAMES) - 1)], "message": q.get("message", ""),
         "scene_item_id": q.get("scene_item_id"), "glb_url": q.get("glb_url"),
         "splat_status": q.get("splat_status"), "splat_url": q.get("splat_url"), "splat_message": q.get("splat_message"),
+        # 사진 3D 고화질 (2026-11-17): requested|done|failed, 고를 수 있는지는 관리 키가 있을 때만 알려 준다
+        "splat_hq": q.get("splat_hq"), "splat_started_at": q.get("splat_started_at"),
+        "splat_hq_ok": (splat_hq_block(q, meta) is None) if can_edit else None,
         "ortho_url": q.get("ortho_url"), "area": q.get("area"),
         "site_id": q.get("site_id"), "hazards_url": q.get("hazards_url"), "changes_url": q.get("changes_url"),
         "objectid": q.get("objectid"), "splat_kind": q.get("splat_kind"), "quality": q.get("quality"),

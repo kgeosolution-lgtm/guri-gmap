@@ -94,3 +94,25 @@ def write_json_atomic(path, data):
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     os.replace(tmp, path)
+
+
+# 사진 3D 고화질 (2026-11-17 사용자: "옵션을 켜야만 이 모드로, 켜면 노트북에서 한 시간 작업한다고 안내")
+# 기본은 빠른 설정(약 6분). 기록 주인이 edit.py op=splat_hq 로 고르면 GPU 워커가 방 전용 설정(원본 해상도·2만 회·
+# 100만 점·자세 보정·LiDAR 깊이, 노트북 RTX 4060 에서 약 1시간)으로 다시 만든다. 큐 splat_hq = requested|done|failed
+SPLAT_HQ_MINUTES = 60
+SPLAT_HQ_WAIT_MSG = "고화질 사진 3D 대기 중 (노트북 GPU, 약 1시간)"
+SPLAT_HQ_RUN_MSG = "고화질 사진 3D 만드는 중 (노트북 GPU, 약 1시간)"
+
+
+def splat_hq_block(q, meta):
+    """고화질로 만들 수 없으면 사용자에게 보일 이유, 만들 수 있으면 None. LiDAR(stray) 방·현장 기록만 (물체·영상·사진·VR 제외)"""
+    mode = q.get("mode") or meta.get("mode")
+    obj = q.get("object") or meta.get("object")
+    if mode != "stray" or (isinstance(obj, dict) and obj.get("mode", 1)):
+        return "LiDAR로 찍은 방·현장 기록만 고화질로 만들 수 있어요"
+    if q.get("status") != "done":
+        return "기록 처리가 끝난 뒤에 고를 수 있어요"
+    z = meta.get("scan_zip")
+    if not (z and os.path.exists(z)):
+        return "원본 스캔 파일이 서버에 없어 다시 만들 수 없어요"
+    return None

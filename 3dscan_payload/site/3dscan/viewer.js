@@ -604,6 +604,7 @@ require([
 
     setListActive(attrs.scene_item_id || attrs.OBJECTID || attrs.objectid);
     recordHistory(attrs);
+    if (typeof updateHqBox === "function") updateHqBox(attrs);   // 사진 3D 고화질 (기록 주인만)
   };
 
   /* ── 뒤로 가기 (2026-11-16): 기록을 열면 방문 기록을 하나 쌓는다 → 폰 '뒤로'가 사이트를 나가지 않고 기록을 닫는다.
@@ -2277,10 +2278,15 @@ async function trackJob(jobId, title) {
                 : sd.mode === "video" ? "<br><span style='color:var(--acc-o)'>사진 3D는 서버가 영상으로 만드는 중이에요(보통 10~30분). 다 되면 목록에서 열어 '사진 3D'로 보세요.</span>"
                 : "") +
               (sd.mode !== "video" && (sd.splat_status === "pending" || sd.splat_status === "processing")
-                ? "<br><span style='color:var(--acc-o)'>사진 3D는 보통 1시간 안에 더해져요. 다 되면 목록에서 다시 열어 '사진 3D' 탭을 누르세요.</span>" : "") +
+                ? "<br><span style='color:var(--acc-o)'>사진 3D는 몇 분 뒤 더해져요. 다 되면 목록에서 다시 열어 '사진 3D' 탭을 누르세요.</span>" : "") +
+              (sd.can_edit && sd.splat_hq_ok && !sd.splat_hq   // 사진 3D 고화질 고르기 (2026-11-17, 노트북 GPU 약 1시간)
+                ? "<div class='hq-offer' id='doneHq'><div class='hq-text'>더 또렷한 사진 3D가 필요하면 고화질로 만들 수 있어요. <b>노트북 GPU에서 약 1시간</b> 걸려요.</div>" +
+                  "<button type='button' class='k-btn small' id='doneHqBtn'>고화질로 만들기 (약 1시간)</button></div>" : "") +
               (sd.utilities_url ? "<br><span style='color:var(--accent)'>굴착 기록: 목록에서 열어 '지하시설물' 탭에서 관 위치·깊이를 보고 '조서·산출물'을 내려받으세요.</span>" : "") +
               (sd.message && sd.message !== "처리 완료" ? `<br><span style='color:var(--text3)'>${esc(sd.message)}</span>` : "");
             dm.classList.add("show");
+            const hqb = document.getElementById("doneHqBtn");
+            if (hqb) hqb.onclick = () => requestSplatHq(sd.job_id, document.getElementById("doneHq"));
           } else {
             if (sd.scene_item_id) location.href = `/app/3dscan/?select=${sd.scene_item_id}`;
             else location.reload();
@@ -2396,6 +2402,65 @@ async function renderMine() {
       };
     }).catch(() => { row.querySelector(".st").textContent = "확인 실패"; });
   }
+}
+
+/* ════ 사진 3D 고화질 (2026-11-17 사용자: "옵션을 켜야만 이 모드로, 켜면 한 시간 노트북에서 작업한다고 안내") ════
+   기본 사진 3D 는 빠른 설정(몇 분). 기록 주인(관리 키)이 고르면 GPU 워커가 방 전용 설정으로 다시 만든다(노트북 GPU 약 1시간).
+   LiDAR 방·현장 기록만 (status.py splat_hq_ok). 그동안 지금 사진 3D 는 그대로 보이고, 끝나면 새 것으로 바뀐다 */
+const HQ_BTN = "고화질로 다시 만들기 (약 1시간)";
+const HQ_CONFIRM = "사진 3D를 고화질로 다시 만들까요?\n\n· 노트북 GPU에서 약 1시간 걸립니다.\n· 그동안은 지금 사진 3D가 그대로 보이고, 다 되면 새 것으로 바뀝니다.";
+function hqStateText(sd) {
+  const hhmm = t => { const m = /(\d{2}):(\d{2}):\d{2}$/.exec(t || ""); return m ? `${m[1]}:${m[2]}` : ""; };
+  if (sd.splat_hq === "done") return { text: "고화질로 만든 사진 3D예요.", btn: false };
+  if (sd.splat_hq === "requested") {
+    if (sd.splat_status === "processing" && /^고화질/.test(sd.splat_message || "")) {
+      const t = hhmm(sd.splat_started_at);
+      return { text: `고화질 사진 3D를 만드는 중이에요${t ? ` (${t} 시작)` : ""}. 노트북 GPU에서 약 1시간 걸리고, 다 되면 '사진 3D'가 새 것으로 바뀌어요.`, btn: false };
+    }
+    if (sd.splat_status === "processing") return { text: "지금 사진 3D를 먼저 만드는 중이에요. 끝나면 이어서 고화질로 만들어요(노트북 GPU, 약 1시간).", btn: false };
+    return { text: "고화질 사진 3D 차례를 기다리는 중이에요. 시작하면 노트북 GPU에서 약 1시간 걸리고, 다 되면 '사진 3D'가 새 것으로 바뀌어요.", btn: false };
+  }
+  return { text: (sd.splat_hq === "failed" ? "지난번에는 고화질로 만들지 못해 이전 사진 3D를 그대로 두었어요. " : "") +
+    "벽 글씨나 작은 물건까지 더 또렷한 사진 3D로 다시 만들어요. 노트북 GPU에서 약 1시간 걸리고, 그동안은 지금 사진 3D가 그대로 보여요.", btn: true };
+}
+async function requestSplatHq(job, box) {
+  const k = editKeyFor(job); if (!k) return null;
+  if (!confirm(HQ_CONFIRM)) return null;
+  const btn = box ? box.querySelector("button") : document.getElementById("btnHq");
+  if (btn) { btn.disabled = true; btn.textContent = "요청하는 중…"; }
+  try {
+    const r = await fetch("/app/3dupload/edit.py", { method: "POST", cache: "no-store",
+      headers: { "Content-Type": "application/json", "X-Edit-Key": k }, body: JSON.stringify({ op: "splat_hq", job_id: job }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || ("HTTP " + r.status));
+    if (box) {
+      box.textContent = "";
+      const t = document.createElement("div"); t.className = "hq-text";
+      t.textContent = hqStateText({ splat_hq: "requested", splat_status: d.splat_status, splat_message: d.message }).text;
+      box.appendChild(t);
+    }
+    return d;
+  } catch (e) {
+    alert("고화질을 요청하지 못했습니다: " + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = box ? "고화질로 만들기 (약 1시간)" : HQ_BTN; }
+    return null;
+  }
+}
+let _hqJob = null;
+function updateHqBox(attrs) {
+  const box = document.getElementById("sbHq"); if (!box) return;
+  const job = (attrs && (linkJobId(attrs) || attrs.job_id || attrs._job_id)) || null;
+  _hqJob = job; box.hidden = true;
+  if (!job || !/^[0-9a-f]{8}$/.test(job) || !editKeyFor(job)) return;
+  statusFetch(job).then(r => r.ok ? r.json() : null).then(sd => {
+    if (!sd || _hqJob !== job || !sd.can_edit || !(sd.splat_hq_ok || sd.splat_hq)) return;
+    const st = hqStateText(sd);
+    document.getElementById("sbHqText").textContent = st.text;
+    const btn = document.getElementById("btnHq");
+    btn.hidden = !st.btn; btn.disabled = false; btn.textContent = HQ_BTN;
+    btn.onclick = async () => { if (await requestSplatHq(job, null)) updateHqBox(attrs); };
+    box.hidden = false;
+  }).catch(() => {});
 }
 
 /* ════ 시작 화면 (2026-11-13 사용자: "들어가면 골라 갈 수 있게") ════

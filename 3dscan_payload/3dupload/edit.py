@@ -7,6 +7,10 @@
   {"op": "title", "job_id": "...", "title": "..."}            → {ok, job_id, title, sync}
   {"op": "pano_meta", "job_id": "...", "placements": {...}, "hotspots": [...], "info": {...}}
       → {ok, job_id, meta_url}   <glb_serve_dir>/<job>_pano/meta.json (tour.json 옆, pano.html·tour.html 이 읽음)
+  {"op": "splat_hq", "job_id": "..."}   (2026-11-17) 사진 3D 를 고화질(방 전용 설정, 노트북 GPU 약 1시간)로 다시 만들기
+      → {ok, job_id, splat_hq: "requested", splat_status, minutes, message}
+      LiDAR 방·현장 기록만. 빠른 사진 3D 를 만드는 중이면 그것이 끝난 뒤 이어서 만든다(splat_jobs.op_upload).
+      그동안 지금 사진 3D 는 그대로 보인다 (scan_points.splat_url 은 새 결과가 올라올 때 바뀐다)
 
   관리 키가 없거나 틀리면 403 {error}. 형식 오류는 400 {error: 한국어 문구}. 본문 256 KB 까지.
 """
@@ -17,8 +21,8 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # python -I 에서도 common.py 를 찾도록
-from common import (VISIBILITIES, check_edit_key, job_visibility, load_config, load_job_files, read_edit_key,  # noqa: E402
-                    respond, safe_job_id, write_json_atomic)
+from common import (SPLAT_HQ_MINUTES, SPLAT_HQ_WAIT_MSG, VISIBILITIES, check_edit_key, job_visibility,  # noqa: E402
+                    load_config, load_job_files, read_edit_key, respond, safe_job_id, splat_hq_block, write_json_atomic)
 
 MAX_BODY = 256 * 1024
 MAX_HOTSPOTS = 200
@@ -135,6 +139,25 @@ def queue_sync(qp, q):
     return "none"                                          # 실패한 작업: 지도에 올라간 것이 없다
 
 
+def request_splat_hq(qp, q, meta, job_id):
+    """op=splat_hq → (응답, 상태 코드)"""
+    why = splat_hq_block(q, meta)
+    if why:
+        return {"error": why}, "409 Conflict"
+    if q.get("splat_hq") == "done":
+        return {"error": "이미 고화질로 만든 사진 3D예요"}, "409 Conflict"
+    d = read_json(qp)
+    now = time.strftime("%Y-%m-%d %H:%M:%S")
+    if d.get("splat_hq") != "requested":
+        d.update(splat_hq="requested", splat_hq_requested_at=now)
+        if d.get("splat_status") != "processing":            # 만드는 중(빠른 설정)이면 끝난 뒤 op_upload 가 다시 대기열에 넣는다
+            d.update(splat_status="pending", splat_message=SPLAT_HQ_WAIT_MSG)
+        d["updated_at"] = now
+        write_json_atomic(qp, d)
+    return {"ok": True, "job_id": job_id, "splat_hq": "requested", "splat_status": d.get("splat_status"),
+            "minutes": SPLAT_HQ_MINUTES, "message": d.get("splat_message")}, "200 OK"
+
+
 def read_body():
     if os.environ.get("REQUEST_METHOD", "GET") != "POST":
         raise PermissionError("POST only")
@@ -200,7 +223,10 @@ def main():
             update_both(qp, None, pano_meta_url=meta_url)
             return respond({"ok": True, "job_id": job_id, "meta_url": meta_url,
                             "placements": len(doc["placements"]), "hotspots": len(doc["hotspots"])})
-        raise Bad("op 는 visibility, title, pano_meta 중 하나")
+        if op == "splat_hq":
+            res, code = request_splat_hq(qp, q, meta, job_id)
+            return respond(res, code)
+        raise Bad("op 는 visibility, title, pano_meta, splat_hq 중 하나")
     except Bad as e:
         return respond({"error": str(e)}, "400 Bad Request")
 

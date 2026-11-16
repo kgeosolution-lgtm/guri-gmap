@@ -40,7 +40,7 @@
 <link rel="preconnect" href="https://js.arcgis.com">
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <script src="https://js.arcgis.com/4.30/"></script>
-<link rel="stylesheet" href="viewer.css?v=89a581716a">
+<link rel="stylesheet" href="viewer.css?v=2109633c19">
 <style>
 /* 지도 캔버스의 ArcGIS 포커스 테두리만 없앤다. 다른 요소의 키보드 포커스는 보이게 둔다 (kgeo-ui.css :focus-visible) */
 .esri-view .esri-view-surface--inset-outline:focus::after { outline: none !important; }
@@ -306,6 +306,13 @@ canvas:focus, #viewDiv:focus { outline: none; }
         </div>
       </div>
 
+      <!-- 사진 3D 고화질 (기록 주인만, LiDAR 방·현장 기록) — viewer.js updateHqBox. 고르면 노트북 GPU 약 1시간 -->
+      <div class="sb-section sb-hq" id="sbHq" hidden>
+        <div class="sec-label">사진 3D 고화질</div>
+        <div class="hq-text" id="sbHqText"></div>
+        <button type="button" class="k-btn small" id="btnHq">고화질로 다시 만들기 (약 1시간)</button>
+      </div>
+
       <!-- GIS 담당자용: ArcGIS 장면·포털 항목 (일반 사용자에게는 접어 둔다) -->
       <details class="sb-section sb-expert">
         <summary class="sec-label">전문가 정보 <small>ArcGIS 장면·포털 항목</small></summary>
@@ -518,7 +525,7 @@ canvas:focus, #viewDiv:focus { outline: none; }
 </div>
 
 <script src="upload_queue.js?v=831620d114"></script>
-<script src="viewer.js?v=37e181bc4a"></script>
+<script src="viewer.js?v=5213822a0f"></script>
 <script>
 /* 끊겨도 이어 올리기 (2026-11-16): 시작 화면에 '올리지 못한 촬영 N개', ☰ 시작 옆에 숫자 */
 (function () { if (!window.KgeoUpload) return; KgeoUpload.renderPending(document.getElementById('startPending'), { doneMax: 2 }); KgeoUpload.badge(document.getElementById('startBadge')); })();
