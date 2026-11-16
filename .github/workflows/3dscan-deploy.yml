@@ -29,8 +29,8 @@ jobs:
 
           $src = Join-Path $env:GITHUB_WORKSPACE '3dscan_payload'
           $expected = [ordered]@{
-            'site/3dscan/index.html' = 'b1d0c9dbca27075ae5b9ce65e5247bac13ae3c022497a376582320727ce50616'
-            'site/3dscan/viewer.js' = 'e7173c57f525e8a6b7e6706789b4f5f89fc33b2b37873a79abfe22aa6c053e50'
+            'site/3dscan/index.html' = '9316e32ed77dcef600889a24acea0e22defa483b5195c2112d06960a52d0817a'
+            'site/3dscan/viewer.js' = '438adf2dcbd39aa71401112d531bca704831980937be0423e5534f55d963841e'
             'site/3dscan/viewer.css' = '89a581716a34a66331392892ad88f133c27a51c282e4c03f4e47b4ac452bac97'
             'site/3dscan/splat.html' = '02de1520e02a034502845674ecb66f3024905aa168852973dbba6147e3650fb9'
             'site/3dscan/ortho.html' = '0e8765798380ef19ce40082e8116ddfd14ea6223e32e8695cc04948adea7bb08'
@@ -40,7 +40,7 @@ jobs:
             'site/3dscan/capture_ar.html' = '19403366d76a4dda1e369d8cf7a1c96ce27395febe33b4ee9e1a63d5241fe930'
             'site/3dscan/capture_pano.html' = 'd454cab71f51671ff43585d9bc2af226a022827ee81af41bf2ad4977b9b0b836'
             'site/3dscan/pano.html' = '4c97fd9136b4bcf3b0b2c043957153ccef50f3a44b13b84549bdcd3f46df8d54'
-            'site/3dscan/tour.html' = 'c5f232108af6f6083dbcfe3188cb5bae4d74fb1d3d0d00f7209e9e96125d7c19'
+            'site/3dscan/tour.html' = '6b424c24c6aea77cb393577b8b0dbaf119d1d8ba70863dbc9a4f6725debac9ca'
             'site/3dscan/og_tour.jpg' = '5d28812903041d1328634526dd7aade4bed8990a07612b7ff6ad485a5e1c67ff'
             'site/3dscan/og_home.jpg' = '0adea58f50498f73dc94415c1200db98a4edc5e69252a61686addb4b1221815d'
             'site/3dscan/kgeo-ui.css' = '5dc14411a3e1c15add6953f008e216cdf4778b29673445584ea6b58b7117400c'

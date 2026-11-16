@@ -185,10 +185,10 @@ require([
   let _splatFrame = null;                   // splat.html iframe
   const WALK_JS = "walk.js?v=0981c0752e";                                          // 🚶 걸어보기 모듈 (배포 때 ?v=해시 를 붙이면 좋다)
   const ORTHO_PAGE = "ortho.html?v=0e87657983";                       // 배포(deploy.mjs stampAssets)가 ?v=해시 를 붙인다
-  const SPLAT_PAGE = "splat.html?v=8a90e1a633";          // 배포(deploy.mjs stampAssets)가 ?v=해시 를 붙인다
+  const SPLAT_PAGE = "splat.html?v=02de1520e0";          // 배포(deploy.mjs stampAssets)가 ?v=해시 를 붙인다
   const UTILITY_PAGE = "utility.html?v=e960a8d41c";                   // 굴착 기록 3D X-ray (배포가 ?v=해시 를 붙인다)
   let _utilInfo = null;                                  // 현재 스캔의 굴착 기록 {url, report} (utilities.json 이 있을 때만)
-  const PANO_PAGE = "pano.html?v=398843d6da";                                       // 🥽 VR 투어 360° 실사 (배포가 ?v=해시 를 붙인다)
+  const PANO_PAGE = "pano.html?v=4c97fd9136";                                       // 🥽 VR 투어 360° 실사 (배포가 ?v=해시 를 붙인다)
   let _panoInfo = null;                                  // 현재 스캔의 VR 투어 {url, count, from?} (<job>_pano/tour.json 이 있을 때만, from = 같은 장소 다른 기록)
   let _sib3d = null;                                     // VR 투어만 있는 기록일 때 같은 장소의 3D 기록 속성 (✦ 3D·◈ 메시 탭을 거기서 빌린다)
   let _planInfo = null;                                  // 📐 평면도 {url, json, from?} (<job>_floorplan.json — 자기 것 우선, 없으면 같은 장소 기록)
@@ -2202,6 +2202,7 @@ function rememberJob(jobId, title) { saveJobs(loadJobs().filter(j => j.job_id !=
 function forgetJob(jobId) { saveJobs(loadJobs().filter(j => j.job_id !== jobId)); }
 
 let _tracking = null;
+function hideProgressPopup() { const pp = document.getElementById("progressPopup"); if (pp) pp.style.display = "none"; }
 async function trackJob(jobId, title) {
   if (!/^[0-9a-f]{8}$/.test(jobId || "") || _tracking === jobId) return;
   _tracking = jobId;
@@ -2215,13 +2216,13 @@ async function trackJob(jobId, title) {
     try {
       const sr = await statusFetch(jobId);
       if (sr.status === 404 || sr.status === 400) {   // 2026-11-16 UX 점검: 'STEP 0/7' 알약 대신 안내 카드, 잘못 저장된 관리 키도 지운다
-        finish(); setUploadState("idle"); forgetEditKey(jobId); renderMine();
+        finish(); setUploadState("idle"); hideProgressPopup(); forgetEditKey(jobId); renderMine();
         showNotFound();
         return;
       }
       const sd = await sr.json();
       if (sd.visibility === "private" && sd.step === undefined) {     // 관리 키 없이 연 비공개 기록
-        finish(); setUploadState("idle");
+        finish(); setUploadState("idle"); hideProgressPopup();
         showNotFound("비공개 기록이에요. 올린 사람이 보낸 관리 링크로 열어야 볼 수 있어요.");
         return;
       }
