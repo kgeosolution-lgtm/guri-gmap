@@ -1879,6 +1879,24 @@ async function renderMine() {
   const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} };
   const mineCount = () => { try { return Object.keys(loadEditKeys()).length; } catch (e) { return 0; } };
+  /* kgeoScan 아이폰 앱 안 (2026-11-16): 앱이 문서 시작 때 window.kgeoApp = {platform, version, lidar} 를 넣는다.
+     LiDAR 카드 → 앱의 LiDAR 촬영(새 스캔)으로, '이 폰의 LiDAR 스캔' 카드 → 앱에 저장된 녹화 목록으로 (앱 쪽: kgeoscan-ios WebHome.swift) */
+  const appBridge = (window.kgeoApp && window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.kgeoApp) || null;
+  const appLidar = !!(appBridge && window.kgeoApp.lidar !== false);
+  const toApp = action => { try { appBridge.postMessage({ action }); return true; } catch (e) { return false; } };
+  if (appBridge) {
+    const up = sheet.querySelector('[data-go="upload"]');
+    if (up && appLidar) {
+      up.querySelector(".st").innerHTML = "<b>LiDAR 스캔 · 실측 3D</b><small>이 앱으로 바로 촬영해 올리기 → 실측 메시·점군·평면도</small>";
+      up.setAttribute("data-go", "app-lidar");
+      const list = document.createElement("button");
+      list.type = "button"; list.className = "start-card"; list.setAttribute("data-go", "app-scans");
+      list.innerHTML = '<span class="si">📱</span><span class="st"><b>이 폰의 LiDAR 스캔</b><small>앱에 저장된 녹화 · 올리지 못한 것 다시 올리기</small></span>';
+      up.after(list);
+    } else if (up) {
+      up.querySelector(".st small").textContent = "이 아이폰엔 LiDAR 가 없어요 — 다른 기기의 녹화 zip 올리기";
+    }
+  }
   window.openStart = function () {
     const n = mineCount(), m = document.getElementById("startMine"), s = document.getElementById("startMineN");
     if (m) m.hidden = !n;
@@ -1899,6 +1917,8 @@ async function renderMine() {
     if (!b) return;
     const go = b.getAttribute("data-go");
     closeStart();
+    if (go === "app-lidar" && toApp("lidar")) return;
+    if (go === "app-scans" && toApp("scans")) return;
     if (go === "upload" && typeof window.openModal === "function") window.openModal();
     else if (go === "upload" && typeof openModal === "function") openModal();
     else if (go === "mine") {
