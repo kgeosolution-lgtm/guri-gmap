@@ -8,6 +8,14 @@ const base = (process.env.DEPLOY_BASE ?? cfg.base).replace(/\/+$/, '');
 if (!/^https?:\/\/[^/]+$/.test(origin))
   throw new Error(`origin 형식: https://도메인 (지금: ${origin})`);
 if (base && !base.startsWith('/')) throw new Error(`base 는 / 로 시작(지금: ${base})`);
+// 동물병원·동물약국 사진 폴더 — 절대 주소(https://…/) 또는 사이트 안 경로(/images/pet/, 아래에서 base 가 붙음)
+const photoBase = (process.env.DEPLOY_PHOTO_BASE ?? cfg.photoBase ?? '').replace(/\/*$/, '/');
+if (!/^(https?:\/\/|\/)/.test(photoBase))
+  throw new Error(`photoBase 는 https://… 또는 / 로 시작(지금: ${photoBase})`);
+if (photoBase.startsWith('/') && !existsSync(path.join('public', photoBase)))
+  console.warn(
+    `[경고] 사진 폴더 public${photoBase} 가 없어 팝업 사진이 안 보입니다 — kgeodata 서버의 /guri/img 내용을 복사하세요`,
+  );
 // 지도 4쪽의 정적 헤더를 메뉴 설정(shell-nav.json)과 맞춘다
 const sync = spawnSync(process.execPath, ['scripts/sync-shell.mjs'], { stdio: 'inherit' });
 if (sync.status !== 0) process.exit(sync.status || 1);
@@ -33,6 +41,9 @@ function walk(dir) {
 for (const file of walk('out')) {
   if (!/\.(html|css|js|json|txt|svg)$/.test(file)) continue;
   let text = readFileSync(file, 'utf8');
+  // 사진 폴더 주소(theme.html 의 IMG_BASE)를 deploy.config.json 값으로 — 사이트 안 경로면 아래 /images/ 치환이 base 를 붙인다
+  if (file.endsWith('maps/theme.html'))
+    text = text.replace(/const IMG_BASE="[^"]*";/, `const IMG_BASE="${photoBase}";`);
   // 링크 미리보기 그림은 절대 주소여야 한다(지도 4쪽 정적 HTML)(아래 /images/ 치환보다 먼저)
   text = text.replace(/(property="og:image" content=")\/images\//g, `$1${origin}${base}/images/`);
   text = text.replace(/(["'(=])\/(images|fonts|maps|styles|review)\//g, `$1${base}/$2/`);
