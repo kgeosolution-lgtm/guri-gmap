@@ -582,6 +582,26 @@ def step_update_point(oid, attrs):
     log(f"scan_points OID {oid} 갱신: {sorted(a)}")
 
 
+# ── 지도 점의 기록 종류·작업 번호·장소·산출물 필드 (2026-11-16, docs/design_system.md 2-5) ──
+# 사이트는 이 필드로 핀 색을 정하고 VR 투어·평면도·굴착 기록을 찾는다 (예전에는 파일을 하나씩 찔러 봤다 → 404).
+# 레이어에 아직 필드가 없으면 그냥 건너뛴다 (maintenance add-fields 가 추가).
+def rec_kind_for(meta, pano_url=""):
+    """지도 핀 종류: vr | trench | photo3d | lidar (maintenance.backfill_links 와 같은 규칙)"""
+    if meta.get("mode") == "pano":
+        return "vr"
+    if (meta.get("trench") or {}).get("mode"):
+        return "trench"
+    if meta.get("mode") in ("video", "photos"):
+        return "photo3d"
+    return "lidar"
+
+
+def link_attrs(meta, layer_fields, pano_url="", floorplan_url="", utility_url="", site_id=None):
+    cand = {"rec_kind": rec_kind_for(meta, pano_url), "job_id": meta.get("job_id"), "site_id": site_id or meta.get("site_id"),
+            "pano_url": pano_url, "floorplan_url": floorplan_url, "utility_url": utility_url}
+    return {k: v for k, v in cand.items() if v and k in layer_fields}
+
+
 def trench_post(meta, q):
     """큐 kind=trench_post: GPU 워커가 올린 실측 묶음(trench_bundle.zip)으로
     ① mesh.glb 서빙(<job>.glb, 메시 탭) ② 지도 점 glb_url 갱신 ③ 축척이 있으면 관 추출·조서.
@@ -616,7 +636,7 @@ def trench_post(meta, q):
             try:
                 oid = qd.get("objectid")
                 if oid:
-                    attrs = {"glb_url": glb_url}
+                    attrs = {"glb_url": glb_url, "rec_kind": "trench", "job_id": job_id}
                     if las_info:
                         attrs.update(coord_x=las_info["coord_x"], coord_y=las_info["coord_y"], coord_z=las_info["coord_z"])
                     step_update_point(oid, attrs)
@@ -641,6 +661,11 @@ def trench_post(meta, q):
             util_url, rep_url = step_utilities(meta, out_dir, job_id, las=las, mesh=mesh if os.path.exists(mesh) else "",
                                                data_dir=data, georef=gj)
             upd.update(utilities_url=util_url or None, utility_report_url=rep_url or None)
+            if util_url and (upd.get("objectid") or qd.get("objectid")) and CFG.get("portal_enabled", True):
+                try:                                                # 지도 점에 굴착 기록 주소 (사이트가 ⛏ 탭을 바로 안다)
+                    step_update_point(upd.get("objectid") or qd.get("objectid"), {"utility_url": util_url})
+                except Exception as e:
+                    log(f"지도 점 utility_url 생략: {e}")
             if util_url:
                 try:
                     n = len(json.load(open(os.path.join(CFG["glb_serve_dir"], f"{job_id}_utilities.json"), "r", encoding="utf-8")).get("utilities") or [])
@@ -827,7 +852,8 @@ def step_publish_rest(slpk, service_name, title):
     return slpk_item_id, scene_item_id, scene_url
 
 
-def step_register(meta, las_info, glb_url, slpk_item_id, scene_item_id, scene_url, thumb_url="", ortho_url="", pano_url=""):
+def step_register(meta, las_info, glb_url, slpk_item_id, scene_item_id, scene_url, thumb_url="", ortho_url="", pano_url="",
+                  floorplan_url="", utility_url="", site_id=None):
     vis = current_visibility(meta)
     if vis != "public":                                   # 링크 공유·비공개: 지도·목록에 넣지 않는다 (산출물은 그대로 서빙)
         log(f"공개 범위 {vis}: 지도(scan_points) 등록 안 함")
@@ -858,6 +884,7 @@ def step_register(meta, las_info, glb_url, slpk_item_id, scene_item_id, scene_ur
         feature["attributes"]["ortho_url"] = ortho_url
     if "pano_url" in layer_fields and pano_url:            # 레이어에 필드가 없으면 뷰어가 thumb_url(<job>.jpg)에서 <job>_pano/tour.json 을 찾는다
         feature["attributes"]["pano_url"] = pano_url
+    feature["attributes"].update(link_attrs(meta, layer_fields, pano_url, floorplan_url, utility_url, site_id))
     out = http_json(layer + "/addFeatures", {"features": json.dumps([feature]), "f": "json", "token": token})
     res = out["addResults"][0]
     if not res.get("success"):
@@ -1096,7 +1123,8 @@ def visibility_sync(meta, q, resume=True):
             oid = step_register(meta, _las_info_for(meta, result), qd.get("glb_url") or result.get("glb_url") or "",
                                 result.get("slpk_item_id") or "", qd.get("scene_item_id") or result.get("scene_item_id") or "",
                                 result.get("scene_url") or "", qd.get("thumb_url") or "", qd.get("ortho_url") or "",
-                                pano_url=qd.get("pano_url") or "")
+                                pano_url=qd.get("pano_url") or "", floorplan_url=qd.get("floorplan_url") or "",
+                                utility_url=qd.get("utilities_url") or "", site_id=qd.get("site_id"))
             upd["objectid"] = oid
             if oid and qd.get("splat_url"):
                 try:
@@ -1226,7 +1254,9 @@ def run_job(meta, q):
     oid = None
     if CFG.get("portal_enabled", True):
         q.update(step=6, message="지도에 등록 중")
-        oid = step_register(meta, las_info, glb_url, slpk_item_id, scene_item_id, scene_url, thumb_url, ortho_url)
+        oid = step_register(meta, las_info, glb_url, slpk_item_id, scene_item_id, scene_url, thumb_url, ortho_url,
+                            floorplan_url=hz.get("floorplan_url") or "", utility_url=hz.get("utilities_url") or "",
+                            site_id=hz.get("site_id"))
     else:
         log("portal_enabled=false: 발행·등록 건너뜀 (로컬 테스트)")
     result = dict(job_id=job_id, las=las_info, glb_url=glb_url, thumb_url=thumb_url, slpk=slpk, slpk_item_id=slpk_item_id,

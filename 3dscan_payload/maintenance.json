@@ -1,6 +1,7 @@
 {
-  "once_id": "2026-11-12-office-vr-link-2",
+  "once_id": "2026-11-16-scan-fields",
   "actions": [
-    {"op": "set-visibility", "job_id": "82f7603b", "visibility": "link"}
+    {"op": "add-fields"},
+    {"op": "backfill-links"}
   ]
 }

@@ -17,11 +17,15 @@ const KIND_INFO = {
 };
 function recKind(a) {
   if (!a) return "photo3d";
+  if (a.rec_kind && KIND_INFO[a.rec_kind]) return a.rec_kind;       // 2026-11-16 레이어 필드 (maintenance backfill-links)
   if (a.glb_url) return "lidar";
   if (a.splat_url) return "photo3d";
   return "vr";
 }
 /* 앱 기본 제목 '스캔 20261110_1701' → '11월 10일 오후 5:01 스캔' (사람이 읽는 제목). 사용자가 붙인 제목은 그대로 */
+/* 레이어 필드(job_id·pano_url·floorplan_url·utility_url, 2026-11-16)가 채워진 기록이면 그 값을 믿고 파일을 찔러 보지 않는다.
+   job_id 가 없는 기록(옛 레이어·status 로 연 링크 공유 기록)은 예전처럼 작업 번호로 주소를 짐작해 찾아본다 */
+function fieldsKnown(a) { return !!(a && a.job_id); }
 function displayTitle(a) {
   const t = (a && a.scan_title) || "";
   const m = t.match(/^스캔\s*(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(?:[-_].*)?$/);
@@ -332,9 +336,11 @@ require([
       }] } }
     };
   }
-  function kindRenderer() {
+  function kindRenderer(withKindField) {
     return new UniqueValueRenderer({
-      valueExpression: "IIF(!IsEmpty($feature.glb_url), 'lidar', IIF(!IsEmpty($feature.splat_url), 'photo3d', 'vr'))",
+      valueExpression: withKindField
+        ? "IIF(!IsEmpty($feature.rec_kind), $feature.rec_kind, IIF(!IsEmpty($feature.glb_url), 'lidar', IIF(!IsEmpty($feature.splat_url), 'photo3d', 'vr')))"
+        : "IIF(!IsEmpty($feature.glb_url), 'lidar', IIF(!IsEmpty($feature.splat_url), 'photo3d', 'vr'))",
       valueExpressionTitle: "기록 종류",
       defaultSymbol: pinSymbol([118, 131, 140]),
       uniqueValueInfos: Object.entries(KIND_INFO).map(([v, k]) => ({ value: v, symbol: pinSymbol(k.color), label: k.label }))
@@ -356,6 +362,7 @@ require([
   pointLayer.load().then(() => {
     const names = new Set((pointLayer.fields || []).map(f => f.name.toLowerCase()));
     _hasTypeField = names.has("scan_type");
+    if (names.has("rec_kind")) pointLayer.renderer = kindRenderer(true);     // 굴착(노랑)·VR(청록) 핀은 이 필드로
     const lf = document.getElementById("lpFilters");
     if (lf) lf.style.display = _hasTypeField ? "" : "none";
   }).catch(() => {});
@@ -884,7 +891,8 @@ require([
   async function setupWalk(model, glbUrl, container) {
     if (!(await loadWalkJs()) || model !== _glbModel) return;
     const off = model.position.toArray();                  // 모델을 가운데로 옮긴 만큼 (평면도 ARKit 좌표 → 화면 좌표)
-    const fpUrl = (currentAttrs && currentAttrs.floorplan_url) || String(glbUrl).replace(/\.glb(\?.*)?$/i, "_floorplan.json");
+    const fpUrl = (currentAttrs && currentAttrs.floorplan_url) || (fieldsKnown(currentAttrs) ? String(glbUrl)
+      : String(glbUrl).replace(/\.glb(\?.*)?$/i, "_floorplan.json"));       // 필드가 있는데 비었으면 평면도 없음 (아래 비교로 건너뜀)
     const fp = fpUrl !== String(glbUrl) ? await KgeoWalk.loadFloorplan(fpUrl) : null;
     if (model !== _glbModel) return;
     const plan = fp ? KgeoWalk.floorplanWorld(fp, off) : null;
@@ -1017,8 +1025,8 @@ require([
       (a.splat_url ? "&splat=" + encodeURIComponent(a.splat_url) : "");
   }
   async function probeUtilities(attrs) {
-    if (attrs.scan_type && attrs.scan_type !== "survey") return;      // 굴착 기록은 현장조사(survey)로만 올라온다
-    const url = utilitiesUrlFor(attrs);
+    if (!fieldsKnown(attrs) && attrs.scan_type && attrs.scan_type !== "survey") return;      // 굴착 기록은 현장조사(survey)로만 올라온다
+    const url = fieldsKnown(attrs) ? (attrs.utility_url || "") : utilitiesUrlFor(attrs);
     if (!url) return;
     let j;
     try { const r = await fetch(url, { cache: "no-store" }); if (!r.ok) return; j = await r.json(); } catch (e) { return; }
@@ -1052,7 +1060,7 @@ require([
     t.title = linked ? "같은 장소의 다른 기록에 VR 투어가 있습니다" : "이 기록에 VR 투어가 있습니다";
   }
   async function probePano(attrs) {
-    const url = panoUrlFor(attrs);
+    const url = fieldsKnown(attrs) ? (attrs.pano_url || "") : panoUrlFor(attrs);
     if (!url) return;
     const j = await fetchJsonCached(url, _panoCache);
     if (currentAttrs !== attrs || !j || !(j.spots || []).length) return;
@@ -1084,8 +1092,9 @@ require([
     const recs = [me, ...sibs];
     const info = await Promise.all(recs.map(async it => ({
       it,
-      pano: linkPanoCandidate(it.a) ? await fetchJsonCached(linkPanoUrl(it.a), _panoCache) : null,
-      plan: (it.a.scan_type || "home") === "home" && it.a.glb_url ? await fetchJsonCached(linkPlanUrl(it.a), _planCache) : null,
+      pano: (fieldsKnown(it.a) ? !!it.a.pano_url : linkPanoCandidate(it.a)) ? await fetchJsonCached(linkPanoUrl(it.a), _panoCache) : null,
+      plan: (fieldsKnown(it.a) ? !!it.a.floorplan_url : (it.a.scan_type || "home") === "home" && it.a.glb_url)
+        ? await fetchJsonCached(linkPlanUrl(it.a), _planCache) : null,
     })));
     if (currentAttrs !== attrs) return;
     const g = id => document.getElementById(id);
@@ -1372,7 +1381,7 @@ require([
   const _vrOwn = new Set(), _vrLinked = new Set();
   async function probeListVr() {
     const items = allItems();
-    const cands = items.filter(it => linkPanoCandidate(it.a)).slice(0, 60);
+    const cands = items.filter(it => fieldsKnown(it.a) ? !!it.a.pano_url : linkPanoCandidate(it.a)).slice(0, 60);
     let i = 0;
     const next = async () => {                             // 동시에 4개씩
       while (i < cands.length) {

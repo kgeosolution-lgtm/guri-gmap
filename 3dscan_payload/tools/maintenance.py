@@ -9,6 +9,7 @@ kgeoScan 유지보수 (서버에서 워커 venv 파이썬으로 실행; 설정�
   python -I maintenance.py set-scan-type [home]         scan_type 이 비어 있는 스캔을 채움
   python -I maintenance.py queue-splat <job_id>         완료된 Stray 작업을 GPU 스플랫 대기열에 넣음 (큐 파일 splat_status=pending)
   python -I maintenance.py backfill-splats              서빙 폴더에 <job>.splat 이 있는데 splat_url 이 빈 스캔을 등록
+  python -I maintenance.py backfill-links               기록 종류·작업 번호·장소·VR·평면도·굴착 주소 필드 채우기 (2026-11-16)
   actions 전용: {"op": "move-to-folder", "extra": [아이템 id...], "folder": "kgeoscan"}  스캔 Portal 아이템을 한 폴더로 모음
                {"op": "redo-ortho", "job_id": "..."}  끝난 면 촬영 작업의 정사영상을 현재 orthophoto.py 로 다시 만듦
                {"op": "rebuild-glb", "jobs": "all" | [job...]}  Stray 스캔을 현재 워커로 다시 처리하도록 대기열에 넣음 (GLB 만 교체)
@@ -266,6 +267,13 @@ NEW_FIELDS = [
     {"name": "thumb_url", "type": "esriFieldTypeString", "alias": "썸네일 URL", "length": 300, "nullable": True, "editable": True},
     {"name": "splat_url", "type": "esriFieldTypeString", "alias": "스플랫 URL", "length": 300, "nullable": True, "editable": True},
     {"name": "ortho_url", "type": "esriFieldTypeString", "alias": "정사영상 URL", "length": 300, "nullable": True, "editable": True},
+    # 2026-11-16 디자인 개편: 사이트가 핀 색·VR 투어·평면도·굴착 기록을 파일 찔러 보기 없이 알도록
+    {"name": "rec_kind", "type": "esriFieldTypeString", "alias": "기록 종류", "length": 20, "nullable": True, "editable": True},
+    {"name": "job_id", "type": "esriFieldTypeString", "alias": "작업 번호", "length": 16, "nullable": True, "editable": True},
+    {"name": "site_id", "type": "esriFieldTypeString", "alias": "관리 대상(장소)", "length": 64, "nullable": True, "editable": True},
+    {"name": "pano_url", "type": "esriFieldTypeString", "alias": "VR 투어 URL", "length": 300, "nullable": True, "editable": True},
+    {"name": "floorplan_url", "type": "esriFieldTypeString", "alias": "평면도 URL", "length": 300, "nullable": True, "editable": True},
+    {"name": "utility_url", "type": "esriFieldTypeString", "alias": "굴착 기록 URL", "length": 300, "nullable": True, "editable": True},
 ]
 
 
@@ -280,11 +288,67 @@ def add_fields():
     have = layer_fields(stoken)
     missing = [f for f in NEW_FIELDS if f["name"].lower() not in have]
     if not missing:
-        print("add-fields: scan_type, thumb_url, splat_url 모두 있음")
+        print("add-fields: 필드가 모두 있음")
         return
     admin = CFG["points_layer_url"].replace("/rest/services/", "/rest/admin/services/")
     out = http_json(admin + "/addToDefinition", {"addToDefinition": json.dumps({"fields": missing}), "f": "json", "token": stoken})
     print(f"add-fields: {[f['name'] for f in missing]} → {out}")
+
+
+def rec_kind_for(meta, pano_url=""):
+    """pipeline.rec_kind_for 와 같은 규칙: vr | trench | photo3d | lidar"""
+    if meta.get("mode") == "pano":
+        return "vr"
+    if (meta.get("trench") or {}).get("mode"):
+        return "trench"
+    if meta.get("mode") in ("video", "photos"):
+        return "photo3d"
+    return "lidar"
+
+
+def backfill_links():
+    """기존 점의 rec_kind·job_id·site_id·pano_url·floorplan_url·utility_url 을 채운다 (작업 폴더·큐·서빙 폴더를 보고).
+    값이 이미 같으면 건너뛴다. 산출물 파일이 없으면 그 주소 필드는 비운다."""
+    import re
+    stoken = token(CFG["server_url"])
+    have = layer_fields(stoken)
+    if "rec_kind" not in have:
+        print("backfill-links: rec_kind 필드가 없음 (add-fields 먼저)")
+        return
+    serve, url = CFG["glb_serve_dir"], CFG["glb_serve_url"].rstrip("/")
+    jobs_dir = CFG.get("jobs_dir") or os.path.join(CFG["data_root"], "jobs")
+    changed = seen = 0
+    for a in features(stoken):
+        job = None
+        for k in ("glb_url", "thumb_url", "splat_url", "ortho_url"):
+            m = re.search(r"/([0-9a-f]{8})(?:\.glb|\.jpg|\.splat|\.spz|_ortho\.json)(?:\?.*)?$", a.get(k) or "", re.I)
+            if m:
+                job = m.group(1)
+                break
+        if not job:
+            print(f"  OID {a.get('objectid')}: 작업 번호를 찾지 못함 → 건너뜀")
+            continue
+        meta, qd = {}, {}
+        for path, dest in ((os.path.join(CFG["data_root"], job, "job.json"), meta), (os.path.join(jobs_dir, job + ".json"), qd)):
+            try:
+                if os.path.exists(path):
+                    dest.update(json.load(open(path, "r", encoding="utf-8")))
+            except Exception as e:
+                print(f"  {job}: {os.path.basename(path)} 읽기 실패 {e}")
+        pano = f"{url}/{job}_pano/tour.json" if os.path.exists(os.path.join(serve, f"{job}_pano", "tour.json")) else None
+        plan = f"{url}/{job}_floorplan.json" if os.path.exists(os.path.join(serve, f"{job}_floorplan.json")) else None
+        util = f"{url}/{job}_utilities.json" if os.path.exists(os.path.join(serve, f"{job}_utilities.json")) else None
+        kind = rec_kind_for(meta, pano or "") if meta else ("lidar" if a.get("glb_url") else "photo3d" if a.get("splat_url") else "vr")
+        want = {"rec_kind": kind, "job_id": job, "site_id": meta.get("site_id") or qd.get("site_id"),
+                "pano_url": pano, "floorplan_url": plan, "utility_url": util}
+        upd = {k: v for k, v in want.items() if k in have and (a.get(k) or None) != v}
+        seen += 1
+        if upd:
+            res = update_attrs(stoken, a["objectid"], upd)
+            ok = bool(res and res[0].get("success"))
+            changed += ok
+            print(f"  OID {a['objectid']} {job} {kind}: {sorted(upd)} {'갱신' if ok else '실패 ' + str(res)}")
+    print(f"backfill-links: {seen}개 중 {changed}개 갱신")
 
 
 def update_attrs(stoken, objectid, attrs):
@@ -473,6 +537,8 @@ def main():
                     queue_splat(act.get("job_id"), bool(act.get("force")))
                 elif op == "backfill-splats":
                     backfill_splats()
+                elif op == "backfill-links":
+                    backfill_links()
                 elif op == "move-to-folder":
                     move_to_folder(act.get("extra", []), act.get("folder"))
                 elif op == "redo-ortho":
@@ -506,6 +572,8 @@ def main():
         queue_splat(sys.argv[2], "--force" in sys.argv)
     elif cmd == "backfill-splats":
         backfill_splats()
+    elif cmd == "backfill-links":
+        backfill_links()
     else:
         list_scans()
 
