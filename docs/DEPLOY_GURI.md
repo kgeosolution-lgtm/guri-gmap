@@ -62,26 +62,32 @@ https://www.guri.go.kr/gmapsvr/rest/services/Hosted/life_gas/FeatureServer?f=jso
 
 확인 □ NGII □ 브이월드 □ 카카오 로드뷰
 
-### 1-4. 아직 kgeodata.com 을 바라보는 것 (당장은 그대로 둬도 동작)
+### 1-4. kgeodata.com 에 남아 있는 것
 
-| 기능                       | 코드                                                     | kgeodata.com 이 꺼지면           | 옮기는 방법                                                                       |
-| -------------------------- | -------------------------------------------------------- | -------------------------------- | --------------------------------------------------------------------------------- |
-| 동물병원·동물약국 사진     | `theme.html` `IMG_BASE="https://kgeodata.com/guri/img/"` | 사진만 안 보임(목록·팝업은 정상) | 사진 폴더를 Machine 1 의 `gmaplife/img/` 로 복사하고 `IMG_BASE` 를 `img/` 로 변경 |
-| 항공사진 비교의 연속지적도 | `aerial.html` `cadastreUrl`(kgeodata ArcGIS Server)      | 지적도 겹치기만 안 됨            | 구리 서버에 호스팅 레이어로 게시한 뒤 주소 교체                                   |
-
-이번 방문에서는 **그대로 두고**, 구리시가 원하면 다음 방문 때 옮긴다.
+| 기능                       | 코드                                                                      | 이번 방문                                                                                            |
+| -------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| 동물병원·동물약국 사진     | `theme.html` `IMG_BASE`(빌드 때 `deploy.config.json` `photoBase` 로 바뀜) | **같이 옮긴다** — 1-5 의 "사진 복사" 단계. 사이트와 함께 USB 에 담긴다                               |
+| 항공사진 비교의 연속지적도 | `aerial.html` `cadastreUrl`(kgeodata ArcGIS Server)                       | 그대로 둔다(지적도 겹치기만 kgeodata 의존). 옮기려면 구리 서버에 호스팅 레이어로 게시한 뒤 주소 교체 |
 
 ### 1-5. 설정 바꾸고 빌드하기 (서버에는 Node 가 없다고 보고 사무실에서 빌드)
 
-1. `deploy.config.json` — 배포 주소 한 곳
+1. `deploy.config.json` — 배포 주소·사진 폴더 한 곳
 
    ```json
-   { "origin": "https://www.guri.go.kr", "base": "/gmaplife" }
+   { "origin": "https://www.guri.go.kr", "base": "/gmaplife", "photoBase": "/images/pet/" }
    ```
 
-   사이트 루트(`https://도메인/`)에 두기로 했다면 `"base": ""`.
+   사이트 루트(`https://도메인/`)에 두기로 했다면 `"base": ""`. `photoBase` 는 사진이 사이트 안에 있다는 뜻이며 빌드가 `/gmaplife/images/pet/` 로 바꿔 넣는다(미리보기는 `https://kgeodata.com/guri/img/`).
 
-2. `src/config/site.config.ts` — 오픈용 스위치
+1. **사진 복사** — kgeodata 서버의 사진 폴더(`https://kgeodata.com/guri/img/` 가 가리키는 IIS 실제 폴더) 내용을 **파일 이름 그대로** 저장소의 `public/images/pet/` 에 복사한다. 포털 레이어(`pet_hospital`·`pet_pharmacy`)의 `이미지명` 값이 이 파일 이름과 같아야 보인다. 이 폴더는 `.gitignore` 에 있어 Git 에 올라가지 않는다(빌드 결과에만 들어감). 용량은 서버에서 PowerShell 로 잰다:
+
+   ```powershell
+   (Get-ChildItem <사진 폴더> -Recurse -File | Measure-Object Length -Sum).Sum / 1MB
+   ```
+
+   빌드 때 `[경고] 사진 폴더 public/images/pet/ 가 없어…` 가 나오면 복사가 안 된 것이다.
+
+1. `src/config/site.config.ts` — 오픈용 스위치
 
    ```ts
    features: { animalMap: false, newsHub: false, reviewWidget: false }
@@ -89,28 +95,32 @@ https://www.guri.go.kr/gmapsvr/rest/services/Hosted/life_gas/FeatureServer?f=jso
 
    `reviewWidget: false` 로 "수정 요청" 검토 위젯을 뺀다(홈·지도 4쪽 모두). `newsHub` 는 12월 요청 때 `true`.
 
-3. 빌드
+1. 빌드
 
    ```bash
    npm ci
    npm run build:deploy
    ```
 
-   끝에 `Static deployment ready: out -> https://www.guri.go.kr/gmaplife/` 가 찍혀야 한다. 빌드 중 3D 웹씬 스냅샷(`scripts/fetch-scene.mjs` → `public/maps/data/scene.json`)을 포털에서 받는데, 사무실에서 포털에 못 닿으면 "실패해도 배포는 계속"이라 저장소에 있는 기존 `scene.json` 이 쓰인다(문제 없음).
+   끝에 `Static deployment ready: out -> https://www.guri.go.kr/gmaplife/` 가 찍혀야 하고, 그 앞에 `[경고] 사진 폴더…` 가 **없어야** 한다. 빌드 중 3D 웹씬 스냅샷(`scripts/fetch-scene.mjs` → `public/maps/data/scene.json`)을 포털에서 받는데, 사무실에서 포털에 못 닿으면 "실패해도 배포는 계속"이라 저장소에 있는 기존 `scene.json` 이 쓰인다(문제 없음).
 
-4. 결과 확인 (`out/` 안)
+1. 결과 확인 (`out/` 안)
 
    ```bash
    cat out/deployment.json          # "url": "https://www.guri.go.kr/gmaplife/"
    grep -c "review/review.js" out/index.html        # 0 이어야 함
    grep -o 'og:image" content="[^"]*' out/maps/theme.html   # https://www.guri.go.kr/gmaplife/images/og-cover.jpg
+   grep -o 'const IMG_BASE="[^"]*"' out/maps/theme.html        # "/gmaplife/images/pet/"
+   ls out/images/pet | wc -l                                    # 사진 수
    ```
 
-   `out/` 구성: `index.html`, `404.html`, `maps/`(지도 4쪽·아이콘·3D 스냅샷), `images/`, `fonts/`, `styles/`, `_next/`, `robots.txt`, `web.config`, `deployment.json`, `v1/`(보존된 옛 홈), `review/`(스위치가 꺼져 있으면 아무 페이지도 안 불러옴 — 폴더째 빼고 복사해도 됨).
+   `out/` 구성: `index.html`, `404.html`, `maps/`(지도 4쪽·아이콘·3D 스냅샷), `images/`(사진 `pet/` 포함), `fonts/`, `styles/`, `_next/`, `robots.txt`, `web.config`, `deployment.json`, `v1/`(보존된 옛 홈), `review/`(스위치가 꺼져 있으면 아무 페이지도 안 불러옴 — 폴더째 빼고 복사해도 됨).
 
-5. USB 에 복사. **`out/` 폴더 전체**를 복사하고, 폴더 이름을 `gmaplife` 로 바꿔 둔다. 소스·`.git`·`node_modules` 는 가져가지 않는다.
+1. USB 에 복사. **`out/` 폴더 전체**를 복사하고, 폴더 이름을 `gmaplife` 로 바꿔 둔다. 소스·`.git`·`node_modules` 는 가져가지 않는다.
 
-확인 □ deploy.config.json □ reviewWidget false □ 빌드 성공 □ deployment.json url □ USB
+**용량**: 사진을 뺀 사이트는 약 6MB(파일 194개)이고, 여기에 사진 폴더 용량이 더해진다.
+
+확인 □ deploy.config.json(photoBase 포함) □ 사진 복사 □ reviewWidget false □ 빌드 성공(사진 경고 없음) □ deployment.json url □ USB
 
 ### 1-6. 챙겨 갈 것
 
@@ -215,6 +225,7 @@ https://www.guri.go.kr/gmapsvr/rest/services/Hosted/<서비스이름>/FeatureSer
 | 1   | `https://www.guri.go.kr/gmaplife/` 메인이 열리고 겨울 사진·'구리의 사계절' 줄이 보임 | □    |
 | 2   | 메인 > 우리동네 지도 열기 → 시즌·겨울로 열리고 칩 건수가 0 이 아님                   | □    |
 | 3   | 칩 하나(한파쉼터) → 목록 → 항목 → 팝업, 전화·네이버 길찾기 단추                      | □    |
+| 3-1 | 반려동물 > 동물병원 항목 팝업에 사진이 보임(사진 폴더 복사·`photoBase`)              | □    |
 | 4   | 테마 변경(생활편의 > 전기차) → "상태는 10분마다 새로 받아요" 문구, 건수 표시         | □    |
 | 5   | 첫 화면·칩 변경 때 구리시가 시트 위 영역에 꽉 차게 보임                              | □    |
 | 6   | 3D입체지도가 열림(웹씬 공개 여부)                                                    | □    |
@@ -236,7 +247,7 @@ PC 에서도 1·2·5·6·7 을 한 번 더 본다.
 | 500.19                                            | `web.config` 의 어떤 섹션이 서버 수준에서 잠김                        | 오류 화면의 섹션 이름 확인. 2-3 의 404 설정이면 되돌림. 사이트 전체 잠금 해제는 하지 않음           |
 | 항공사진 타일 안 보임                             | NGII 키 도메인 미등록                                                 | 1-3                                                                                                 |
 | 3D 가 안 열림                                     | 웹씬 항목 비공개 또는 포털 CORS                                       | 3-1, 3-3                                                                                            |
-| 동물병원 사진 안 보임                             | kgeodata.com 의존                                                     | 1-4                                                                                                 |
+| 동물병원 사진 안 보임                             | 사진 폴더 미복사 또는 `photoBase` 미설정                              | 1-5 사진 복사, `out/maps/theme.html` 의 `IMG_BASE` 값 확인. 사진 주소를 직접 열어 200 인지          |
 | 수정 요청 메뉴가 보임                             | `reviewWidget` 을 안 끄고 빌드                                        | 1-5 다시                                                                                            |
 | 카톡 미리보기 그림이 옛 것                        | 카카오 캐시                                                           | 카카오 공유 디버거에서 새로고침                                                                     |
 
@@ -258,4 +269,4 @@ GitHub Actions 자동 배포(`guri-preview.yml`)는 kgeodata.com **미리보기�
 
 - `docs/TEAM_HANDOFF.md` — 작업 이력, "오픈 준비 ②" 의 도메인 전환 체크리스트
 - `docs/DEPLOY_IIS.md` — kgeodata.com 미리보기 자동 배포(실행기)
-- `deploy.config.json` — 배포 주소 한 곳
+- `deploy.config.json` — 배포 주소·사진 폴더 한 곳
