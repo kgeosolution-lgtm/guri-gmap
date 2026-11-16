@@ -1577,3 +1577,20 @@ header {
 @media (max-width: 768px) {
   .kpick { left: 12px !important; right: 12px; top: auto !important; bottom: calc(92px + env(safe-area-inset-bottom, 0px)); width: auto; max-height: 52vh; }
 }
+
+/* ── 극장 모드 (아이폰·앱의 '전체 화면') ── */
+body.pseudo-full-open #sidebar { transform: none !important; z-index: 3000 !important; }
+.sb-viewer.pseudo-full {
+  position: fixed !important; inset: 0; z-index: 3000; height: auto !important; width: 100vw;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+}
+.pf-close {
+  position: absolute; z-index: 20; top: calc(12px + env(safe-area-inset-top, 0px)); left: calc(12px + env(safe-area-inset-left, 0px));
+  height: 40px; padding: 0 16px; border: 1px solid rgba(233, 239, 241, .22); border-radius: var(--k-r-pill);
+  background: rgba(13, 20, 26, .78); color: #E9EFF1; font: 600 14px/1 var(--k-font); cursor: pointer;
+}
+.pf-close[hidden] { display: none; }
+.sb-viewer.pseudo-full .viewer-controls { top: calc(12px + env(safe-area-inset-top, 0px)); }
+.sb-viewer.pseudo-full .viewer-overlay { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
+@media (max-width: 768px) { .lp-head { touch-action: none; } }
+.sb-viewer.pseudo-full .viewer-controls-br { display: none; }

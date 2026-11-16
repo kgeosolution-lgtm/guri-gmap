@@ -28,7 +28,7 @@
 <link rel="preconnect" href="https://js.arcgis.com">
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <script src="https://js.arcgis.com/4.30/"></script>
-<link rel="stylesheet" href="viewer.css?v=bf94d4d24b">
+<link rel="stylesheet" href="viewer.css?v=3eb3f2b488">
 <style>
 /* 지도 캔버스의 ArcGIS 포커스 테두리만 없앤다. 다른 요소의 키보드 포커스는 보이게 둔다 (kgeo-ui.css :focus-visible) */
 .esri-view .esri-view-surface--inset-outline:focus::after { outline: none !important; }
@@ -145,7 +145,7 @@ canvas:focus, #viewDiv:focus { outline: none; }
 
   <!-- ════ LIST PANEL ════ -->
   <div id="listPanel">
-    <div class="lp-head" onclick="if(window.matchMedia('(max-width: 768px)').matches && !event.target.closest('button'))toggleListPanel()">
+    <div class="lp-head" onclick="if(window.matchMedia('(max-width: 768px)').matches && !event.target.closest('button') && !this.dataset.dragged)toggleListPanel()">
       <span class="lp-grip" aria-hidden="true"></span>
       <div class="lp-title">
         기록
@@ -205,7 +205,7 @@ canvas:focus, #viewDiv:focus { outline: none; }
         <div class="sb-tag green" id="sbVisTag" title="공개 범위">🌐 공개</div>
         <div class="sb-head-actions">
           <button class="icon-btn" id="btnExpand" title="50:50 확장" onclick="toggleExpand()">⇔</button>
-          <button class="icon-btn close" title="닫기" onclick="closeSidebar()">✕</button>
+          <button class="icon-btn close" title="닫기" aria-label="기록 닫기" onclick="closeRecord()">✕</button>
         </div>
       </div>
       <div class="sb-title" id="sbTitle">—</div>
@@ -506,7 +506,7 @@ canvas:focus, #viewDiv:focus { outline: none; }
 </div>
 
 <script src="upload_queue.js?v=831620d114"></script>
-<script src="viewer.js?v=b10bea7f99"></script>
+<script src="viewer.js?v=f6380ae4e2"></script>
 <script>
 /* 끊겨도 이어 올리기 (2026-11-16): 시작 화면에 '올리지 못한 촬영 N개', ☰ 시작 옆에 숫자 */
 (function () { if (!window.KgeoUpload) return; KgeoUpload.renderPending(document.getElementById('startPending'), { doneMax: 2 }); KgeoUpload.badge(document.getElementById('startBadge')); })();

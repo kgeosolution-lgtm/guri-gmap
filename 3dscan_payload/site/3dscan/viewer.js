@@ -556,7 +556,43 @@ require([
     }
 
     setListActive(attrs.scene_item_id || attrs.OBJECTID || attrs.objectid);
+    recordHistory(attrs);
   };
+
+  /* ── 뒤로 가기 (2026-11-16): 기록을 열면 방문 기록을 하나 쌓는다 → 폰 '뒤로'가 사이트를 나가지 않고 기록을 닫는다.
+        주소도 ?select=<장면> 또는 ?job=<작업> 으로 바뀌어 그대로 복사·새로고침할 수 있다 ── */
+  let _navFromPop = false;
+  function recordUrl(a) {
+    const u = new URL(location.href);
+    u.search = ""; u.hash = "";
+    const job = linkJobId(a) || a.job_id || a._job_id;
+    if (a.scene_item_id) u.searchParams.set("select", a.scene_item_id);
+    else if (job) u.searchParams.set("job", job);
+    return u.pathname + u.search;
+  }
+  function recordHistory(a) {
+    if (_navFromPop) return;
+    try {
+      const st = { kgeo: "rec" };
+      if (history.state && history.state.kgeo === "rec") history.replaceState(st, "", recordUrl(a));
+      else history.pushState(st, "", recordUrl(a));
+    } catch (e) {}
+  }
+  window.closeRecord = function () {                       // ✕ 단추: 방문 기록이 있으면 뒤로 (popstate 가 닫는다)
+    if (history.state && history.state.kgeo === "rec") { history.back(); return; }
+    closeSidebar();
+  };
+  window.addEventListener("popstate", () => {
+    const st = history.state || {};
+    if (document.body.classList.contains("pseudo-full-open") && st.kgeo !== "full") { pseudoFull(false, true); }
+    if (st.kgeo === "rec" || st.kgeo === "full") return;
+    if (document.getElementById("sidebar").classList.contains("open")) {
+      _navFromPop = true;
+      try { closeSidebar(); } finally { _navFromPop = false; }
+      try { history.replaceState(null, "", location.pathname); } catch (e) {}
+    }
+    if (typeof window.closeStartSheet === "function") window.closeStartSheet();
+  });
 
   /* 링크 복사 (2026-11-16): 지도에 있는 기록은 ?select=, 없으면 작업 번호 ?job= */
   window.copyRecordLink = async function() {
@@ -564,6 +600,10 @@ require([
     const job = linkJobId(a);
     const url = location.origin + location.pathname + (a.scene_item_id ? `?select=${encodeURIComponent(a.scene_item_id)}` : job ? `?job=${job}` : "");
     const btn = document.getElementById("btnCopyLink");
+    if (navigator.share && isMobile()) {                   // 폰: 공유 시트(카카오톡·문자·메일) — 2026-11-16
+      try { await navigator.share({ title: displayTitle(a), text: (a.place_name ? a.place_name + " · " : "") + "kgeoScan 3D 기록", url }); return; }
+      catch (e) { if (e && e.name === "AbortError") return; }
+    }
     let ok = false;
     try { await navigator.clipboard.writeText(url); ok = true; } catch (e) {
       try { const ta = Object.assign(document.createElement("textarea"), { value: url }); document.body.appendChild(ta); ta.select(); ok = document.execCommand("copy"); ta.remove(); } catch (e2) {}
@@ -1398,8 +1438,35 @@ require([
       || el.webkitRequestFullscreen
       || el.mozRequestFullScreen
       || el.msRequestFullscreen;
-    if (req) req.call(el);
+    // 2026-11-16: 아이폰 사파리·kgeoScan 앱(웹뷰)은 div·iframe 전체 화면을 지원하지 않아 단추가 아무 일도 안 했다
+    const canFs = document.fullscreenEnabled || document.webkitFullscreenEnabled;
+    if (req && canFs) {
+      try { const r = req.call(el); if (r && r.catch) r.catch(() => pseudoFull(true)); return; } catch (e) {}
+    }
+    pseudoFull(true);
   };
+  /* 극장 모드: 3D·VR 뷰어를 화면 가득 (닫기 단추·뒤로 가기·Esc 로 나온다) */
+  function pseudoFull(on, fromPop) {
+    const v = document.querySelector(".sb-viewer");
+    if (!v) return;
+    const was = document.body.classList.contains("pseudo-full-open");
+    v.classList.toggle("pseudo-full", on);
+    document.body.classList.toggle("pseudo-full-open", on);
+    let x = document.getElementById("pfClose");
+    if (on && !x) {
+      x = document.createElement("button");
+      x.id = "pfClose"; x.type = "button"; x.className = "pf-close"; x.textContent = "닫기";
+      x.setAttribute("aria-label", "전체 화면 닫기");
+      x.onclick = () => pseudoFull(false);
+      v.appendChild(x);
+    }
+    if (x) x.hidden = !on;
+    if (on && !was) { try { history.pushState({ kgeo: "full" }, ""); } catch (e) {} }
+    if (!on && was && !fromPop && history.state && history.state.kgeo === "full") { try { history.back(); } catch (e) {} }
+    setTimeout(resizeGLB, 80);
+  }
+  window.pseudoFull = pseudoFull;
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && document.body.classList.contains("pseudo-full-open")) pseudoFull(false); });
 
   document.addEventListener("fullscreenchange",       () => setTimeout(resizeGLB, 100));
   document.addEventListener("webkitfullscreenchange", () => setTimeout(resizeGLB, 100));
@@ -1612,6 +1679,42 @@ require([
   };
 
   let _lpOpen = true;
+  /* 폰: 목록 시트 머리를 손가락으로 끌어 올리고 내린다 (2026-11-16). 짧게 누르면 예전처럼 열고 닫기 */
+  (function sheetDrag() {
+    const panel = document.getElementById("listPanel"), head = panel && panel.querySelector(".lp-head");
+    if (!head) return;
+    let y0 = 0, t0 = 0, base = 0, dragging = false, moved = false;
+    head.addEventListener("pointerdown", e => {
+      if (!isMobile() || e.target.closest("button")) return;
+      dragging = true; moved = false; y0 = e.clientY; t0 = performance.now();
+      const r = panel.getBoundingClientRect(), full = r.height;
+      base = panel.classList.contains("collapsed") ? full - 80 : 0;
+      panel.style.transition = "none";
+      try { head.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    head.addEventListener("pointermove", e => {
+      if (!dragging) return;
+      const dy = e.clientY - y0;
+      if (Math.abs(dy) > 6) moved = true;
+      if (!moved) return;
+      const full = panel.getBoundingClientRect().height;
+      panel.style.transform = `translateY(${Math.max(0, Math.min(full - 80, base + dy))}px)`;
+    });
+    const end = e => {
+      if (!dragging) return;
+      dragging = false;
+      panel.style.transition = ""; panel.style.transform = "";
+      if (!moved) return;                                  // 짧게 누름: lp-head onclick 이 열고 닫는다
+      head.dataset.dragged = "1"; setTimeout(() => { delete head.dataset.dragged; }, 50);
+      const dy = e.clientY - y0, v = dy / Math.max(1, performance.now() - t0);
+      const wantOpen = v < -0.3 || (v <= 0.3 && dy < -60) || (!_lpOpen && dy < -60);
+      const wantClose = v > 0.3 || dy > 60;
+      if (wantOpen && !_lpOpen) toggleListPanel();
+      else if (wantClose && _lpOpen) toggleListPanel();
+    };
+    head.addEventListener("pointerup", end);
+    head.addEventListener("pointercancel", end);
+  })();
   window.toggleListPanel = function() {
     _lpOpen = !_lpOpen;
     const panel   = document.getElementById("listPanel");
@@ -2191,8 +2294,15 @@ async function renderMine() {
     if (cb) cb.checked = lsGet(SKIP_KEY) === "1";
     sheet.hidden = false;
     document.body.classList.add("start-open");
+    // 폰 '뒤로'가 사이트를 나가지 않고 이 화면을 닫게 (2026-11-16)
+    try { if (!(history.state && history.state.kgeo === "start")) history.pushState({ kgeo: "start" }, ""); } catch (e) {}
   };
-  function closeStart() { sheet.hidden = true; document.body.classList.remove("start-open"); }
+  function closeStart() {
+    if (sheet.hidden) return;
+    sheet.hidden = true; document.body.classList.remove("start-open");
+    try { if (history.state && history.state.kgeo === "start") history.back(); } catch (e) {}
+  }
+  window.closeStartSheet = function () { if (!sheet.hidden) { sheet.hidden = true; document.body.classList.remove("start-open"); } };
   function openListPanel() {
     const panel = document.getElementById("listPanel");
     if (panel && panel.classList.contains("collapsed") && typeof window.toggleListPanel === "function") window.toggleListPanel();
