@@ -144,6 +144,7 @@ button{font-family:inherit}
 .pl{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--text2);margin-top:6px;font-family:var(--mono)}
 .pm{font-size:14px;font-weight:600;margin-bottom:8px}
 .err{margin-top:10px;padding:10px 12px;border-radius:8px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.35);color:#fecaca;font-size:13.5px}
+.qnote{margin-top:10px;padding:12px 14px;border-radius:10px;background:rgba(251,146,60,.08);border:1px solid rgba(251,146,60,.4);color:#fed7aa;font-size:14px;line-height:1.55}
 .steps{list-style:none;display:flex;flex-direction:column;gap:6px;margin-top:4px}
 .steps li{display:flex;gap:10px;align-items:flex-start;font-size:14px}
 .steps .ic{width:22px;text-align:center;flex:none;font-family:var(--mono)}
@@ -299,6 +300,7 @@ button{font-family:inherit}
 </header>
 
 <main class="wrap">
+  <div id="kqBox" hidden></div>
   <section class="intro">
     <h1>VR 투어 촬영</h1>
     <p>방마다 한 자리에 서서 폰을 한 바퀴 돌리면, 사진으로 집 안을 둘러보는 VR 투어가 만들어집니다. 앱 없이 이 페이지에서 찍고, 화면이 하나씩 알려 줍니다.</p>
@@ -355,13 +357,17 @@ button{font-family:inherit}
   <section class="card step" id="secUp">
     <h2>올리기</h2>
     <div class="chips" id="upChips"></div>
-    <div class="row"><button class="btn green big" id="upBtn">VR 투어 만들기 — 올리기</button></div>
+    <div class="row"><button class="btn green big" id="upBtn">VR 투어 만들기 — 지금 올리기 (와이파이 권장)</button></div>
+    <div class="row"><button class="btn big" id="laterBtn" type="button">📦 나중에 올리기 — 이 폰에 보관</button></div>
+    <p class="hint">신호가 약하면 ‘나중에 올리기’로 보관했다가 와이파이가 되는 곳에서 올리세요. 올리다 끊겨도 받은 부분부터 이어서 올라가요.</p>
     <div class="prog" id="prog" hidden>
       <div class="pm" id="pMain">업로드 중…</div>
       <div class="bar" id="pBar"><i></i></div>
       <div class="pl"><span id="pLeft"></span><span id="pRight"></span></div>
-      <div class="row"><button class="btn sm ghost" id="cancelBtn">업로드 취소</button></div>
+      <div class="hint" id="pWake"></div>
+      <div class="row"><button class="btn sm ghost" id="cancelBtn">⏸ 일시정지 (나중에 이어서)</button></div>
     </div>
+    <div class="qnote" id="laterNote" hidden></div>
     <div class="err" id="upErr" hidden></div>
   </section>
 
@@ -538,6 +544,7 @@ button{font-family:inherit}
 
 <div class="toast" id="toast"></div>
 
+<script src="upload_queue.js?v=831620d114"></script>
 <script>
 (function () {
   'use strict';
@@ -652,8 +659,26 @@ button{font-family:inherit}
   }
   function dbPutShot(key, blob) { return dbTx('shots', 'readwrite', function (st) { return st.put(blob, key); }); }
   function dbGetShot(key) { return dbTx('shots', 'readonly', function (st) { return st.get(key); }); }
-  function dbDelShot(key) { return dbTx('shots', 'readwrite', function (st) { st.delete(key); }); }
-  function dbClear() { return Promise.all([dbTx('shots', 'readwrite', function (st) { st.clear(); }), dbTx('state', 'readwrite', function (st) { st.clear(); })]); }
+  // 올리기 대기열(upload_queue.js)이 아직 가리키는 사진·영상은 지우지 않는다 ('나중에 올리기' 뒤 새 VR 투어·다시 찍기)
+  function queueReady() { return window.KgeoUpload ? KgeoUpload.ready() : Promise.resolve(); }
+  function pinnedKeys() { return window.KgeoUpload ? KgeoUpload.pinned('kgeoscan_pano', 'shots') : new Set(); }
+  function dbDelShot(key) { return queueReady().then(function () { if (pinnedKeys().has(key)) return null; return dbTx('shots', 'readwrite', function (st) { st.delete(key); }); }); }
+  function dbClear() {
+    return queueReady().then(function () {
+      var keep = pinnedKeys();
+      return Promise.all([dbTx('shots', 'readwrite', function (st) {
+        if (!keep.size) return st.clear();
+        var r = st.getAllKeys(); r.onsuccess = function () { r.result.forEach(function (k) { if (!keep.has(k)) st.delete(k); }); };
+      }), dbTx('state', 'readwrite', function (st) { st.clear(); })]);
+    });
+  }
+  function gcShots() {        // 지금 촬영에도 대기열에도 없는 사진·영상(올린 뒤 남은 것) 정리 — 복원한 촬영이 있거나 저장된 촬영이 없을 때만
+    return queueReady().then(function () {
+      var keep = pinnedKeys();
+      S.spots.forEach(function (sp) { sp.shots.forEach(function (s) { keep.add(s.key); }); if (sp.video) { keep.add(sp.video.key); keep.add(sp.video.thumbKey); } });
+      return dbTx('shots', 'readwrite', function (st) { var r = st.getAllKeys(); r.onsuccess = function () { r.result.forEach(function (k) { if (!keep.has(k)) st.delete(k); }); }; });
+    });
+  }
   var saveT = 0;
   function saveState() {
     clearTimeout(saveT);
@@ -2011,6 +2036,7 @@ button{font-family:inherit}
     $('upChips').innerHTML = '<span class="chip">지점 <b>' + sp.length + '</b></span>' + (n ? '<span class="chip">사진 <b>' + n + '</b>장</span>' : '') + (nv ? '<span class="chip">영상 <b>' + nv + '</b>개</span>' : '') + '<span class="chip"><b>' + fmtSize(tot || 1) + '</b></span>' +
       (S.spots.length > sp.length ? '<span class="chip warn">덜 찍은 지점 ' + (S.spots.length - sp.length) + '곳은 빠짐</span>' : '');
     $('upBtn').classList.toggle('dis', S.uploading);
+    $('laterBtn').classList.toggle('dis', S.uploading);
     $('startBtn').classList.toggle('dis', S.uploading);
   }
 
@@ -2065,7 +2091,8 @@ button{font-family:inherit}
       return Promise.all(spots.filter(function (sp) { return sp.video && sp.video.blob && sp.video.crc == null; }).map(function (sp) { return crc32Blob(sp.video.blob).then(function (c) { sp.video.crc = c; }); }));
     });
   }
-  function startUpload() {
+  function startUpload(later) {
+    later = later === true;
     if (S.uploading) return;
     if (!readinessInfo()) return nudge('secInfo', '제목을 입력해 주세요');
     if (S.lat == null) return nudge('secInfo', '촬영 위치가 필요합니다. ‘위치 재기’를 누르거나 좌표를 붙여넣어 주세요');
@@ -2077,63 +2104,71 @@ button{font-family:inherit}
       var tot = 0; sp.forEach(function (s) { s.shots.forEach(function (x) { tot += x.blob.size; }); if (s.video && s.video.blob) tot += s.video.blob.size; });
       if (tot > LIMIT_HARD) return nudge('secUp', '전체 ' + fmtSize(tot) + ' — 1 GB 를 넘어 올릴 수 없습니다. 지점을 나눠 올려 주세요');
       var conn = navigator.connection;
-      if ((tot > LIMIT_WARN || (conn && conn.type === 'cellular' && tot > 100 * MB)) && !window.confirm(fmtSize(tot) + '를 올립니다. 모바일 데이터면 요금이 나올 수 있습니다.\n계속할까요?')) return;
-      doUpload(sp, tot);
+      if (!later && (tot > LIMIT_WARN || (conn && conn.type === 'cellular' && tot > 100 * MB)) && !window.confirm(fmtSize(tot) + '를 올립니다. 모바일 데이터면 요금이 나올 수 있습니다.\n계속할까요? (‘취소’ 뒤 ‘나중에 올리기’로 이 폰에 보관할 수 있어요)')) return;
+      doUpload(sp, tot, later);
     });
   }
-  function doUpload(spots, tot) {
+  /* 끊겨도 이어 올리기 (upload_queue.js, 2026-11-16): 사진·영상은 이 페이지 IndexedDB 에 이미 있으므로 대기열에는 키만 적고,
+     올릴 때 같은 zip 을 다시 만들어 5 MB 조각으로 보낸다. 끝나면 예전과 같은 uploadDone() (관리 키·관리 링크·최근 목록·처리 상황) */
+  function doUpload(spots, tot, later) {
     var sig = spots.map(function (sp) { return sp.id + ':' + sp.shots.map(function (s) { return s.crc; }).join('.') + (sp.video ? 'v' + sp.video.crc : ''); }).join('|');
     var cid = S.lastSig === sig && S.lastCid ? S.lastCid : newId(); S.lastSig = sig; S.lastCid = cid;
-    var meta = spotsJSON(spots), metaBlob = new Blob([JSON.stringify(meta)], { type: 'application/json' });
-    var enc = new TextEncoder(), metaBytes = enc.encode(JSON.stringify(meta));
-    var entries = [{ name: 'spots.json', blob: metaBlob, crc: crc32(metaBytes.buffer), size: metaBytes.length, t: Date.now() }];
-    var n = 0, nv = 0; spots.forEach(function (sp) {
-      sp.shots.forEach(function (s) { entries.push({ name: s.file, blob: s.blob, crc: s.crc, size: s.blob.size, t: s.t }); n++; });
-      if (sp.mode === 'video' && sp.video && sp.video.blob) { entries.push({ name: sp.video.file, blob: sp.video.blob, crc: sp.video.crc, size: sp.video.blob.size, t: sp.video.t }); nv++; }
-    });
-    var zip = buildZip(entries), fd = new FormData();
-    fd.append('title', $('title').value.trim().slice(0, 100));
-    fd.append('mode', 'pano');
-    fd.append('scan_type', 'home');
-    fd.append('app', 'web-pano/1');
-    fd.append('client_id', cid);
-    fd.append('visibility', visChoice());
-    fd.append('blur_faces', $('blurFaces').checked ? '1' : '0');
-    fd.append('lat', S.lat.toFixed(7)); fd.append('lon', S.lon.toFixed(7));
-    if (S.elev != null) fd.append('elev', S.elev.toFixed(1));
-    if (meta.north_yaw != null) fd.append('heading', (((-meta.north_yaw) % 360 + 360) % 360).toFixed(1));   // 세션 yaw 0 의 진북 방위
-    var note = $('note').value.trim(); if (note) fd.append('note', note.slice(0, 500));
-    fd.append('spot_count', String(spots.length)); fd.append('shot_count', String(n)); if (nv) fd.append('video_count', String(nv));
-    fd.append('pano_file', zip, 'pano_' + cid.slice(0, 8) + '.zip');
-    var f = { size: zip.size, spots: spots.length, count: n, videos: nv };
-    var xhr = new XMLHttpRequest(), t0 = Date.now(), samples = [[t0, 0]];
-    S.xhr = xhr; S.uploading = true; S.cancelled = false;
-    $('upErr').hidden = true; $('prog').hidden = false; $('cancelBtn').hidden = false;
-    $('pBar').className = 'bar'; $('pBar').firstElementChild.style.width = '0%';
-    $('pMain').textContent = '업로드 중… (지점 ' + f.spots + '곳' + (f.count ? ' · 사진 ' + f.count + '장' : '') + (f.videos ? ' · 영상 ' + f.videos + '개' : '') + ')'; $('pLeft').textContent = '0% · 0 / ' + fmtSize(f.size); $('pRight').textContent = '속도 계산 중…';
-    xhr.upload.onprogress = function (e) {
-      var total = e.lengthComputable ? e.total : f.size, now = Date.now();
-      samples.push([now, e.loaded]); while (samples.length > 2 && now - samples[0][0] > 6000) samples.shift();
-      var dt = (now - samples[0][0]) / 1000, rate = dt >= 0.8 ? (e.loaded - samples[0][1]) / dt : null;
-      if (!rate && now - t0 >= 1500) rate = e.loaded / ((now - t0) / 1000);
-      var pct = total ? Math.min(100, e.loaded / total * 100) : 0;
-      $('pBar').firstElementChild.style.width = pct.toFixed(1) + '%';
-      $('pLeft').textContent = Math.floor(pct) + '% · ' + fmtSize(e.loaded) + ' / ' + fmtSize(total);
-      $('pRight').textContent = rate ? (rate / MB).toFixed(1) + ' MB/s · ' + fmtEta((total - e.loaded) / rate) : '속도 계산 중…';
-    };
-    xhr.upload.onload = function () { $('pBar').className = 'bar indet'; $('pMain').textContent = '서버가 사진을 받아 저장하는 중…'; $('pRight').textContent = ''; $('cancelBtn').hidden = true; };
-    xhr.onload = function () {
-      var d = null; try { d = JSON.parse(xhr.responseText); } catch (e) { }
-      if (xhr.status >= 200 && xhr.status < 300 && d && d.job_id) return uploadDone(d, f);
-      uploadFail((d && d.error) || (xhr.status === 413 || xhr.status === 404 ? '서버가 받지 않았습니다(HTTP ' + xhr.status + '). 파일이 너무 크거나 업로드 주소가 바뀌었을 수 있습니다.' : '서버 응답 오류 (HTTP ' + xhr.status + ')'));
-    };
-    xhr.onerror = function () { uploadFail('네트워크가 끊겨 업로드가 중단되었습니다. 신호가 좋은 곳(Wi‑Fi)에서 다시 올려 주세요. 사진은 이 기기에 남아 있습니다.'); };
-    xhr.onabort = function () { uploadFail(S.cancelled ? '업로드를 취소했습니다.' : '업로드가 중단되었습니다.'); };
-    xhr.open('POST', API + 'upload.py', true); xhr.timeout = 0; xhr.send(fd);
+    var n = 0, nv = 0; spots.forEach(function (sp) { n += sp.shots.length; if (sp.mode === 'video' && sp.video && sp.video.blob) nv++; });
+    var f = { size: tot, spots: spots.length, count: n, videos: nv };
+    if (!window.KgeoUpload) return uploadFail('업로드 도구(upload_queue.js)를 불러오지 못했습니다. 페이지를 새로 고쳐 주세요.');
+    S.uploading = true; updateReady();
+    $('upErr').hidden = true; $('laterNote').hidden = true; $('prog').hidden = false; $('cancelBtn').hidden = true;
+    $('pBar').className = 'bar indet'; $('pMain').textContent = '올릴 준비 중… (끊겨도 이어서 올리려고 이 폰에 적어 둡니다)'; $('pLeft').textContent = fmtSize(tot); $('pRight').textContent = '';
+    KgeoUpload.findClient(cid).then(function (qid) {
+      if (qid) return qid;                          // 이미 보관한 같은 촬영 → 그것을 이어서 올린다
+      var meta = spotsJSON(spots);
+      var entries = [{ name: 'spots.json', text: JSON.stringify(meta), t: Date.now() }];
+      spots.forEach(function (sp) {
+        sp.shots.forEach(function (s) { entries.push({ name: s.file, key: s.key, blob: s.blob, crc: s.crc, size: s.blob.size, t: s.t }); });
+        if (sp.mode === 'video' && sp.video && sp.video.blob) entries.push({ name: sp.video.file, key: sp.video.key, blob: sp.video.blob, crc: sp.video.crc, size: sp.video.blob.size, t: sp.video.t });
+      });
+      var fd = KgeoUpload.form(), title = $('title').value.trim().slice(0, 100);
+      fd.append('title', title);
+      fd.append('mode', 'pano');
+      fd.append('scan_type', 'home');
+      fd.append('app', 'web-pano/1');
+      fd.append('client_id', cid);
+      fd.append('visibility', visChoice());
+      fd.append('blur_faces', $('blurFaces').checked ? '1' : '0');
+      fd.append('lat', S.lat.toFixed(7)); fd.append('lon', S.lon.toFixed(7));
+      if (S.elev != null) fd.append('elev', S.elev.toFixed(1));
+      if (meta.north_yaw != null) fd.append('heading', (((-meta.north_yaw) % 360 + 360) % 360).toFixed(1));   // 세션 yaw 0 의 진북 방위
+      var note = $('note').value.trim(); if (note) fd.append('note', note.slice(0, 500));
+      fd.append('spot_count', String(spots.length)); fd.append('shot_count', String(n)); if (nv) fd.append('video_count', String(nv));
+      fd.appendZip('pano_file', 'pano_' + cid.slice(0, 8) + '.zip', entries, { db: 'kgeoscan_pano', store: 'shots' });
+      return KgeoUpload.enqueue({ page: 'pano', kind: 'VR 투어', title: title, form: fd, viewUrl: VIEWER + '?job=', later: later,
+        summary: '지점 ' + f.spots + '곳' + (f.count ? ' · 사진 ' + f.count + '장' : '') + (f.videos ? ' · 영상 ' + f.videos + '개' : ''),
+        recent: { key: JOBS_KEY, max: 20, entry: { title: title, spots: f.spots, count: f.count, st: '대기 중', fin: false, vis: visChoice() } } });
+    }).then(function (qid) {
+      if (later) { S.uploading = false; $('prog').hidden = true; updateReady(); return savedLater(); }
+      runUpload(qid, f);
+    }, function (e) { S.uploading = true; uploadFail(e.message || String(e)); });
+  }
+  function runUpload(qid, f) {
+    S.qid = qid; S.uploading = true; S.cancelled = false;
+    $('upErr').hidden = true; $('laterNote').hidden = true; $('prog').hidden = false; $('cancelBtn').hidden = false;
+    var show = KgeoUpload.renderer({ bar: $('pBar'), main: $('pMain'), left: $('pLeft'), right: $('pRight'), hint: $('pWake') });
+    KgeoUpload.start(qid, { onProgress: function (p) { show(p); $('cancelBtn').hidden = p.phase === 'finish' || p.phase === 'done'; } }).then(function (d) { uploadDone(d, f); },
+      function (e) { if (e.paused) uploadPaused(); else uploadFail(e.message + (e.perm ? '' : ' — 촬영은 이 폰에 보관돼 있어요. 맨 위 ‘올리지 못한 촬영’에서 다시 올릴 수 있어요.')); });
     keepAwake(true); window.addEventListener('beforeunload', onBeforeUnload); updateReady();
   }
+  function savedLater() {
+    var e = $('laterNote'); e.hidden = false; $('upErr').hidden = true;
+    e.textContent = '📦 이 폰에 보관했어요. 와이파이가 되는 곳에서 맨 위 ‘올리지 못한 촬영’의 ‘지금 올리기’를 누르세요. 이 페이지를 닫아도 남아 있어요 (시작 화면 ☰ 에도 표시돼요).';
+    toast('이 폰에 보관했어요 — 나중에 올릴 수 있어요', 'ok');
+    setTimeout(function () { try { $('kqBox').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (x) { } }, 200);
+  }
+  function uploadPaused() {
+    if (!S.uploading) return; uploadEnd(); $('prog').hidden = true;
+    var e = $('laterNote'); e.hidden = false; e.textContent = '⏸ 일시정지했어요. 이 폰에 보관돼 있어요 — 맨 위 ‘올리지 못한 촬영’에서 ‘지금 올리기’를 누르면 받은 부분부터 이어서 올라가요.';
+  }
   function onBeforeUnload(e) { if (S.uploading) { e.preventDefault(); e.returnValue = ''; return ''; } }
-  function uploadEnd() { S.uploading = false; S.xhr = null; keepAwake(false); window.removeEventListener('beforeunload', onBeforeUnload); updateReady(); }
+  function uploadEnd() { S.uploading = false; S.xhr = null; S.qid = null; keepAwake(false); window.removeEventListener('beforeunload', onBeforeUnload); updateReady(); }
   function uploadFail(msg) { if (!S.uploading) return; uploadEnd(); $('prog').hidden = true; var e = $('upErr'); e.hidden = false; e.textContent = '✕ ' + msg; }
   /* ── 공개 범위·관리 키 (docs/share_contract.md 1·2절): 키는 이 기기 localStorage['kgeo_keys'] 에만 둔다 (capture.html 과 같음) ── */
   var KEYS_KEY = 'kgeo_keys', MAIN_VIEWER = '/app/3dscan/', VIS_LABEL = { link: '🔗 링크 공유', public: '🌐 공개', private: '🔒 비공개' };
@@ -2176,8 +2211,13 @@ button{font-family:inherit}
     startPoll(d.job_id);
     setTimeout(function () { try { $('secResult').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) { } }, 150);
   }
-  $('upBtn').onclick = startUpload;
-  $('cancelBtn').onclick = function () { if (S.xhr) { S.cancelled = true; S.xhr.abort(); } };
+  $('upBtn').onclick = function () { startUpload(false); };
+  $('laterBtn').onclick = function () { startUpload(true); };
+  $('cancelBtn').onclick = function () { if (S.qid && window.KgeoUpload) { S.cancelled = true; KgeoUpload.pause(S.qid); } };
+  if (window.KgeoUpload) {
+    KgeoUpload.renderPending($('kqBox'));
+    KgeoUpload.on('done', function (d, it) { if (it && it.page === 'pano') renderRecent(); });     // 위 목록에서 올린 것도 최근 목록에
+  }
 
   /* ── 처리 상황 (status.py 5초마다) ── */
   var pollT = 0, pollJob = null, pollStart = 0;
@@ -2294,6 +2334,7 @@ button{font-family:inherit}
       S.spots.forEach(function (sp) { var tk = sp.shots[0] ? sp.shots[0].key : sp.video && sp.video.thumbKey; if (tk) dbGetShot(tk).then(function (b) { if (b) { setThumb(sp, b); renderSpots(); } }); });
     }
     renderSpots(); renderRecent();
+    if (!st || (Array.isArray(st.spots) && (!st.spots.length || S.spots.length))) gcShots();     // 7일 지나 복원하지 않은 촬영은 그대로 둔다
     if (!S.lat && !SIM && navigator.permissions && navigator.permissions.query) navigator.permissions.query({ name: 'geolocation' }).then(function (p) { if (p.state === 'granted') locMeasure(); }).catch(function () { });
   });
   window.kgeoPanoCapture = { S: S, O: O, Cap: Cap, V: V, showPerm: showPerm, spotsJSON: spotsJSON, roughStitch: roughStitch, flagShots: flagShots, ensureTiny: ensureTiny, renderServerQuality: renderServerQuality };      // 시험용

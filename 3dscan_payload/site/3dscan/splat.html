@@ -252,9 +252,17 @@ async function run(url) {
   const M = { on: false, pts: [] };
   const msvg = $('msvg'), mlabel = $('mlabel'), mbox = $('mbox');
   const fmtLen = m => (m >= 1 ? m.toFixed(2) + ' m' : (m * 100).toFixed(1) + ' cm');
+  // 폰 카메라 영상·사진으로 만든 스플랫은 축척이 임의(video3d 계약 4절) — 거짓 미터값 대신 안내만
+  const noScale = !!meta && meta.scale === 'arbitrary';     // 굴착 기준판 실측은 서버가 "metric" 으로 적는다 (splat_jobs.splat_scale)
   $('btnMeasure').style.display = '';
   $('btnMeasure').onclick = () => setMeasure(!M.on);
+  let _nsT = 0;
   function setMeasure(on) {
+    if (on && noScale) {
+      mbox.innerHTML = '<div style="white-space:normal;line-height:1.45;width:min(320px,82vw)">📏 이 3D는 폰 카메라로 만들어 <b>실제 크기(축척)가 없어요</b>. 거리를 재려면 LiDAR 앱 스캔이나 굴착 기준판과 함께 찍어 주세요.</div>';
+      mbox.style.display = 'flex'; clearTimeout(_nsT); _nsT = setTimeout(() => { if (!M.on) mbox.style.display = 'none'; }, 6000);
+      return;
+    }
     M.on = on; M.pts = [];
     $('btnMeasure').classList.toggle('on', on);
     if (!on) { mbox.style.display = 'none'; msvg.innerHTML = ''; mlabel.style.display = 'none'; }

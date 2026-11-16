@@ -142,6 +142,15 @@ def is_photos(q, meta):
     return job_mode(q, meta) == "photos"
 
 
+def splat_scale(stats):
+    """splat.json 의 scale: 굴착 묶음은 기준판으로 실측(m)이면 "metric" — video_sfm 통계의 "arbitrary" 를 덮는다.
+    뷰어(splat.html)는 "arbitrary" 면 거리 재기 대신 '실제 크기 없음' 안내를 띄운다."""
+    tr = stats.get("trench") if isinstance(stats.get("trench"), dict) else None
+    if tr is not None:
+        return "metric" if tr.get("scale_method") == "board" else "arbitrary"
+    return stats.get("scale")
+
+
 def is_video(q, meta):
     """영상·사진 작업 (자세 없는 기본 카메라 → 워커가 SfM 부터). 사진 작업도 같은 흐름이다"""
     return job_mode(q, meta) in ("video", "photos") or q.get("splat_kind") == "video"
@@ -517,7 +526,7 @@ def op_upload(cfg, job_id):
                            "train_seconds": stats.get("train_seconds"), "test_psnr": stats.get("test_psnr"),
                            "test_psnr_object": stats.get("test_psnr_object"), "worker": stats.get("worker"), "created": now_str(),
                            # 영상 작업 (docs\video3d_contract.md 4절): 축척은 v1 에서 임의
-                           "source": ("photos" if is_photos(q, meta) else "video") if video else stats.get("source"), "scale": stats.get("scale"),
+                           "source": ("photos" if is_photos(q, meta) else "video") if video else stats.get("source"), "scale": splat_scale(stats),
                            "frames_used": stats.get("frames_used"), "frames_total": stats.get("frames_total"),
                            "registered": stats.get("registered"), "sfm_seconds": stats.get("sfm_seconds")},
                           f, ensure_ascii=False, indent=2)

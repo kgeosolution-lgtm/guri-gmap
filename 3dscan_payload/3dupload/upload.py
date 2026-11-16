@@ -15,6 +15,10 @@ POST /app/3dupload/upload.py  (multipart/form-data)
   공개 범위(모든 모드, docs/share_contract.md 1절): visibility = public(기본, 2026-11-13) | link | private
              link·private 은 지도(scan_points)·최근 목록에 나오지 않고 링크(?job=)로만 연다
 
+  끊겨도 이어 올리기(2026-11-16): 큰 파일은 upload_chunk.py 로 조각을 먼저 올리고, 여기에는 작은 필드
+             chunked_files = JSON {필드: upload_id | [upload_id, ...]} 만 보낸다. 서버가 조각을 이어 붙여 아래와 똑같이 처리한다.
+             (한 번에 multipart 로 보내는 예전 방식도 그대로 된다 — iOS 앱·예전 페이지)
+
 응답: {"job_id": "...", "visibility": "...", "edit_key": "..."}  또는 {"error": "..."}
      edit_key(관리 키)는 이 응답으로 한 번만 나간다 — 서버에는 SHA-256 해시만 남긴다 (중복 업로드 응답에는 없음)
 중복 방지: 같은 제목·같은 원본 파일 이름으로 24시간 안에 만든 작업(실패 제외)이 있으면 새로 만들지 않고 그 job_id 를 돌려준다
@@ -30,6 +34,7 @@ import io
 import json
 import os
 import re
+import shutil
 import sys
 import time
 import uuid
@@ -56,15 +61,109 @@ MAX_PERMIT = 100
 PANO_MIN_SPOTS, PANO_MAX_SPOTS, PANO_MIN_SHOTS, PANO_MAX_SHOTS = 1, 30, 6, 1500
 PANO_NAME = re.compile(r"^(spots\.json|s\d{2}/|s\d{2}/\d{4}\.jpe?g|s\d{2}/video\.(mp4|webm|mov))$")   # 영상 지점 (두 바퀴, 계약 v0.3 1.2.1)
 
+CHUNK_ID_RE = re.compile(r"^[A-Za-z0-9_-]{24}$")      # upload_chunk.py 의 upload_id
+
+
+class Assembled:
+    """청크로 받은 파일을 이어 붙인 임시 파일. multipart 의 bytes 자리에 대신 들어간다 (1 GB 를 메모리에 올리지 않게)"""
+    def __init__(self, path, size):
+        self.path, self.size = path, size
+
+    def __len__(self):
+        return self.size
+
+    def __bool__(self):
+        return self.size > 0
+
+    def read(self):
+        with open(self.path, "rb") as f:
+            return f.read()
+
+
+def write_payload(payload, dest):
+    """bytes 는 쓰고, Assembled 는 그 파일을 옮긴다 (같은 드라이브면 이름만 바꾼다)"""
+    if isinstance(payload, Assembled):
+        try:
+            os.replace(payload.path, dest)
+        except OSError:
+            shutil.move(payload.path, dest)
+        payload.path = dest
+        return
+    with open(dest, "wb") as out:
+        out.write(payload)
+
+
+def assemble_chunked(cfg, fields, files):
+    """chunked_files = {필드: upload_id | [upload_id, ...]} → 조각을 이어 붙여 files 에 넣는다. → 다 쓴 임시 폴더 목록.
+    조각이 빠졌거나 형식이 틀리면 사람이 읽을 ValueError (클라이언트가 빠진 조각을 다시 보내고 재시도)"""
+    raw = (fields.get("chunked_files") or "").strip()
+    if not raw:
+        return []
+    try:
+        spec = json.loads(raw)
+    except ValueError:
+        raise ValueError("chunked_files 형식이 맞지 않습니다")
+    if not isinstance(spec, dict) or not spec:
+        raise ValueError("chunked_files 는 {필드: upload_id} 꼴이어야 합니다")
+    root = os.path.join(cfg["data_root"], "uploads_tmp")
+    dirs = []
+    for field, ids in spec.items():
+        if field not in ALLOWED and field not in TRENCH_FILES:
+            raise ValueError(f"chunked_files: 모르는 필드 {str(field)[:30]}")
+        ids = ids if isinstance(ids, list) else [ids]
+        if not ids or len(ids) > MAX_PHOTOS:
+            raise ValueError(f"chunked_files: {field} 파일 수가 맞지 않습니다")
+        items = []
+        for uid in ids:
+            uid = str(uid or "")
+            if not CHUNK_ID_RE.match(uid):
+                raise ValueError("chunked_files: upload_id 형식이 맞지 않습니다")
+            d = os.path.join(root, uid)
+            try:
+                with open(os.path.join(d, "meta.json"), "r", encoding="utf-8") as f:
+                    m = json.load(f)
+            except (OSError, ValueError):
+                raise ValueError("올린 조각을 찾지 못했습니다(만료). 처음부터 다시 올려 주세요")
+            if m.get("field") != field:
+                raise ValueError(f"chunked_files: {field} 에 다른 필드의 조각이 섞였습니다")
+            n, size = int(m["n_chunks"]), int(m["size"])
+            missing = [k for k in range(n) if not os.path.exists(os.path.join(d, f"part_{k:05d}"))]
+            if missing:
+                raise ValueError(f"아직 받지 못한 조각이 {len(missing)}개 있습니다 (예: {missing[0]}번). 이어서 올려 주세요")
+            out = os.path.join(d, "assembled.bin")
+            if not (os.path.exists(out) and os.path.getsize(out) == size):
+                tmp = out + ".tmp"
+                with open(tmp, "wb") as w:
+                    for k in range(n):
+                        with open(os.path.join(d, f"part_{k:05d}"), "rb") as r:
+                            shutil.copyfileobj(r, w, 1024 * 1024)
+                os.replace(tmp, out)
+            if os.path.getsize(out) != size:
+                raise ValueError("이어 붙인 파일 크기가 맞지 않습니다. 다시 올려 주세요")
+            items.append((m.get("filename") or "upload.bin", Assembled(out, size)))
+            dirs.append(d)
+        if field in files:
+            raise ValueError(f"{field}: 조각과 일반 파일을 함께 보낼 수 없습니다")
+        files[field] = items[0]
+        files[field + "*"] = items
+    return dirs
+
 
 def check_pano_zip(payload):
     """pano_spots.zip 검사 → {"spots": n, "shots": m}. 틀리면 사람이 읽을 ValueError.
     이름은 spots.json 과 sNN/NNNN.jpg 만 (경로 조작·다른 파일 거부), 지점 1~30, 지점마다 사진 6장 이상, 전체 1500장 이하"""
     try:
-        zf = zipfile.ZipFile(io.BytesIO(payload))
+        zf = zipfile.ZipFile(payload.path if isinstance(payload, Assembled) else io.BytesIO(payload))
         infos = zf.infolist()
     except (zipfile.BadZipFile, ValueError, OSError):
         raise ValueError("VR 투어 묶음(zip)을 열 수 없습니다. 다시 올려 주세요")
+    try:
+        return _check_pano_entries(zf, infos)
+    finally:
+        zf.close()                      # Windows: 열린 채면 이어 붙인 파일을 작업 폴더로 옮기지 못한다
+
+
+def _check_pano_entries(zf, infos):
     per_spot, has_spots, videos = {}, False, set()
     for zi in infos:
         n = zi.filename
@@ -126,6 +225,8 @@ def save_trench_json(item, job_dir, field):
     payload = item[1]
     if len(payload) > limit:
         raise ValueError(f"{field}: 파일이 너무 큽니다 (최대 {limit // (1024 * 1024)} MB)")
+    if isinstance(payload, Assembled):
+        payload = payload.read()
     try:
         data = json.loads(payload.decode("utf-8-sig"))
     except (UnicodeDecodeError, ValueError):
@@ -229,8 +330,7 @@ def save_upload(item, job_dir, name):
     if not payload:
         raise ValueError(f"{name}: 빈 파일")
     dest = os.path.join(job_dir, name + ext)
-    with open(dest, "wb") as out:
-        out.write(payload)
+    write_payload(payload, dest)
     return dest
 
 
@@ -238,9 +338,17 @@ def main():
     if os.environ.get("REQUEST_METHOD", "GET") != "POST":
         return respond({"error": "POST only"}, "405 Method Not Allowed")
     cfg = load_config()
+    fields = {}
     try:
         fields, files = parse_multipart()
+        chunk_dirs = assemble_chunked(cfg, fields, files)      # 끊겨도 이어 올리기: 조각으로 받은 파일
     except ValueError as e:
+        # 마무리 응답을 못 받고 다시 보낸 경우: 조각 폴더는 이미 지웠지만 같은 client_id 작업이 있다 → 같은 작업 번호
+        cid = (fields.get("client_id") or "")[:64] if fields.get("chunked_files") else ""
+        dup = find_recent_duplicate(cfg, "", "", "", cid) if cid else None
+        if dup:
+            return respond({"job_id": dup["job_id"], "mode": dup.get("mode"), "scan_type": dup.get("scan_type"), "duplicate": True,
+                            "visibility": job_visibility(dup)})
         return respond({"error": str(e)}, "400 Bad Request")
 
     title = (fields.get("title") or "")[:MAX_TITLE]
@@ -305,6 +413,8 @@ def main():
     client_id = (fields.get("client_id") or "")[:64]
     dup = find_recent_duplicate(cfg, title, mode, source_name, client_id)
     if dup:
+        for d in chunk_dirs:                               # 이미 받은 녹화 — 이번 조각은 필요 없다
+            shutil.rmtree(d, ignore_errors=True)
         # 중복: 같은 작업 번호만 돌려준다 (관리 키는 처음 응답에서만 — 새 키를 만들거나 다시 내주지 않는다)
         return respond({"job_id": dup["job_id"], "mode": mode, "scan_type": dup.get("scan_type", scan_type), "duplicate": True,
                         "visibility": job_visibility(dup)})
@@ -353,8 +463,7 @@ def main():
                         raise ValueError(f"사진 형식이 아닙니다: {fn}")
                     if not payload:
                         raise ValueError(f"빈 사진 파일: {fn}")
-                    with open(os.path.join(pdir, f"{i:04d}{ext}"), "wb") as out:
-                        out.write(payload)
+                    write_payload(payload, os.path.join(pdir, f"{i:04d}{ext}"))
                 meta["photos_dir"], meta["photo_count"] = pdir, len(photos)
         elif pano:                           # VR 투어: 촬영 묶음 zip 검사 → pano_spots.zip (스티칭은 pipeline 에서)
             lon, lat = fields.get("lon"), fields.get("lat")
@@ -372,8 +481,7 @@ def main():
                 raise ValueError("pano_file 은 zip 이어야 합니다")
             meta["pano"] = check_pano_zip(item[1])
             meta["pano_zip"] = os.path.join(job_dir, "pano_spots.zip")
-            with open(meta["pano_zip"], "wb") as out:
-                out.write(item[1])
+            write_payload(item[1], meta["pano_zip"])
         elif mode in ("stray", "objcap"):    # objcap: Apple Object Capture zip (model/ OBJ + images/ + poses.json)
             lon, lat = fields.get("lon"), fields.get("lat")
             if not lon or not lat:
@@ -411,6 +519,8 @@ def main():
         queue.update(pano_status="pending", pano_message="VR 투어 만들기 대기 중", pano=meta.get("pano"))
     with open(os.path.join(cfg["jobs_dir"], job_id + ".json"), "w", encoding="utf-8") as f:
         json.dump(queue, f, ensure_ascii=False, indent=2)
+    for d in chunk_dirs:                                   # 이어 붙인 파일은 작업 폴더로 옮겼다 — 조각 폴더 정리
+        shutil.rmtree(d, ignore_errors=True)
     respond({"job_id": job_id, "mode": mode, "scan_type": scan_type, "object_mode": bool(obj), "site_id": site_id,
              "trench": q_trench, "permit": bool(permit), "visibility": visibility, "edit_key": edit_key,
              **({"pano": meta.get("pano")} if pano else {})})

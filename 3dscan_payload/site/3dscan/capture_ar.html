@@ -147,6 +147,7 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
 .pline{display:flex;justify-content:space-between;gap:8px;font-size:13px;font-variant-numeric:tabular-nums;color:var(--text2);margin-top:6px;flex-wrap:wrap}
 .pmain{font-size:15px;font-weight:600;margin-bottom:8px}
 .errbox{margin-top:12px;padding:10px 12px;border-radius:8px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.32);color:#fca5a5;font-size:14px}
+.qnote{margin-top:12px;padding:12px 14px;border-radius:10px;background:rgba(251,146,60,.08);border:1px solid rgba(251,146,60,.4);color:#fed7aa;font-size:14px;line-height:1.55}
 .jobline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--text2)}
 /* 공개 범위·관리 링크 (docs/share_contract.md 1·2절) */
 .vis{display:grid;gap:6px;margin-top:4px}
@@ -225,6 +226,7 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
 </header>
 
 <main class="wrap" id="page">
+  <div id="kqBox" hidden></div>
   <section class="intro">
     <h1>⛏ 굴착 AR 기록</h1>
     <p>안드로이드 크롬의 AR(ARCore)로 영상과 함께 <b>카메라 위치·깊이</b>를 기록합니다. 앱 녹화와 같은 형식으로 올라가 관의 위치·직경·깊이, 굴착 조서, DXF가 나옵니다. <b>기준판 없이도 실제 크기</b>가 맞습니다.</p>
@@ -330,16 +332,20 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
     <div class="chips" id="revChips"></div>
     <ul class="msgs" id="revMsgs"></ul>
     <div class="row" id="revBtns">
-      <button class="btn green big" id="upBtn" type="button">업로드</button>
+      <button class="btn green big" id="upBtn" type="button">지금 올리기 (와이파이 권장)</button>
+      <button class="btn big" id="laterBtn" type="button">📦 나중에 올리기 — 이 폰에 보관</button>
       <button class="btn sm" id="againBtn" type="button">↻ 다시 찍기</button>
       <button class="btn sm ghost" id="saveBtn" type="button">zip 저장</button>
     </div>
+    <p class="hint">신호가 약하면 ‘나중에 올리기’로 보관했다가 와이파이가 되는 곳에서 올리세요. 올리다 끊겨도 받은 부분부터 이어서 올라가요.</p>
     <div class="prog" id="prog" hidden>
       <div class="pmain" id="pMain">업로드 중…</div>
       <div class="bar" id="pBar"><i></i></div>
       <div class="pline"><span id="pLeft"></span><span id="pRight"></span></div>
-      <div class="row"><button class="btn sm ghost" id="cancelBtn" type="button">취소</button></div>
+      <div class="hint" id="pWake"></div>
+      <div class="row"><button class="btn sm ghost" id="cancelBtn" type="button">⏸ 일시정지 (나중에 이어서)</button></div>
     </div>
+    <div class="qnote" id="laterNote" hidden></div>
     <div class="errbox" id="upErr" hidden></div>
   </section>
 
@@ -398,6 +404,7 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
 </div>
 <div class="toast" id="toast"></div>
 
+<script src="upload_queue.js?v=831620d114"></script>
 <script>
 (function () {
   'use strict';
@@ -1469,17 +1476,20 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
     $('stTitle').textContent = t ? '✓ 완료' : '필수'; $('stTitle').className = 'st ' + (t ? 'on' : 'need');
     var g = !!GEO.last; $('stLoc').textContent = g ? '✓ 완료' : '필수'; $('stLoc').className = 'st ' + (g ? 'on' : 'need');
   }
-  function startUpload() {
+  function startUpload(later) {
+    later = later === true;
     var pk = S.pack; if (!pk || S.uploading) return;
     var t = $('title').value.trim();
     if (!t) { $('title').value = '굴착 ' + new Date().toLocaleString('ko-KR', { hour12: false }).replace(/\.\s?/g, '-').replace(/-(\d+:)/, ' $1').slice(0, 30); updateReady(); }
     if (!pk.geo) { toast('위치가 없어 올릴 수 없습니다. 위치를 켜고 다시 찍어 주세요', 'bad'); $('secLoc').scrollIntoView({ behavior: 'smooth' }); return; }
     var conn = navigator.connection;
-    if (conn && conn.type === 'cellular' && pk.zip.size > 200 * MB && !window.confirm('모바일 데이터로 ' + fmtSize(pk.zip.size) + '를 올립니다.\n요금이 나올 수 있습니다. 계속할까요?')) return;
-    doUpload(pk);
+    if (!later && conn && conn.type === 'cellular' && pk.zip.size > 200 * MB && !window.confirm('모바일 데이터로 ' + fmtSize(pk.zip.size) + '를 올립니다.\n요금이 나올 수 있습니다. 계속할까요? (‘취소’ 뒤 ‘나중에 올리기’로 이 폰에 보관할 수 있어요)')) return;
+    doUpload(pk, later);
   }
-  function doUpload(pk) {
-    var fd = new FormData(), pf = permitFields();
+  /* 끊겨도 이어 올리기 (upload_queue.js, 2026-11-16): 이 폰에 보관 → 5 MB 조각 → upload.py 마무리. 끝나면 예전과 같은 uploadDone() */
+  function doUpload(pk, later) {
+    if (!window.KgeoUpload) { S.uploading = true; return uploadFail('업로드 도구(upload_queue.js)를 불러오지 못했습니다. 페이지를 새로 고쳐 주세요.'); }
+    var fd = KgeoUpload.form(), pf = permitFields();
     fd.append('title', $('title').value.trim().slice(0, 100));
     fd.append('mode', 'stray'); fd.append('scan_type', 'survey'); fd.append('trench_mode', '1'); fd.append('app', 'web-xr/1');
     fd.append('client_id', pk.cid);
@@ -1491,31 +1501,38 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
     Object.keys(pf).forEach(function (k) { if (pf[k]) fd.append(k, pf[k]); });
     lsSet(PERSON_KEY, { surveyor: pf.surveyor, org: pf.org });
     fd.append('scan_zip', pk.zip, pk.name);                      // 파일은 맨 끝
-    var xhr = new XMLHttpRequest(), t0 = Date.now(), samples = [[t0, 0]], size = pk.zip.size;
-    S.xhr = xhr; S.uploading = true; S.cancelled = false;
-    $('upErr').hidden = true; $('prog').hidden = false; $('cancelBtn').hidden = false; $('upBtn').classList.add('dis'); $('againBtn').classList.add('dis');
-    $('pBar').className = 'bar'; $('pBar').firstElementChild.style.width = '0%';
-    $('pMain').textContent = '업로드 중…'; $('pLeft').textContent = '0% · 0 / ' + fmtSize(size); $('pRight').textContent = '속도 계산 중…';
-    xhr.upload.onprogress = function (e) {
-      var total = e.lengthComputable ? e.total : size, now = Date.now();
-      samples.push([now, e.loaded]); while (samples.length > 2 && now - samples[0][0] > 6000) samples.shift();
-      var dt = (now - samples[0][0]) / 1000, rate = dt >= 0.8 ? (e.loaded - samples[0][1]) / dt : null;
-      if (!rate && now - t0 >= 1500) rate = e.loaded / ((now - t0) / 1000);
-      var pct = total ? Math.min(100, e.loaded / total * 100) : 0;
-      $('pBar').firstElementChild.style.width = pct.toFixed(1) + '%';
-      $('pLeft').textContent = Math.floor(pct) + '% · ' + fmtSize(e.loaded) + ' / ' + fmtSize(total);
-      $('pRight').textContent = rate ? (rate / MB).toFixed(1) + ' MB/s · ' + fmtEta((total - e.loaded) / rate) : '속도 계산 중…';
-    };
-    xhr.upload.onload = function () { $('pBar').className = 'bar indet'; $('pMain').textContent = '서버가 녹화를 받아 저장하는 중…'; $('pRight').textContent = ''; $('cancelBtn').hidden = true; };
-    xhr.onload = function () {
-      var d = null; try { d = JSON.parse(xhr.responseText); } catch (e) { }
-      if (xhr.status >= 200 && xhr.status < 300 && d && d.job_id) return uploadDone(d, pk);
-      uploadFail((d && d.error) || (xhr.status === 413 || xhr.status === 404 ? '서버가 받지 않았습니다(HTTP ' + xhr.status + '). 파일이 너무 크거나 업로드 주소가 바뀌었을 수 있습니다.' : '서버 응답 오류 (HTTP ' + xhr.status + ')'));
-    };
-    xhr.onerror = function () { uploadFail('네트워크가 끊겨 업로드가 중단되었습니다. 신호가 좋은 곳(Wi‑Fi)에서 다시 눌러 주세요.'); };
-    xhr.onabort = function () { uploadFail(S.cancelled ? '업로드를 취소했습니다.' : '업로드가 중단되었습니다.'); };
-    xhr.open('POST', API + 'upload.py', true); xhr.timeout = 0; xhr.send(fd);
+    var title = $('title').value.trim().slice(0, 100);
+    S.uploading = true;
+    $('upErr').hidden = true; $('laterNote').hidden = true; $('prog').hidden = false; $('cancelBtn').hidden = true; $('upBtn').classList.add('dis'); $('laterBtn').classList.add('dis'); $('againBtn').classList.add('dis');
+    $('pBar').className = 'bar indet'; $('pMain').textContent = '이 폰에 먼저 보관하는 중… (끊겨도 이어서 올리려고)'; $('pLeft').textContent = fmtSize(pk.zip.size); $('pRight').textContent = '';
+    KgeoUpload.findClient(pk.cid).then(function (qid) {
+      if (qid) return qid;                          // 이미 보관한 같은 녹화 → 그것을 이어서 올린다
+      return KgeoUpload.enqueue({ page: 'ar', kind: '굴착 기록(AR)', title: title, form: fd, viewUrl: VIEWER + '?job=', later: later,
+        summary: 'AR 녹화 zip', recent: { key: JOB_KEY, max: 10, entry: { title: title } } });
+    }).then(function (qid) {
+      if (later) {
+        S.uploading = false; $('prog').hidden = true; $('upBtn').classList.remove('dis'); $('laterBtn').classList.remove('dis'); $('againBtn').classList.remove('dis');
+        var e = $('laterNote'); e.hidden = false;
+        e.textContent = '📦 이 폰에 보관했어요. 와이파이가 되는 곳에서 맨 위 ‘올리지 못한 촬영’의 ‘지금 올리기’를 누르세요. 이 페이지를 닫아도 남아 있어요.';
+        toast('이 폰에 보관했어요 — 나중에 올릴 수 있어요', 'ok');
+        setTimeout(function () { try { $('kqBox').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (x) { } }, 200);
+        return;
+      }
+      runUpload(qid, pk);
+    }, function (e) { uploadFail(e.message || String(e)); });
+  }
+  function runUpload(qid, pk) {
+    S.qid = qid; S.uploading = true; S.cancelled = false;
+    $('cancelBtn').hidden = false;
+    var show = KgeoUpload.renderer({ bar: $('pBar'), main: $('pMain'), left: $('pLeft'), right: $('pRight'), hint: $('pWake') });
+    KgeoUpload.start(qid, { onProgress: function (p) { show(p); $('cancelBtn').hidden = p.phase === 'finish' || p.phase === 'done'; } }).then(function (d) { uploadDone(d, pk); },
+      function (e) { if (e.paused) uploadPaused(); else uploadFail(e.message + (e.perm ? '' : ' — 녹화는 이 폰에 보관돼 있어요. 맨 위 ‘올리지 못한 촬영’에서 다시 올릴 수 있어요.')); });
     keepAwake(true); window.addEventListener('beforeunload', onBeforeUnload);
+  }
+  function uploadPaused() {
+    if (!S.uploading) return; uploadEnd();
+    $('prog').hidden = true; $('upBtn').classList.remove('dis'); $('laterBtn').classList.remove('dis'); $('upBtn').textContent = '↻ 이어서 올리기';
+    var e = $('laterNote'); e.hidden = false; e.textContent = '⏸ 일시정지했어요. 이 폰에 보관돼 있어요 — ‘이어서 올리기’나 맨 위 ‘올리지 못한 촬영’에서 이어서 올라가요.';
   }
   var wakeLock = null;
   function keepAwake(on) {
@@ -1523,10 +1540,10 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
     if (!on && wakeLock) { try { wakeLock.release(); } catch (e) { } wakeLock = null; }
   }
   function onBeforeUnload(e) { if (S.uploading || (S.pack && !S.job)) { e.preventDefault(); e.returnValue = ''; return ''; } }
-  function uploadEnd() { S.uploading = false; S.xhr = null; keepAwake(false); $('againBtn').classList.remove('dis'); }
+  function uploadEnd() { S.uploading = false; S.xhr = null; S.qid = null; keepAwake(false); $('againBtn').classList.remove('dis'); }
   function uploadFail(msg) {
     if (!S.uploading) return; uploadEnd();
-    $('prog').hidden = true; $('upBtn').classList.remove('dis'); $('upBtn').textContent = '다시 업로드';
+    $('prog').hidden = true; $('upBtn').classList.remove('dis'); $('laterBtn').classList.remove('dis'); $('upBtn').textContent = '↻ 이어서 다시 올리기';
     var e = $('upErr'); e.hidden = false; e.textContent = '✕ ' + msg;
   }
   function uploadDone(d, pk) {
@@ -1535,7 +1552,7 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
     if (d.edit_key) saveEditKey(d.job_id, d.edit_key);
     showManage(d.job_id, d.visibility);
     $('pBar').className = 'bar done'; $('pMain').textContent = '✓ 업로드 완료'; $('pLeft').textContent = fmtSize(pk.zip.size); $('pRight').textContent = ''; $('cancelBtn').hidden = true;
-    $('upBtn').classList.add('dis'); $('upBtn').textContent = '✓ 올렸습니다';
+    $('upBtn').classList.add('dis'); $('upBtn').textContent = '✓ 올렸습니다'; $('laterBtn').hidden = true;
     var l = lsGet(JOB_KEY, []); l = (Array.isArray(l) ? l : []).filter(function (j) { return j.job_id !== d.job_id; }); l.unshift({ job_id: d.job_id, title: $('title').value.trim(), t: Date.now() }); lsSet(JOB_KEY, l.slice(0, 10));
     $('rs1m').textContent = fmtSize(pk.zip.size) + ' 전송 완료' + (d.duplicate ? ' (이미 받은 자료 — 같은 작업을 보여 줍니다)' : '');
     $('secResult').hidden = false; startPoll(d.job_id);
@@ -1581,7 +1598,7 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
     if (S.uploading) return;
     if (S.pack && !S.job && !window.confirm('올리지 않은 녹화가 있습니다. 버리고 다시 찍을까요?')) return;
     S.pack = null; S.job = null; pollJob = null; clearTimeout(pollT); R = null;
-    $('secReview').hidden = true; $('secResult').hidden = true; $('upBtn').textContent = '업로드'; $('upBtn').classList.remove('dis');
+    $('secReview').hidden = true; $('secResult').hidden = true; $('upBtn').textContent = '지금 올리기 (와이파이 권장)'; $('upBtn').classList.remove('dis'); $('laterBtn').hidden = false; $('laterBtn').classList.remove('dis'); $('laterNote').hidden = true;
     $('stRec').textContent = '촬영 전'; $('stRec').className = 'st need';
     $('secRec').scrollIntoView({ behavior: 'smooth' });
   }
@@ -1606,10 +1623,12 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
   // dom-overlay 위 버튼을 누를 때 XR select 가 함께 나지 않게
   $('arUi').addEventListener('beforexrselect', function (e) { e.preventDefault(); });
   $('geoBtn').addEventListener('click', geoStart);
-  $('upBtn').addEventListener('click', startUpload);
+  $('upBtn').addEventListener('click', function () { startUpload(false); });
+  $('laterBtn').addEventListener('click', function () { startUpload(true); });
   $('againBtn').addEventListener('click', again);
   $('saveBtn').addEventListener('click', saveZip);
-  $('cancelBtn').addEventListener('click', function () { if (S.xhr && window.confirm('업로드를 취소할까요?')) { S.cancelled = true; S.xhr.abort(); } });
+  $('cancelBtn').addEventListener('click', function () { if (S.qid && window.KgeoUpload) { S.cancelled = true; KgeoUpload.pause(S.qid); } });
+  if (window.KgeoUpload) KgeoUpload.renderPending($('kqBox'));
   $('diagCopy').addEventListener('click', function () {
     var t = JSON.stringify(DG, null, 1);
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(function () { toast('진단 정보를 복사했습니다', 'ok'); }, function () { window.prompt('진단 정보', t); });

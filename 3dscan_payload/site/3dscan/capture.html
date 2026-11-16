@@ -354,6 +354,7 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
 .pline{display:flex;justify-content:space-between;gap:8px;font-size:13px;font-variant-numeric:tabular-nums;color:var(--text2);margin-top:6px;flex-wrap:wrap}
 .pmain{font-size:15px;font-weight:600;margin-bottom:8px}
 .errbox{margin-top:12px;padding:10px 12px;border-radius:8px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.32);color:#fca5a5;font-size:14px}
+.qnote{margin-top:12px;padding:12px 14px;border-radius:10px;background:rgba(251,146,60,.08);border:1px solid rgba(251,146,60,.4);color:#fed7aa;font-size:14px;line-height:1.55}
 
 /* 결과 */
 .jobline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--text2)}
@@ -408,6 +409,7 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
 </header>
 
 <main class="wrap">
+  <div id="kqBox" hidden></div>
   <section class="intro">
     <h1>kgeoScan 웹 3D 현장조사</h1>
     <p>앱 없이 휴대폰 기본 카메라로 대상 주위를 사진 여러 장이나 영상으로 찍어 올리면, 서버가 3D(가우시안 스플랫)로 만들어 지도에 올립니다.</p>
@@ -736,16 +738,18 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
   <section class="card step" id="secUpload">
     <h2>업로드</h2>
     <div class="ready"><span id="rdTitle">제목</span><span id="rdLoc">위치</span><span id="rdVideo">영상</span></div>
-    <button class="btn big primary" id="upBtn" type="button">업로드</button>
+    <button class="btn big primary" id="upBtn" type="button">지금 올리기 (와이파이 권장)</button>
+    <button class="btn big" id="laterBtn" type="button" style="margin-top:10px">📦 나중에 올리기 — 이 폰에 보관</button>
     <div class="prog" id="prog" hidden>
       <div class="pmain" id="pMain">업로드 중…</div>
       <div class="bar" id="pBar"><i></i></div>
       <div class="pline"><span id="pLeft">0%</span><span id="pRight"></span></div>
       <div class="hint" id="pWake"></div>
-      <div class="row"><button class="btn sm ghost" id="cancelBtn" type="button">업로드 취소</button></div>
+      <div class="row"><button class="btn sm ghost" id="cancelBtn" type="button">⏸ 일시정지 (나중에 이어서)</button></div>
     </div>
+    <div class="qnote" id="laterNote" hidden></div>
     <div class="errbox" id="upErr" hidden></div>
-    <p class="hint" id="upTip">업로드 중에는 화면을 끄거나 다른 앱으로 넘어가지 마세요. 끊기면 ‘다시 업로드’를 누르세요(처음부터 다시 보냅니다).</p>
+    <p class="hint" id="upTip">신호가 약하면 ‘나중에 올리기’로 이 폰에 보관했다가 와이파이가 되는 곳에서 올리세요. 올리다 끊겨도 받은 부분부터 이어서 올라가요(처음부터 다시 보내지 않아요).</p>
   </section>
 
   <!-- 7. 처리 상황 -->
@@ -847,6 +851,7 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
   </div>
 </div>
 
+<script src="upload_queue.js?v=831620d114"></script>
 <script>
 (function () {
   'use strict';
@@ -2127,7 +2132,7 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
   }
   function renderWake() {
     if (!S.uploading) { $('pWake').textContent = ''; return; }
-    $('pWake').textContent = wakeLock ? '화면 꺼짐 방지 켜짐 — 다른 앱으로 넘어가지 마세요.' : '화면이 꺼지면 업로드가 멈출 수 있습니다. 화면을 가끔 터치해 주세요.';
+    $('pWake').textContent = (wakeLock ? '화면 꺼짐 방지 켜짐. ' : '') + (window.KgeoUpload ? KgeoUpload.hint : '화면이 꺼지면 업로드가 멈출 수 있습니다. 화면을 가끔 터치해 주세요.');
   }
   function onBeforeUnload(e) { if (S.uploading) { e.preventDefault(); e.returnValue = ''; return ''; } }
 
@@ -2145,11 +2150,13 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
     st('stTitle', r.title); st('stLoc', r.loc); st('stVideo', !!S.file && !S.fatal); st('stPhotos', S.photos.length >= MIN_PHOTOS && !S.pfatal);
     var b = $('upBtn'), cid = curCid(), done = S.doneCid && S.doneCid === cid;
     b.disabled = S.uploading || done;
-    b.textContent = S.uploading ? '업로드 중…' : done ? '✓ 업로드 완료' : S.failed ? '↻ 다시 업로드' : ph ? '사진 업로드' : '영상 업로드';
+    b.textContent = S.uploading ? '업로드 중…' : done ? '✓ 업로드 완료' : S.failed ? '↻ 이어서 다시 올리기' : (ph ? '사진' : '영상') + ' 지금 올리기 (와이파이 권장)';
+    var lb = $('laterBtn'); lb.disabled = S.uploading || done; lb.hidden = !!done;
     ['camLabel', 'fileLabel', 'albumLabel', 'shotLabel', 'pClear'].forEach(function (id) { $(id).classList.toggle('dis', S.uploading); });
     $('tabPhotos').disabled = S.uploading; $('tabVideo').disabled = S.uploading;
   }
-  function startUpload() {
+  function startUpload(later) {
+    later = later === true;
     if (S.uploading) return;
     var r = readiness(), ph = S.mode === 'photos';
     if (!r.title) return nudge('secTitle', '제목을 입력해 주세요', elTitle);
@@ -2163,13 +2170,17 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
     }
     if (S.titleDup && !window.confirm('같은 제목의 스캔이 이미 있습니다.\n그대로 올릴까요?')) return;
     var conn = navigator.connection, size = mediaSize();
-    if (conn && conn.type === 'cellular' && size > 200 * MB &&
-      !window.confirm('모바일 데이터로 ' + fmtSize(size) + '를 올립니다.\n요금이 나올 수 있습니다. 계속할까요?')) return;
-    doUpload();
+    if (!later && conn && conn.type === 'cellular' && size > 200 * MB &&
+      !window.confirm('모바일 데이터로 ' + fmtSize(size) + '를 올립니다.\n요금이 나올 수 있습니다. 계속할까요? (‘취소’ 뒤 ‘나중에 올리기’로 이 폰에 보관할 수 있어요)')) return;
+    doUpload(later);
   }
-  function doUpload() {
-    var ph = S.mode === 'photos', cid = curCid(), size = mediaSize(), count = ph ? S.photos.length : 1, fd = new FormData();
+  /* 끊겨도 이어 올리기 (upload_queue.js, 2026-11-16): 이 폰 IndexedDB 에 보관 → 5 MB 조각으로 올림 → upload.py 마무리.
+     끝나면 예전과 같은 uploadDone() (관리 키·관리 링크·최근 목록·처리 상황) */
+  function doUpload(later) {
+    var ph = S.mode === 'photos', cid = curCid(), size = mediaSize(), count = ph ? S.photos.length : 1;
     var f = { size: size, mode: S.mode, count: count };
+    if (!window.KgeoUpload) { S.uploading = true; return uploadFail('업로드 도구(upload_queue.js)를 불러오지 못했습니다. 페이지를 새로 고쳐 주세요.'); }
+    var fd = KgeoUpload.form();
     fd.append('title', elTitle.value.trim().slice(0, 100));
     fd.append('mode', ph ? 'photos' : 'video');
     fd.append('scan_type', 'survey');
@@ -2195,47 +2206,44 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
     if (ph) S.photos.forEach(function (p, i) { fd.append('photo_files', p.file, photoName(p.file, i, cid)); });
     else fd.append('video_file', S.file, uploadName(S.file, cid));
 
-    var xhr = new XMLHttpRequest(), t0 = Date.now(), samples = [[t0, 0]];
-    S.xhr = xhr; S.uploading = true; S.cancelled = false; S.failed = false;
-    $('upErr').hidden = true; $('prog').hidden = false; $('cancelBtn').hidden = false;
-    $('pBar').className = 'bar'; $('pBar').firstElementChild.style.width = '0%';
-    $('pMain').textContent = '업로드 중…'; $('pLeft').textContent = '0% · 0 / ' + fmtSize(f.size); $('pRight').textContent = '속도 계산 중…';
-    xhr.upload.onprogress = function (e) {
-      var total = e.lengthComputable ? e.total : f.size, now = Date.now();
-      samples.push([now, e.loaded]);
-      while (samples.length > 2 && now - samples[0][0] > 6000) samples.shift();
-      var dt = (now - samples[0][0]) / 1000, rate = dt >= 0.8 ? (e.loaded - samples[0][1]) / dt : null;
-      if (!rate && now - t0 >= 1500) rate = e.loaded / ((now - t0) / 1000);      // 최근 6초 값이 없으면 전체 평균
-      var pct = total ? Math.min(100, e.loaded / total * 100) : 0;
-      $('pBar').firstElementChild.style.width = pct.toFixed(1) + '%';
-      $('pLeft').textContent = Math.floor(pct) + '% · ' + fmtSize(e.loaded) + ' / ' + fmtSize(total);
-      $('pRight').textContent = rate ? (rate / MB).toFixed(1) + ' MB/s · ' + fmtEta((total - e.loaded) / rate) : '속도 계산 중…';
-    };
-    xhr.upload.onload = function () {            // 다 보냄 → 서버가 받아 저장하는 중
-      $('pBar').className = 'bar indet';
-      $('pMain').textContent = ph ? '서버가 사진 ' + count + '장을 받아 저장하는 중…' : '서버가 영상을 받아 저장하는 중…';
-      $('pRight').textContent = '큰 파일은 1분쯤 걸릴 수 있습니다';
-      $('cancelBtn').hidden = true;
-    };
-    xhr.onload = function () {
-      var d = null; try { d = JSON.parse(xhr.responseText); } catch (e) { }
-      if (xhr.status >= 200 && xhr.status < 300 && d && d.job_id) return uploadDone(d, f);
-      var msg = (d && d.error) || (xhr.status === 413 || xhr.status === 404 ? '서버가 받지 않았습니다(HTTP ' + xhr.status + '). 파일이 너무 크거나 업로드 주소가 바뀌었을 수 있습니다.'
-        : '서버 응답 오류 (HTTP ' + xhr.status + ')');
-      uploadFail(msg);
-    };
-    xhr.onerror = function () { uploadFail('네트워크가 끊겨 업로드가 중단되었습니다. 신호가 좋은 곳(Wi‑Fi)에서 ‘다시 업로드’를 눌러 주세요.'); };
-    xhr.ontimeout = function () { uploadFail('시간이 초과되었습니다. ‘다시 업로드’를 눌러 주세요.'); };
-    xhr.onabort = function () { uploadFail(S.cancelled ? '업로드를 취소했습니다.' : '업로드가 중단되었습니다. ‘다시 업로드’를 눌러 주세요.'); };
-    xhr.open('POST', API + 'upload.py', true);
-    xhr.timeout = 0;
-    xhr.send(fd);
+    var title = elTitle.value.trim().slice(0, 100);
+    S.uploading = true; S.failed = false; updateReady();
+    $('upErr').hidden = true; $('laterNote').hidden = true; $('prog').hidden = false; $('cancelBtn').hidden = true;
+    $('pBar').className = 'bar indet'; $('pMain').textContent = '이 폰에 먼저 보관하는 중… (끊겨도 이어서 올리려고)'; $('pLeft').textContent = fmtSize(size); $('pRight').textContent = '';
+    KgeoUpload.findClient(cid).then(function (qid) {
+      if (qid) return qid;                          // 이미 보관한 같은 촬영 → 그것을 이어서 올린다
+      return KgeoUpload.enqueue({ page: 'capture', kind: S.trench ? '굴착 기록' : '3D 촬영', title: title, form: fd, viewUrl: VIEWER + '?job=', later: later,
+        summary: (ph ? '사진 ' + count + '장' : '영상') + (f.trench ? ' · ⛏ 굴착' + (f.marks ? ' · 관 표시 ' + f.marks + '개' : '') : ''),
+        recent: { key: JOBS_KEY, max: 20, entry: { title: title, size: size, mode: S.mode, count: count, trench: !!f.trench, st: '대기 중', cls: 'run', fin: false } } });
+    }).then(function (qid) {
+      if (later) { S.uploading = false; $('prog').hidden = true; updateReady(); return savedLater(); }
+      runUpload(qid, f);
+    }, function (e) { uploadFail(e.message || String(e)); });
+  }
+  function runUpload(qid, f) {
+    S.qid = qid; S.uploading = true; S.cancelled = false; S.failed = false;
+    $('upErr').hidden = true; $('laterNote').hidden = true; $('prog').hidden = false; $('cancelBtn').hidden = false;
+    var show = KgeoUpload.renderer({ bar: $('pBar'), main: $('pMain'), left: $('pLeft'), right: $('pRight') });
+    KgeoUpload.start(qid, { onProgress: function (p) { show(p); renderWake(); $('cancelBtn').hidden = p.phase === 'finish' || p.phase === 'done'; } }).then(function (d) { uploadDone(d, f); },
+      function (e) { if (e.paused) uploadPaused(); else uploadFail(e.message + (e.perm ? '' : ' — 촬영은 이 폰에 보관돼 있어요. 맨 위 ‘올리지 못한 촬영’에서 다시 올릴 수 있어요.')); });
     keepAwake(true);
     window.addEventListener('beforeunload', onBeforeUnload);
     updateReady(); renderWake();
   }
+  function savedLater() {
+    var e = $('laterNote'); e.hidden = false; $('upErr').hidden = true;
+    e.textContent = '📦 이 폰에 보관했어요. 와이파이가 되는 곳에서 맨 위 ‘올리지 못한 촬영’의 ‘지금 올리기’를 누르세요. 이 페이지를 닫아도 남아 있어요 (시작 화면 ☰ 에도 표시돼요).';
+    toast('이 폰에 보관했어요 — 나중에 올릴 수 있어요', 'ok');
+    setTimeout(function () { try { $('kqBox').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (x) { } }, 200);
+  }
+  function uploadPaused() {
+    if (!S.uploading) return;
+    uploadEnd(); $('prog').hidden = true;
+    var e = $('laterNote'); e.hidden = false; e.textContent = '⏸ 일시정지했어요. 이 폰에 보관돼 있어요 — 맨 위 ‘올리지 못한 촬영’에서 ‘지금 올리기’를 누르면 받은 부분부터 이어서 올라가요.';
+    updateReady();
+  }
   function uploadEnd() {
-    S.uploading = false; S.xhr = null;
+    S.uploading = false; S.xhr = null; S.qid = null;
     keepAwake(false);
     window.removeEventListener('beforeunload', onBeforeUnload);
     renderWake();
@@ -2577,8 +2585,13 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
   $('mkPal').addEventListener('click', function (e) { var b = e.target.closest ? e.target.closest('button') : null; if (b) onPalette(b.getAttribute('data-c')); });
   $('mkClear').addEventListener('click', function () { if (T.marks.length && window.confirm('관 표시 ' + T.marks.length + '개를 모두 지울까요?')) { T.marks = []; T.pending = null; renderMarks(); } });
   $('mkSkip').addEventListener('click', function () { T.pending = null; renderMarks(); nudge('secUpload', T.marks.length ? '관 표시 ' + T.marks.length + '개와 함께 올립니다' : '관 표시 없이 올립니다'); });
-  $('upBtn').addEventListener('click', startUpload);
-  $('cancelBtn').addEventListener('click', function () { if (S.xhr && window.confirm('업로드를 취소할까요?')) { S.cancelled = true; S.xhr.abort(); } });
+  $('upBtn').addEventListener('click', function () { startUpload(false); });
+  $('laterBtn').addEventListener('click', function () { startUpload(true); });
+  $('cancelBtn').addEventListener('click', function () { if (S.qid && window.KgeoUpload) { S.cancelled = true; KgeoUpload.pause(S.qid); } });
+  if (window.KgeoUpload) {
+    KgeoUpload.renderPending($('kqBox'));
+    KgeoUpload.on('done', function (d, it) { if (it && it.page === 'capture') renderRecent(); });     // 위 목록에서 올린 것도 최근 목록에
+  }
   $('shareBtn').addEventListener('click', shareJob);
   $('resManageCopy').addEventListener('click', function () {      // 관리 링크 복사 (실패하면 글자를 골라 둔다)
     var url = $('resManageUrl').textContent, done = function () { toast('관리 링크를 복사했어요. 잃어버리지 않게 저장해 두세요.', 'ok'); };
