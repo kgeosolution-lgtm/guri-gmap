@@ -1070,3 +1070,7 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 원인: 시작 맞춤(`view.when` 의 `view.extent=`)이 지도 크기·padding 이 확정되기 전에 한 번만 실행되고, 이후 크기가 바뀌어도(모바일 주소창·시트) 다시 맞추지 않았음. 나중 화면은 `goTo` 경로라 정상.
 - 조치(`theme.html`): 시작 맞춤 뒤 한 프레임 지나 같은 `goTo` 경로로 한 번 더(`refitInit`, 애니메이션 없음), 지도 크기가 바뀌면 **시작 화면 그대로일 때만**(`atInitView`: 사용자가 안 움직임) 다시 맞춤(`reactiveUtils.watch(width,height)`). 시 외곽선 범위 반영(`setCityBBox`)도 같은 경로.
 - 검증: 스텁 하네스 `pw/initfit-test.js`·`fit-test.js`, theme `node --check`, `npm run build:deploy`, `git diff --check` 통과. 실제 휴대폰 확인 필요. 브랜치 `work/kangmina-mobile-initfit`.
+
+## 2026-11-16 구리시 서버 배포 절차서 추가 (담당: 강민아)
+
+- `docs/DEPLOY_GURI.md`: 구리시 Machine 1(DMZ IIS)에 USB 로 반입하는 현장 절차 — 방문 전 준비(주소 확정, 외부 DNS/443 개통 확인, API 키 3종 도메인 재등록, kgeodata.com 잔여 의존 2건, 설정·빌드·USB), 현장 IIS 응용 프로그램 추가·404, 포털 공개 여부 확인(서비스 목록), LTE 검증 체크리스트, 문제별 조치, 이후 수동 운영. README 에 링크.
