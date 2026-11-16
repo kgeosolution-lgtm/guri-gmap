@@ -168,8 +168,18 @@ def main():
                     "--jpeg-quality", str(args.jpeg_quality)]
     # (면 촬영 3D 텍스처를 고해상도 사진으로 입히는 texture_hires.py 는 첫 벽 시험(ee6c8922, 사진 12장)에서 경계가 더 보여 보류 —
     #  세부 기록은 정사영상이 맡는다. research/pgm/README.md 참고)
-    run([PY, "-I", os.path.join(HERE, "texture_fast.py"), "--data", data, "--mesh", ply, "--out", args.out] + tex_args,
-        t0, log_path)
+    # 방·현장(물체 모드가 아닌 것)은 사진 조각(차트) 텍스처 (2026-11-16 texture_charts.py: 같은 사진을 고른 삼각형 묶음을 통째로 붙여
+    # 벽 글씨까지 읽히게 선명, 사진 받은 삼각형 66 → 72 %). 실패하면 예전 texture_fast 로 다시 한다
+    tex_script = "texture_fast.py" if (region and region.get("cropped")) else "texture_charts.py"
+    try:
+        run([PY, "-I", os.path.join(HERE, tex_script), "--data", data, "--mesh", ply, "--out", args.out] + tex_args,
+            t0, log_path)
+    except SystemExit as e:
+        if tex_script == "texture_fast.py":
+            raise
+        log(f"texture_charts failed ({e}) -> texture_fast", t0)
+        run([PY, "-I", os.path.join(HERE, "texture_fast.py"), "--data", data, "--mesh", ply, "--out", args.out] + tex_args,
+            t0, log_path)
     t_tex = time.time() - t2
 
     # 2b) thumbnail (optional: failure must not stop the job)
