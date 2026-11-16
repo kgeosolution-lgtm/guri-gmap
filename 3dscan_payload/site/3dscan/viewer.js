@@ -612,6 +612,7 @@ require([
 
   /* ════ Three.js GLB 뷰어 ════ */
   function destroyGLB() {
+    _glbSeq++;                                              // 3D 프로그램을 받는 중에 닫거나 다른 기록을 열면 그 요청은 버린다
     clearMeasure(true);
     if (_walk) { _walk.destroy(); _walk = null; }
     if (document.getElementById("btnWalk")) document.getElementById("btnWalk").style.display = "none";
@@ -635,7 +636,35 @@ require([
     glbCamera.updateProjectionMatrix();
   }
 
+  /* three.js r128 는 3D 보기를 처음 열 때 ES 모듈로 받는다 (2026-11-16 첫 화면 속도 — 예전엔 <head> 에서 약 600KB 를 먼저 받았다).
+     viewer.js·walk.js 는 전역 THREE(GLTFLoader·OrbitControls 포함)를 그대로 쓴다 */
+  let _threeP = null, _glbSeq = 0;
+  function ensureThree() {
+    if (window.THREE && window.THREE.GLTFLoader && window.THREE.OrbitControls) return Promise.resolve(window.THREE);
+    if (!_threeP) {
+      const base = "https://cdn.jsdelivr.net/npm/three@0.128.0/";
+      // jsDelivr '+esm': 예제 모듈의 import "three" 를 같은 three 묶음(+esm)으로 바꿔 준다 → THREE 가 하나 (GLTFLoader 의 manager === DefaultLoadingManager 확인)
+      _threeP = Promise.all([import(base + "+esm"), import(base + "examples/jsm/loaders/GLTFLoader.js/+esm"),
+                             import(base + "examples/jsm/controls/OrbitControls.js/+esm")])
+        .then(([T, G, O]) => (window.THREE = Object.assign({}, T, { GLTFLoader: G.GLTFLoader, OrbitControls: O.OrbitControls })))
+        .catch(e => { _threeP = null; throw e; });
+    }
+    return _threeP;
+  }
+  window.ensureThree = ensureThree;
   function loadGLBViewer(glbUrl) {
+    destroyGLB();
+    const seq = ++_glbSeq;
+    if (!(window.THREE && window.THREE.GLTFLoader)) {
+      document.getElementById("sceneLoading").classList.remove("done");
+      document.querySelector(".scene-load-text").textContent = "3D 보기 준비 중...";
+      ensureThree().then(() => { if (seq === _glbSeq) loadGLBViewerNow(glbUrl); })
+        .catch(() => { if (seq === _glbSeq) document.querySelector(".scene-load-text").textContent = "3D 보기 프로그램을 받지 못했어요. 인터넷 연결을 확인하고 다시 열어 주세요."; });
+      return;
+    }
+    loadGLBViewerNow(glbUrl);
+  }
+  function loadGLBViewerNow(glbUrl) {
     destroyGLB();
 
     const loadingEl = document.getElementById("sceneLoading");
@@ -1581,10 +1610,14 @@ async function onFolder(input) {
   const need = ["odometry.csv", "rgb.mp4"];
   const names = new Set(files.map(f => f.name));
   if (!need.every(n => names.has(n))) { alert("Stray Scanner 녹화 폴더가 아닙니다 (odometry.csv, rgb.mp4 필요)"); return; }
-  if (typeof JSZip === "undefined") { alert("zip 라이브러리를 불러오지 못했습니다. 폴더를 직접 압축해 올려 주세요."); return; }
+  let JSZipLib = window.JSZip;                            // 2026-11-16: 첫 화면에서 받지 않고 폴더를 고를 때 ES 모듈로
+  if (!JSZipLib) {
+    try { JSZipLib = (await import("https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm")).default; } catch (e) { JSZipLib = null; }
+  }
+  if (!JSZipLib) { alert("zip 프로그램을 받지 못했습니다. 폴더를 직접 압축해 올려 주세요."); return; }
   const nameEl = document.getElementById("zipName");
   const root = (files[0].webkitRelativePath || files[0].name).split("/")[0] || "scan";
-  const zip = new JSZip();
+  const zip = new JSZipLib();
   let total = 0;
   for (const f of files) { zip.file(f.webkitRelativePath || f.name, f); total += f.size; }
   nameEl.textContent = `폴더 ${root}: ${files.length}개 파일 (${(total / 1048576).toFixed(0)} MB) 묶는 중...`;
