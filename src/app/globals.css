@@ -29,7 +29,7 @@
 /* 와구리체 — G-MAP 브랜드 타이틀 전용 (지도 페이지 gmap-shared.css 와 같은 선언) */
 @font-face {
   font-family: 'Waguri';
-  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2403@1.0/WAGURITTF.woff2') format('woff2');
+  src: url('/fonts/waguri.woff2') format('woff2'); /* 자체 호스팅(public/fonts, 원본 projectnoonnu WAGURITTF.woff2) — 배포 빌드가 /gmapweb/fonts/ 로 바꾼다 */
   font-weight: normal;
   font-display: swap;
 }
