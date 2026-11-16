@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
+<script>/* http 로 열리면 https 로 (카메라·복사·관리 키가 https 에서만 안전하게 동작, 2026-11-16 기술 점검) */if(location.protocol==="http:"&&/(^|\.)kgeodata\.com$/.test(location.hostname))location.replace("https:"+location.href.slice(5));</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0d1117">
@@ -17,7 +18,7 @@
 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="kgeo-ui.css?v=a6f04e4e10">
+<link rel="stylesheet" href="kgeo-ui.css?v=5dc14411a3">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js" } }</script>
 <style>
@@ -368,7 +369,11 @@ class SpotView {
 function editKey() { return 'kgeoscan_pano_edit:' + S.tourUrl; }
 async function resolveTourUrl() {
   const t = P.get('tour');
-  if (t) return t;
+  if (t) {                                     // 우리 사이트의 투어만 연다 (다른 사이트 사진·글이 kgeodata 주소로 보이지 않게, 2026-11-16 기술 점검)
+    let u = null; try { u = new URL(t, location.href); } catch (e) { }
+    if (!u || u.origin !== location.origin) throw new Error('이 사이트에 있는 VR 투어만 열 수 있습니다.');
+    return u.href;
+  }
   const job = (P.get('job') || '').replace(/[^A-Za-z0-9_-]/g, '');
   if (!job) throw new Error('열 투어가 없습니다. 주소에 ?job= 또는 ?tour= 가 필요합니다.');
   for (;;) {

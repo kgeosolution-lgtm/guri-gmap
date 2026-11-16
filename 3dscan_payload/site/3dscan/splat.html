@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="ko">
 <head>
+<script>/* http 로 열리면 https 로 (카메라·복사·관리 키가 https 에서만 안전하게 동작, 2026-11-16 기술 점검) */if(location.protocol==="http:"&&/(^|\.)kgeodata\.com$/.test(location.hostname))location.replace("https:"+location.href.slice(5));</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>kgeoScan Splat Viewer</title>
@@ -18,7 +19,7 @@
   라이브러리: three 0.165 + @mkkellogg/gaussian-splats-3d 0.4.7 (CDN, import map). SharedArrayBuffer 는 쓰지 않음(COOP/COEP 불필요).
   걸어보기: walk.js (메시 뷰어 viewer.js 와 같이 씀). 측정: 스플랫 광선 교차(불투명한 점 중심의 중앙값 깊이).
 -->
-<link rel="stylesheet" href="kgeo-ui.css?v=a6f04e4e10">
+<link rel="stylesheet" href="kgeo-ui.css?v=5dc14411a3">
 <style>
   :root { --bg:#0D141A; --text:#e2e8f0; --text2:#94a3b8; --accent:#8DB6FF; --acc-o:#fb923c; --yel:#facc15; }
   html, body { margin:0; height:100%; background:var(--bg); color:var(--text); font:13px/1.4 'Pretendard Variable','Pretendard',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif; overflow:hidden; }

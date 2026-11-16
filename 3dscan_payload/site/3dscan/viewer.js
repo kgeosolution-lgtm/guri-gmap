@@ -40,6 +40,22 @@ function fmtDateKo(v) {
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 ${ap} ${h % 12 || 12}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+/* 없는·잘못된·비공개 기록 링크 안내 (2026-11-16 UX 점검): 예전엔 아무 말 없거나 'STEP 0/7' 알약이 잠깐 떴다.
+   잘못된 주소 값은 지워 새로고침·복사에 남지 않게 한다 */
+function showNotFound(msg) {
+  try { history.replaceState(null, "", location.pathname); } catch (e) {}
+  const old = document.getElementById("notFound"); if (old) old.remove();
+  const el = document.createElement("div");
+  el.id = "notFound"; el.className = "knf"; el.setAttribute("role", "alertdialog"); el.setAttribute("aria-labelledby", "knfT");
+  el.innerHTML = '<b id="knfT">기록을 찾을 수 없어요</b><span></span><button type="button" class="k-btn primary small">지도에서 기록 보기</button>';
+  el.querySelector("span").textContent = msg || "지워졌거나 공개 범위가 바뀌었을 수 있어요. 링크 주소가 잘렸는지도 확인해 주세요.";
+  const close = () => { el.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = e => { if (e.key === "Escape") close(); };
+  el.querySelector("button").onclick = close;
+  document.addEventListener("keydown", onKey);
+  document.body.appendChild(el);
+  try { el.querySelector("button").focus({ preventScroll: true }); } catch (e) {}
+}
 
 /* LINK-HELPERS-BEGIN ── 같은 장소 기록 묶기 (✦ 3D · 🥽 VR 투어 · 📐 평면도, 2026-11-12)
    scan_points 레이어에는 site_id·pano_url·floorplan_url 필드가 없다 → 작업 번호(glb·썸네일·스플랫 주소의 8자리)로 산출물을 찾고,
@@ -168,11 +184,11 @@ require([
   let _viewMode   = "glb";                  // 사이드바 뷰어 모드: "glb"(메시) | "splat"(가우시안 스플랫 iframe)
   let _splatFrame = null;                   // splat.html iframe
   const WALK_JS = "walk.js?v=0981c0752e";                                          // 🚶 걸어보기 모듈 (배포 때 ?v=해시 를 붙이면 좋다)
-  const ORTHO_PAGE = "ortho.html?v=123ae7a46f";                       // 배포(deploy.mjs stampAssets)가 ?v=해시 를 붙인다
-  const SPLAT_PAGE = "splat.html?v=ea7a179acd";          // 배포(deploy.mjs stampAssets)가 ?v=해시 를 붙인다
-  const UTILITY_PAGE = "utility.html?v=72db0b3afa";                   // 굴착 기록 3D X-ray (배포가 ?v=해시 를 붙인다)
+  const ORTHO_PAGE = "ortho.html?v=0e87657983";                       // 배포(deploy.mjs stampAssets)가 ?v=해시 를 붙인다
+  const SPLAT_PAGE = "splat.html?v=8a90e1a633";          // 배포(deploy.mjs stampAssets)가 ?v=해시 를 붙인다
+  const UTILITY_PAGE = "utility.html?v=e960a8d41c";                   // 굴착 기록 3D X-ray (배포가 ?v=해시 를 붙인다)
   let _utilInfo = null;                                  // 현재 스캔의 굴착 기록 {url, report} (utilities.json 이 있을 때만)
-  const PANO_PAGE = "pano.html?v=ad34c2a990";                                       // 🥽 VR 투어 360° 실사 (배포가 ?v=해시 를 붙인다)
+  const PANO_PAGE = "pano.html?v=398843d6da";                                       // 🥽 VR 투어 360° 실사 (배포가 ?v=해시 를 붙인다)
   let _panoInfo = null;                                  // 현재 스캔의 VR 투어 {url, count, from?} (<job>_pano/tour.json 이 있을 때만, from = 같은 장소 다른 기록)
   let _sib3d = null;                                     // VR 투어만 있는 기록일 때 같은 장소의 3D 기록 속성 (✦ 3D·◈ 메시 탭을 거기서 빌린다)
   let _planInfo = null;                                  // 📐 평면도 {url, json, from?} (<job>_floorplan.json — 자기 것 우선, 없으면 같은 장소 기록)
@@ -406,19 +422,27 @@ require([
       mapView.goTo(tiny ? { target: r.extent.center, zoom: 16 } : _dataExtent.clone().expand(1.4), { duration: 0 }).catch(() => {});
     }).catch(() => {});
     if (autoSelectId) {
+      let found = false;
       try {
-        await pointLayer.load();
-        const q = pointLayer.createQuery();
-        q.where          = "scene_item_id = '" + autoSelectId + "'";
-        q.outFields      = ["*"];
-        q.returnGeometry = true;
-        const fs = await pointLayer.queryFeatures(q);
-        if (fs.features.length) {
-          const feat = fs.features[0];
-          await mapView.goTo({ target: feat.geometry, zoom: 17 }, { duration: 800 });
-          openSidebar(feat.attributes);
+        if (/^[0-9A-Za-z_-]{1,64}$/.test(autoSelectId)) {        // 주소 값은 그대로 질의에 넣지 않는다
+          await pointLayer.load();
+          const q = pointLayer.createQuery();
+          q.where          = "scene_item_id = '" + autoSelectId + "'";
+          q.outFields      = ["*"];
+          q.returnGeometry = true;
+          const fs = await pointLayer.queryFeatures(q);
+          if (fs.features.length) {
+            found = true;
+            const feat = fs.features[0];
+            await mapView.goTo({ target: feat.geometry, zoom: 17 }, { duration: 800 });
+            openSidebar(feat.attributes);
+          }
         }
       } catch(e) { console.warn("자동선택 실패:", e); }
+      if (!found) {                                           // 2026-11-16 UX 점검: 아무 말 없이 지도만 보이던 것
+        showNotFound();
+        if (_dataExtent) mapView.goTo(_dataExtent.clone().expand(1.4), { duration: 0 }).catch(() => {});
+      }
     }
   }).catch(err => {
     document.querySelector(".load-text").textContent = "WebMap 로드 실패";
@@ -503,7 +527,15 @@ require([
     document.getElementById("sbTitle").textContent    = displayTitle(attrs);
     document.getElementById("sbAuthor").textContent   = attrs.author     || "—";
     document.getElementById("sbDate").textContent     = fmt(attrs.pub_date);
-    document.getElementById("aTitle").textContent     = attrs.scan_title || "—";
+    document.getElementById("sbDate").hidden          = !attrs.pub_date;          // 2026-11-16 UX 점검: 빈 '—' 자리 숨김
+    // 제목: 머리와 같은 읽기 쉬운 이름, 자동 이름(스캔 20261110_1701)이면 원래 이름을 작게 덧붙인다
+    const aT = document.getElementById("aTitle"), shownT = displayTitle(attrs);
+    aT.textContent = shownT || "—";
+    if (attrs.scan_title && attrs.scan_title !== shownT) {
+      const s = document.createElement("small"); s.className = "attr-sub"; s.textContent = "원래 이름 " + attrs.scan_title; aT.appendChild(s);
+    }
+    const expert = document.querySelector(".sb-expert");
+    if (expert) expert.hidden = !attrs.scene_item_id;                            // 장면 ID 가 없으면 눌러도 아무 일 없는 단추만 남았다
     document.getElementById("aDate").textContent      = fmt(attrs.pub_date);
     document.getElementById("aNote").textContent      = attrs.note       || "—";
     document.getElementById("aSceneId").textContent   = attrs.scene_item_id || "—";
@@ -551,7 +583,7 @@ require([
       const loadingEl = document.getElementById("sceneLoading");
       const loadText  = document.querySelector(".scene-load-text");
       loadingEl.classList.remove("done");
-      loadText.textContent = attrs.scan_type === "survey" ? "3D 생성 중이거나 3D 파일이 없습니다 (영상 현장조사는 GPU 처리 후 ✦ 스플랫으로 나타남)" : "GLB 파일 정보 없음";
+      loadText.textContent = attrs.scan_type === "survey" ? "3D를 아직 만드는 중이에요. 영상으로 찍은 기록은 서버 처리가 끝나면 '사진 3D'로 나타나요." : "이 기록에는 3D 파일이 없어요.";
       setTimeout(() => loadingEl.classList.add("done"), 2500);
     }
 
@@ -622,6 +654,36 @@ require([
     _viewMode = "glb";
     setListActive(null);
   };
+
+  /* 2026-11-16 기술 점검 8: 닫힌 기록 창이 화면 밖에서도 Tab 순서에 남았다 → inert. 열면 제목으로 초점, Esc 로 닫고 초점을 돌려준다 */
+  (function sidebarA11y() {
+    const sb = document.getElementById("sidebar"), t = document.getElementById("sbTitle");
+    if (!sb) return;
+    sb.setAttribute("role", "dialog"); sb.setAttribute("aria-labelledby", "sbTitle");
+    sb.inert = !sb.classList.contains("open");
+    if (t) t.tabIndex = -1;
+    let back = null;
+    const _open = window.openSidebar, _close = window.closeSidebar;
+    window.openSidebar = function () {
+      if (!sb.classList.contains("open")) back = document.activeElement;
+      const r = _open.apply(this, arguments);
+      sb.inert = false;
+      try { if (t) t.focus({ preventScroll: true }); } catch (e) {}
+      return r;
+    };
+    window.closeSidebar = function () {
+      const r = _close.apply(this, arguments);
+      sb.inert = true;
+      try { if (back && back.focus && document.contains(back)) back.focus({ preventScroll: true }); } catch (e) {}
+      back = null;
+      return r;
+    };
+    document.addEventListener("keydown", e => {
+      if (e.key !== "Escape" || !sb.classList.contains("open")) return;
+      if (document.body.classList.contains("pseudo-full-open") || document.getElementById("pointPicker") || document.getElementById("notFound")) return;
+      window.closeRecord();
+    }, true);                                              // 캡처: 고르기 카드·안내 카드가 먼저 닫히기 전에 판단
+  })();
 
   /* ── 50:50 토글 ── */
   window.toggleExpand = function() {
@@ -1043,7 +1105,7 @@ require([
       _ms.text = fmtLen(d);
       setMeasureBox(`<b>${fmtLen(d)}</b><span>수평 ${fmtLen(dh)} · 높이차 ${fmtLen(dv)}</span>`, true);
     } else {
-      setMeasureBox("두 번째 점을 클릭하세요", false);
+      setMeasureBox((isMobile() ? "두 번째 점을 누르세요" : "두 번째 점을 클릭하세요"), false);
     }
   }
   function clearMeasure(all) {
@@ -1057,7 +1119,7 @@ require([
       if (glbRenderer) glbRenderer.domElement.style.cursor = "";
       setMeasureBox("", false);
     } else if (_ms.on) {
-      setMeasureBox("첫 번째 점을 클릭하세요", false);
+      setMeasureBox((isMobile() ? "첫 번째 점을 누르세요" : "첫 번째 점을 클릭하세요"), false);
     }
   }
   function updateMeasureLabel() {
@@ -1078,7 +1140,7 @@ require([
     _ms.on = !_ms.on;
     document.getElementById("btnMeasure").classList.toggle("active", _ms.on);
     if (glbRenderer) glbRenderer.domElement.style.cursor = _ms.on ? "crosshair" : "";
-    if (_ms.on) setMeasureBox("첫 번째 점을 클릭하세요", false);
+    if (_ms.on) setMeasureBox((isMobile() ? "첫 번째 점을 누르세요" : "첫 번째 점을 클릭하세요"), false);
     else clearMeasure(true);
   };
   window.viewTop = function() {
@@ -1150,7 +1212,7 @@ require([
   function showVrTag(on, linked) {
     const t = document.getElementById("sbVrTag");
     if (!t) return;
-    t.style.display = on ? "" : "none";
+    t.style.display = on && !(currentAttrs && recKind(currentAttrs) === "vr") ? "" : "none";   // VR 투어 기록이면 종류 표시와 겹친다
     t.title = linked ? "같은 장소의 다른 기록에 VR 투어가 있습니다" : "이 기록에 VR 투어가 있습니다";
   }
   async function probePano(attrs) {
@@ -1319,6 +1381,22 @@ require([
     const badge = document.querySelector(".viewer-badge");
     if (badge) badge.textContent = splat ? "Gaussian Splat · 3DGS Viewer" : ortho ? "Orthophoto · 정사영상" :
       util ? "Underground Utilities · 지하시설물" : pano ? "VR Tour · VR 투어" : plan ? "Floor Plan · 평면도" : "3D Object · GLB Viewer";
+    syncViewerChrome();
+  }
+  /* 2026-11-16 UX 점검: 안에 띄운 뷰어(사진 3D·정사영상·VR·지하시설물·평면도)는 제 단추가 있다. 이 화면의 탭·단추가 그 위를 덮어
+     폰에서 측정·공유 단추를 누를 수 없었다 → 탭·단추 자리(띠)를 비워 두고 그 안쪽에만 띄운다 (viewer.css .sb-viewer.frame).
+     탭이 하나뿐이면 고를 게 없으니 숨긴다 */
+  function syncViewerChrome() {
+    const v = document.querySelector(".sb-viewer"), tabs = document.getElementById("viewerTabs");
+    if (!v) return;
+    const shown = el => el && el.style.display !== "none";
+    const nTabs = tabs ? [...tabs.querySelectorAll(".vtab")].filter(shown).length : 0;
+    if (tabs && tabs.style.display !== "none" && nTabs < 2) tabs.style.display = "none";
+    const hasTabs = shown(tabs) && nTabs >= 2;
+    const hasCtl = [...document.querySelectorAll(".viewer-controls .vctrl")].some(shown);
+    v.classList.toggle("frame", _viewMode !== "glb");
+    v.classList.toggle("has-tabs", hasTabs);
+    v.classList.toggle("has-ctl", hasCtl);
   }
   /* ── 📐 평면도 탭: floorplan.svg + 방 면적·천장 높이 + 내려받기 (SVG·PNG·DXF) ── */
   function planViewEl() {
@@ -1432,19 +1510,21 @@ require([
 
   /* ── sceneDiv 전체화면 (Fullscreen API) ── */
   window.openFullscreen = function() {
-    const el = (_viewMode !== "glb" && _splatFrame) ? _splatFrame : document.getElementById("sceneDiv");
-    if (!el) return;
-    const req = el.requestFullscreen
-      || el.webkitRequestFullscreen
-      || el.mozRequestFullScreen
-      || el.msRequestFullscreen;
-    // 2026-11-16: 아이폰 사파리·kgeoScan 앱(웹뷰)은 div·iframe 전체 화면을 지원하지 않아 단추가 아무 일도 안 했다
-    const canFs = document.fullscreenEnabled || document.webkitFullscreenEnabled;
-    if (req && canFs) {
-      try { const r = req.call(el); if (r && r.catch) r.catch(() => pseudoFull(true)); return; } catch (e) {}
-    }
+    // 2026-11-16: 아이폰 사파리·kgeoScan 앱(웹뷰)은 요소 전체 화면이 안 되고, 안드로이드·PC 는 3D 판만 전체 화면이 되어
+    // 닫기·거리 재기·탭이 모두 사라졌다(UX 점검) → 언제나 극장 모드(단추 포함)로 채우고, 되는 기기는 그 극장을 통째로 전체 화면으로
     pseudoFull(true);
+    const v = document.querySelector(".sb-viewer");
+    const req = v && (v.requestFullscreen || v.webkitRequestFullscreen);
+    const canFs = document.fullscreenEnabled || document.webkitFullscreenEnabled;
+    if (req && canFs && !isIOSLike()) { try { const r = req.call(v); if (r && r.catch) r.catch(() => {}); } catch (e) {} }
   };
+  function isIOSLike() { return /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); }
+  function fsEl() { return document.fullscreenElement || document.webkitFullscreenElement || null; }
+  function exitFs() { try { const f = document.exitFullscreen || document.webkitExitFullscreen; if (fsEl() && f) { const r = f.call(document); if (r && r.catch) r.catch(() => {}); } } catch (e) {} }
+  // 기기 전체 화면을 Esc·뒤로 등으로 빠져나오면 극장 모드도 같이 닫는다
+  ["fullscreenchange", "webkitfullscreenchange"].forEach(ev => document.addEventListener(ev, () => {
+    if (!fsEl() && document.body.classList.contains("pseudo-full-open")) pseudoFull(false);
+  }));
   /* 극장 모드: 3D·VR 뷰어를 화면 가득 (닫기 단추·뒤로 가기·Esc 로 나온다) */
   function pseudoFull(on, fromPop) {
     const v = document.querySelector(".sb-viewer");
@@ -1461,6 +1541,7 @@ require([
       v.appendChild(x);
     }
     if (x) x.hidden = !on;
+    if (!on) exitFs();
     if (on && !was) { try { history.pushState({ kgeo: "full" }, ""); } catch (e) {} }
     if (!on && was && !fromPop && history.state && history.state.kgeo === "full") { try { history.back(); } catch (e) {} }
     setTimeout(resizeGLB, 80);
@@ -1493,7 +1574,7 @@ require([
     } catch(e) {
       console.warn("목록 로드 실패:", e);
       document.getElementById("lpList").innerHTML =
-        '<div class="lp-empty">목록 로드 실패<br>' + e.message + '</div>';
+        '<div class="lp-empty"><b>기록을 불러오지 못했어요</b><span>' + esc(e && e.message || '') + '</span><button type="button" class="k-btn small" onclick="window._loadListPanel && window._loadListPanel()">다시 시도</button></div>';
     }
   }
 
@@ -1670,6 +1751,32 @@ require([
     document.getElementById("lpCount").textContent =
       fs.length !== _allFeatures.length ? `${fs.length} / ${_allFeatures.length}` : String(_allFeatures.length);
     renderList(fs);
+    filterMap(fs);
+  }
+  /* 2026-11-16 UX 점검: 찾기·칩이 목록만 줄이고 지도는 그대로였다 → 지도 핀·묶음도 같은 결과만 보인다.
+     걸러진 상태면 목록 위에 '지도를 결과에 맞추기' 단추 */
+  let _mapFiltered = null;
+  function filterMap(fs) {
+    const on = !!(_kw || _typeFilter) && fs.length !== _allFeatures.length;
+    const ids = on ? fs.map(f => f.attributes.OBJECTID ?? f.attributes.objectid).filter(v => v != null) : null;
+    _mapFiltered = on ? fs : null;
+    const apply = lv => { try { lv.filter = on ? { objectIds: ids.length ? ids : [-1] } : null; } catch (e) {} };
+    if (_layerView) apply(_layerView); else if (typeof mapView !== "undefined" && pointLayer) mapView.whenLayerView(pointLayer).then(apply).catch(() => {});
+    let b = document.getElementById("lpFit");
+    if (!b) {
+      b = document.createElement("button");
+      b.type = "button"; b.id = "lpFit"; b.className = "lp-fit";
+      b.onclick = () => {
+        const g = (_mapFiltered || []).map(f => f.geometry).filter(Boolean);
+        if (!g.length) return;
+        if (isMobile() && _lpOpen) toggleListPanel();
+        mapView.goTo(g.length === 1 ? { target: g[0], zoom: Math.max(mapView.zoom, 16) } : g, { duration: 600, easing: "ease-out" }).catch(() => {});
+      };
+      const f = document.getElementById("lpFilters");
+      if (f) f.insertAdjacentElement("afterend", b);
+    }
+    b.hidden = !(on && fs.length);
+    b.textContent = `지도를 찾은 기록 ${fs.length}개에 맞추기`;
   }
   window.filterList = function(val) { _kw = val.trim().toLowerCase(); applyListFilter(); };
   window.setTypeFilter = function(t) {
@@ -2107,10 +2214,16 @@ async function trackJob(jobId, title) {
   for (let i = 0; i < 600; i++) {                 // 3초 × 600 = 30분 (Stray 처리 + SLPK + 발행)
     try {
       const sr = await statusFetch(jobId);
-      if (sr.status === 404) { finish(); setUploadState("error", title, 0, 0, "없는 작업입니다 (" + jobId + ")"); return; }
+      if (sr.status === 404 || sr.status === 400) {   // 2026-11-16 UX 점검: 'STEP 0/7' 알약 대신 안내 카드, 잘못 저장된 관리 키도 지운다
+        finish(); setUploadState("idle"); forgetEditKey(jobId); renderMine();
+        showNotFound();
+        return;
+      }
       const sd = await sr.json();
       if (sd.visibility === "private" && sd.step === undefined) {     // 관리 키 없이 연 비공개 기록
-        finish(); setUploadState("error", title, 0, 0, sd.message || "비공개 기록입니다"); return;
+        finish(); setUploadState("idle");
+        showNotFound("비공개 기록이에요. 올린 사람이 보낸 관리 링크로 열어야 볼 수 있어요.");
+        return;
       }
       if (i === 0 && sd.status === "done") {          // 공유 링크(?job=)로 이미 끝난 기록을 열었다 → 팝업 없이 바로 연다
         finish(); setUploadState("done", sd.title || title, LAST_STEP, 100, "");
@@ -2132,16 +2245,17 @@ async function trackJob(jobId, title) {
         setTimeout(() => {
           const dm = document.getElementById("doneModal");
           if (dm) {
-            document.getElementById("doneModalTitle").textContent = "✓ 처리 완료!";
+            document.getElementById("doneModalTitle").textContent = "기록이 다 만들어졌어요";
+            // 2026-11-16 UX 점검: SLPK·GPU 워커·✦ 스플랫 같은 말 대신 지금 탭 이름(사진 3D·지하시설물)과 쉬운 말로
             document.getElementById("doneModalMsg").innerHTML =
-              `<strong style="color:var(--text)">${esc(title)}</strong> ` + ((sd.visibility || "public") === "public" ? "스캔이 처리되어 지도에 등록되었습니다."
-                : sd.visibility === "private" ? "기록이 처리되었습니다. 🔒 비공개 — 관리 링크가 있는 사람만 봅니다." : "기록이 처리되었습니다. 🔗 링크 공유 — 지도·목록에는 나오지 않고 링크로만 봅니다.") +
-              (sd.mode === "pano" ? "<br><span style='color:var(--accent)'>🥽 VR 투어: 보기를 누르면 360° 사진으로 지점 사이를 오가며 둘러봅니다.</span>"
-                : sd.mode === "video" ? "<br><span style='color:var(--acc-o)'>📱 영상 현장조사: 3D(스플랫)는 GPU 가 카메라 위치를 계산한 뒤 만듭니다(보통 10~30분). 끝나면 목록에서 열어 ✦ 3D 로 봅니다.</span>"
-                : sd.scene_item_id ? "" : "<br><span style='color:var(--text3)'>Scene 레이어(SLPK)는 생성되지 않아 GLB 뷰어로만 볼 수 있습니다.</span>") +
+              `<strong style="color:var(--text)">${esc(title)}</strong> ` + ((sd.visibility || "public") === "public" ? "기록이 지도에 올라갔어요."
+                : sd.visibility === "private" ? "비공개 기록이에요. 관리 링크가 있는 사람만 볼 수 있어요." : "링크 공유 기록이에요. 지도·목록에는 나오지 않고 링크를 받은 사람만 봐요.") +
+              (sd.mode === "pano" ? "<br><span style='color:var(--accent)'>'보기'를 누르면 360° 사진으로 지점 사이를 오가며 둘러볼 수 있어요.</span>"
+                : sd.mode === "video" ? "<br><span style='color:var(--acc-o)'>사진 3D는 서버가 영상으로 만드는 중이에요(보통 10~30분). 다 되면 목록에서 열어 '사진 3D'로 보세요.</span>"
+                : "") +
               (sd.mode !== "video" && (sd.splat_status === "pending" || sd.splat_status === "processing")
-                ? "<br><span style='color:var(--acc-o)'>✦ 사진 기반 스플랫은 GPU 워커가 몇 분 뒤 추가합니다. 끝나면 목록에서 다시 열어 ✦ 스플랫 탭을 누르세요.</span>" : "") +
-              (sd.utilities_url ? "<br><span style='color:var(--accent)'>⛏ 굴착 기록: 목록에서 열어 ⛏ 지하시설물 탭으로 관 위치·깊이를 보고, 📄 조서·산출물을 내려받습니다.</span>" : "") +
+                ? "<br><span style='color:var(--acc-o)'>사진 3D는 몇 분 뒤 더해져요. 다 되면 목록에서 다시 열어 '사진 3D' 탭을 누르세요.</span>" : "") +
+              (sd.utilities_url ? "<br><span style='color:var(--accent)'>굴착 기록: 목록에서 열어 '지하시설물' 탭에서 관 위치·깊이를 보고 '조서·산출물'을 내려받으세요.</span>" : "") +
               (sd.message && sd.message !== "처리 완료" ? `<br><span style='color:var(--text3)'>${esc(sd.message)}</span>` : "");
             dm.classList.add("show");
           } else {
@@ -2167,9 +2281,10 @@ window.addEventListener("DOMContentLoaded", () => {
   const p   = new URLSearchParams(window.location.search);
   const job = (p.get("job") || "").trim().toLowerCase();
   const km  = (window.location.hash || "").match(/[#&]key=([A-Za-z0-9_\-]{10,100})/);
-  if (km && /^[0-9a-f]{8}$/.test(job)) saveEditKey(job, km[1]);   // 관리 링크로 열었다 → 이 기기의 '내 기록'에 넣는다
+  if (km && /^[0-9a-f]{8}$/.test(job)) saveEditKey(job, km[1]);   // 관리 링크로 열었다 → 이 기기의 '내 기록'에 넣는다 (없는 작업이면 trackJob 이 지운다)
   renderMine();
   if (/^[0-9a-f]{8}$/.test(job)) { trackJob(job, ""); return; }
+  if (p.has("job")) { showNotFound(); return; }                   // ?job= 값이 작업 번호 모양이 아니다
   // 새로고침·재방문: 24시간 안에 시작했고 아직 끝나지 않은 최근 작업을 이어서 보여 준다
   const recent = loadJobs().filter(j => Date.now() - j.t < 86400000).pop();
   if (recent) trackJob(recent.job_id, recent.title);
@@ -2183,6 +2298,7 @@ const KEYS_KEY = "kgeo_keys";
 const VIS_INFO = { public: { icon: "🌐", label: "공개" }, link: { icon: "🔗", label: "링크 공유" }, private: { icon: "🔒", label: "비공개" } };
 function loadEditKeys() { try { const o = JSON.parse(localStorage.getItem(KEYS_KEY) || "{}"); return o && typeof o === "object" && !Array.isArray(o) ? o : {}; } catch (e) { return {}; } }
 function saveEditKey(job, key) { try { const o = loadEditKeys(); o[job] = key; localStorage.setItem(KEYS_KEY, JSON.stringify(o)); } catch (e) {} }
+function forgetEditKey(job) { try { const o = loadEditKeys(); if (job in o) { delete o[job]; localStorage.setItem(KEYS_KEY, JSON.stringify(o)); } } catch (e) {} }
 function editKeyFor(job) { return loadEditKeys()[job] || null; }
 function statusFetch(job) {
   const k = editKeyFor(job);

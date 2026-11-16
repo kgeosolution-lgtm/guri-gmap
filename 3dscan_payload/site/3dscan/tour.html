@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
+<script>/* http 로 열리면 https 로 (카메라·복사·관리 키가 https 에서만 안전하게 동작, 2026-11-16 기술 점검) */if(location.protocol==="http:"&&/(^|\.)kgeodata\.com$/.test(location.hostname))location.replace("https:"+location.href.slice(5));</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0d1117">
@@ -29,7 +30,7 @@
 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="kgeo-ui.css?v=a6f04e4e10">
+<link rel="stylesheet" href="kgeo-ui.css?v=5dc14411a3">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
 :root{
@@ -415,7 +416,7 @@ body.embed .ebar{position:fixed;left:0;right:0;bottom:0;height:52px;display:flex
 const $ = (id) => document.getElementById(id);
 const P = new URLSearchParams(location.search);
 const API = '/app/3dupload/';
-const PANO_PAGE = "pano.html?v=ad34c2a990";                                // 배포가 ?v=해시 를 붙여도 된다 (viewer.js 의 PANO_PAGE 와 같은 꼴)
+const PANO_PAGE = "pano.html?v=398843d6da";                                // 배포가 ?v=해시 를 붙여도 된다 (viewer.js 의 PANO_PAGE 와 같은 꼴)
 const LAYER_ITEM = '1058978572fd43e799f7068330ff90d8';        // scan_points 포털 항목 (공개 기록의 같은 장소 찾기, viewer.js PT_ITEM_ID)
 const QR_JS = { src: 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js',
                 sri: 'sha384-mZT2gIty7ZDdOGkxfP6joZcYdMW1Jvj9dRlfpTmaJAKKXTqzygtB22k7FLe+KZC1' };   // MIT, Kazuhiko Arase

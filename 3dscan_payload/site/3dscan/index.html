@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
+<script>/* http 로 열리면 https 로 (카메라·복사·관리 키가 https 에서만 안전하게 동작, 2026-11-16 기술 점검) */if(location.protocol==="http:"&&/(^|\.)kgeodata\.com$/.test(location.hostname))location.replace("https:"+location.href.slice(5));</script>
   <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-S3CV3WNE2P"></script>
 <script>
@@ -33,13 +34,13 @@
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="https://js.arcgis.com/4.30/esri/themes/light/main.css">
-<link rel="stylesheet" href="kgeo-ui.css?v=a6f04e4e10">
+<link rel="stylesheet" href="kgeo-ui.css?v=5dc14411a3">
 <!-- 2026-11-16 첫 화면 속도: three.js(3D 보기)·JSZip(PC 녹화 폴더 묶기)은 처음에 받지 않는다.
      쓸 때 viewer.js 가 ES 모듈(import())로 불러온다 — ArcGIS AMD define 과 부딪히지 않는다 (ensureThree / onFolder) -->
 <link rel="preconnect" href="https://js.arcgis.com">
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <script src="https://js.arcgis.com/4.30/"></script>
-<link rel="stylesheet" href="viewer.css?v=3eb3f2b488">
+<link rel="stylesheet" href="viewer.css?v=89a581716a">
 <style>
 /* 지도 캔버스의 ArcGIS 포커스 테두리만 없앤다. 다른 요소의 키보드 포커스는 보이게 둔다 (kgeo-ui.css :focus-visible) */
 .esri-view .esri-view-surface--inset-outline:focus::after { outline: none !important; }
@@ -212,7 +213,7 @@ canvas:focus, #viewDiv:focus { outline: none; }
     <div class="sb-head">
       <div class="sb-head-top">
         <div class="sb-tag" id="sbTypeTag">3D SCAN</div>
-        <div class="sb-tag vr" id="sbVrTag" style="display:none">🥽 VR</div>
+        <div class="sb-tag vr" id="sbVrTag" style="display:none">VR 투어 포함</div>
         <div class="sb-tag green" id="sbVisTag" title="공개 범위">🌐 공개</div>
         <div class="sb-head-actions">
           <button class="icon-btn" id="btnExpand" title="50:50 확장" onclick="toggleExpand()">⇔</button>
@@ -252,7 +253,7 @@ canvas:focus, #viewDiv:focus { outline: none; }
       <div class="viewer-controls">
         <button class="vctrl" id="btnMeasure" title="두 점을 클릭해 거리 재기 (M)" onclick="toggleMeasure()">거리 재기</button>
         <button class="vctrl" id="btnTop" title="위에서 내려다보기 (평면)" onclick="viewTop()">위에서 보기</button>
-        <button class="vctrl" id="btnSplatOpen" style="display:none" title="새 탭에서 크게" onclick="openSplatPage()">크게 보기</button>
+        <button class="vctrl" id="btnSplatOpen" style="display:none" title="이 3D 뷰어만 새 탭에서 열기" onclick="openSplatPage()">새 탭에서 열기</button>
         <button class="vctrl" id="btnOrthoMap" style="display:none" title="정사영상을 지도 위 제자리에 겹쳐 보기" onclick="toggleOrthoOverlay()">지도에 겹치기</button>
         <button class="vctrl" id="btnUtilReport" style="display:none" title="굴착 조서(별표 38)·DXF·LandXML·GeoJSON·제출 동영상" onclick="openUtilReport()">조서·산출물</button>
         <button class="vctrl" id="btnTourShare" style="display:none" title="매물 공유 페이지 — 링크·QR 코드·다른 사이트 삽입 코드" onclick="openTourShare()">공유 페이지</button>
@@ -517,7 +518,7 @@ canvas:focus, #viewDiv:focus { outline: none; }
 </div>
 
 <script src="upload_queue.js?v=831620d114"></script>
-<script src="viewer.js?v=f6380ae4e2"></script>
+<script src="viewer.js?v=e7173c57f5"></script>
 <script>
 /* 끊겨도 이어 올리기 (2026-11-16): 시작 화면에 '올리지 못한 촬영 N개', ☰ 시작 옆에 숫자 */
 (function () { if (!window.KgeoUpload) return; KgeoUpload.renderPending(document.getElementById('startPending'), { doneMax: 2 }); KgeoUpload.badge(document.getElementById('startBadge')); })();

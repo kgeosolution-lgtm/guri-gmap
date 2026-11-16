@@ -1594,3 +1594,57 @@ body.pseudo-full-open #sidebar { transform: none !important; z-index: 3000 !impo
 .sb-viewer.pseudo-full .viewer-overlay { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
 @media (max-width: 768px) { .lp-head { touch-action: none; } }
 .sb-viewer.pseudo-full .viewer-controls-br { display: none; }
+
+/* ── 안에 띄운 뷰어 둘레 띠 (2026-11-16 UX 점검): 이 화면의 탭·단추가 사진 3D·정사영상·VR 의 제 단추를 덮지 않게 ──
+   PC: 탭·단추가 위 띠(56px)에 / 폰: 단추는 위 띠, 탭은 아래 띠(60px). 띠는 극장 색이라 액자처럼 보인다.
+   iframe 은 top·bottom 만으로 늘어나지 않으므로(대체 요소) 높이를 계산해 준다 */
+.sb-viewer.frame.has-tabs #splatFrame, .sb-viewer.frame.has-ctl #splatFrame { top: 56px; height: calc(100% - 56px); }
+.sb-viewer.frame .viewer-controls-br { display: none; }
+@media (max-width: 768px) {
+  #sidebar .sb-viewer.frame.has-tabs, #sidebar .sb-viewer.frame.has-ctl { height: 58vh; }
+  .sb-viewer.frame.has-tabs #splatFrame { top: 0; height: calc(100% - 60px); }
+  .sb-viewer.frame.has-ctl #splatFrame { top: 56px; height: calc(100% - 56px); }
+  .sb-viewer.frame.has-ctl.has-tabs #splatFrame { top: 56px; height: calc(100% - 116px); }
+  .sb-viewer.frame .viewer-overlay { right: 12px; }
+}
+/* 극장 모드: 위 띠(닫기·단추) 60px + 안전 영역, 폰은 아래 탭 띠 64px */
+.sb-viewer.pseudo-full.frame #splatFrame {
+  top: calc(60px + env(safe-area-inset-top, 0px));
+  height: calc(100% - 60px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+}
+@media (max-width: 768px) {
+  .sb-viewer.pseudo-full.frame.has-tabs #splatFrame { height: calc(100% - 124px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); }
+}
+@media (min-width: 769px) {
+  .sb-viewer.pseudo-full .viewer-overlay { top: calc(12px + env(safe-area-inset-top, 0px)); left: 96px; }
+}
+
+/* ── 2026-11-16 UX·기술 점검 반영 ── */
+/* 찾기·칩으로 걸렀을 때 '지도를 결과에 맞추기' */
+.lp-fit { display: block; margin: 2px 16px 8px; padding: 0; border: 0; background: none; color: var(--k-blue); font: 600 13.5px/1.6 var(--k-font); text-align: left; cursor: pointer; }
+.lp-fit:hover { text-decoration: underline; }
+.lp-fit[hidden] { display: none; }
+/* 없는·잘못된 기록 링크 안내 카드 */
+.knf {
+  position: fixed; z-index: 4000; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(360px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 8px; padding: 22px 20px 18px;
+  border-radius: var(--k-r-card); background: var(--k-surface); color: var(--k-ink); box-shadow: var(--k-float-strong); font-family: var(--k-font);
+}
+.knf b { font: 700 18px/1.35 var(--k-font); }
+.knf span { color: var(--k-ink-2); font: 500 14.5px/1.55 var(--k-font); word-break: keep-all; }
+.knf .k-btn { align-self: flex-start; margin-top: 8px; }
+/* 기록 정보: 자동 이름이면 원래 이름을 작게 */
+.attr-sub { display: block; margin-top: 2px; color: var(--k-ink-3); font: 500 12.5px/1.4 var(--k-font); }
+.sb-expert[hidden] { display: none; }
+/* 폰: 손가락으로 누르는 단추는 44px 이상 (기술 점검 18·UX 점검 20) */
+@media (max-width: 768px) {
+  .lp-collapse { width: 44px; height: 44px; }
+  .icon-btn { width: 44px; height: 44px; }
+  .vctrl { min-height: 44px; }
+  .vtab { height: 40px; }
+  .lp-chip { min-height: 40px; }
+  .sb-link { min-height: 40px; }
+}
+
+/* 기록을 열 때 화면 읽기 프로그램용으로 제목에 초점을 두지만 테두리는 그리지 않는다 */
+#sbTitle:focus { outline: none; }

@@ -37,8 +37,11 @@ def load_jobs(jobs_dir):
     return out
 
 
-def summary(q):
-    d = {k: q.get(k) for k in SUMMARY_KEYS}
+PRIVATE_KEYS = ("app", "client_id", "source_name")   # 누구나 보는 recent 목록에서는 뺀다 (2026-11-16 기술 점검: 녹화 ID·원본 파일 이름 노출)
+
+
+def summary(q, public=False):
+    d = {k: q.get(k) for k in SUMMARY_KEYS if not (public and k in PRIVATE_KEYS)}
     d["visibility"] = job_visibility(q)
     step = int(q.get("step", 0) or 0)
     d["step_name"] = STEP_NAMES[min(step, len(STEP_NAMES) - 1)]
@@ -60,11 +63,12 @@ def main():
         n = max(1, min(int(params.get("recent") or 10), 50))
     except ValueError:
         n = 10
-    respond({"jobs": [summary(q) for q in jobs if job_visibility(q) == "public"][:n]})
+    respond({"jobs": [summary(q, public=True) for q in jobs if job_visibility(q) == "public"][:n]})
 
 
 if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        respond({"error": f"서버 오류: {e}"}, "500 Internal Server Error")
+        sys.stderr.write(f"find_job error: {e!r}\n")
+        respond({"error": "서버 오류입니다. 잠시 뒤 다시 시도해 주세요."}, "500 Internal Server Error")
