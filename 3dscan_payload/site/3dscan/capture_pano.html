@@ -359,6 +359,7 @@ button{font-family:inherit}
     </div>
     <p class="tip">💡 폰 삼각대(1만 원 안팎)에 꽂아 돌리면 이음새가 거의 사라집니다. 없어도 됩니다.</p>
     <label class="opt"><input type="checkbox" id="useUltra" checked> 초광각(0.5×) 렌즈가 있으면 씁니다 — 찍을 점이 30개에서 14개로 줄어요</label>
+    <label class="opt"><input type="checkbox" id="vCeil"> 영상 모드에서 천장도 찍기 — 두 바퀴 뒤 폰을 머리 위로 들어 천장을 비춰요. 끄면 천장은 서버가 자연스럽게 메워요</label>
     <label class="opt" id="hqOpt" hidden><input type="checkbox" id="hq" checked> 고화질 사진 (안드로이드 · 한 장에 1초쯤 더 걸림)</label>
   </section>
 
@@ -1513,10 +1514,14 @@ button{font-family:inherit}
   $('rvAll').onclick = function () { var sp = Cap.rvSpot; if (sp && window.confirm('‘' + sp.name + '’ ' + (sp.mode === 'video' ? '영상을' : '사진 ' + sp.shots.length + '장을') + ' 지우고 처음부터 다시 찍을까요?')) retakeAll(sp); };
 
   /* ── 🎥 영상 지점: 제자리 두 바퀴 (계약 1.2절) ──
-     ① 위 30° 를 보며 한 바퀴 ② 아래 30° 를 보며 한 바퀴 ③ 천장을 잠깐 (건너뛰어도 서버가 메움).
+     ① 위 30° 를 보며 한 바퀴 ② 아래 30° 를 보며 **반대 방향으로** 한 바퀴 (몸을 되감아 덜 어지럽다) ③ 천장은 고를 때만.
+     2026-11-16 사용자: "세 바퀴 돌려니 어지럽고, 가슴 앞에 든 채 천장을 찍기는 어색하다" — 뒤 카메라를 천장으로 향하면 화면이 바닥을 봐서
+     가슴 앞에서는 화면을 볼 수 없다. 기본은 두 바퀴로 끝내고 천장은 서버가 메운다(초광각이면 위 바퀴가 약 80° 까지 덮는다).
+     천장 단계를 안 찍어도 turns 에 ceil·end 표시는 남긴다 (서버가 아래 바퀴 끝을 ceil 시각으로 자른다).
      녹화는 MediaRecorder(아이폰 mp4/H.264, 안드로이드 webm), 자세는 방향 센서가 올 때마다(약 60 Hz) [t, q, 회전 속도] 로 기록.
      서버(worker/pano_video.py)가 영상 움직임과 자세 기록을 맞춰 시각을 바로잡고, 방향마다 가장 선명한 프레임을 골라 합친다 */
-  var MODE_KEY = 'kgeoscan_pano_mode';
+  var MODE_KEY = 'kgeoscan_pano_mode', CEIL_KEY = 'kgeoscan_pano_ceil';
+  function ceilWanted() { return !!($('vCeil') && $('vCeil').checked); }
   var V = { rec: null, chunks: [], imu: [], t0: 0, phase: '', acc: 0, lastYaw: null, turnT: 0, tiltT: 0, ceilT: 0, ceilHold: 0, samples: [], lastSampleYaw: null, lastSampleT: 0,
     fastT: 0, shakeEma: 0, fastN: 0, shakeN: 0, n: 0, turns: [], mime: '', bps: 0, cdT: 0, vw: 0, vh: 0, warnT: 0, prevR: null, prevT: 0 };
   var TURN_DEG = 370, PITCH_UP = 30, PITCH_DN = -30, PITCH_TOL = 13, FAST_DPS = 42, SHAKE_DPS = 22;
@@ -1671,7 +1676,7 @@ button{font-family:inherit}
     og.lineWidth = 10; og.strokeStyle = 'rgba(255,255,255,.18)'; og.beginPath(); og.arc(cx, cy, rr, 0, Math.PI * 2); og.stroke();
     if (prog > 0) { og.strokeStyle = done1 && ph !== 'turn2' ? '#34d399' : '#38bdf8'; og.beginPath(); og.arc(cx, cy, rr, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2 * (V.acc < 0 && ph.indexOf('turn') === 0 ? -1 : 1), V.acc < 0 && ph.indexOf('turn') === 0); og.stroke(); }
     og.font = '800 22px ' + CF; og.fillStyle = '#fff'; og.textAlign = 'center'; og.textBaseline = 'middle';
-    var lbl = ph === 'vready' || ph === 'vcount' ? '1 바퀴 · 위 30°' : ph === 'turn1' ? '1 바퀴 · ' + Math.round(prog * 100) + '%' : ph === 'tilt' ? '아래로 기울여요' : ph === 'turn2' ? '2 바퀴 · ' + Math.round(prog * 100) + '%' : ph === 'ceil' ? '천장을 잠깐' : '';
+    var lbl = ph === 'vready' || ph === 'vcount' ? '1 바퀴 · 위 30°' : ph === 'turn1' ? '1 바퀴 · ' + Math.round(prog * 100) + '%' : ph === 'tilt' ? '아래로 · 반대 방향으로' : ph === 'turn2' ? '2 바퀴 · ' + Math.round(prog * 100) + '%' : ph === 'ceil' ? '천장을 잠깐' : '';
     og.fillText(lbl, cx, cy + rr + 30);
     var target = ph === 'turn2' || ph === 'tilt' ? PITCH_DN : ph === 'ceil' ? 75 : PITCH_UP;
     var bx = W - 26, by0 = H * 0.3, bh = H * 0.4, py = function (p) { return by0 + (90 - Math.max(-90, Math.min(90, p))) / 180 * bh; };
@@ -1682,15 +1687,20 @@ button{font-family:inherit}
     drawReticle(cx, cy, 0, false);
     // 단계 넘기기
     if (ph === 'turn1' && Math.abs(V.acc) >= TURN_DEG) {
+      V.dir1 = V.acc < 0 ? -1 : 1;
       V.phase = 'tilt'; Cap.phase = 'tilt'; V.turns.push({ name: 'tilt', t0: Math.round(now - V.t0) }); vibrate([30, 50, 30]); shutterSound();
-      camMsg('좋아요! 이제 살짝 아래(30°)를 보세요', 'ok'); msgT = now + 1500;
+      camMsg('좋아요! 잠깐 숨 고르고 — 이제 살짝 아래(30°)를 보세요', 'ok'); msgT = now + 2200;
     } else if (ph === 'tilt' && pitch < PITCH_DN + PITCH_TOL) {
       V.phase = 'turn2'; Cap.phase = 'turn2'; V.acc = 0; V.turns.push({ name: 'turn2', t0: Math.round(now - V.t0) });
-      camMsg('아래쪽(30°)을 보며 한 바퀴 더', 'ok'); msgT = now + 1500;
+      camMsg('이번엔 반대 방향으로 한 바퀴 — 몸이 되감겨서 덜 어지러워요', 'ok'); msgT = now + 2600;
+    } else if (ph === 'turn2' && Math.abs(V.acc) >= TURN_DEG && !ceilWanted()) {
+      V.turns.push({ name: 'ceil', t0: Math.round(now - V.t0) }); vibrate([30, 50, 30]); shutterSound();
+      camMsg('끝! 천장은 서버가 메워요', 'ok'); msgT = now + 1500;
+      videoFinish();
     } else if (ph === 'turn2' && Math.abs(V.acc) >= TURN_DEG) {
       V.phase = 'ceil'; Cap.phase = 'ceil'; V.ceilT = now; V.ceilHold = 0; V.turns.push({ name: 'ceil', t0: Math.round(now - V.t0) }); vibrate([30, 50, 30]); shutterSound();
       $('vSkip').hidden = false; $('vStop').textContent = '끝';
-      camMsg('마지막으로 천장을 잠깐 비춰 주세요 (건너뛰어도 돼요)', 'ok'); msgT = now + 1500;
+      camMsg('마지막으로 폰을 머리 위로 들어 천장을 잠깐 비춰 주세요 (건너뛰어도 돼요)', 'ok'); msgT = now + 1500;
     } else if (ph === 'ceil') {
       if (pitch > 65) { if (!V.ceilHold) V.ceilHold = now; if (now - V.ceilHold > 1200) videoFinish(); } else V.ceilHold = 0;
       if (now - V.ceilT > 9000) videoFinish();
@@ -1704,6 +1714,7 @@ button{font-family:inherit}
       else if (turning && pitch < target - PITCH_TOL) camMsg(ph === 'turn1' ? '폰을 조금 더 위로 (천장 쪽)' : '너무 아래예요 — 조금 들어 주세요', 'warn');
       else if (turning && pitch > target + PITCH_TOL) camMsg(ph === 'turn1' ? '너무 위예요 — 조금 내려 주세요' : '폰을 조금 더 아래로 (바닥 쪽)', 'warn');
       else if (turning && Math.abs(roll) > 20) camMsg('폰을 세로로 똑바로 세워 주세요', 'warn');
+      else if (ph === 'turn2' && V.dir1 && Math.abs(V.acc) > 25 && Math.abs(V.acc) < 120 && Math.sign(V.acc) === V.dir1) camMsg('반대 방향으로 돌면 덜 어지러워요 (그대로 돌아도 돼요)', 'ok');
       else if (turning) camMsg((ph === 'turn1' ? '좋아요 — 그 속도로 계속 (위 30°)' : '좋아요 — 그 속도로 계속 (아래 30°)') + ' · 몸은 제자리에서 발만 옮겨요', 'ok');
     }
     if (DEBUG && now - (Cap.dbgT || 0) > 400) {
@@ -1771,7 +1782,7 @@ button{font-family:inherit}
   }
   function simVideoPilot(dt) {           // 시험 자동 조종: 위 30° 로 한 바퀴 → 아래 30° 로 한 바퀴 → 천장
     var ph = V.phase, y = ypr(Sim.R), tp = ph === 'turn2' || ph === 'tilt' ? PITCH_DN : ph === 'ceil' ? 78 : PITCH_UP;
-    var spd = ph === 'turn1' || ph === 'turn2' ? 30 * (1 + 0.25 * Math.sin(performance.now() / 420)) : ph === 'ceil' ? 4 : ph === 'tilt' ? 6 : 0;
+    var spd = ph === 'turn1' || ph === 'turn2' ? 30 * (1 + 0.25 * Math.sin(performance.now() / 420)) * (ph === 'turn2' ? -1 : 1) : ph === 'ceil' ? 4 : ph === 'tilt' ? 6 : 0;
     var np = y[1] + Math.max(-40 * dt, Math.min(40 * dt, tp - y[1]));
     Sim.R = mul(mul(Rz(-(y[0] + spd * dt) * D2R), Rx(np * D2R)), C0);
   }
@@ -2001,6 +2012,8 @@ button{font-family:inherit}
   $('startBtn').onclick = function () { startCapture(null, null); };
   $('useUltra').checked = lsGet(LENS_KEY, true);
   $('useUltra').onchange = function () { lsSet(LENS_KEY, $('useUltra').checked); };
+  $('vCeil').checked = !!lsGet(CEIL_KEY, false);
+  $('vCeil').onchange = function () { lsSet(CEIL_KEY, $('vCeil').checked); };
 
   /* ── 지점 목록 ── */
   function spotStatus(sp) {

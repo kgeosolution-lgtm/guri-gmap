@@ -613,7 +613,13 @@ def fill_pole(eq, covered, which, mode, radius_deg, S=1536, fov_deg=110.0, cut_d
         cut_alpha = None
     if not hole.any() and mode != "logo":
         return eq, 0.0
-    # 흐림 메우기 (1/4 해상도 inpaint → 흐림)
+    # 흐림 메우기 (1/4 해상도 inpaint → 흐림).
+    # 천장의 작은 구멍(영상 모드에서 천장 단계를 건너뛴 경우, 2026-11-16): 가장자리 화소가 어둡게 남아 '어두운 테'가 보였다 →
+    # 구멍 둘레 1.2° 띠까지 구멍으로 보고 메우고, 섞는 폭을 넓힌다 (Navier-Stokes 는 바퀴살 무늬가 생겨 쓰지 않음)
+    small_zen = which == "zenith" and 0 < hole_r <= 28.0
+    if small_zen:
+        kpx = int(round(f * math.tan(1.2 * D2R))) * 2 + 1
+        hole = cv2.dilate(hole.astype(np.uint8), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kpx, kpx))) > 0
     q = 4
     sv = cv2.resize(view, (S // q, S // q), interpolation=cv2.INTER_AREA)
     sh = cv2.resize(hole.astype(np.uint8) * 255, (S // q, S // q), interpolation=cv2.INTER_NEAREST)
@@ -621,7 +627,8 @@ def fill_pole(eq, covered, which, mode, radius_deg, S=1536, fov_deg=110.0, cut_d
     filled = cv2.inpaint(sv, sh, 5, cv2.INPAINT_TELEA) if sh.any() else sv
     filled = cv2.GaussianBlur(filled, (0, 0), 6)
     filled = cv2.resize(filled, (S, S), interpolation=cv2.INTER_CUBIC)
-    alpha = cv2.GaussianBlur(cv2.dilate(hole.astype(np.uint8) * 255, np.ones((9, 9), np.uint8)).astype(np.float32) / 255, (0, 0), 6)
+    feather = (17, 12) if small_zen else (9, 6)
+    alpha = cv2.GaussianBlur(cv2.dilate(hole.astype(np.uint8) * 255, np.ones((feather[0], feather[0]), np.uint8)).astype(np.float32) / 255, (0, 0), feather[1])
     patch = view.astype(np.float32) * (1 - alpha[..., None]) + filled.astype(np.float32) * alpha[..., None]
     if cut_alpha is not None:
         alpha = np.maximum(alpha, cut_alpha)

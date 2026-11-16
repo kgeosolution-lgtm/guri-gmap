@@ -1213,8 +1213,11 @@ def render_strip_spot(src, spot, out_dir, opts, prog, ps):
             s_p90 = max(float(np.percentile(x, 90)) for x in parts)
         else:
             s_med = s_p90 = None
-        vlim = int(H * (0.5 + 60 / 180))
-        coverage = float(covered[:vlim].mean())
+        # 덮인 비율: 위 70° ~ 아래 60° 를 면적(cos 위도) 가중으로. 바로 위 천장 원은 천장 단계를 건너뛰면
+        # 서버가 메우는 곳이라 뺀다 (2026-11-16 — 기본 촬영에서 천장 단계를 없앴다)
+        r0, vlim = int(H * (0.5 - 70 / 180)), int(H * (0.5 + 60 / 180))
+        wl = np.cos(np.radians(90.0 - (np.arange(r0, vlim) + 0.5) * 180.0 / H))
+        coverage = float((covered[r0:vlim].mean(axis=1) * wl).sum() / wl.sum())
         amt = float(getattr(opts, "video_sharpen", 0.0) or 0.0)
         if amt > 0:                                              # 영상 프레임은 흔들림·압축으로 사진보다 무르다 — 가볍게 또렷하게 (언샤프 마스크)
             sig = max(0.8, W / 8192.0 * 1.6)
