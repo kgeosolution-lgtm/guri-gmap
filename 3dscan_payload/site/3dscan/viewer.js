@@ -794,19 +794,25 @@ require([
     return _threeP;
   }
   window.ensureThree = ensureThree;
+  /* 폰은 가벼운 판 <job>_m.glb 를 먼저 받는다 (2026-11-16: 텍스처 2048·정수 좌표 — 9.6 MB → 3.3 MB, worker/glb_mobile.py).
+     없으면(옛 기록) 원본으로 다시 받는다. 걷기·평면도는 원본 주소 기준 */
+  function mobileGlbUrl(u) {
+    return (isMobile() && /\.glb(\?|$)/.test(u) && !/_m\.glb(\?|$)/.test(u)) ? u.replace(/\.glb(\?.*)?$/, "_m.glb$1") : u;
+  }
   function loadGLBViewer(glbUrl) {
     destroyGLB();
     const seq = ++_glbSeq;
+    const url = mobileGlbUrl(glbUrl);
     if (!(window.THREE && window.THREE.GLTFLoader)) {
       document.getElementById("sceneLoading").classList.remove("done");
       document.querySelector(".scene-load-text").textContent = "3D 보기 준비 중...";
-      ensureThree().then(() => { if (seq === _glbSeq) loadGLBViewerNow(glbUrl); })
+      ensureThree().then(() => { if (seq === _glbSeq) loadGLBViewerNow(url, glbUrl); })
         .catch(() => { if (seq === _glbSeq) document.querySelector(".scene-load-text").textContent = "3D 보기 프로그램을 받지 못했어요. 인터넷 연결을 확인하고 다시 열어 주세요."; });
       return;
     }
-    loadGLBViewerNow(glbUrl);
+    loadGLBViewerNow(url, glbUrl);
   }
-  function loadGLBViewerNow(glbUrl) {
+  function loadGLBViewerNow(glbUrl, origUrl) {
     destroyGLB();
 
     const loadingEl = document.getElementById("sceneLoading");
@@ -1030,7 +1036,7 @@ require([
           if (_walk) _walk.draw();
         }
         animate();
-        setupWalk(model, glbUrl, container);
+        setupWalk(model, origUrl || glbUrl, container);
       },
       (xhr) => {
         if (xhr.total) {
@@ -1039,6 +1045,7 @@ require([
         }
       },
       (err) => {
+        if (origUrl && origUrl !== glbUrl) { loadGLBViewerNow(origUrl); return; }   // 폰용 가벼운 판이 없다 → 원본
         console.error("GLB 로드 실패:", err);
         loadingEl.classList.add("done");
         loadText.textContent = "GLB 로드 실패: " + (err.message || err);
@@ -2241,8 +2248,8 @@ async function trackJob(jobId, title) {
         showNotFound("비공개 기록이에요. 올린 사람이 보낸 관리 링크로 열어야 볼 수 있어요.");
         return;
       }
-      if (i === 0 && sd.status === "done") {          // 공유 링크(?job=)로 이미 끝난 기록을 열었다 → 팝업 없이 바로 연다
-        finish(); setUploadState("done", sd.title || title, LAST_STEP, 100, "");
+      if (i === 0 && sd.status === "done") {          // 공유 링크(?job=)로 이미 끝난 기록을 열었다 → 팝업·완료 알약 없이 바로 연다
+        finish(); setUploadState("idle"); hideProgressPopup();
         openFromStatus(sd);
         return;
       }

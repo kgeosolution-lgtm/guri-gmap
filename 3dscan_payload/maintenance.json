@@ -1,6 +1,6 @@
 {
-  "once_id": "2026-11-16-fonts",
+  "once_id": "2026-11-16-mobile-glb",
   "actions": [
-    {"op": "build-fonts", "source": "NGII_GRAY_2026", "name": "ngii"}
+    {"op": "build-mobile-glb"}
   ]
 }

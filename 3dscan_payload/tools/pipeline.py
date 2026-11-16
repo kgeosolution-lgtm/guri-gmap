@@ -171,6 +171,13 @@ def step_glb(glb_path, job_id):
     shutil.copy2(glb_path, dest)
     url = f"{CFG['glb_serve_url']}/{job_id}.glb"
     log(f"GLB 서빙: {url} ({os.path.getsize(dest) / 1e6:.1f} MB)")
+    # 폰용 가벼운 판 <job>_m.glb (텍스처 2048·정수 좌표, 2026-11-16). 실패해도 계속 — 사이트가 원본으로 다시 받는다
+    try:
+        r = subprocess.run([CFG["worker_python"], "-I", os.path.join(CFG["worker_dir"], "glb_mobile.py"), dest],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600)
+        log((r.stdout or r.stderr or "").strip().splitlines()[-1] if (r.stdout or r.stderr) else f"glb_mobile: exit {r.returncode}")
+    except Exception as e:
+        log(f"glb_mobile 실패(무시): {e}")
     return url
 
 
