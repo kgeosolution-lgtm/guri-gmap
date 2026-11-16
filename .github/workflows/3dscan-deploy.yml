@@ -29,7 +29,7 @@ jobs:
 
           $src = Join-Path $env:GITHUB_WORKSPACE '3dscan_payload'
           $expected = [ordered]@{
-            'site/3dscan/index.html' = 'a1250b29b77ee1d06f23493b322396fad5c34130115ad96763f4b5c591c09098'
+            'site/3dscan/index.html' = '468c02c3e68d21e89a3717c5feb2c8db1e6946547304ec8fe6ac90f839f1769e'
             'site/3dscan/viewer.js' = 'f6380ae4e24cb7e8aa2e3a10e28d0820a823e4ac3c1e0d180268a15c10d1cc39'
             'site/3dscan/viewer.css' = '3eb3f2b48858d52190e9e99f4e0a81b628ecfe850c1ef97982a9f6b0aa9ad844'
             'site/3dscan/splat.html' = 'ea7a179acdb0e9791d298861552b61ebc44923aa5b7282e4dae2b216f7c2dd83'
@@ -37,11 +37,12 @@ jobs:
             'site/3dscan/utility.html' = '72db0b3afadd62ec322635551a6c62a84534462963f7ac7efab0a3668303fe78'
             'site/3dscan/walk.js' = '0981c0752e74c4a99e69a6578b7c826dd47e0f4d460cfe7ab65738c349fbeb83'
             'site/3dscan/upload_queue.js' = '831620d114f143a0192387ff7542b28ed10dc3667a881b63395eea370ece1585'
-            'site/3dscan/capture_ar.html' = 'eab09039e0fdd6ee95e33ef7f640c59ebcd1c5ef3270084c1826944c66ff57e8'
+            'site/3dscan/capture_ar.html' = '523442ca34841f4dc0cd2c406c4aab76ab36ebc8caa89974f926afc90ce8d76a'
             'site/3dscan/capture_pano.html' = '1eaf51e0179bc86be8d232b0155c86238b1730a3e090a585048ef0c0e28b8d79'
             'site/3dscan/pano.html' = 'ad34c2a990068005eaafe8519181fc73ddd7829298ae243cb194ef8c009772f3'
             'site/3dscan/tour.html' = 'dccadf6139ff4c03b927d6bd1c7dc8360c1713ab199034fa7cf22aef063903bc'
-            'site/3dscan/og_tour.jpg' = 'f2ac7e9f100e114142d195c0338e29ed748e9b7b63b885c08fb5fe087c5eeddb'
+            'site/3dscan/og_tour.jpg' = '5d28812903041d1328634526dd7aade4bed8990a07612b7ff6ad485a5e1c67ff'
+            'site/3dscan/og_home.jpg' = '0adea58f50498f73dc94415c1200db98a4edc5e69252a61686addb4b1221815d'
             'site/3dscan/kgeo-ui.css' = 'a6f04e4e103c5d451ddbf18e61131da1efba2a48a0cf86c37f8e5b775c5263a4'
             'site/3dscan/manifest.json' = 'c0cc28459b4a34cae709dbd31fa9cbc0fc2ebfe17d8872ddeadc871babb01d21'
             'site/3dscan/icon.svg' = '9bbe4b60dd12813fb3694db36dc33ab02d4a391051dbc82e27253009f7d834b7'
@@ -49,7 +50,7 @@ jobs:
             'site/3dscan/icon-512.png' = '25d6c521d58e5b6b818fd541442c0dbd3b1bc8c243d707b86a295c8e513355dd'
             'site/3dscan/apple-touch-icon.png' = '4d1097c8a8fbcbda6528a1b3b36e5c83eba9a87d6822d78f63f23aede31eb4ee'
             'site/3dscan/targets/trench_board.pdf' = 'a1f0af16b6d7effbe722ec97e746bdf6014f0a906162b00e9a8ff60ea311f06f'
-            'site/3dscan/capture.html' = 'b43367821775abbb33a7b3deed7e8d026baa7d88503203bcb72cb6ff092e8493'
+            'site/3dscan/capture.html' = '85dbf4e21a3ebdf8f437db2d7a833eff49248bce5c9b21bc621b9d1e0491b070'
             'site/3dscan/glb.web.config' = '40f7eadd4d140ac1ad31fe5543f165d51f4e83fd2cf4af96acb308ef6bd77273'
             '3dupload/common.py' = '4dbae79f8a4da75942c7783da799e0b52e8bb56875b6856fd37b925d4d3673bc'
             '3dupload/upload.py' = 'f2a8d77833c9d4037de875e798069b4c6df853ba0ef7f69e4204a72677e6acd4'
@@ -137,7 +138,7 @@ jobs:
 
           # ── 파일 설치
           New-Item -ItemType Directory -Force -Path $site, $upload | Out-Null
-          foreach ($f in 'index.html','viewer.js','viewer.css','splat.html','ortho.html','utility.html','capture.html','walk.js','upload_queue.js','capture_ar.html','capture_pano.html','pano.html','tour.html','og_tour.jpg','kgeo-ui.css','manifest.json','icon.svg','icon-192.png','icon-512.png','apple-touch-icon.png') { $p = Join-Path $src ('site\3dscan\' + $f); if (Test-Path -LiteralPath $p) { Copy-Item -LiteralPath $p -Destination (Join-Path $site $f) -Force } else { "SKIP site file (이번 배포에 없음): $f" } }
+          foreach ($f in 'index.html','viewer.js','viewer.css','splat.html','ortho.html','utility.html','capture.html','walk.js','upload_queue.js','capture_ar.html','capture_pano.html','pano.html','tour.html','og_tour.jpg','og_home.jpg','kgeo-ui.css','manifest.json','icon.svg','icon-192.png','icon-512.png','apple-touch-icon.png') { $p = Join-Path $src ('site\3dscan\' + $f); if (Test-Path -LiteralPath $p) { Copy-Item -LiteralPath $p -Destination (Join-Path $site $f) -Force } else { "SKIP site file (이번 배포에 없음): $f" } }
           if (Test-Path -LiteralPath (Join-Path $src 'site\3dscan\targets')) {
             New-Item -ItemType Directory -Force -Path (Join-Path $site 'targets') | Out-Null
             Copy-Item -Path (Join-Path $src 'site\3dscan\targets\*') -Destination (Join-Path $site 'targets') -Force

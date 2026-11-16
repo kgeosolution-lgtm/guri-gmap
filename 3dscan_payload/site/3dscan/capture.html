@@ -464,6 +464,7 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
       <label class="visopt"><input type="radio" name="vis" value="link"><span><b>🔗 링크 공유</b><small>링크를 받은 사람만 봅니다. 지도·목록에는 나오지 않아요.</small></span></label>
       <label class="visopt"><input type="radio" name="vis" value="private"><span><b>🔒 비공개</b><small>관리 링크가 있는 나만 볼 수 있어요.</small></span></label>
     </div>
+    <div class="hint" id="visHint" hidden>땅속 관·케이블 위치는 공개가 제한되는 정보일 수 있어 굴착 기록은 링크 공유로 시작해요.</div>
   </section>
 
   <!-- 굴착 정보 (굴착 기록일 때만) -->
@@ -1595,7 +1596,18 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
     if (S.trench) setMode('video');          // 굴착은 영상: 센서·관 표시 시각이 영상 시계 기준
     else { var sm = null; try { sm = localStorage.getItem(MODE_KEY); } catch (e) { } setMode(sm || S.mode); }
     if (S.file) renderVideo();
+    visForKind();
   }
+  /* 2026-11-16: 지하시설물 위치(지하공간통합지도)는 공개를 제한하는 정보 → 굴착 기록은 '링크 공유'로 시작.
+     사용자가 직접 고른 공개 범위는 건드리지 않는다 */
+  var visTouched = false;
+  function visForKind() {
+    $('visHint').hidden = !S.trench;
+    if (visTouched) return;
+    var r = document.querySelector('input[name="vis"][value="' + (S.trench ? 'link' : 'public') + '"]');
+    if (r) r.checked = true;
+  }
+  document.querySelectorAll('input[name="vis"]').forEach(function (r) { r.addEventListener('change', function () { visTouched = true; }); });
   function trenchReset() {
     T.kfTok++;
     T.keyframes.forEach(function (k) { if (k.url) { try { URL.revokeObjectURL(k.url); } catch (e) { } } });
@@ -2638,6 +2650,7 @@ details.more ul{padding-left:18px;display:flex;flex-direction:column;gap:4px}
     var savedTrench = null; try { savedTrench = localStorage.getItem(TRENCH_KEY); } catch (e) { }
     S.trench = p.get('trench') != null ? p.get('trench') === '1' : savedTrench === '1';   // ?trench=1 로 굴착 기록부터 열 수 있다
     setMode(S.trench ? 'video' : (p.get('mode') || savedMode || 'photos'));          // 기본은 사진(권장). ?mode=video 로 영상부터 열 수 있다
+    visForKind();
     checkBoardPrint();
     if (dr && dr.manual && okLL(dr.manual.lat, dr.manual.lon)) setLocation(dr.manual.lat, dr.manual.lon, 'manual', null, null);
     else geoStart();
