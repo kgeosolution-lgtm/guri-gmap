@@ -128,10 +128,11 @@ require([
         title: "영상", id: "kgeo-imagery",
         baseLayers: [
           new TileLayer({ url: "https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer", maxScale: 25000000 }),
-          new WebTileLayer({ urlTemplate: "https://cdn.vworld.kr/2d/Satellite/service/{level}/{col}/{row}.jpeg", copyright: "VWORLD" })
-        ],
-        // 영상 위 도로·지명 (국토지리정보원 하이브리드, kgeodata 서버) — 2026-11-16 사용자: 현장조사에 쓸 지도
-        referenceLayers: [new VectorTileLayer({ url: KGEO_VT + "NGII_Hybrid_20250610/VectorTileServer", minScale: 12000000 })]
+          new WebTileLayer({ urlTemplate: "https://cdn.vworld.kr/2d/Satellite/service/{level}/{col}/{row}.jpeg", copyright: "VWORLD" }),
+          // 영상 위 도로·지명 (국토지리정보원 하이브리드). referenceLayers 로 두면 ArcGIS 가 핀보다 위에 그려
+          // 도로선이 핀을 덮었다 (2026-11-16 사용자) → 배경의 맨 위 층으로 둔다
+          new VectorTileLayer({ url: KGEO_VT + "NGII_Hybrid_20250610/VectorTileServer", minScale: 12000000 })
+        ]
       });
     }
     // 2026-11-16 디자인 개편: 두 지도가 같은 축척(1:1200만~1:300만)에서 겹쳐 지명이 두 번씩 보였다 →
@@ -433,12 +434,32 @@ require([
 
   mapView.on("click", async e => {
     if (window._pickMode) { window._setPickedLocation(e.mapPoint); return; }   // 업로드 위치 지정 중
+    closePointPicker();
     const res = await mapView.hitTest(e, { include: [pointLayer] });
     if (!res.results.length) return;
     const g = res.results[0].graphic;
-    if (g.isAggregate) {                    // 묶음 숫자를 누르면 그 자리로 두 단계 확대
+    if (g.isAggregate) {                    // 묶음 숫자: 그 안의 기록을 골라 열게 (2026-11-16 사용자)
+      let feats = [];
+      try {
+        if (_layerView) {
+          const q = _layerView.createQuery();
+          q.aggregateIds = [g.getObjectId()]; q.outFields = ["*"]; q.returnGeometry = true;
+          feats = (await _layerView.queryFeatures(q)).features;
+        }
+      } catch (err) { feats = []; }
+      if (feats.length) { showPointPicker(feats, e, g.geometry); return; }
       mapView.goTo({ target: g.geometry, zoom: Math.min(mapView.zoom + 2, 19) }, { duration: 500, easing: "ease-out" }).catch(() => {});
       return;
+    }
+    // 같은 자리에 겹친 핀 (같은 사무실에서 여러 번 찍은 기록 등): 한 번에 고르게
+    const oids = [...new Set(res.results.filter(r => r.graphic && !r.graphic.isAggregate)
+      .map(r => r.graphic.attributes && (r.graphic.attributes.OBJECTID || r.graphic.attributes.objectid)).filter(v => v != null))];
+    if (oids.length > 1) {
+      try {
+        const q = pointLayer.createQuery(); q.objectIds = oids; q.outFields = ["*"]; q.returnGeometry = true;
+        const fs = await pointLayer.queryFeatures(q);
+        if (fs.features.length > 1) { showPointPicker(fs.features, e, g.geometry); return; }
+      } catch (err) {}
     }
     const oid = g.attributes.OBJECTID || g.attributes.objectid;
     await mapView.goTo({ target: g.geometry, zoom: Math.max(mapView.zoom, 16) },
@@ -1478,6 +1499,58 @@ require([
       </div>`;
     }).join('');
   }
+
+  /* ── 묶음·겹친 핀 고르기 (2026-11-16 사용자: "포인트를 클릭하면 그 마커의 기록 중 어떤 걸 고를지 보이면 좋겠다") ──
+        PC: 누른 자리 옆에 뜬 카드 / 폰: 아래 목록 시트 위에 붙은 카드. 항목을 누르면 그 기록을 연다 */
+  function closePointPicker() { const el = document.getElementById("pointPicker"); if (el) el.remove(); }
+  window.closePointPicker = closePointPicker;
+  function showPointPicker(feats, ev, center) {
+    closePointPicker();
+    feats = feats.slice().sort((a, b) => (b.attributes.pub_date || 0) - (a.attributes.pub_date || 0));
+    const box = document.createElement("div");
+    box.id = "pointPicker"; box.className = "kpick"; box.setAttribute("role", "dialog"); box.setAttribute("aria-label", "이 자리의 기록");
+    const places = [...new Set(feats.map(f => f.attributes.place_name).filter(Boolean))];
+    box.innerHTML =
+      `<div class="kpick-h"><b>이 자리의 기록 <span class="k-num">${feats.length}</span></b>` +
+      (places.length === 1 ? `<small>${esc(places[0])}</small>` : "") +
+      `<button type="button" class="kpick-x" aria-label="닫기">✕</button></div>` +
+      `<div class="kpick-list">` + feats.map((f, i) => {
+        const a = f.attributes, kind = recKind(a), k = KIND_INFO[kind];
+        const dt = a.pub_date ? new Date(a.pub_date) : null;
+        const auto = displayTitle(a) !== (a.scan_title || "");
+        const sub = [k.label, !auto && dt ? `${dt.getMonth() + 1}월 ${dt.getDate()}일` : ""].filter(Boolean);
+        const th = a.thumb_url ? `<img src="${esc(a.thumb_url)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'kpick-noth'}))">` : `<span class="kpick-noth"></span>`;
+        return `<button type="button" class="kpick-it" data-i="${i}">${th}<span class="kpick-t"><b>${esc(displayTitle(a))}</b>` +
+          `<small><span class="k-dot ${kind}"></span>${sub.map(esc).join(" ")}</small></span></button>`;
+      }).join("") + `</div>` +
+      `<button type="button" class="kpick-zoom">이 자리로 확대</button>`;
+    box.querySelector(".kpick-x").onclick = closePointPicker;
+    box.querySelector(".kpick-zoom").onclick = () => {
+      closePointPicker();
+      mapView.goTo({ target: center, zoom: Math.min(Math.max(mapView.zoom + 2, 17), 20) }, { duration: 500, easing: "ease-out" }).catch(() => {});
+    };
+    box.querySelectorAll(".kpick-it").forEach(btn => btn.onclick = () => {
+      const f = feats[+btn.dataset.i]; closePointPicker(); if (f) openFeature(f);
+    });
+    const host = document.getElementById("viewDiv");
+    host.appendChild(box);
+    if (!isMobile()) {                     // 누른 자리 옆 (지도 안에 들어오게)
+      const W = host.clientWidth, H = host.clientHeight, bw = box.offsetWidth, bh = box.offsetHeight;
+      let x = ev.x + 18, y = ev.y - bh / 2;
+      if (x + bw > W - 12) x = ev.x - bw - 18;
+      box.style.left = Math.max(12, x) + "px";
+      box.style.top = Math.max(12, Math.min(H - bh - 12, y)) + "px";
+    }
+    const first = box.querySelector(".kpick-it"); if (first) first.focus({ preventScroll: true });
+  }
+  async function openFeature(feat) {
+    const oid = feat.attributes.OBJECTID || feat.attributes.objectid;
+    try { await mapView.goTo({ target: feat.geometry, zoom: Math.max(mapView.zoom, 17) }, { duration: 600, easing: "ease-out" }); flashHighlight(oid); } catch (e) {}
+    openSidebar(feat.attributes);
+  }
+  document.addEventListener("keydown", e => { if (e.key === "Escape") closePointPicker(); });
+  mapView.on("drag", () => closePointPicker());
+  mapView.on("mouse-wheel", () => closePointPicker());
 
   window.onListItemClick = async function(idx) {
     const feat = _allFeatures[idx];

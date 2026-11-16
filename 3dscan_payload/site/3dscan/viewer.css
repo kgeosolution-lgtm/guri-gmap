@@ -1550,3 +1550,30 @@ header {
 .sb-place[hidden] { display: none; }
 .k-pin { flex: none; color: var(--k-ink-3); }
 .lp-item-place { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--k-ink-2); }
+
+/* ── 묶음·겹친 핀 고르기 카드 (2026-11-16) ── */
+.kpick {
+  position: absolute; z-index: 40; width: 320px; max-height: min(440px, 70%); display: flex; flex-direction: column;
+  border-radius: var(--k-r-card); background: var(--k-surface); color: var(--k-ink); box-shadow: var(--k-float-strong); overflow: hidden;
+  font-family: var(--k-font);
+}
+.kpick-h { display: flex; align-items: center; gap: 8px; padding: 12px 10px 10px 16px; border-bottom: 1px solid var(--k-line); }
+.kpick-h b { font: 700 15px/1.3 var(--k-font); white-space: nowrap; }
+.kpick-h small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--k-ink-3); font: 500 12.5px/1.3 var(--k-font); }
+.kpick-x { flex: none; width: 34px; height: 34px; margin-left: auto; border: 0; border-radius: 9px; background: transparent; color: var(--k-ink-2); font-size: 15px; cursor: pointer; }
+.kpick-x:hover { background: var(--k-surface-2); }
+.kpick-list { overflow-y: auto; padding: 6px; }
+.kpick-it {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px; border: 0; border-radius: 10px;
+  background: transparent; color: inherit; text-align: left; cursor: pointer; font: inherit;
+}
+.kpick-it:hover, .kpick-it:focus-visible { background: var(--k-paper); }
+.kpick-it img, .kpick-noth { flex: none; width: 52px; height: 52px; border-radius: 8px; object-fit: cover; background: var(--k-surface-2); }
+.kpick-t { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.kpick-t b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 14.5px/1.3 var(--k-font); }
+.kpick-t small { display: inline-flex; align-items: center; gap: 6px; color: var(--k-ink-2); font: 500 12.5px/1.3 var(--k-font); }
+.kpick-zoom { flex: none; margin: 0; padding: 12px; border: 0; border-top: 1px solid var(--k-line); background: var(--k-surface); color: var(--k-blue); font: 600 14px/1 var(--k-font); cursor: pointer; }
+.kpick-zoom:hover { background: var(--k-paper); }
+@media (max-width: 768px) {
+  .kpick { left: 12px !important; right: 12px; top: auto !important; bottom: calc(92px + env(safe-area-inset-bottom, 0px)); width: auto; max-height: 52vh; }
+}
