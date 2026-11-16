@@ -1501,3 +1501,45 @@ header {
   #sidebar .sb-body { flex: none; overflow: visible; }
   #sidebar .sb-foot { position: sticky; bottom: 0; z-index: 12; margin-top: auto; }
 }
+
+/* ── 지도 레이어 단추·판 (2026-11-16): 배경 지도/영상 + 수치지형도·지적도 겹쳐 보기 ── */
+.klc { position: relative; }
+.klc-btn {
+  display: grid; place-items: center; width: 40px; height: 40px; border: 0; border-radius: var(--k-r-ctl);
+  background: var(--k-surface); color: var(--k-ink); box-shadow: var(--k-float); cursor: pointer;
+}
+.klc-btn:hover { background: var(--k-surface-2); }
+.klc-btn.on { color: var(--k-blue); box-shadow: var(--k-float), inset 0 0 0 2px var(--k-blue); }
+.klc-panel {
+  position: absolute; top: 0; width: 272px; padding: 14px; border-radius: var(--k-r-card);
+  background: var(--k-surface); color: var(--k-ink); box-shadow: var(--k-float-strong); z-index: 5; font-family: var(--k-font);
+}
+.esri-ui-top-left .klc-panel { left: 50px; }
+.esri-ui-top-right .klc-panel { right: 50px; }
+.klc-h { margin: 0 0 8px; font: 700 13.5px/1.3 var(--k-font); color: var(--k-ink); }
+.klc-h small { margin-left: 4px; font-weight: 500; color: var(--k-ink-3); }
+.klc-bases { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+.klc-base {
+  display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 4px 4px 8px; border: 1px solid var(--k-line);
+  border-radius: 12px; background: var(--k-surface); color: var(--k-ink-2); font: 600 13px/1 var(--k-font); cursor: pointer;
+}
+.klc-base:hover { border-color: var(--k-line-2); }
+.klc-base[aria-pressed="true"] { border-color: var(--k-blue); color: var(--k-ink); box-shadow: inset 0 0 0 1px var(--k-blue); }
+.klc-thumb { display: block; height: 64px; border-radius: 8px; background: var(--k-surface-2) center / cover no-repeat; }
+.klc-ov { display: flex; align-items: flex-start; gap: 10px; padding: 10px 2px; border-top: 1px solid var(--k-line); cursor: pointer; }
+.klc-ov input { width: 20px; height: 20px; margin: 1px 0 0; flex: none; accent-color: var(--k-blue); }
+.klc-ov span { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.klc-ov b { font: 600 14px/1.3 var(--k-font); color: var(--k-ink); }
+.klc-ov small { font: 400 12.5px/1.4 var(--k-font); color: var(--k-ink-3); }
+@media (max-width: 768px) { .klc-panel { width: min(272px, calc(100vw - 90px)); } }
+
+/* 2026-11-16 사용자: 축척은 지도 아래에 바짝, 지도 단추는 오른쪽 위 (홈 → 확대·축소 → 내 위치 → 레이어) */
+.esri-ui-bottom-left { bottom: 6px !important; left: 10px !important; }
+.esri-ui-top-left { top: 14px !important; left: 14px !important; }
+.esri-ui-top-right { top: 14px !important; right: 14px !important; }
+.esri-ui-top-right .esri-component { margin-bottom: 8px; }
+.esri-scale-bar__label { background: rgba(255, 255, 255, .78); padding: 1px 4px; border-radius: 3px; }
+@media (max-width: 768px) {
+  .esri-ui-bottom-left { bottom: calc(86px + env(safe-area-inset-bottom, 0px)) !important; left: 10px !important; }
+  .esri-ui-top-right { top: 12px !important; right: 12px !important; }
+}

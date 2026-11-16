@@ -29,7 +29,7 @@
 <!-- JSZip 은 ArcGIS 로더(AMD define)보다 먼저 읽어야 한다. 뒤에 두면 multipleDefine 으로 지도가 멈춤 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://js.arcgis.com/4.30/"></script>
-<link rel="stylesheet" href="viewer.css?v=8c17a232d0">
+<link rel="stylesheet" href="viewer.css?v=e2e9b109de">
 <style>
 /* 지도 캔버스의 ArcGIS 포커스 테두리만 없앤다. 다른 요소의 키보드 포커스는 보이게 둔다 (kgeo-ui.css :focus-visible) */
 .esri-view .esri-view-surface--inset-outline:focus::after { outline: none !important; }
@@ -502,7 +502,7 @@ canvas:focus, #viewDiv:focus { outline: none; }
 </div>
 
 <script src="upload_queue.js?v=831620d114"></script>
-<script src="viewer.js?v=8ba7340d5c"></script>
+<script src="viewer.js?v=179d9d20c5"></script>
 <script>
 /* 끊겨도 이어 올리기 (2026-11-16): 시작 화면에 '올리지 못한 촬영 N개', ☰ 시작 옆에 숫자 */
 (function () { if (!window.KgeoUpload) return; KgeoUpload.renderPending(document.getElementById('startPending'), { doneMax: 2 }); KgeoUpload.badge(document.getElementById('startBadge')); })();

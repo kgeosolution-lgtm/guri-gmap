@@ -109,13 +109,15 @@ require([
   "esri/layers/VectorTileLayer",
   "esri/layers/WebTileLayer",
   "esri/widgets/Locate",
+  "esri/layers/GroupLayer",
 ], function(
   esriConfig, WebMap, MapView, FeatureLayer, SimpleRenderer, UniqueValueRenderer, SimpleMarkerSymbol,
   Home, Zoom, BasemapToggle, Search, ScaleBar, Graphic,
-  Basemap, TileLayer, VectorTileLayer, WebTileLayer, Locate
+  Basemap, TileLayer, VectorTileLayer, WebTileLayer, Locate, GroupLayer
 ) {
   /* ── 배경지도: WebMap 에 저장된 네이버 타일은 CORS 로 막혀 안 보이므로
         다른 kgeodata 앱(goyang1000_page/basemaps.js)과 같은 구성을 코드에서 만든다 ── */
+  const KGEO_VT = "https://kgeodata.com/server/rest/services/Hosted/";
   function makeBasemap(kind) {
     if (kind === "imagery") {
       return new Basemap({
@@ -123,7 +125,9 @@ require([
         baseLayers: [
           new TileLayer({ url: "https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer", maxScale: 25000000 }),
           new WebTileLayer({ urlTemplate: "https://cdn.vworld.kr/2d/Satellite/service/{level}/{col}/{row}.jpeg", copyright: "VWORLD" })
-        ]
+        ],
+        // 영상 위 도로·지명 (국토지리정보원 하이브리드, kgeodata 서버) — 2026-11-16 사용자: 현장조사에 쓸 지도
+        referenceLayers: [new VectorTileLayer({ url: KGEO_VT + "NGII_Hybrid_20250610/VectorTileServer", minScale: 12000000 })]
       });
     }
     // 2026-11-16 디자인 개편: 두 지도가 같은 축척(1:1200만~1:300만)에서 겹쳐 지명이 두 번씩 보였다 →
@@ -177,9 +181,65 @@ require([
   const effGlb   = () => (currentAttrs && currentAttrs.glb_url) || (_sib3d && _sib3d.glb_url) || null;
   const effSplat = () => (currentAttrs && currentAttrs.splat_url) || (_sib3d && _sib3d.splat_url) || null;
 
+  /* ── 지도 레이어 (2026-11-16 사용자: "영상 아이콘 잘 나오게, 수치지형도·지적도를 켤 수 있으면 현장조사에 좋겠다")
+        배경: 지도(국토지리정보원 회색) / 영상(위성 + 도로·지명). 겹쳐 보기: 수치지형도 1:5000(NGII5000_*), 지적도(연속지적도_VT).
+        모두 kgeodata 서버의 공개 벡터 타일. 고른 것은 이 기기(localStorage)에 기억한다 ── */
+  const LAYER_KEY = "kgeo_map_layers";
+  const OVERLAY_DEF = {
+    topo: { title: "수치지형도 (1:5000)", hint: "건물·도로·등고선·지명 — 동네 크기로 확대하면 보여요",
+      make: () => new GroupLayer({ title: "수치지형도", listMode: "hide",
+        layers: ["contour", "river", "road", "rail", "wall", "building", "spot", "label"].map(n => new VectorTileLayer({ url: KGEO_VT + "NGII5000_" + n + "/VectorTileServer" })) }) },
+    cad: { title: "지적도", hint: "필지 경계·지번 — 동네 크기로 확대하면 보여요",
+      make: () => new VectorTileLayer({ url: KGEO_VT + encodeURIComponent("연속지적도_VT") + "/VectorTileServer", minScale: 25000 }) },
+  };
+  const _overlays = {}, _basemaps = {};
+  function loadLayerPrefs() { try { const o = JSON.parse(localStorage.getItem(LAYER_KEY) || "{}"); return o && typeof o === "object" ? o : {}; } catch (e) { return {}; } }
+  function saveLayerPrefs(p) { try { localStorage.setItem(LAYER_KEY, JSON.stringify(p)); } catch (e) {} }
+  function setBase(kind) {
+    const k = kind === "imagery" ? "imagery" : "map";
+    if (!_basemaps[k]) _basemaps[k] = makeBasemap(k === "imagery" ? "imagery" : "gray");
+    webmap.basemap = _basemaps[k];
+  }
+  function setOverlay(key, on) {
+    if (on && !_overlays[key]) { _overlays[key] = OVERLAY_DEF[key].make(); webmap.add(_overlays[key], 0); }   // 0: 배경 바로 위, 핀 아래
+    if (_overlays[key]) _overlays[key].visible = !!on;
+  }
+  function buildLayerControl() {
+    const tile = "tile/15/12692/27941";                     // 서울역 부근 한 칸 — 배경 고르기 미리보기 (회색 지도는 한국에 z15 자료가 없어 z13)
+    const wrap = document.createElement("div");
+    wrap.className = "klc";
+    wrap.innerHTML =
+      '<button type="button" class="klc-btn" aria-expanded="false" aria-label="지도 레이어" title="지도 레이어 (배경·수치지형도·지적도)">' +
+      '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M3 12.5l9 5 9-5M3 16.5l9 5 9-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></button>' +
+      '<div class="klc-panel" hidden role="dialog" aria-label="지도 레이어">' +
+      '<div class="klc-h">배경 지도</div><div class="klc-bases">' +
+      `<button type="button" class="klc-base" data-base="map"><span class="klc-thumb" style="background-image:url('https://services.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/13/3173/6985')"></span>지도</button>` +
+      `<button type="button" class="klc-base" data-base="imagery"><span class="klc-thumb" style="background-image:url('https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/${tile}')"></span>영상</button>` +
+      '</div><div class="klc-h">겹쳐 보기 <small>현장조사용</small></div>' +
+      Object.entries(OVERLAY_DEF).map(([k, d]) => `<label class="klc-ov"><input type="checkbox" data-ov="${k}"><span><b>${esc(d.title)}</b><small>${esc(d.hint)}</small></span></label>`).join("") +
+      '</div>';
+    const btn = wrap.querySelector(".klc-btn"), panel = wrap.querySelector(".klc-panel");
+    const sync = () => {
+      const p = loadLayerPrefs();
+      wrap.querySelectorAll(".klc-base").forEach(b => b.setAttribute("aria-pressed", String((p.base || "map") === b.dataset.base)));
+      wrap.querySelectorAll("[data-ov]").forEach(c => { c.checked = !!p[c.dataset.ov]; });
+      btn.classList.toggle("on", p.base === "imagery" || Object.keys(OVERLAY_DEF).some(k => p[k]));
+    };
+    const close = () => { panel.hidden = true; btn.setAttribute("aria-expanded", "false"); };
+    btn.onclick = e => { e.stopPropagation(); const open = panel.hidden; panel.hidden = !open; btn.setAttribute("aria-expanded", String(open)); };
+    wrap.querySelectorAll(".klc-base").forEach(b => { b.onclick = () => { const p = loadLayerPrefs(); p.base = b.dataset.base; saveLayerPrefs(p); setBase(p.base); sync(); }; });
+    wrap.querySelectorAll("[data-ov]").forEach(c => { c.onchange = () => { const p = loadLayerPrefs(); p[c.dataset.ov] = c.checked; saveLayerPrefs(p); setOverlay(c.dataset.ov, c.checked); sync(); }; });
+    document.addEventListener("click", e => { if (!panel.hidden && !wrap.contains(e.target)) close(); });
+    document.addEventListener("keydown", e => { if (e.key === "Escape" && !panel.hidden) { close(); btn.focus(); } });
+    sync();
+    const prefs = loadLayerPrefs();
+    for (const k of Object.keys(OVERLAY_DEF)) if (prefs[k]) setOverlay(k, true);
+    return wrap;
+  }
+
   /* ── MapView ── */
   const webmap = new WebMap({ portalItem: { id: WEBMAP_ID } });
-  webmap.load().then(() => { webmap.basemap = makeBasemap("gray"); }).catch(() => {});
+  webmap.load().then(() => setBase(loadLayerPrefs().base)).catch(() => {});
   const mapView = new MapView({
     container: "viewDiv",
     map: webmap,
@@ -320,11 +380,10 @@ require([
     const homeW = new Home({ view: mapView });
     homeW.goToOverride = (view, params) => !_dataExtent ? view.goTo(params.target)
       : view.goTo(_dataExtent.width === 0 ? { target: _dataExtent.center, zoom: 16 } : _dataExtent.clone().expand(1.4));
-    if (!isMobile()) mapView.ui.add(new Zoom({ view: mapView }), "top-left");
-    mapView.ui.add(homeW, isMobile() ? "top-right" : "top-left");
-    mapView.ui.add(new Locate({ view: mapView, scale: 5000, popupEnabled: false }), isMobile() ? "top-right" : "top-left");
+    // 2026-11-16 사용자: "홈 → 확대·축소 → 내 위치 순으로, 오른쪽 위로" (그 아래 레이어 단추)
+    mapView.ui.add([homeW, new Zoom({ view: mapView }), new Locate({ view: mapView, scale: 5000, popupEnabled: false })], "top-right");
     mapView.ui.add(new ScaleBar({ view: mapView, style: "line", unit: "metric" }), "bottom-left");
-    mapView.ui.add(new BasemapToggle({ view: mapView, nextBasemap: makeBasemap("imagery") }), isMobile() ? "top-right" : "bottom-left");
+    mapView.ui.add(buildLayerControl(), "top-right");     // 배경 지도·영상, 수치지형도·지적도
 
     // URL 파라미터로 피처 자동 선택 (?select=<scene_item_id>)
     const urlParams    = new URLSearchParams(window.location.search);
@@ -2039,6 +2098,6 @@ async function renderMine() {
   const cb = document.getElementById("startSkip");
   if (cb) cb.addEventListener("change", () => lsSet(SKIP_KEY, cb.checked ? "1" : null));
   const p = new URLSearchParams(location.search);
-  const deep = ["job", "type", "site", "site_id", "oid", "id"].some(k => p.has(k)) || location.hash.length > 1;
+  const deep = ["select", "job", "type", "site", "site_id", "oid", "id"].some(k => p.has(k)) || location.hash.length > 1;
   if (!deep && lsGet(SKIP_KEY) !== "1") window.openStart();
 })();
