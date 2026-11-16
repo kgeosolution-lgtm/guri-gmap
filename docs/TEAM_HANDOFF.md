@@ -1081,3 +1081,9 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 구리 서버 배포: kgeodata 서버의 사진 폴더 내용을 `public/images/pet/`(`.gitignore`)에 복사하고 `photoBase: "/images/pet/"` 로 빌드하면 `out/images/pet/` 에 함께 담긴다. 폴더가 없으면 빌드가 `[경고]` 를 낸다(실패는 아님).
 - `docs/DEPLOY_GURI.md` 1-4·1-5·검증·문제 표 갱신(용량: 사이트 약 6MB + 사진).
 - 검증: 기본 빌드(IMG_BASE 그대로 kgeodata), 구리용 빌드(사진 없음 → 경고, 있음 → `out/images/pet/` 포함, `IMG_BASE="/gmaplife/images/pet/"`), prettier, `git diff --check` 통과. 브랜치 `work/kangmina-photo-local`.
+
+## 2026-11-16 구리 서버 최종 주소 /gmapweb 확정, 절차서를 '교체·백업' 기준으로 (담당: 강민아)
+
+- 구리시 결정: 지금 쓰는 생활지도 주소 `https://www.guri.go.kr/gmapweb/` 를 그대로 쓴다 → 새 사이트가 그 자리를 교체. `deploy.config.json` 주석에 최종값(origin·base `/gmapweb`·photoBase) 기록(값 자체는 미리보기용 kgeodata 그대로, 구리 빌드 때 바꾼다).
+- `docs/DEPLOY_GURI.md`: 2장을 '응용 프로그램 추가'에서 '기존 /gmapweb 확인·백업 → 새 폴더 + 실제 경로 변경(되돌리기 1분)'으로, 6장에 포털 zip 전달 절차(첫 배포 뒤 담당자 혼자 가능) 추가, 경로 전부 `/gmapweb`.
+- 검증: `DEPLOY_ORIGIN=https://www.guri.go.kr DEPLOY_BASE=/gmapweb DEPLOY_PHOTO_BASE=/images/pet/ npm run build:deploy` 통과(링크·IMG_BASE·deployment.json url 확인), prettier, `git diff --check`. 브랜치 `work/kangmina-gmapweb`.

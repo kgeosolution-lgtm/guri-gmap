@@ -1,4 +1,4 @@
-# 구리시 서버 배포 절차 — 생활지도 (현장 수동 배포)
+# 구리시 서버 배포 절차 — 생활지도 (현장 수동 배포, https://www.guri.go.kr/gmapweb/)
 
 담당: 강민아 · 작성 2026-11-16
 
@@ -14,14 +14,14 @@
 [시민 브라우저] ──HTTPS──▶ Machine 1 (DMZ, IIS)
                              ├─ /gmap      Web Adaptor → Machine 2 Portal
                              ├─ /gmapsvr   Web Adaptor → Machine 3 ArcGIS Server(호스팅 자료)
-                             └─ /gmaplife  ★ 생활지도 정적 파일 (이번에 추가)
+                             └─ /gmapweb  ★ 생활지도 정적 파일 (이번에 추가)
 ```
 
 ## 1. 방문 전 준비(사무실, 방문 1주 전부터)
 
 ### 1-1. 최종 주소 확정
 
-구리시 전산 담당과 **사이트 주소**를 정한다. 권장: `https://www.guri.go.kr/gmaplife/` (이 문서는 이 값을 예로 쓴다).
+사이트 주소는 **지금 쓰는 생활지도 주소 그대로** `https://www.guri.go.kr/gmapweb/` 이다(2026-11-16 확정). 새 사이트가 그 자리를 **교체**한다 — 현장 절차(2장)는 '추가'가 아니라 '교체·백업' 기준으로 적었다.
 
 - `/gmap`·`/gmapsvr` 는 Web Adaptor 가 쓰므로 **다른 별칭**이어야 한다.
 - **같은 도메인(www.guri.go.kr)** 에 두면 자료 조회가 같은 출처(same-origin)라 CORS 설정이 전혀 필요 없다. 다른 도메인을 쓰면 3-3 절을 추가로 해야 한다.
@@ -74,10 +74,10 @@ https://www.guri.go.kr/gmapsvr/rest/services/Hosted/life_gas/FeatureServer?f=jso
 1. `deploy.config.json` — 배포 주소·사진 폴더 한 곳
 
    ```json
-   { "origin": "https://www.guri.go.kr", "base": "/gmaplife", "photoBase": "/images/pet/" }
+   { "origin": "https://www.guri.go.kr", "base": "/gmapweb", "photoBase": "/images/pet/" }
    ```
 
-   사이트 루트(`https://도메인/`)에 두기로 했다면 `"base": ""`. `photoBase` 는 사진이 사이트 안에 있다는 뜻이며 빌드가 `/gmaplife/images/pet/` 로 바꿔 넣는다(미리보기는 `https://kgeodata.com/guri/img/`).
+   사이트 루트(`https://도메인/`)에 두기로 했다면 `"base": ""`. `photoBase` 는 사진이 사이트 안에 있다는 뜻이며 빌드가 `/gmapweb/images/pet/` 로 바꿔 넣는다(미리보기는 `https://kgeodata.com/guri/img/`).
 
 1. **사진 복사** — kgeodata 서버의 사진 폴더(`https://kgeodata.com/guri/img/` 가 가리키는 IIS 실제 폴더) 내용을 **파일 이름 그대로** 저장소의 `public/images/pet/` 에 복사한다. 포털 레이어(`pet_hospital`·`pet_pharmacy`)의 `이미지명` 값이 이 파일 이름과 같아야 보인다. 이 폴더는 `.gitignore` 에 있어 Git 에 올라가지 않는다(빌드 결과에만 들어감). 용량은 서버에서 PowerShell 로 잰다:
 
@@ -102,21 +102,21 @@ https://www.guri.go.kr/gmapsvr/rest/services/Hosted/life_gas/FeatureServer?f=jso
    npm run build:deploy
    ```
 
-   끝에 `Static deployment ready: out -> https://www.guri.go.kr/gmaplife/` 가 찍혀야 하고, 그 앞에 `[경고] 사진 폴더…` 가 **없어야** 한다. 빌드 중 3D 웹씬 스냅샷(`scripts/fetch-scene.mjs` → `public/maps/data/scene.json`)을 포털에서 받는데, 사무실에서 포털에 못 닿으면 "실패해도 배포는 계속"이라 저장소에 있는 기존 `scene.json` 이 쓰인다(문제 없음).
+   끝에 `Static deployment ready: out -> https://www.guri.go.kr/gmapweb/` 가 찍혀야 하고, 그 앞에 `[경고] 사진 폴더…` 가 **없어야** 한다. 빌드 중 3D 웹씬 스냅샷(`scripts/fetch-scene.mjs` → `public/maps/data/scene.json`)을 포털에서 받는데, 사무실에서 포털에 못 닿으면 "실패해도 배포는 계속"이라 저장소에 있는 기존 `scene.json` 이 쓰인다(문제 없음).
 
 1. 결과 확인 (`out/` 안)
 
    ```bash
-   cat out/deployment.json          # "url": "https://www.guri.go.kr/gmaplife/"
+   cat out/deployment.json          # "url": "https://www.guri.go.kr/gmapweb/"
    grep -c "review/review.js" out/index.html        # 0 이어야 함
-   grep -o 'og:image" content="[^"]*' out/maps/theme.html   # https://www.guri.go.kr/gmaplife/images/og-cover.jpg
-   grep -o 'const IMG_BASE="[^"]*"' out/maps/theme.html        # "/gmaplife/images/pet/"
+   grep -o 'og:image" content="[^"]*' out/maps/theme.html   # https://www.guri.go.kr/gmapweb/images/og-cover.jpg
+   grep -o 'const IMG_BASE="[^"]*"' out/maps/theme.html        # "/gmapweb/images/pet/"
    ls out/images/pet | wc -l                                    # 사진 수
    ```
 
    `out/` 구성: `index.html`, `404.html`, `maps/`(지도 4쪽·아이콘·3D 스냅샷), `images/`(사진 `pet/` 포함), `fonts/`, `styles/`, `_next/`, `robots.txt`, `web.config`, `deployment.json`, `v1/`(보존된 옛 홈), `review/`(스위치가 꺼져 있으면 아무 페이지도 안 불러옴 — 폴더째 빼고 복사해도 됨).
 
-1. USB 에 복사. **`out/` 폴더 전체**를 복사하고, 폴더 이름을 `gmaplife` 로 바꿔 둔다. 소스·`.git`·`node_modules` 는 가져가지 않는다.
+1. USB 에 복사. **`out/` 폴더 전체**를 복사하고, 폴더 이름을 `gmapweb` 로 바꿔 둔다. 소스·`.git`·`node_modules` 는 가져가지 않는다.
 
 **용량**: 사진을 뺀 사이트는 약 6MB(파일 194개)이고, 여기에 사진 폴더 용량이 더해진다.
 
@@ -124,7 +124,7 @@ https://www.guri.go.kr/gmapsvr/rest/services/Hosted/life_gas/FeatureServer?f=jso
 
 ### 1-6. 챙겨 갈 것
 
-- USB(빌드 결과 `gmaplife/`), 이 문서 인쇄본
+- USB(빌드 결과 `gmapweb/`), 이 문서 인쇄본
 - **와이파이 끈 휴대폰(LTE)** — 외부 접속 검증용
 - 구리시 담당자 연락처, IIS 관리자 권한을 가진 분 동석 요청
 
@@ -132,33 +132,39 @@ https://www.guri.go.kr/gmapsvr/rest/services/Hosted/life_gas/FeatureServer?f=jso
 
 관리자 권한으로 로그인한다. IIS 사이트·Web Adaptor·`/gmap`·`/gmapsvr` 설정은 **건드리지 않는다**. 응용 프로그램 하나를 **추가**만 한다.
 
-### 2-1. 파일 복사
+### 2-1. 기존 /gmapweb 확인·백업 (교체 작업이므로 먼저)
 
-1. 웹 폴더를 만든다. 예: `D:\www\gmaplife` (Web Adaptor 폴더 안이나 `inetpub\wwwroot` 안은 피한다).
-2. USB 의 `gmaplife/` 내용을 그 폴더에 복사한다. 복사 후 `D:\www\gmaplife\index.html`, `maps\theme.html`, `web.config` 가 바로 보여야 한다(폴더가 한 겹 더 들어가지 않게).
+`https://www.guri.go.kr/gmapweb/` 는 **지금 쓰고 있는 생활지도 주소**다. 새 사이트로 바꿔 끼우되, 기존 것은 반드시 남겨 둔다.
+
+1. IIS 관리자 → Web Adaptor 가 붙어 있는 사이트(보통 Default Web Site) → `gmapweb` 응용 프로그램 선택 → 오른쪽 **기본 설정**에서 **실제 경로**를 적어 둔다. 예: `D:\www\gmapweb`
+2. 그 폴더를 통째로 복사해 백업한다. 예: `D:\www\gmapweb_backup_20261118` (웹 루트 밖이면 더 좋다). 되돌릴 때 이 폴더만 있으면 된다.
+3. 기존 폴더의 `web.config` 를 열어 본다. 재작성 규칙(rewrite)·핸들러 등 **다른 서비스가 기대는 설정**이 있으면 담당자와 확인한다. 새 사이트는 정적 파일이라 우리 `web.config`(기본 문서·MIME·캐시)로 충분하다.
+4. 응용 프로그램 풀은 기존 것을 그대로 쓴다(정적 파일이라 .NET 버전 무관).
+
+확인 □ 실제 경로: `__________` □ 백업 폴더 □ web.config 확인
+
+### 2-2. 새 사이트로 교체
+
+되돌리기가 쉬운 **새 폴더 + 실제 경로 변경** 방식을 권한다.
+
+1. 새 폴더를 만든다. 예: `D:\www\gmapweb_new` (Web Adaptor 폴더 안이나 `inetpub\wwwroot` 안은 피한다).
+2. USB(또는 포털에서 내려받은 zip)의 `gmapweb/` 내용을 그 폴더에 복사한다. 복사 후 `gmapweb_new\index.html`, `maps\theme.html`, `web.config` 가 바로 보여야 한다(폴더가 한 겹 더 들어가지 않게).
 3. 폴더 속성 > 보안 > `IIS_IUSRS` 에 **읽기 및 실행·폴더 내용 보기·읽기** 권한.
+4. IIS 관리자 → `gmapweb` 응용 프로그램 → **기본 설정** → 실제 경로를 `D:\www\gmapweb_new` 로 바꾸고 "설정 테스트"로 인증·권한이 통과하는지 본다.
+5. 기존 폴더는 지우지 않는다(백업이 곧 되돌리기).
 
-확인 □ 복사 □ 권한
+대안(폴더 그대로 쓰기): 기존 폴더 내용을 비우고 새 내용을 넣는다. 설정 변경은 없지만 되돌릴 때 백업 폴더에서 다시 복사해야 한다.
 
-### 2-2. IIS 응용 프로그램 추가
+**되돌리기**: 실제 경로를 원래 폴더(또는 백업 폴더)로 되돌린다. 1분이면 된다.
 
-1. IIS 관리자 실행 → 왼쪽 트리에서 **Web Adaptor 가 붙어 있는 사이트**(보통 Default Web Site, `www.guri.go.kr` 인증서로 443 바인딩) 선택.
-2. 사이트 우클릭 → **응용 프로그램 추가**
-   - 별칭: `gmaplife`
-   - 응용 프로그램 풀: 기본값(DefaultAppPool) — 정적 파일이라 .NET 버전 무관. 별도 풀을 만들어도 됨(관리 코드 없음 권장).
-   - 실제 경로: `D:\www\gmaplife`
-3. **확인** 버튼으로 바로 닫지 말고 "설정 테스트" 로 인증·권한이 모두 통과하는지 본다.
-
-`web.config` 는 빌드 결과에 포함돼 있고 다음만 한다: 기본 문서 `index.html`, 디렉터리 검색 끔, MIME(`.webp .woff2 .json .svg`), 캐시 끔. 상위 설정은 바꾸지 않는다.
-
-확인 □ 응용 프로그램 추가 □ 설정 테스트 통과
+확인 □ 새 폴더 복사 □ 권한 □ 실제 경로 변경 □ 설정 테스트 통과
 
 ### 2-3. 404 페이지 (선택, 권장)
 
 없는 주소로 들어오면 한글 안내(`404.html`)가 나오게 한다. 응용 프로그램 수준에서만 설정한다.
 
-1. 왼쪽 트리에서 `gmaplife` 선택 → **오류 페이지** → 404 더블클릭(없으면 추가)
-2. "이 사이트의 URL 실행" `/gmaplife/404.html`
+1. 왼쪽 트리에서 `gmapweb` 선택 → **오류 페이지** → 404 더블클릭(없으면 추가)
+2. "이 사이트의 URL 실행" `/gmapweb/404.html`
 3. 오른쪽 "기능 설정 편집" → "사용자 지정 오류 페이지" 선택
 
 `httpErrors` 섹션이 서버 수준에서 잠겨 있으면 500.19 가 난다. 그러면 **이 설정만 되돌리고**(사이트 전체 잠금은 풀지 말 것) 404 는 생략한다 — 나머지 기능에는 영향이 없다.
@@ -169,9 +175,9 @@ https://www.guri.go.kr/gmapsvr/rest/services/Hosted/life_gas/FeatureServer?f=jso
 
 서버 브라우저로 연다.
 
-- `https://www.guri.go.kr/gmaplife/` → 메인
-- `https://www.guri.go.kr/gmaplife/maps/theme.html?group=시즌·겨울` → 칩 건수가 0 이 아닌지
-- `https://www.guri.go.kr/gmaplife/deployment.json` → `commit` 이 빌드한 커밋과 같은지
+- `https://www.guri.go.kr/gmapweb/` → 메인
+- `https://www.guri.go.kr/gmapweb/maps/theme.html?group=시즌·겨울` → 칩 건수가 0 이 아닌지
+- `https://www.guri.go.kr/gmapweb/deployment.json` → `commit` 이 빌드한 커밋과 같은지
 
 내부에서 `www.guri.go.kr` 이 안 풀리면 `C:\Windows\System32\drivers\etc\hosts` 에 Machine 1 주소를 **잠깐** 넣고 확인한 뒤 지운다.
 
@@ -220,20 +226,20 @@ https://www.guri.go.kr/gmapsvr/rest/services/Hosted/<서비스이름>/FeatureSer
 
 내부망에서만 되는 것을 걸러내는 가장 확실한 방법이다. 담당자 휴대폰으로 그 자리에서 한다.
 
-| #   | 확인                                                                                 | 결과 |
-| --- | ------------------------------------------------------------------------------------ | ---- |
-| 1   | `https://www.guri.go.kr/gmaplife/` 메인이 열리고 겨울 사진·'구리의 사계절' 줄이 보임 | □    |
-| 2   | 메인 > 우리동네 지도 열기 → 시즌·겨울로 열리고 칩 건수가 0 이 아님                   | □    |
-| 3   | 칩 하나(한파쉼터) → 목록 → 항목 → 팝업, 전화·네이버 길찾기 단추                      | □    |
-| 3-1 | 반려동물 > 동물병원 항목 팝업에 사진이 보임(사진 폴더 복사·`photoBase`)              | □    |
-| 4   | 테마 변경(생활편의 > 전기차) → "상태는 10분마다 새로 받아요" 문구, 건수 표시         | □    |
-| 5   | 첫 화면·칩 변경 때 구리시가 시트 위 영역에 꽉 차게 보임                              | □    |
-| 6   | 3D입체지도가 열림(웹씬 공개 여부)                                                    | □    |
-| 7   | 항공사진 비교: 항공사진 타일이 보임(NGII 키 도메인), 연도 전환                       | □    |
-| 8   | 공유 단추 → 복사된 주소가 `https://www.guri.go.kr/gmaplife/...`                      | □    |
-| 9   | 없는 주소(`/gmaplife/abc`) → 한글 404 (2-3 을 했을 때)                               | □    |
-| 10  | 카톡으로 메인 주소 보내 미리보기 그림(겨울 사진)이 뜸 — 캐시 때문에 늦을 수 있음     | □    |
-| 11  | 메뉴에 '구리 동네소식'·'유기동물 찾기'·'수정 요청'이 **없음**                        | □    |
+| #   | 확인                                                                                | 결과 |
+| --- | ----------------------------------------------------------------------------------- | ---- |
+| 1   | `https://www.guri.go.kr/gmapweb/` 메인이 열리고 겨울 사진·'구리의 사계절' 줄이 보임 | □    |
+| 2   | 메인 > 우리동네 지도 열기 → 시즌·겨울로 열리고 칩 건수가 0 이 아님                  | □    |
+| 3   | 칩 하나(한파쉼터) → 목록 → 항목 → 팝업, 전화·네이버 길찾기 단추                     | □    |
+| 3-1 | 반려동물 > 동물병원 항목 팝업에 사진이 보임(사진 폴더 복사·`photoBase`)             | □    |
+| 4   | 테마 변경(생활편의 > 전기차) → "상태는 10분마다 새로 받아요" 문구, 건수 표시        | □    |
+| 5   | 첫 화면·칩 변경 때 구리시가 시트 위 영역에 꽉 차게 보임                             | □    |
+| 6   | 3D입체지도가 열림(웹씬 공개 여부)                                                   | □    |
+| 7   | 항공사진 비교: 항공사진 타일이 보임(NGII 키 도메인), 연도 전환                      | □    |
+| 8   | 공유 단추 → 복사된 주소가 `https://www.guri.go.kr/gmapweb/...`                      | □    |
+| 9   | 없는 주소(`/gmapweb/abc`) → 한글 404 (2-3 을 했을 때)                               | □    |
+| 10  | 카톡으로 메인 주소 보내 미리보기 그림(겨울 사진)이 뜸 — 캐시 때문에 늦을 수 있음    | □    |
+| 11  | 메뉴에 '구리 동네소식'·'유기동물 찾기'·'수정 요청'이 **없음**                       | □    |
 
 PC 에서도 1·2·5·6·7 을 한 번 더 본다.
 
@@ -255,11 +261,12 @@ PC 에서도 1·2·5·6·7 을 한 번 더 본다.
 
 ## 6. 이후 운영 (수정이 생겼을 때)
 
-원격이 안 되므로 **빌드 → USB → 폴더 덮어쓰기**를 반복한다.
+원격이 안 되므로 **빌드 → 전달(USB 또는 포털 zip) → 폴더 교체**를 반복한다. 첫 배포 뒤에는 구리시 담당자가 혼자서도 할 수 있는 절차다.
 
-1. 사무실: 1-5 와 같이 빌드(설정은 이미 맞춰져 있으니 `npm run build:deploy` 만)
-2. 현장: 기존 `D:\www\gmaplife` 를 `D:\www\gmaplife_backup_날짜` 로 **복사해 두고**(되돌리기용) 새 `out/` 내용을 덮어쓴다. 자산 파일은 이름에 해시가 붙어 겹치지 않으며, `index.html` 은 마지막에 복사한다.
-3. 되돌리기: 백업 폴더 내용을 다시 덮어쓴다.
+1. 사무실: 1-5 와 같이 빌드(설정은 이미 맞춰져 있으니 `npm run build:deploy` 만). `out/` 을 zip 으로 묶는다(이름에 날짜·커밋, 예 `gmapweb-20261125-abc1234.zip`).
+2. 전달: USB, 또는 **구리 포털 > 콘텐츠 > 새 항목 > 파일**로 zip 을 올린다(유형 "코드 샘플", 공유는 담당자에게만). 포털은 파일 보관만 하고 사이트를 서비스하지는 못하므로 3 은 그대로 필요하다.
+3. GMAP-WEB(Machine 1): 포털에서 zip 을 내려받아 새 폴더(예 `D:\www\gmapweb_20261125`)에 풀고, `gmapweb` 응용 프로그램의 실제 경로를 그 폴더로 바꾼다(2-2 와 같음). 직전 폴더는 남겨 둔다.
+4. 되돌리기: 실제 경로를 직전 폴더로 되돌린다.
 
 GitHub Actions 자동 배포(`guri-preview.yml`)는 kgeodata.com **미리보기용**으로 계속 쓴다. 구리시가 "외부 → 내부 단방향 파일 반입"을 허용하면 그 경로로 자동화할 수 있으니 방문 때 한 번 물어본다.
 
