@@ -1099,3 +1099,9 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 담당자가 연속지적도를 구리 포털에 게시(`Hosted/LSMD_CONT_LDREG_41310/FeatureServer`) → `aerial.html` `CITY.cadastreUrl` 을 그 주소(`/0`)로. 층 번호는 `resolveCadastreUrl` 이 폴리곤 층으로 맞추고, 지번·PNU 필드명은 `cadastreDef` 가 자동 탐색(표준 LSMD 필드 `JIBUN`·`PNU` 포함). PNU 가 문자 항목이면 `41310%` 로 구리시 필지만, 아니면 시 경계 클립만.
 - 이로써 kgeodata.com 의존은 미리보기용 사진 주소(`photoBase`)뿐. `docs/DEPLOY_GURI.md` 7장 표 갱신.
 - 검증: aerial `node --check`, `npm run build:deploy`, `git diff --check` 통과. 실제 지적도 표시는 미리보기 배포 후 담당자 확인 필요(서비스 공개 여부 포함). 브랜치 `work/kangmina-cadastre-guri`.
+
+## 2026-11-16 와구리체를 cdn.jsdelivr.net 에서 자체 호스팅으로 (담당: 강민아)
+
+- `src/app/globals.css`·`public/maps/gmap-shared.css` 의 `@font-face` 를 `url('/fonts/waguri.woff2') format('woff2')` 로. 배포 빌드(`build-deploy.mjs`)가 `/fonts/` 를 base(`/gmapweb/fonts/`, 미리보기는 `/app/guri/fonts/`)로 바꾼다. Pretendard GOV 는 이미 `public/fonts/` 자체 호스팅이라 그대로.
+- **파일 추가 필요**: `public/fonts/waguri.woff2` — 원본 `https://cdn.jsdelivr.net/gh/projectnoonnu/2403@1.0/WAGURITTF.woff2`. 개발 환경에서 cdn.jsdelivr.net 이 차단돼 파일을 못 받음 → 담당자가 브라우저로 받아 이 경로에 넣고 커밋. 파일이 없으면 브랜드 타이틀이 대체 서체로 보일 뿐 동작엔 지장 없음.
+- 소스(src·public·scripts·docs)에 `cdn.jsdelivr.net` 문자열 0건 확인. 브랜치 `work/kangmina-local-fonts`.

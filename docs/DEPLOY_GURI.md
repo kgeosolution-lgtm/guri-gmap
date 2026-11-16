@@ -260,7 +260,7 @@ PC 에서도 1·2·6·7·8 을 한 번 더.
 3. GMAP-WEB: zip 내려받아 **새 폴더**(예 `D:\www\gmapweb_20261125`)에 풀고, `gmapweb` 응용 프로그램의 실제 경로를 그 폴더로 변경(3-2). 직전 폴더는 남겨 둔다.
 4. 되돌리기: 실제 경로를 직전 폴더로.
 
-`guri-preview.yml` 자동 배포는 kgeodata.com 미리보기용으로 계속 쓴다. 외부 CDN(ArcGIS JS API `js.arcgis.com`, 와구리체 `cdn.jsdelivr.net`)을 막아야 하면 Machine 1 에 함께 올려 주소만 바꾸면 된다(별도 작업).
+`guri-preview.yml` 자동 배포는 kgeodata.com 미리보기용으로 계속 쓴다. 서체(Pretendard GOV·와구리체)는 `public/fonts/` 에 자체 호스팅한다. 외부 CDN 은 지도 엔진(ArcGIS JS API `js.arcgis.com`)만 남아 있으며, 막아야 하면 Machine 1 에 함께 올려 주소만 바꾸면 된다(별도 작업).
 
 ## 9. 관련 문서
 
