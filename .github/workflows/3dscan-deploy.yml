@@ -51,7 +51,9 @@ jobs:
             'site/3dscan/apple-touch-icon.png' = '4d1097c8a8fbcbda6528a1b3b36e5c83eba9a87d6822d78f63f23aede31eb4ee'
             'site/3dscan/targets/trench_board.pdf' = 'a1f0af16b6d7effbe722ec97e746bdf6014f0a906162b00e9a8ff60ea311f06f'
             'site/3dscan/capture.html' = '2c61d2a978932f6ad9469485c0b6329d376bc2cd2c49482210ae71f940ae40bc'
-            'site/3dscan/glb.web.config' = '40f7eadd4d140ac1ad31fe5543f165d51f4e83fd2cf4af96acb308ef6bd77273'
+            'site/3dscan/glb.web.config' = 'a9c97f7408e65c2181220e75804ab4859534881607555cf5ed415a67b967188d'
+            'site/3dscan/site.web.config' = '07ed87a8ae6e6a24e0df3bedc6de704002023a833753155eac7645c416cc8dbf'
+            'tools/iis_tune.ps1' = 'f6da0338b072f884cf0148f7d408e7c38eff5dfeba64197f328cd90df8e3f7ed'
             '3dupload/common.py' = '4dbae79f8a4da75942c7783da799e0b52e8bb56875b6856fd37b925d4d3673bc'
             '3dupload/upload.py' = 'f2a8d77833c9d4037de875e798069b4c6df853ba0ef7f69e4204a72677e6acd4'
             '3dupload/upload_chunk.py' = 'e7f0ff834b65d311e4eba7d3fd5170335a114de9f4d66703653d51336c6f1f15'
@@ -146,6 +148,16 @@ jobs:
           # 스플랫 파일(.splat/.spz/.json) MIME 매핑: glb\web.config (이 폴더에만 적용). 아래 'SPLAT MIME' 검사에서 실패하면 제거한다
           New-Item -ItemType Directory -Force -Path (Join-Path $site 'glb') | Out-Null
           Copy-Item -LiteralPath (Join-Path $src 'site\3dscan\glb.web.config') -Destination (Join-Path $site 'glb\web.config') -Force
+          # 3dscan 폴더 web.config (캐시·보안 머리글, 2026-11-16). 사람이 둔 다른 web.config 가 있으면 덮지 않고 내용만 기록한다
+          $siteCfg = Join-Path $site 'web.config'
+          $siteCfgOk = $true
+          if ((Test-Path -LiteralPath $siteCfg) -and -not ((Get-Content -LiteralPath $siteCfg -Raw) -match 'kgeoScan-managed')) {
+            $siteCfgOk = $false
+            "SITE WEBCONFIG: 기존 web.config 가 있어 건너뜀 (내용 아래)"
+            Get-Content -LiteralPath $siteCfg | ForEach-Object { "  | $_" }
+          } elseif (Test-Path -LiteralPath (Join-Path $src 'site\3dscan\site.web.config')) {
+            Copy-Item -LiteralPath (Join-Path $src 'site\3dscan\site.web.config') -Destination $siteCfg -Force
+          } else { $siteCfgOk = $false }
           robocopy (Join-Path $src '3dupload') $upload /MIR /R:2 /W:2 /NFL /NDL /NJH /NJS /NP | Out-Null
           if ($LASTEXITCODE -ge 8) { throw 'copy 3dupload failed' }
           foreach ($f in Get-ChildItem -LiteralPath (Join-Path $src 'tools') -File) { Copy-Item -LiteralPath $f.FullName -Destination (Join-Path $tools $f.Name) -Force }
@@ -234,6 +246,7 @@ jobs:
           foreach ($k in $expected.Keys) {
             $dest = switch -Wildcard ($k) {
               'site/3dscan/glb.web.config' { Join-Path $site 'glb\web.config'; break }
+              'site/3dscan/site.web.config' { if ($siteCfgOk) { $siteCfg } else { $null }; break }
               'site/3dscan/*' { Join-Path $site ($k.Substring(12)) }
               '3dupload/*'    { Join-Path $upload ($k.Substring(9)) }
               'tools/*'       { Join-Path $tools ($k.Substring(6)) }
@@ -287,6 +300,26 @@ jobs:
             "SPLAT MIME: FAILED ($($_.Exception.Message)) -> removing glb\web.config"
             Remove-Item -LiteralPath (Join-Path $site 'glb\web.config') -Force -ErrorAction SilentlyContinue
           }
+          # 3dscan web.config 확인: 첫 화면·스크립트·manifest 가 그대로 200 인지, 머리글이 붙는지. 아니면 지운다
+          if ($siteCfgOk) {
+            try {
+              $a = Invoke-WebRequest -Uri 'https://kgeodata.com/app/3dscan/' -UseBasicParsing -TimeoutSec 30
+              $b = Invoke-WebRequest -Uri 'https://kgeodata.com/app/3dscan/viewer.js' -UseBasicParsing -TimeoutSec 30
+              $c = Invoke-WebRequest -Uri 'https://kgeodata.com/app/3dscan/manifest.json' -UseBasicParsing -TimeoutSec 30
+              "SITE WEBCONFIG: index $($a.StatusCode) cc=$($a.Headers['Cache-Control']) nosniff=$($a.Headers['X-Content-Type-Options']) powered=$($a.Headers['X-Powered-By']); viewer.js $($b.StatusCode) $($b.Headers['Content-Type']); manifest $($c.StatusCode) $($c.Headers['Content-Type'])"
+              if ($a.StatusCode -ne 200 -or $b.StatusCode -ne 200 -or $c.StatusCode -ne 200) { throw 'not 200' }
+            } catch {
+              "SITE WEBCONFIG: FAILED ($($_.Exception.Message)) -> removing web.config"
+              Remove-Item -LiteralPath $siteCfg -Force -ErrorAction SilentlyContinue
+            }
+          }
+          # 서버 전체 IIS 설정 상태 (읽기만, 관리자 권한이 없어 바꾸지는 못한다 → tools\iis_tune.ps1)
+          try {
+            $os = [Environment]::OSVersion.Version
+            $rw = Test-Path -LiteralPath (Join-Path $env:windir 'system32\inetsrv\rewrite.dll')
+            $dyn = Test-Path -LiteralPath (Join-Path $env:windir 'system32\inetsrv\compdyn.dll')
+            "IIS DIAG: os build $($os.Build), urlrewrite=$rw, dyncompression-module=$dyn"
+          } catch { "IIS DIAG: $($_.Exception.Message)" }
           # 유지보수 작업 (maintenance.json 의 once_id 가 새것일 때만 실행됨)
           try {
             $mout = cmd /c ('"' + $venvPy + '" -I "' + (Join-Path $tools 'maintenance.py') + '" --actions "' + (Join-Path $src 'maintenance.json') + '" 2>&1')
