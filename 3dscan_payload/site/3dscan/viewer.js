@@ -163,6 +163,21 @@ require([
     });
   }
   esriConfig.portalUrl = "https://kgeodata.com/portal";
+  /* 지도 글꼴 압축 사본 (2026-11-16): 기본 지도(회색)·영상 지명 레이어의 글꼴(pbf)은 지도 서버가 압축 없이 보내
+     첫 화면에서만 약 6MB 였다(전체의 2/3). 서버 정비 작업(maintenance build-fonts)이 미리 gzip 으로 만든 사본
+     /app/3dscan/fonts/ngii/<글꼴>/<범위>.pbf 로 주소를 바꿔 받는다 (약 절반). 두 서비스는 글꼴 파일이 같다 */
+  const FONT_COPY_STACKS = new Set(["NanumGothicOTF ExtraBold", "NanumGothic ExtraBold", "Arial Regular"]);
+  esriConfig.request.interceptors.push({
+    urls: /\/Hosted\/NGII_(GRAY_2026|Hybrid_20250610)\/VectorTileServer\/resources\/fonts\//,
+    before(params) {
+      const m = String(params.url).match(/\/resources\/fonts\/([^/?]+)\/(\d+-\d+)\.pbf/);
+      if (!m) return;
+      let stack;
+      try { stack = decodeURIComponent(m[1]); } catch (e) { return; }
+      if (!FONT_COPY_STACKS.has(stack)) return;
+      params.url = "https://kgeodata.com/app/3dscan/fonts/ngii/" + encodeURIComponent(stack) + "/" + m[2] + ".pbf";
+    }
+  });
   const WEBMAP_ID  = "c61a12cd31684312b5be93863e7a1a07";
   const PT_ITEM_ID = "1058978572fd43e799f7068330ff90d8";
 
