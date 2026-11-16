@@ -1,0 +1,29 @@
+name: NGII gateway-readiness-1116
+on:
+  push:
+    branches: [codex/ngiiseum-gateway-readiness-1116-20261109]
+    paths: [.github/workflows/ngiiseum-gateway-readiness-1116-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: gateway-readiness-1116
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'Host boundary'}
+          $s='D:\services\ngiiseum'
+          $p=Get-Content -LiteralPath (Join-Path $s 'process.json') -Raw|ConvertFrom-Json
+          $rows=@()
+          foreach($id in @($p.supervisorPid,$p.childPid)){
+           $proc=Get-CimInstance Win32_Process -Filter "ProcessId=$id"
+           if($proc){$o=Invoke-CimMethod -InputObject $proc -MethodName GetOwner;$rows+=@{pid=$id;name=$proc.Name;commandLineVisible=[bool]$proc.CommandLine;gatewayCommandMatch=($proc.CommandLine -like ('*'+$s+'\run-gateway.ps1*'));ownerCode=$o.ReturnValue;owner=$o.User}}
+          }
+          @{identity=[Security.Principal.WindowsIdentity]::GetCurrent().Name;process=$p;processes=$rows;stopRequest=(Test-Path -LiteralPath (Join-Path $s 'stop.request'));tasks=@(Get-ScheduledTask -TaskName 'NGII-Seumter-*'|ForEach-Object {@{name=$_.TaskName;state=[string]$_.State;user=$_.Principal.UserId}})}|ConvertTo-Json -Depth 5 -Compress
+          
