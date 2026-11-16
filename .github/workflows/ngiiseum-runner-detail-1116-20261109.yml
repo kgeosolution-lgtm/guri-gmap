@@ -1,0 +1,27 @@
+name: NGII runner-detail-1116
+on:
+  push:
+    branches: [codex/ngiiseum-runner-detail-1116-20261109]
+    paths: [.github/workflows/ngiiseum-runner-detail-1116-20261109.yml]
+permissions:
+  contents: read
+concurrency:
+  group: ngiiseum-server-deploy
+  cancel-in-progress: false
+jobs:
+  task:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: runner-detail-1116
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'Host boundary'}
+          $r='D:\services\ngiiseum-runner'
+          $p=@(Get-CimInstance Win32_Process | Where-Object {$_.Name -match '^Runner\.(Listener|Worker)\.exe$'} | Select-Object Name,ProcessId,ParentProcessId,ExecutablePath)
+          $s=Get-Content (Join-Path $r 'supervisor.json') -Raw|ConvertFrom-Json
+          $logs=@('listener.stdout.log','listener.stderr.log')|ForEach-Object {$f=Join-Path $r $_;[pscustomobject]@{name=$_;modified=(Get-Item $f).LastWriteTime;tail=@(Get-Content $f -Tail 18|ForEach-Object {$_ -replace '(?i)(token|password|authorization|secret)[=: ].*','$1=[redacted]'})}}
+          $reg=Get-Content (Join-Path $r '.runner') -Raw|ConvertFrom-Json
+          [pscustomobject]@{processes=$p;supervisor=$s;logs=$logs;registration=[pscustomobject]@{agentName=$reg.agentName;gitHubUrl=$reg.gitHubUrl};tasks=@(Get-ScheduledTask -TaskName '*NGII*' | Select-Object TaskName,State)}|ConvertTo-Json -Depth 7 -Compress
+          
