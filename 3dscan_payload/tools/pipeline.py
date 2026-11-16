@@ -582,6 +582,36 @@ def step_update_point(oid, attrs):
     log(f"scan_points OID {oid} 갱신: {sorted(a)}")
 
 
+# ── 장소 이름 (2026-11-16): 서버 주소 찾기(Locator_EsriKR) 역지오코딩 → '경기 수원시 영통구 원천동'.
+# 공개 지도에 번지를 적으면 집 스캔은 사는 곳이 드러나므로 동(읍·면)까지만 남긴다.
+SIDO_SHORT = {"서울특별시": "서울", "부산광역시": "부산", "대구광역시": "대구", "인천광역시": "인천", "광주광역시": "광주",
+              "대전광역시": "대전", "울산광역시": "울산", "세종특별자치시": "세종", "경기도": "경기", "강원도": "강원",
+              "강원특별자치도": "강원", "충청북도": "충북", "충청남도": "충남", "전라북도": "전북", "전북특별자치도": "전북",
+              "전라남도": "전남", "경상북도": "경북", "경상남도": "경남", "제주특별자치도": "제주"}
+REVERSE_GEOCODE_URL = "https://kgeodata.com/server/rest/services/Locator_EsriKR_v06/GeocodeServer/reverseGeocode"
+
+
+def format_place(a):
+    out = []
+    for k in ("Region", "City", "District", "Neighborhood"):
+        p = (a.get(k) or "").strip()
+        p = SIDO_SHORT.get(p, p) if k == "Region" else p
+        if p and p not in out:
+            out.append(p)
+    return " ".join(out)[:100]
+
+
+def place_name_for(lon, lat, url=None):
+    """좌표(WGS84) → 동 단위 장소 이름. 실패하면 '' (등록은 계속)"""
+    try:
+        out = http_json(url or CFG.get("reverse_geocode_url") or REVERSE_GEOCODE_URL,
+                        {"location": f"{float(lon):.7f},{float(lat):.7f}", "f": "json"}, timeout=15)
+        return format_place(out.get("address") or {})
+    except Exception as e:
+        log(f"장소 이름 생략: {e}")
+        return ""
+
+
 # ── 지도 점의 기록 종류·작업 번호·장소·산출물 필드 (2026-11-16, docs/design_system.md 2-5) ──
 # 사이트는 이 필드로 핀 색을 정하고 VR 투어·평면도·굴착 기록을 찾는다 (예전에는 파일을 하나씩 찔러 봤다 → 404).
 # 레이어에 아직 필드가 없으면 그냥 건너뛴다 (maintenance add-fields 가 추가).
@@ -885,6 +915,8 @@ def step_register(meta, las_info, glb_url, slpk_item_id, scene_item_id, scene_ur
     if "pano_url" in layer_fields and pano_url:            # 레이어에 필드가 없으면 뷰어가 thumb_url(<job>.jpg)에서 <job>_pano/tour.json 을 찾는다
         feature["attributes"]["pano_url"] = pano_url
     feature["attributes"].update(link_attrs(meta, layer_fields, pano_url, floorplan_url, utility_url, site_id))
+    if "place_name" in layer_fields:
+        feature["attributes"]["place_name"] = place_name_for(lon, lat) or None
     out = http_json(layer + "/addFeatures", {"features": json.dumps([feature]), "f": "json", "token": token})
     res = out["addResults"][0]
     if not res.get("success"):

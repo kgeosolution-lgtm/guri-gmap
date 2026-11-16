@@ -486,6 +486,10 @@ require([
     document.getElementById("aDate").textContent      = fmt(attrs.pub_date);
     document.getElementById("aNote").textContent      = attrs.note       || "—";
     document.getElementById("aSceneId").textContent   = attrs.scene_item_id || "—";
+    // 장소 (동 단위, 서버 역지오코딩 place_name — 2026-11-16)
+    const place = (attrs.place_name || "").trim(), sbPlace = document.getElementById("sbPlace");
+    if (sbPlace) { sbPlace.hidden = !place; sbPlace.lastElementChild.textContent = place; }
+    if (document.getElementById("aPlaceRow")) { document.getElementById("aPlaceRow").hidden = !place; document.getElementById("aPlace").textContent = place || "—"; }
     const tinfo = TYPE_INFO[attrs.scan_type] || null;
     const kind = recKind(attrs), kinfo = KIND_INFO[kind];
     const tag = document.getElementById("sbTypeTag");
@@ -1465,7 +1469,8 @@ require([
           <div class="lp-item-title">${esc(displayTitle(a))}${isNew ? '<span class="lp-item-new">새 기록</span>' : ''}</div>
           <div class="lp-item-meta">
             <span class="lp-item-kind"><span class="k-dot ${kind}"></span>${esc(k.label)}</span>
-            ${t ? `<span class="lp-item-type ${esc(a.scan_type)}">${esc(t.label)}</span>` : ''}
+            ${a.place_name ? `<span class="lp-item-place">${esc(a.place_name)}</span>`
+              : t ? `<span class="lp-item-type ${esc(a.scan_type)}">${esc(t.label)}</span>` : ''}
             ${dtStr ? `<span class="lp-item-date k-num">${dtStr}</span>` : ''}
           </div>
           ${extras.length ? `<div class="lp-item-extras">${extras.map(x => `<span>${esc(x)}</span>`).join('')}</div>` : ''}
@@ -1519,6 +1524,7 @@ require([
     else if (_typeFilter) fs = fs.filter(f => (f.attributes.scan_type || '') === _typeFilter);
     if (_kw) fs = fs.filter(f => (f.attributes.scan_title || '').toLowerCase().includes(_kw) ||
                                  displayTitle(f.attributes).toLowerCase().includes(_kw) ||
+                                 (f.attributes.place_name || '').toLowerCase().includes(_kw) ||
                                  KIND_INFO[recKind(f.attributes)].label.toLowerCase().includes(_kw) ||
                                  (f.attributes.note || '').toLowerCase().includes(_kw));
     document.getElementById("lpCount").textContent =

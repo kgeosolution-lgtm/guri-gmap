@@ -1,7 +1,7 @@
 {
-  "once_id": "2026-11-16-scan-fields",
+  "once_id": "2026-11-16-place-names",
   "actions": [
     {"op": "add-fields"},
-    {"op": "backfill-links"}
+    {"op": "backfill-places"}
   ]
 }

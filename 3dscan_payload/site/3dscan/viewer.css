@@ -1543,3 +1543,10 @@ header {
   .esri-ui-bottom-left { bottom: calc(86px + env(safe-area-inset-bottom, 0px)) !important; left: 10px !important; }
   .esri-ui-top-right { top: 12px !important; right: 12px !important; }
 }
+
+/* 장소 (동 단위, 2026-11-16) */
+.sb-meta { flex-wrap: wrap; row-gap: 4px; column-gap: 12px; }
+.sb-place { display: inline-flex; align-items: center; gap: 4px; color: var(--k-ink); font-weight: 600; }
+.sb-place[hidden] { display: none; }
+.k-pin { flex: none; color: var(--k-ink-3); }
+.lp-item-place { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--k-ink-2); }

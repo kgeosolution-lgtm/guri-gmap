@@ -10,6 +10,7 @@ kgeoScan 유지보수 (서버에서 워커 venv 파이썬으로 실행; 설정�
   python -I maintenance.py queue-splat <job_id>         완료된 Stray 작업을 GPU 스플랫 대기열에 넣음 (큐 파일 splat_status=pending)
   python -I maintenance.py backfill-splats              서빙 폴더에 <job>.splat 이 있는데 splat_url 이 빈 스캔을 등록
   python -I maintenance.py backfill-links               기록 종류·작업 번호·장소·VR·평면도·굴착 주소 필드 채우기 (2026-11-16)
+  python -I maintenance.py backfill-places              장소 이름(동 단위, 역지오코딩) 채우기 (2026-11-16)
   actions 전용: {"op": "move-to-folder", "extra": [아이템 id...], "folder": "kgeoscan"}  스캔 Portal 아이템을 한 폴더로 모음
                {"op": "redo-ortho", "job_id": "..."}  끝난 면 촬영 작업의 정사영상을 현재 orthophoto.py 로 다시 만듦
                {"op": "rebuild-glb", "jobs": "all" | [job...]}  Stray 스캔을 현재 워커로 다시 처리하도록 대기열에 넣음 (GLB 만 교체)
@@ -274,6 +275,7 @@ NEW_FIELDS = [
     {"name": "pano_url", "type": "esriFieldTypeString", "alias": "VR 투어 URL", "length": 300, "nullable": True, "editable": True},
     {"name": "floorplan_url", "type": "esriFieldTypeString", "alias": "평면도 URL", "length": 300, "nullable": True, "editable": True},
     {"name": "utility_url", "type": "esriFieldTypeString", "alias": "굴착 기록 URL", "length": 300, "nullable": True, "editable": True},
+    {"name": "place_name", "type": "esriFieldTypeString", "alias": "장소(동 단위)", "length": 100, "nullable": True, "editable": True},
 ]
 
 
@@ -349,6 +351,50 @@ def backfill_links():
             changed += ok
             print(f"  OID {a['objectid']} {job} {kind}: {sorted(upd)} {'갱신' if ok else '실패 ' + str(res)}")
     print(f"backfill-links: {seen}개 중 {changed}개 갱신")
+
+
+SIDO_SHORT = {"서울특별시": "서울", "부산광역시": "부산", "대구광역시": "대구", "인천광역시": "인천", "광주광역시": "광주",
+              "대전광역시": "대전", "울산광역시": "울산", "세종특별자치시": "세종", "경기도": "경기", "강원도": "강원",
+              "강원특별자치도": "강원", "충청북도": "충북", "충청남도": "충남", "전라북도": "전북", "전북특별자치도": "전북",
+              "전라남도": "전남", "경상북도": "경북", "경상남도": "경남", "제주특별자치도": "제주"}
+
+
+def format_place(a):
+    """pipeline.format_place 와 같은 규칙 — 동(읍·면)까지만 (번지는 남기지 않는다)"""
+    out = []
+    for k in ("Region", "City", "District", "Neighborhood"):
+        p = (a.get(k) or "").strip()
+        p = SIDO_SHORT.get(p, p) if k == "Region" else p
+        if p and p not in out:
+            out.append(p)
+    return " ".join(out)[:100]
+
+
+def backfill_places():
+    """place_name 이 비어 있는 점에 동 단위 장소 이름을 채운다 (서버 주소 찾기 역지오코딩)"""
+    stoken = token(CFG["server_url"])
+    if "place_name" not in layer_fields(stoken):
+        print("backfill-places: place_name 필드가 없음 (add-fields 먼저)")
+        return
+    url = CFG.get("reverse_geocode_url") or "https://kgeodata.com/server/rest/services/Locator_EsriKR_v06/GeocodeServer/reverseGeocode"
+    out = http_json(CFG["points_layer_url"] + "/query", {"where": "1=1", "outFields": "objectid,place_name", "returnGeometry": "true",
+                                                         "outSR": "4326", "f": "json", "token": stoken})
+    done = 0
+    for f in out.get("features", []):
+        a, g = f.get("attributes", {}), f.get("geometry") or {}
+        if a.get("place_name") or "x" not in g:
+            continue
+        try:
+            r = http_json(url, {"location": f"{g['x']:.7f},{g['y']:.7f}", "f": "json"}, timeout=20)
+            name = format_place(r.get("address") or {})
+        except Exception as e:
+            print(f"  OID {a.get('objectid')}: 역지오코딩 실패 {e}")
+            continue
+        if name:
+            res = update_attrs(stoken, a["objectid"], {"place_name": name})
+            done += bool(res and res[0].get("success"))
+            print(f"  OID {a['objectid']}: {name}")
+    print(f"backfill-places: {done}개 채움")
 
 
 def update_attrs(stoken, objectid, attrs):
@@ -539,6 +585,8 @@ def main():
                     backfill_splats()
                 elif op == "backfill-links":
                     backfill_links()
+                elif op == "backfill-places":
+                    backfill_places()
                 elif op == "move-to-folder":
                     move_to_folder(act.get("extra", []), act.get("folder"))
                 elif op == "redo-ortho":
@@ -574,6 +622,8 @@ def main():
         backfill_splats()
     elif cmd == "backfill-links":
         backfill_links()
+    elif cmd == "backfill-places":
+        backfill_places()
     else:
         list_scans()
 
