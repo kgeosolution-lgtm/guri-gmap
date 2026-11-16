@@ -1087,3 +1087,9 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 구리시 결정: 지금 쓰는 생활지도 주소 `https://www.guri.go.kr/gmapweb/` 를 그대로 쓴다 → 새 사이트가 그 자리를 교체. `deploy.config.json` 주석에 최종값(origin·base `/gmapweb`·photoBase) 기록(값 자체는 미리보기용 kgeodata 그대로, 구리 빌드 때 바꾼다).
 - `docs/DEPLOY_GURI.md`: 2장을 '응용 프로그램 추가'에서 '기존 /gmapweb 확인·백업 → 새 폴더 + 실제 경로 변경(되돌리기 1분)'으로, 6장에 포털 zip 전달 절차(첫 배포 뒤 담당자 혼자 가능) 추가, 경로 전부 `/gmapweb`.
 - 검증: `DEPLOY_ORIGIN=https://www.guri.go.kr DEPLOY_BASE=/gmapweb DEPLOY_PHOTO_BASE=/images/pet/ npm run build:deploy` 통과(링크·IMG_BASE·deployment.json url 확인), prettier, `git diff --check`. 브랜치 `work/kangmina-gmapweb`.
+
+## 2026-11-16 구리 운영 빌드 명령 `npm run build:guri`, 절차서를 일정·순서 중심으로 재작성 (담당: 강민아)
+
+- `deploy.guri.json`(origin `https://www.guri.go.kr`, base `/gmapweb`, photoBase `/images/pet/`, reviewWidget false, zip true) + `scripts/build-deploy.mjs --config`: 검토 위젯 제거(홈은 `NEXT_PUBLIC_REVIEW_WIDGET=0` 로 layout 에서 안 넣음, 지도 4쪽은 shell:review 표식 제거, `review/` 폴더 삭제, 남아 있으면 빌드 실패), `deployment.json` commit 을 git 에서, `dist/gmapweb-날짜-커밋.zip`(루트에 내용, Windows 는 PowerShell Compress-Archive). `deploy.config.json`·site.config·미리보기 워크플로는 그대로.
+- `docs/DEPLOY_GURI.md` 전면 재작성: 결정 사항(주소 /gmapweb, 포털 zip 전달), 전체 순서 표(①~⑨), 12.1 오픈 방식 A/B 에 따른 마지막 단계, GitHub 에서 할 일 표.
+- 검증: `npm run build:guri`(사진 더미 포함) → 위젯 0건·`review/` 없음·zip 214 파일(루트에 index.html)·url·commit 확인, `npm run build:deploy` 는 그대로(위젯 포함), `tsc`, prettier, `git diff --check`. 브랜치 `work/kangmina-build-guri`.

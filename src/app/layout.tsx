@@ -19,8 +19,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ko">
       <body>
         {children}
-        {/* 오픈 전 검토용 "수정 요청" 위젯 — 오픈할 때 site.config features.reviewWidget 을 false 로 */}
-        {siteConfig.features.reviewWidget && (
+        {/* 오픈 전 검토용 "수정 요청" 위젯 — site.config features.reviewWidget, 또는 구리 운영 빌드(npm run build:guri → NEXT_PUBLIC_REVIEW_WIDGET=0)에서 뺀다 */}
+        {siteConfig.features.reviewWidget && process.env.NEXT_PUBLIC_REVIEW_WIDGET !== '0' && (
           <Script
             src={`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/review/review.js`}
             strategy="afterInteractive"

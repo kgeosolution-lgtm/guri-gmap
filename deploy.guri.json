@@ -1,0 +1,9 @@
+{
+  "_comment": "구리시 서버(운영) 배포 설정 — npm run build:guri 가 읽는다(담당: 강민아). 주소는 기존 생활지도 그대로 https://www.guri.go.kr/gmapweb/ (2026-11-16 확정). 사진은 public/images/pet/ 에 복사해 두면 /gmapweb/images/pet/ 로 함께 담긴다. reviewWidget false 면 검토용 '수정 요청' 위젯을 결과물에서 뺀다. zip true 면 dist/gmapweb-날짜-커밋.zip 을 만든다(포털 업로드용).",
+  "origin": "https://www.guri.go.kr",
+  "base": "/gmapweb",
+  "photoBase": "/images/pet/",
+  "reviewWidget": false,
+  "zip": true,
+  "zipName": "gmapweb"
+}
