@@ -2277,7 +2277,7 @@ async function trackJob(jobId, title) {
                 : sd.mode === "video" ? "<br><span style='color:var(--acc-o)'>사진 3D는 서버가 영상으로 만드는 중이에요(보통 10~30분). 다 되면 목록에서 열어 '사진 3D'로 보세요.</span>"
                 : "") +
               (sd.mode !== "video" && (sd.splat_status === "pending" || sd.splat_status === "processing")
-                ? "<br><span style='color:var(--acc-o)'>사진 3D는 몇 분 뒤 더해져요. 다 되면 목록에서 다시 열어 '사진 3D' 탭을 누르세요.</span>" : "") +
+                ? "<br><span style='color:var(--acc-o)'>사진 3D는 보통 1시간 안에 더해져요. 다 되면 목록에서 다시 열어 '사진 3D' 탭을 누르세요.</span>" : "") +
               (sd.utilities_url ? "<br><span style='color:var(--accent)'>굴착 기록: 목록에서 열어 '지하시설물' 탭에서 관 위치·깊이를 보고 '조서·산출물'을 내려받으세요.</span>" : "") +
               (sd.message && sd.message !== "처리 완료" ? `<br><span style='color:var(--text3)'>${esc(sd.message)}</span>` : "");
             dm.classList.add("show");
