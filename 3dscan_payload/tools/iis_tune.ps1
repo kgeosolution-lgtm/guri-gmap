@@ -35,7 +35,8 @@ function Run($desc, [string[]]$a, [switch]$DupOk) {
   if ($DryRun) { Say "  [DRY] $desc"; return }
   $out = (& $appcmd @a 2>&1) -join ' '
   if ($LASTEXITCODE -ne 0) {
-    if ($DupOk -and $out -match 'duplicate') { Say "  ..  $desc (already)"; return }
+    # 한국어 Windows 는 'duplicate' 대신 '중복' 으로 답한다 (2026-11-16 첫 실행이 image/svg+xml 에서 멈춘 원인)
+    if ($DupOk -and $out -match 'duplicate|중복') { Say "  ..  $desc (already)"; return }
     throw "$desc failed: $out"
   }
   Say "  OK  $desc"
@@ -90,15 +91,33 @@ if (-not $SkipCompression) {
     if ($DryRun) { Say '  [DRY] install Web-Dyn-Compression (IIS app pools recycle once)' } else { Install-WindowsFeature Web-Dyn-Compression | Out-Null; Say '  OK  installed Web-Dyn-Compression' }
   } elseif ($feat) { Say '  ..  dynamic compression feature already installed' }
   else { Say '  !!  could not check Web-Dyn-Compression (not Windows Server?) - continuing' }
+  # 기능은 설치돼 있는데 IIS 에 모듈 등록이 없을 수 있다 (설치 뒤 -Undo 로 설정을 되돌린 경우) → 등록
+  $dll = Join-Path $env:windir 'System32\inetsrv\compdyn.dll'
+  $mod = (& $appcmd list module /name:DynamicCompressionModule 2>&1) -join ' '
+  if ($mod -notmatch 'DynamicCompressionModule') {
+    if (Test-Path -LiteralPath $dll) {
+      Run 'register DynamicCompressionModule in IIS' @('install', 'module', '/name:DynamicCompressionModule', "/image:$dll") -DupOk
+      $mod = (& $appcmd list module /name:DynamicCompressionModule 2>&1) -join ' '
+      if (-not $DryRun -and $mod -notmatch 'DynamicCompressionModule') { Run '  enable it at server level' @('add', 'module', '/name:DynamicCompressionModule') -DupOk }
+    }
+    elseif ($DryRun) { Say '  [DRY] (module will be registered by the feature install)' }
+    else { Say '  !!  compdyn.dll not found - dynamic compression unavailable' }
+  } else { Say '  ..  DynamicCompressionModule registered' }
 
   # 목록 맨 앞(@start)에 넣는다: 기본 목록 끝의 */* (enabled=false) 보다 먼저 맞아야 한다. 이미 있으면 건너뛴다
   # ArcGIS 는 'application/json; charset=UTF-8' 로 보내므로 charset 이 붙은 모양도 넣는다
   $static  = @('application/json', 'application/json; charset=utf-8', 'application/geo+json', 'application/manifest+json', 'model/gltf-binary', 'image/svg+xml', 'application/xml')
   $dynamic = @('application/json', 'application/json; charset=utf-8', 'application/json;charset=utf-8', 'application/geo+json', 'application/xml')
+  # 이미 있는 형식은 먼저 읽어서 건너뛴다 (기본 목록에 image/svg+xml 등이 이미 있다)
+  $cfgTxt = (& $appcmd list config -section:system.webServer/httpCompression 2>&1) -join "`n"
+  $blk = { param($name) $m = [regex]::Match($cfgTxt, "(?s)<$name>(.*?)</$name>"); if ($m.Success) { @([regex]::Matches($m.Groups[1].Value, 'mimeType="([^"]+)"') | ForEach-Object { $_.Groups[1].Value.ToLower() }) } else { @() } }
+  $haveStatic = & $blk 'staticTypes'; $haveDynamic = & $blk 'dynamicTypes'
   foreach ($t in $static) {
+    if ($haveStatic -contains $t.ToLower()) { Say "  ..  static  $t (already)"; continue }
     Run "static  += $t" @('set', 'config', '-section:system.webServer/httpCompression', "/+staticTypes.[@start,mimeType='$t',enabled='True']", '/commit:apphost') -DupOk
   }
   foreach ($t in $dynamic) {
+    if ($haveDynamic -contains $t.ToLower()) { Say "  ..  dynamic $t (already)"; continue }
     Run "dynamic += $t" @('set', 'config', '-section:system.webServer/httpCompression', "/+dynamicTypes.[@start,mimeType='$t',enabled='True']", '/commit:apphost') -DupOk
   }
   Run 'static compression from the first request (frequentHitThreshold=1)' @('set', 'config', '-section:system.webServer/serverRuntime', '/frequentHitThreshold:1', '/commit:apphost')
