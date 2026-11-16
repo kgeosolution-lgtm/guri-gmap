@@ -1,6 +1,6 @@
 {
-  "once_id": "2026-11-16-mobile-glb",
+  "once_id": "2026-11-16-spz",
   "actions": [
-    {"op": "build-mobile-glb"}
+    {"op": "build-spz"}
   ]
 }

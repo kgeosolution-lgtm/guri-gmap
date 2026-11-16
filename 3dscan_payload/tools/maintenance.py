@@ -621,6 +621,31 @@ def build_mobile_glb(force=False):
     print(f"build-mobile-glb: 만듦 {n}, 이미 있음 {skip}, 못 만듦 {fail}")
 
 
+def build_spz(force=False):
+    """서빙 폴더의 <job>.splat·<job>_full.splat 마다 작은 판 .spz 를 만든다 (없거나 오래됐을 때, 2026-11-16)"""
+    import subprocess
+    d = CFG["glb_serve_dir"]
+    tool = os.path.join(CFG.get("worker_dir") or os.path.join(HERE, "worker"), "splat_to_spz.py")
+    py = CFG.get("worker_python") or sys.executable
+    n = skip = fail = 0
+    for name in sorted(os.listdir(d)):
+        if not name.lower().endswith(".splat"):
+            continue
+        src = os.path.join(d, name)
+        dst = src[:-6] + ".spz"
+        if not force and os.path.exists(dst) and os.path.getmtime(dst) >= os.path.getmtime(src):
+            skip += 1
+            continue
+        r = subprocess.run([py, "-I", tool, src, dst], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600)
+        last = (r.stdout or r.stderr or "").strip().splitlines()
+        print("  " + (last[-1] if last else f"exit {r.returncode}"))
+        if r.returncode == 0 and os.path.exists(dst):
+            n += 1
+        else:
+            fail += 1
+    print(f"build-spz: 만듦 {n}, 이미 있음 {skip}, 못 만듦 {fail}")
+
+
 def main():
     if len(sys.argv) >= 3 and sys.argv[1] == "--actions":
         spec = json.load(open(sys.argv[2], "r", encoding="utf-8"))
@@ -669,6 +694,8 @@ def main():
                     build_fonts(act.get("source", "NGII_GRAY_2026"), act.get("name", "ngii"))
                 elif op == "build-mobile-glb":
                     build_mobile_glb(bool(act.get("force")))
+                elif op == "build-spz":
+                    build_spz(bool(act.get("force")))
                 else:
                     print(f"알 수 없는 작업: {op}")
             except Exception as e:

@@ -155,7 +155,13 @@ async function run(url) {
   $('hudInfo').textContent = name;
   const isFull = /_full\.(splat|spz|ksplat)$/.test(url.pathname);
   const metaUrl = isFull ? new URL(url.href.replace(/_full(\.(splat|spz|ksplat))$/, '$1')) : url;
-  const [meta, vrOK] = await Promise.all([loadMeta(metaUrl), detectVR()]);
+  // 작은 판 .spz 가 옆에 있으면 그것을 읽는다 (2026-11-16: SPZ v2, 16 MB → 6 MB, worker/splat_to_spz.py).
+  // 없으면(옛 기록·변환 실패) 원래 .splat. 시점·걷기는 원래 주소 기준
+  const spzProbe = /\.splat$/i.test(url.pathname)
+    ? fetch(url.href.replace(/\.splat$/i, '.spz'), { method: 'HEAD', cache: 'no-store' }).then(r => r.ok ? r.url : null).catch(() => null)
+    : Promise.resolve(null);
+  const [meta, vrOK, spzUrl] = await Promise.all([loadMeta(metaUrl), detectVR(), spzProbe]);
+  const sceneUrl = spzUrl || url.href;
   const view = meta && meta.view ? meta.view : null;
   // 물체 모드: 자른 것(기본) ↔ 전체 전환 버튼
   if (meta && meta.splat_full_url) {
@@ -195,7 +201,7 @@ async function run(url) {
   }
   const bar = $('barFill'), lt = $('loadText');
   try {
-    await viewer.addSplatScene(url.href, {
+    await viewer.addSplatScene(sceneUrl, {
       splatAlphaRemovalThreshold: 5,
       showLoadingUI: false,
       progressiveLoad: false,

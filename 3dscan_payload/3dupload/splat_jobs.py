@@ -34,6 +34,7 @@ import email.policy
 import hmac
 import json
 import os
+import subprocess
 import shutil
 import socket
 import sys
@@ -506,6 +507,18 @@ def op_upload(cfg, job_id):
         for old in (os.path.join(serve_dir, job_id + "_full" + e) for e in (".splat", ".spz", ".ksplat")):
             if os.path.exists(old):
                 os.remove(old)                                   # 전체 모드로 다시 만든 경우 옛 _full 제거
+    # 폰용 작은 판 <job>.spz (SPZ v2, 약 40 %, 2026-11-16 worker/splat_to_spz.py). splat.html 이 있으면 .spz 를 먼저 읽는다.
+    # 옛 .spz 가 남아 새 .splat 과 어긋나지 않게 먼저 지우고 만든다. 실패해도 업로드는 그대로 (뷰어가 .splat 을 쓴다)
+    if ext == ".splat":
+        for s in [dest] + ([os.path.join(serve_dir, job_id + "_full.splat")] if full_url else []):
+            spz = s[:-6] + ".spz"
+            try:
+                if os.path.exists(spz):
+                    os.remove(spz)
+                subprocess.run([cfg["worker_python"], "-I", os.path.join(cfg["worker_dir"], "splat_to_spz.py"), s, spz],
+                               capture_output=True, timeout=300)
+            except Exception:
+                pass
     # 영상 작업: 3D 에서 고른 대표 화면 (선택) → <job>.jpg 덮어쓰기 (scan_points.thumb_url 이 이미 이 주소)
     thumb_url = None
     if thumb_item and thumb_item[1]:

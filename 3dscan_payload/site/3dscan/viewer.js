@@ -200,7 +200,7 @@ require([
   let _splatFrame = null;                   // splat.html iframe
   const WALK_JS = "walk.js?v=0981c0752e";                                          // 🚶 걸어보기 모듈 (배포 때 ?v=해시 를 붙이면 좋다)
   const ORTHO_PAGE = "ortho.html?v=0e87657983";                       // 배포(deploy.mjs stampAssets)가 ?v=해시 를 붙인다
-  const SPLAT_PAGE = "splat.html?v=02de1520e0";          // 배포(deploy.mjs stampAssets)가 ?v=해시 를 붙인다
+  const SPLAT_PAGE = "splat.html?v=78ac71f93b";          // 배포(deploy.mjs stampAssets)가 ?v=해시 를 붙인다
   const UTILITY_PAGE = "utility.html?v=e960a8d41c";                   // 굴착 기록 3D X-ray (배포가 ?v=해시 를 붙인다)
   let _utilInfo = null;                                  // 현재 스캔의 굴착 기록 {url, report} (utilities.json 이 있을 때만)
   const PANO_PAGE = "pano.html?v=4c97fd9136";                                       // 🥽 VR 투어 360° 실사 (배포가 ?v=해시 를 붙인다)
