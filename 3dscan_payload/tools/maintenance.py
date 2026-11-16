@@ -551,6 +551,51 @@ def backfill_splats():
     print(f"backfill-splats: {n}개 등록")
 
 
+def build_fonts(source="NGII_GRAY_2026", name="ngii"):
+    """지도 글꼴(pbf)을 미리 gzip 으로 압축해 사이트 폴더 fonts\\<name>\\<글꼴>\\<범위>.pbf 에 둔다 (2026-11-16).
+    ArcGIS Web Adaptor 가 내보내는 이진 응답은 IIS 동적 압축이 먹지 않아(iis_tune -Fonts 두 번 실패) 첫 화면에 약 6MB 가 그대로 갔다.
+    viewer.js 가 지도 글꼴 요청 주소를 이 사본으로 바꾼다 (esriConfig.request.interceptors).
+    파일 내용은 gzip 이고 fonts\\web.config 가 Content-Encoding: gzip 을 붙인다. NGII_GRAY_2026 과 NGII_Hybrid 는 글꼴 파일이 같다"""
+    import gzip
+    import urllib.error
+    site = os.path.dirname(CFG["glb_serve_dir"].rstrip("\\/"))
+    base = CFG["server_url"] + f"/rest/services/Hosted/{source}/VectorTileServer"
+    style = http_json(base + "/resources/styles/root.json")
+    stacks = set()
+    for lyr in style.get("layers", []):
+        tf = (lyr.get("layout") or {}).get("text-font")
+        if isinstance(tf, list) and tf and all(isinstance(x, str) for x in tf):
+            stacks.add(",".join(tf))
+    root = os.path.join(site, "fonts", name)
+    for stack in sorted(stacks):
+        out_dir = os.path.join(root, stack)
+        os.makedirs(out_dir, exist_ok=True)
+        n, raw, packed = 0, 0, 0
+        for start in range(0, 65536, 256):
+            rng = f"{start}-{start + 255}"
+            url = base + "/resources/fonts/" + urllib.parse.quote(stack) + "/" + rng + ".pbf"
+            try:
+                with urllib.request.urlopen(url, timeout=60) as r:
+                    data = r.read()
+                    if (r.headers.get("Content-Encoding") or "").lower() == "gzip":
+                        data = gzip.decompress(data)
+            except urllib.error.HTTPError as e:
+                if e.code != 404:
+                    raise
+                data = b""                                    # 그 범위에 글자가 없다 → 빈 글꼴 (지도는 그 글자를 건너뜀)
+            gz = gzip.compress(data, compresslevel=9, mtime=0)
+            dst = os.path.join(out_dir, rng + ".pbf")
+            with open(dst + ".tmp", "wb") as f:
+                f.write(gz)
+            os.replace(dst + ".tmp", dst)
+            n, raw, packed = n + 1, raw + len(data), packed + len(gz)
+        print(f"build-fonts: {name}/{stack} {n}개 {raw / 1e6:.1f}MB -> {packed / 1e6:.1f}MB")
+    info = {"source": source, "stacks": sorted(stacks), "built": time.strftime("%Y-%m-%dT%H:%M:%S")}
+    with open(os.path.join(root, "ready.json"), "wb") as f:   # 이 폴더는 모두 gzip 으로 나가므로 이것도 gzip 으로 쓴다
+        f.write(gzip.compress(json.dumps(info, ensure_ascii=False).encode("utf-8"), mtime=0))
+    print(f"build-fonts: ready {sorted(stacks)}")
+
+
 def main():
     if len(sys.argv) >= 3 and sys.argv[1] == "--actions":
         spec = json.load(open(sys.argv[2], "r", encoding="utf-8"))
@@ -595,6 +640,8 @@ def main():
                     rebuild_glb(act.get("jobs", "all"))
                 elif op == "set-visibility":
                     set_visibility(act.get("job_id"), act.get("visibility"), act.get("edit_key_sha256"))
+                elif op == "build-fonts":
+                    build_fonts(act.get("source", "NGII_GRAY_2026"), act.get("name", "ngii"))
                 else:
                     print(f"알 수 없는 작업: {op}")
             except Exception as e:
@@ -624,6 +671,8 @@ def main():
         backfill_links()
     elif cmd == "backfill-places":
         backfill_places()
+    elif cmd == "build-fonts":
+        build_fonts(*(sys.argv[2:4]))
     else:
         list_scans()
 

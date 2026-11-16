@@ -53,6 +53,7 @@ jobs:
             'site/3dscan/capture.html' = '2c61d2a978932f6ad9469485c0b6329d376bc2cd2c49482210ae71f940ae40bc'
             'site/3dscan/glb.web.config' = 'a9c97f7408e65c2181220e75804ab4859534881607555cf5ed415a67b967188d'
             'site/3dscan/site.web.config' = '07ed87a8ae6e6a24e0df3bedc6de704002023a833753155eac7645c416cc8dbf'
+            'site/3dscan/fonts.web.config' = 'b01de204d0b4c381608b3c88291835c6637386f2bc193c745d8836a71c2a341e'
             'tools/iis_tune.ps1' = '87bdf57758214a0d2fce1994687e7b0bec274d3e136f06f038200f7a962f82d0'
             '3dupload/common.py' = '4dbae79f8a4da75942c7783da799e0b52e8bb56875b6856fd37b925d4d3673bc'
             '3dupload/upload.py' = 'f2a8d77833c9d4037de875e798069b4c6df853ba0ef7f69e4204a72677e6acd4'
@@ -69,9 +70,9 @@ jobs:
             'tools/pipeline.py' = 'e68693fe032e619f883a6ed32b222f2a0eb340a9f14d9b321f6ee2d0244e5c6f'
             'tools/slpk_step.py' = 'a76ee0bc029538ce8b9d93904ce06cd9294842f0a119d5f3565294b2a0e30b95'
             'tools/register_task.ps1' = 'f715092ec71960880a80d5aa18ebad602786209b229a194d22095e40e0c394ae'
-            'tools/maintenance.py' = '2f620288b1c0c25496ee86e01a36b92c60e297c4b82a6c2b935edf4e5a2ec989'
+            'tools/maintenance.py' = '62af058fa1cc7b87d816eb98caf57337ac00f4f8644154a7c89b63296e8147b7'
             'tools/config_patch.py' = '8a17bc868075356ce46f94e2c07eca8f715a6fbbebe376db6b6d120c398777a9'
-            'maintenance.json' = '6c3d1a5eda532aa60b49e12ca0a1d7a04455a449fc594823ed32b436db35f6c4'
+            'maintenance.json' = '85450c489c62d0bf49e3b8d5bb325ba12b35d9ce91b03963b0cefa849904892f'
             'worker/process_scan.py' = '221a2487ab6aa3b3602fdeab6e2371a9cebd012cda869ffe6e499a8154fee746'
             'worker/stray_to_mesh.py' = 'e683cfabd91a067ddef3f6a3e6ccbb8d352033432a6041cd4ae7481914a9b6b8'
             'worker/video_rows.py' = '42c99ebc490d037c22a5a9103d006c4449fe20525576acae89d019c42a542d11'
@@ -148,6 +149,9 @@ jobs:
           # 스플랫 파일(.splat/.spz/.json) MIME 매핑: glb\web.config (이 폴더에만 적용). 아래 'SPLAT MIME' 검사에서 실패하면 제거한다
           New-Item -ItemType Directory -Force -Path (Join-Path $site 'glb') | Out-Null
           Copy-Item -LiteralPath (Join-Path $src 'site\3dscan\glb.web.config') -Destination (Join-Path $site 'glb\web.config') -Force
+          # 지도 글꼴 gzip 사본 폴더 설정 (파일은 maintenance build-fonts 가 만든다)
+          New-Item -ItemType Directory -Force -Path (Join-Path $site 'fonts') | Out-Null
+          if (Test-Path -LiteralPath (Join-Path $src 'site\3dscan\fonts.web.config')) { Copy-Item -LiteralPath (Join-Path $src 'site\3dscan\fonts.web.config') -Destination (Join-Path $site 'fonts\web.config') -Force }
           # 3dscan 폴더 web.config (캐시·보안 머리글, 2026-11-16). 사람이 둔 다른 web.config 가 있으면 덮지 않고 내용만 기록한다
           $siteCfg = Join-Path $site 'web.config'
           $siteCfgOk = $true
@@ -247,6 +251,7 @@ jobs:
             $dest = switch -Wildcard ($k) {
               'site/3dscan/glb.web.config' { Join-Path $site 'glb\web.config'; break }
               'site/3dscan/site.web.config' { if ($siteCfgOk) { $siteCfg } else { $null }; break }
+              'site/3dscan/fonts.web.config' { Join-Path $site 'fonts\web.config'; break }
               'site/3dscan/*' { Join-Path $site ($k.Substring(12)) }
               '3dupload/*'    { Join-Path $upload ($k.Substring(9)) }
               'tools/*'       { Join-Path $tools ($k.Substring(6)) }
@@ -325,4 +330,12 @@ jobs:
             $mout = cmd /c ('"' + $venvPy + '" -I "' + (Join-Path $tools 'maintenance.py') + '" --actions "' + (Join-Path $src 'maintenance.json') + '" 2>&1')
             foreach ($l in $mout) { "MAINT: $l" }
           } catch { "MAINT: failed - $($_.Exception.Message)" }
+          # 지도 글꼴 사본 확인: 있으면 gzip 으로 나가는지
+          try {
+            $fc = Join-Path $site 'fonts\ngii\NanumGothicOTF ExtraBold\44032-44287.pbf'
+            if (Test-Path -LiteralPath $fc) {
+              $h = (& curl.exe -s -o NUL -D - -H 'Accept-Encoding: gzip' --max-time 30 'https://kgeodata.com/app/3dscan/fonts/ngii/NanumGothicOTF%20ExtraBold/44032-44287.pbf') -join ' | '
+              "FONTS COPY: file $((Get-Item -LiteralPath $fc).Length) bytes; $h"
+            } else { "FONTS COPY: not built yet" }
+          } catch { "FONTS COPY: check failed - $($_.Exception.Message)" }
           exit 0

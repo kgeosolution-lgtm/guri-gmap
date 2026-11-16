@@ -1,7 +1,6 @@
 {
-  "once_id": "2026-11-16-place-names",
+  "once_id": "2026-11-16-fonts",
   "actions": [
-    {"op": "add-fields"},
-    {"op": "backfill-places"}
+    {"op": "build-fonts", "source": "NGII_GRAY_2026", "name": "ngii"}
   ]
 }
