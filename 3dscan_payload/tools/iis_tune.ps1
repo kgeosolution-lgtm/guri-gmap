@@ -1,26 +1,28 @@
 ﻿<#
   kgeodata.com IIS 서버 전체 설정 (2026-11-16 기술 점검) — 관리자 PowerShell 로 한 번 실행
 
+    powershell -ExecutionPolicy Bypass -File D:\kgeoHub\tools\3dscan\iis_tune.ps1 -DryRun    # 바꿀 것만 보기 (아무것도 안 바꿈)
     powershell -ExecutionPolicy Bypass -File D:\kgeoHub\tools\3dscan\iis_tune.ps1            # 적용
-    powershell -ExecutionPolicy Bypass -File D:\kgeoHub\tools\3dscan\iis_tune.ps1 -DryRun    # 바꿀 것만 보기
     powershell -ExecutionPolicy Bypass -File D:\kgeoHub\tools\3dscan\iis_tune.ps1 -Undo      # 바로 전 상태로 되돌리기
 
   하는 일
     1. applicationHost.config 백업 (appcmd add backup kgeo-tune-<시각>) — -Undo 가 이것으로 되돌린다
-    2. 압축: 동적 압축 기능이 없으면 설치, JSON·GeoJSON·glTF·SVG·manifest 를 압축 목록 맨 앞에 추가,
-       정적 파일은 첫 요청부터 압축 (frequentHitThreshold=1). application/octet-stream 은 넣지 않는다
+    2. 압축: 동적 압축 기능이 없으면 설치(이때 IIS 앱 풀이 한 번 재시작 = 포털·서버 몇 초 느림), JSON·GeoJSON·glTF·SVG·manifest 를
+       압축 목록 맨 앞에 추가, 정적 파일은 첫 요청부터 압축. application/octet-stream 은 넣지 않는다
        (포털 항목 내려받기 같은 큰 파일을 실시간 압축하면 느려지고 이어받기가 깨질 수 있다)
-    3. https 강제: http 요청을 https 로 301, HSTS 머리글(기본 1일). Windows Server 2019(빌드 17763) 이상은 IIS 사이트 HSTS 기능,
-       그보다 낮으면 URL Rewrite 전역 규칙(설치돼 있을 때만)
-    4. 확인: http→https, JSON gzip, 포털·서버 REST 200, 벡터 타일 정상
-
-  인증서 자동 갱신(Let's Encrypt HTTP-01)은 https 로 넘겨도 따라가므로 그대로 동작한다.
+    3. https: URL Rewrite 전역 규칙 하나 — http 이고 주소가 kgeodata.com 또는 www.kgeodata.com 일 때만 https://kgeodata.com 같은 경로로 301.
+       - IIS 사이트 HSTS 의 'http→https' 는 쓰지 않는다: www 는 https 가 404 라(2026-11-16 확인) http://www 사용자가 깨진다
+       - HSTS 머리글은 기본으로 보내지 않는다(-Hsts 로 켬): 같은 주소 3000 번 포트에 http 서비스가 있어 브라우저가 https 로 강제하면 깨진다
+       - Let's Encrypt 인증 경로(/.well-known/acme-challenge/)는 넘기지 않는다
+       - 다른 도메인·IP 로 들어오는 요청, 3000 번 같은 다른 포트는 건드리지 않는다
+    4. 확인: http→https, www→https://kgeodata.com, JSON gzip(풀리는지 포함), 포털·서버 REST, 벡터 타일, 기록 질의
 #>
 param(
   [switch]$Undo,
   [switch]$DryRun,
   [switch]$SkipHttps,
   [switch]$SkipCompression,
+  [switch]$Hsts,
   [int]$HstsMaxAge = 86400,
   [string]$HostName = 'kgeodata.com'
 )
@@ -54,16 +56,21 @@ if ($Undo) {
   exit 0
 }
 
-# ── 사이트 찾기: https(443) 바인딩이 있는 사이트 중 호스트 이름이 맞거나 비어 있는 것
+# ── 현재 상태 보이기: 사이트·바인딩 (HSTS 를 켤 때 쓸 사이트 = https 바인딩에 이 호스트가 있는 사이트)
+$build = [Environment]::OSVersion.Version.Build
+Say "Windows build $build"
 $sitesXml = [xml](& $appcmd list site /config /xml)
 $site = $null
 foreach ($s in $sitesXml.appcmd.SITE) {
   $b = @($s.site.bindings.binding)
-  if ($b | Where-Object { $_.protocol -eq 'https' -and ($_.bindingInformation -match ":443:$([regex]::Escape($HostName))$" -or $_.bindingInformation -match ':443:$') }) { $site = $s.'SITE.NAME'; break }
+  Say ("Site '{0}': {1}" -f $s.'SITE.NAME', (($b | ForEach-Object { $_.protocol + ' ' + $_.bindingInformation }) -join ', '))
+  if (-not $site -and ($b | Where-Object { $_.protocol -eq 'https' -and $_.bindingInformation -match ":443:$([regex]::Escape($HostName))$" })) { $site = $s.'SITE.NAME' }
 }
-if (-not $site) { throw "no IIS site with an https:443 binding for $HostName" }
-$build = [Environment]::OSVersion.Version.Build
-Say "Site: $site   (Windows build $build)"
+if (-not $site) {
+  foreach ($s in $sitesXml.appcmd.SITE) { if (@($s.site.bindings.binding) | Where-Object { $_.protocol -eq 'https' -and $_.bindingInformation -match ':443:$' }) { $site = $s.'SITE.NAME'; break } }
+}
+$rewriteOk = Test-Path -LiteralPath (Join-Path $env:windir 'system32\inetsrv\rewrite.dll')
+if (-not $SkipHttps -and -not $rewriteOk) { throw 'URL Rewrite module is not installed - run again with -SkipHttps, or install URL Rewrite first' }
 
 # ── 1. 백업
 $bkName = 'kgeo-tune-' + (Get-Date -Format 'yyyyMMdd-HHmmss')
@@ -80,7 +87,7 @@ if (-not $SkipCompression) {
   $feat = $null
   try { Import-Module ServerManager -ErrorAction Stop; $feat = Get-WindowsFeature Web-Dyn-Compression } catch { }
   if ($feat -and $feat.InstallState -ne 'Installed') {
-    if ($DryRun) { Say '  [DRY] install Web-Dyn-Compression' } else { Install-WindowsFeature Web-Dyn-Compression | Out-Null; Say '  OK  installed Web-Dyn-Compression' }
+    if ($DryRun) { Say '  [DRY] install Web-Dyn-Compression (IIS app pools recycle once)' } else { Install-WindowsFeature Web-Dyn-Compression | Out-Null; Say '  OK  installed Web-Dyn-Compression' }
   } elseif ($feat) { Say '  ..  dynamic compression feature already installed' }
   else { Say '  !!  could not check Web-Dyn-Compression (not Windows Server?) - continuing' }
 
@@ -98,35 +105,37 @@ if (-not $SkipCompression) {
   Run 'urlCompression static+dynamic on (server level)' @('set', 'config', '-section:system.webServer/urlCompression', '/doStaticCompression:True', '/doDynamicCompression:True', '/commit:apphost')
 }
 
-# ── 3. https 강제 + HSTS
+# ── 3. https: kgeodata.com·www 의 http 만 https://kgeodata.com 으로
 if (-not $SkipHttps) {
-  Say 'HTTPS'
-  if ($build -ge 17763) {
-    Run "HSTS on site '$site' (max-age=$HstsMaxAge, http->https 301)" @('set', 'config', '-section:system.applicationHost/sites',
-      "/[name='$site'].hsts.enabled:True", "/[name='$site'].hsts.max-age:$HstsMaxAge", "/[name='$site'].hsts.redirectHttpToHttps:True", '/commit:apphost')
-  } elseif (Test-Path -LiteralPath (Join-Path $env:windir 'system32\inetsrv\rewrite.dll')) {
-    $rules = (& $appcmd list config -section:system.webServer/rewrite/globalRules /text:*) -join "`n"
-    if ($rules -match 'kgeo-https') { Say '  ..  rewrite rule kgeo-https already present' }
-    else {
-      Run 'URL Rewrite global rule kgeo-https' @('set', 'config', '-section:system.webServer/rewrite/globalRules', "/+[name='kgeo-https',stopProcessing='True']", '/commit:apphost')
-      Run '  match .*' @('set', 'config', '-section:system.webServer/rewrite/globalRules', "/[name='kgeo-https'].match.url:(.*)", '/commit:apphost')
-      Run '  condition HTTPS off' @('set', 'config', '-section:system.webServer/rewrite/globalRules', "/+[name='kgeo-https'].conditions.[input='{HTTPS}',pattern='^OFF$']", '/commit:apphost')
-      Run '  redirect 301' @('set', 'config', '-section:system.webServer/rewrite/globalRules', "/[name='kgeo-https'].action.type:Redirect", "/[name='kgeo-https'].action.url:https://{HTTP_HOST}/{R:1}", "/[name='kgeo-https'].action.redirectType:Permanent", '/commit:apphost')
-    }
-  } else { Say '  !!  Windows build < 17763 and no URL Rewrite: skipped (the pages already switch to https by themselves)' }
+  Say 'HTTPS redirect (URL Rewrite global rule kgeo-https)'
+  $rules = (& $appcmd list config -section:system.webServer/rewrite/globalRules /text:*) -join "`n"
+  if ($rules -match "kgeo-https") { Say '  ..  rule kgeo-https already present' }
+  else {
+    $sec = '-section:system.webServer/rewrite/globalRules'
+    $hostPat = '^(www\.)?' + [regex]::Escape($HostName) + '(:80)?$'
+    Run 'add rule kgeo-https (first in the list)' @('set', 'config', $sec, "/+[@start,name='kgeo-https',patternSyntax='ECMAScript',stopProcessing='True']", '/commit:apphost')
+    Run '  match any path' @('set', 'config', $sec, "/[name='kgeo-https'].match.url:.*", '/commit:apphost')
+    Run '  only plain http' @('set', 'config', $sec, "/+[name='kgeo-https'].conditions.[input='{HTTPS}',pattern='^OFF$']", '/commit:apphost')
+    Run "  only host $HostName / www.$HostName" @('set', 'config', $sec, "/+[name='kgeo-https'].conditions.[input='{HTTP_HOST}',pattern='$hostPat']", '/commit:apphost')
+    Run '  not the Lets Encrypt challenge path' @('set', 'config', $sec, "/+[name='kgeo-https'].conditions.[input='{REQUEST_URI}',pattern='^/\.well-known/acme-challenge/',negate='True']", '/commit:apphost')
+    Run "  301 -> https://$HostName{REQUEST_URI}" @('set', 'config', $sec, "/[name='kgeo-https'].action.type:Redirect", "/[name='kgeo-https'].action.url:https://$HostName{REQUEST_URI}", "/[name='kgeo-https'].action.appendQueryString:False", "/[name='kgeo-https'].action.redirectType:Permanent", '/commit:apphost')
+  }
+  if ($Hsts) {
+    if (-not $site) { throw 'HSTS: no https site found' }
+    Say "  !!  HSTS on - browsers will also force https on other ports of $HostName (e.g. :3000) for $HstsMaxAge s"
+    Run "HSTS header on site '$site' (max-age=$HstsMaxAge, no redirect)" @('set', 'config', '-section:system.applicationHost/sites',
+      "/[name='$site'].hsts.enabled:True", "/[name='$site'].hsts.max-age:$HstsMaxAge", "/[name='$site'].hsts.redirectHttpToHttps:False", '/commit:apphost')
+  } else { Say '  ..  HSTS header not sent (use -Hsts to turn it on)' }
 }
 
-if ($DryRun) { Say 'Dry run only - nothing changed.'; exit 0 }
+if ($DryRun) { Say ''; Say 'Dry run only - nothing changed.'; exit 0 }
 
 # ── 4. 확인
 Say 'Checks'
-Start-Sleep -Seconds 2
+Start-Sleep -Seconds 3
 $curl = Join-Path $env:windir 'system32\curl.exe'
-function Head($url, [string[]]$extra) {
-  if (Test-Path -LiteralPath $curl) { return (& $curl -s -o NUL -D - --max-time 30 @extra $url) -join "`n" }
-  try { $r = Invoke-WebRequest -Uri $url -UseBasicParsing -MaximumRedirection 0 -Headers @{ 'Accept-Encoding' = 'gzip' } -TimeoutSec 30 -ErrorAction Stop; return "HTTP/1.1 $($r.StatusCode)`n" + ($r.Headers.GetEnumerator() | ForEach-Object { "$($_.Key): $($_.Value)" }) -join "`n" }
-  catch { $resp = $_.Exception.Response; if ($resp) { return "HTTP/1.1 $([int]$resp.StatusCode)`nLocation: $($resp.Headers['Location'])" } return "ERROR $($_.Exception.Message)" }
-}
+if (-not (Test-Path -LiteralPath $curl)) { Say '  !!  curl.exe not found - skipping checks'; exit 0 }
+function Head($url, [string[]]$extra) { (& $curl -s -o NUL -D - --max-time 30 @extra $url) -join "`n" }
 $bad = 0
 function Check($label, $text, $pattern) {
   $ok = $text -match $pattern
@@ -134,18 +143,23 @@ function Check($label, $text, $pattern) {
   Say ("  {0}  {1}" -f $(if ($ok) { 'OK ' } else { 'BAD' }), $label)
   if (-not $ok) { Say ('       ' + (($text -split "`n" | Select-Object -First 6) -join ' | ')) }
 }
-if (-not $SkipHttps) { Check 'http -> https redirect' (Head "http://$HostName/app/3dscan/" @()) '(?mi)^HTTP/\S+ 30[178][\s\S]*^Location: https://' }
+if (-not $SkipHttps) {
+  Check 'http://kgeodata.com -> https' (Head "http://$HostName/app/3dscan/?x=1" @()) "(?mi)^HTTP/\S+ 301[\s\S]*^Location: https://$([regex]::Escape($HostName))/app/3dscan/\?x=1"
+  Check 'http://www -> https://kgeodata.com' (Head "http://www.$HostName/app/3dscan/" @()) "(?mi)^HTTP/\S+ 301[\s\S]*^Location: https://$([regex]::Escape($HostName))/app/3dscan/"
+  Check 'acme path not redirected' (Head "http://$HostName/.well-known/acme-challenge/kgeo-probe" @()) '(?m)^HTTP/\S+ (404|200)'
+}
 Check 'site page 200' (Head "https://$HostName/app/3dscan/" @()) '(?m)^HTTP/\S+ 200'
-Check 'portal 200' (Head "https://$HostName/portal/home/" @()) '(?m)^HTTP/\S+ (200|302)'
+Check 'portal 200/302' (Head "https://$HostName/portal/home/" @()) '(?m)^HTTP/\S+ (200|302)'
 Check 'server REST 200' (Head "https://$HostName/server/rest/info?f=json" @()) '(?m)^HTTP/\S+ 200'
 if (-not $SkipCompression) {
   Check 'basemap style JSON is gzip' (Head "https://$HostName/server/rest/services/Hosted/NGII_GRAY_2026/VectorTileServer/resources/styles/root.json" @('-H', 'Accept-Encoding: gzip')) '(?mi)^Content-Encoding: gzip'
   Check 'site manifest.json is gzip' (Head "https://$HostName/app/3dscan/manifest.json" @('-H', 'Accept-Encoding: gzip')) '(?mi)^Content-Encoding: gzip'
-  if (Test-Path -LiteralPath $curl) {
-    & $curl -s --compressed -o NUL --max-time 30 "https://$HostName/server/rest/services/Hosted/NGII_GRAY_2026/VectorTileServer/tile/10/400/870.pbf"
-    $ok = $LASTEXITCODE -eq 0; if (-not $ok) { $bad++ }
-    Say ("  {0}  vector tile downloads and decodes" -f $(if ($ok) { 'OK ' } else { 'BAD' }))
-  }
+  $j = (& $curl -s --compressed --max-time 30 "https://$HostName/server/rest/services/Hosted/scan_points/FeatureServer/0/query?where=1%3D1&returnCountOnly=true&f=json") -join ''
+  $ok = $j -match '"count"'; if (-not $ok) { $bad++ }
+  Say ("  {0}  feature query JSON decodes ({1})" -f $(if ($ok) { 'OK ' } else { 'BAD' }), $j.Substring(0, [Math]::Min(60, $j.Length)))
+  & $curl -s --compressed -o NUL --max-time 30 "https://$HostName/server/rest/services/Hosted/NGII_GRAY_2026/VectorTileServer/tile/10/400/870.pbf"
+  $ok = $LASTEXITCODE -eq 0; if (-not $ok) { $bad++ }
+  Say ("  {0}  vector tile downloads and decodes" -f $(if ($ok) { 'OK ' } else { 'BAD' }))
 }
 if ($bad) {
   Say ''

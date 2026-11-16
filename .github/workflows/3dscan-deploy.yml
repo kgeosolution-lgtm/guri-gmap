@@ -53,7 +53,7 @@ jobs:
             'site/3dscan/capture.html' = '2c61d2a978932f6ad9469485c0b6329d376bc2cd2c49482210ae71f940ae40bc'
             'site/3dscan/glb.web.config' = 'a9c97f7408e65c2181220e75804ab4859534881607555cf5ed415a67b967188d'
             'site/3dscan/site.web.config' = '07ed87a8ae6e6a24e0df3bedc6de704002023a833753155eac7645c416cc8dbf'
-            'tools/iis_tune.ps1' = 'f6da0338b072f884cf0148f7d408e7c38eff5dfeba64197f328cd90df8e3f7ed'
+            'tools/iis_tune.ps1' = '9bc1bffb97f7918b4818ebc2608ac2f30ff701c54521f92e7e24d2674a273cb9'
             '3dupload/common.py' = '4dbae79f8a4da75942c7783da799e0b52e8bb56875b6856fd37b925d4d3673bc'
             '3dupload/upload.py' = 'f2a8d77833c9d4037de875e798069b4c6df853ba0ef7f69e4204a72677e6acd4'
             '3dupload/upload_chunk.py' = 'e7f0ff834b65d311e4eba7d3fd5170335a114de9f4d66703653d51336c6f1f15'
