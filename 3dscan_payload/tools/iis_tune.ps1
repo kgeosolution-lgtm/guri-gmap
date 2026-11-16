@@ -200,7 +200,33 @@ if (-not $SkipCompression) {
   Say ("  {0}  vector tile downloads and decodes" -f $(if ($ok) { 'OK ' } else { 'BAD' }))
 }
 if ($Fonts) {
-  Check 'map font file is gzip' (Head "https://$HostName/server/rest/services/Hosted/NGII_GRAY_2026/VectorTileServer/resources/fonts/NanumGothicOTF%20ExtraBold/44032-44287.pbf" @('-H', 'Accept-Encoding: gzip')) '(?mi)^Content-Encoding: gzip'
+  # 글꼴 파일(200KB)은 IIS 가 설정 전 압축 안 된 사본을 저장해 두고 그대로 보낼 수 있다(2026-11-16 첫 -Fonts 실행 실패).
+  # 그래서 ① 저장본을 피하는 새 요청(?kgeo=난수)으로 설정이 먹는지 보고 ② 저장본만 옛것이면 /server 앱 풀을 한 번 재활용해 비운다
+  $fontUrl = "https://$HostName/server/rest/services/Hosted/NGII_GRAY_2026/VectorTileServer/resources/fonts/NanumGothicOTF%20ExtraBold/44032-44287.pbf"
+  $fresh = Head ($fontUrl + '?kgeo=' + (Get-Random)) @('-H', 'Accept-Encoding: gzip')
+  $plain = Head $fontUrl @('-H', 'Accept-Encoding: gzip')
+  $freshOk = $fresh -match '(?mi)^Content-Encoding: gzip'
+  $plainOk = $plain -match '(?mi)^Content-Encoding: gzip'
+  $kc = @(netsh http show cachestate 2>$null | Select-String -SimpleMatch '/resources/fonts/').Count
+  Say "  ..  font: fresh request gzip=$freshOk, usual request gzip=$plainOk, kernel-cached font entries=$kc"
+  if ($freshOk -and -not $plainOk) {
+    $pool = ((& $appcmd list app "$site/server" /text:applicationPool) -join '').Trim()
+    if ($pool) {
+      Say "  ..  an old uncompressed copy is still cached - recycling app pool '$pool' (/server, a few seconds)"
+      & $appcmd recycle apppool $pool | Out-Null
+      Start-Sleep -Seconds 8
+      $plain = Head $fontUrl @('-H', 'Accept-Encoding: gzip')
+      $plainOk = $plain -match '(?mi)^Content-Encoding: gzip'
+      Say "  ..  after recycle: usual request gzip=$plainOk$(if (-not $plainOk) { ' (old copies expire by themselves within a day)' })"
+    }
+  }
+  $ok = $freshOk; if (-not $ok) { $bad++ }
+  Say ("  {0}  map font file is gzip (fresh request)" -f $(if ($ok) { 'OK ' } else { 'BAD' }))
+  if (-not $ok) {
+    Say ('       ' + (($fresh -split "`n" | Select-Object -First 7) -join ' | '))
+    Say ('       dynamicTypes: ' + (((& $appcmd list config -section:system.webServer/httpCompression 2>&1) -join ' ') -replace '\s+', ' ' | Select-String -Pattern 'dynamicTypes.*?/dynamicTypes' -AllMatches | ForEach-Object { $_.Matches[0].Value }))
+    Say ('       /server/rest/services urlCompression: ' + (((& $appcmd list config "$site/server/rest/services" -section:system.webServer/urlCompression 2>&1) -join ' ') -replace '\s+', ' '))
+  }
   # 이미 gzip 으로 오는 지도 타일이 한 번 더 압축되지 않았는지: 한 번 푼 내용이 다시 gzip 머리(1F 8B)로 시작하면 두 번 압축된 것
   $tmp = Join-Path $env:TEMP 'kgeo_tile_check.bin'
   Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue
