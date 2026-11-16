@@ -72,7 +72,7 @@ jobs:
             'tools/register_task.ps1' = 'f715092ec71960880a80d5aa18ebad602786209b229a194d22095e40e0c394ae'
             'tools/maintenance.py' = '8a8038aaba07594f9c75983645a67f0132d031fcbdbc9779a32d7c94db369a2a'
             'tools/config_patch.py' = '8a17bc868075356ce46f94e2c07eca8f715a6fbbebe376db6b6d120c398777a9'
-            'maintenance.json' = 'd4ee4e3002fbd697813322ca82c88e57bf6e0f29eea7fa07da2e88efcba6bd2c'
+            'maintenance.json' = '307eb737b80405aa6861249838d01a8bef6d4502df478632a013bc156c4c483a'
             'worker/process_scan.py' = 'b1eb57e8bf627fb8303ebb3c4929dcdade5572f8616081c794a2c4c61a35a0b1'
             'worker/stray_to_mesh.py' = 'e683cfabd91a067ddef3f6a3e6ccbb8d352033432a6041cd4ae7481914a9b6b8'
             'worker/video_rows.py' = '42c99ebc490d037c22a5a9103d006c4449fe20525576acae89d019c42a542d11'

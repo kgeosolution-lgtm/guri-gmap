@@ -1,6 +1,6 @@
 {
-  "once_id": "2026-11-16-spz",
+  "once_id": "2026-11-16-rebuild-charts-c3c1e8c7",
   "actions": [
-    {"op": "build-spz"}
+    {"op": "rebuild-glb", "jobs": ["c3c1e8c7"]}
   ]
 }
