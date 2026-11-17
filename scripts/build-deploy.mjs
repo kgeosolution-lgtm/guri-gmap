@@ -108,6 +108,18 @@ writeFileSync(
 </staticContent>
 </system.webServer></configuration>`,
 );
+// 캐시: 루트는 캐시 끔(index.html·deployment.json 이 항상 새것) — 이름에 해시가 붙는 _next/static 은 1년, 글꼴·아이콘은 7일
+const cacheCfg = (seconds) => `<?xml version="1.0" encoding="utf-8"?>
+<configuration><system.webServer><staticContent>
+<clientCache cacheControlMode="UseMaxAge" cacheControlMaxAge="${seconds >= 86400 ? Math.floor(seconds / 86400) + '.00:00:00' : '00:' + String(Math.floor(seconds / 60)).padStart(2, '0') + ':00'}"/>
+</staticContent></system.webServer></configuration>`;
+for (const [dir, sec] of [
+  ['out/_next/static', 365 * 86400],
+  ['out/fonts', 7 * 86400],
+  ['out/maps/sym', 7 * 86400],
+]) {
+  if (existsSync(dir)) writeFileSync(path.join(dir, 'web.config'), cacheCfg(sec));
+}
 writeFileSync(
   'out/deployment.json',
   JSON.stringify(
@@ -116,6 +128,8 @@ writeFileSync(
       branch: process.env.GITHUB_REF_NAME || 'local',
       builtAt: new Date().toISOString(),
       url: `${origin}${base}/`,
+      config: cfgFile, // 어느 설정으로 만든 결과물인지(deploy.guri.json = 구리 운영)
+      reviewWidget,
     },
     null,
     2,
