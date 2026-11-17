@@ -67,6 +67,9 @@ for (const file of walk('out')) {
     );
     text = text.replace(/<script[^>]*\/review\/review\.js[^>]*><\/script>/g, '');
   }
+  // 브이월드 2D 데이터 API 키(aerial.html VW.key) — 도메인 등록형이라 배포 설정마다 다르다
+  if (file.endsWith('maps/aerial.html') && cfg.vworldKey)
+    text = text.replace(/(const VW=\{[\s\S]*?\n\s*key:')[^']*(')/, `$1${cfg.vworldKey}$2`);
   // 사진 폴더 주소(theme.html 의 IMG_BASE)를 배포 설정 값으로 — 사이트 안 경로면 아래 /images/ 치환이 base 를 붙인다
   if (file.endsWith('maps/theme.html'))
     text = text.replace(/const IMG_BASE="[^"]*";/, `const IMG_BASE="${photoBase}";`);
