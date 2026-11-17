@@ -1105,3 +1105,9 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - `src/app/globals.css`·`public/maps/gmap-shared.css` 의 `@font-face` 를 `url('/fonts/waguri.woff2') format('woff2')` 로. 배포 빌드(`build-deploy.mjs`)가 `/fonts/` 를 base(`/gmapweb/fonts/`, 미리보기는 `/app/guri/fonts/`)로 바꾼다. Pretendard GOV 는 이미 `public/fonts/` 자체 호스팅이라 그대로.
 - **파일 추가 필요**: `public/fonts/waguri.woff2` — 원본 `https://cdn.jsdelivr.net/gh/projectnoonnu/2403@1.0/WAGURITTF.woff2`. 개발 환경에서 cdn.jsdelivr.net 이 차단돼 파일을 못 받음 → 담당자가 브라우저로 받아 이 경로에 넣고 커밋. 파일이 없으면 브랜드 타이틀이 대체 서체로 보일 뿐 동작엔 지장 없음.
 - 소스(src·public·scripts·docs)에 `cdn.jsdelivr.net` 문자열 0건 확인. 브랜치 `work/kangmina-local-fonts`.
+
+## 2026-11-17 서버 이관 절차서(10.9→12.1) 갱신 + 이관 대비 코드 점검 (담당: 강민아)
+
+- `docs/DEPLOY_GURI.md` 재작성: 담당자 문서(이관 방법 10.9→12.1)를 기준으로 — 전환 = 외부 DNS·방화벽, js.arcgis.com 허용, 글꼴·연속지적도·사진 완료 상태 반영, 현장 3장을 화면 단위(장비 확인·백업·zip 내려받기·풀기·권한·실제 경로·설정 테스트·캐시 확인·404·hosts)로 상세화, 9장에 코드 점검 결과.
+- 코드: `build-deploy.mjs` 가 `_next/static`(1년)·`fonts`·`maps/sym`(7일) 하위 `web.config` 를 써서 캐시(루트는 캐시 끔 유지), `deployment.json` 에 `config`·`reviewWidget` 기록. `robots.txt` 에 `/v1/` 제외. `theme.html` 주석의 옛 kgeodata 주소 정리.
+- 점검: 구리 빌드 결과에 `kgeodata.com`·`/app/guri` 기능 코드 0건(주석만), http:// 리소스 없음, 브이월드 domain 은 실제 호스트 전송. 브랜치 `work/kangmina-migration-doc`.
