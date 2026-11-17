@@ -1111,3 +1111,9 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - `docs/DEPLOY_GURI.md` 재작성: 담당자 문서(이관 방법 10.9→12.1)를 기준으로 — 전환 = 외부 DNS·방화벽, js.arcgis.com 허용, 글꼴·연속지적도·사진 완료 상태 반영, 현장 3장을 화면 단위(장비 확인·백업·zip 내려받기·풀기·권한·실제 경로·설정 테스트·캐시 확인·404·hosts)로 상세화, 9장에 코드 점검 결과.
 - 코드: `build-deploy.mjs` 가 `_next/static`(1년)·`fonts`·`maps/sym`(7일) 하위 `web.config` 를 써서 캐시(루트는 캐시 끔 유지), `deployment.json` 에 `config`·`reviewWidget` 기록. `robots.txt` 에 `/v1/` 제외. `theme.html` 주석의 옛 kgeodata 주소 정리.
 - 점검: 구리 빌드 결과에 `kgeodata.com`·`/app/guri` 기능 코드 0건(주석만), http:// 리소스 없음, 브이월드 domain 은 실제 호스트 전송. 브랜치 `work/kangmina-migration-doc`.
+
+## 2026-11-17 브이월드 키를 배포 설정별로(구리 전용 키 발급) (담당: 강민아)
+
+- 구리시 생활지도 전용 브이월드 키(`0CBBA26D-…`, www.guri.go.kr 등록) 발급. 도메인 등록형이라 소스에 바로 넣으면 kgeodata 미리보기의 항공사진 겹침 자료(브이월드 WMS·데이터 API)가 깨짐 → `deploy.guri.json`·`deploy.config.json` 에 `vworldKey` 를 두고 `build-deploy.mjs` 가 `aerial.html` 의 `VW.key` 를 빌드 때 바꿔 넣는다(사진 주소·검토 위젯과 같은 방식). 소스 값은 미리보기 키 그대로.
+- 배경지도용 `vworldKey`(theme·aerial·animal, 지금 빈 값 → 키 없는 xdworld 타일)는 그대로 둠 — 전용 키로 바꾸면 미리보기 배경이 깨지므로, 바꾸려면 같은 방식으로 설정별 치환을 추가해야 함.
+- 검증: `build:guri` 결과 `VW.key` 가 전용 키, `build:deploy` 결과는 미리보기 키, aerial `node --check`, `git diff --check`. 브랜치 `work/kangmina-vworld-key`.
