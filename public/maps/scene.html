@@ -622,14 +622,11 @@ async function addOutsideMask(){
   try{ cityOutline=await loadCityOutline(); }catch(e){ fail('구리시 경계',e); return; }
   if(SCENE.maskMode!=='tile'){ try{ addMaskPolygon(); }catch(e){ fail('시 밖 회색 덮개',e); } }
   try{ clipBuildingsToCity(cityOutline); }catch(e){ console.warn('[3D] 건물 시 안 필터',e); }
-  /* 웹씬에 이미 Esri 3D 건물(예: '구리외건물')이 들어 있으면 그것을 쓴다 — 색만 시 밖 색으로, 시 안 제외 필터는 웹씬 설정에 더해 한 번 더 */
-  let inScene=null; try{ scene.allLayers.forEach(l=>{ if(l.type==='scene'&&/Esri3D_Buildings|basemaps3d\.arcgis\.com/i.test(String(l.url||''))) inScene=l; }); }catch(e){}
-  if(inScene){
-    outsideLayer=inScene;
-    try{ inScene.popupEnabled=false; inScene.legendEnabled=false; inScene.listMode='hide';
-         inScene.renderer={type:'simple',symbol:meshSym(SCENE.outsideBuildingColor,'replace')};
-         inScene.filter={geometries:[cityOutline],spatialRelationship:'disjoint'}; }catch(e){ console.warn('[3D] 웹씬 시 밖 건물 설정 실패',String((e&&e.message)||e)); }
-    console.log('[3D] 시 밖 건물: 웹씬의',inScene.title,'사용(코드 추가 안 함)');
+  /* 웹씬에 이미 시 밖 건물(예: '구리외건물')이 들어 있으면 그것을 쓴다 — 색은 시 밖 색, 시 안 제외(disjoint) 필터를 웹씬 설정에 더해 한 번 더 */
+  if(outsideSceneLayers.length){
+    outsideLayer=outsideSceneLayers[0];
+    outsideSceneLayers.forEach(l=>{ try{ l.filter={geometries:[cityOutline],spatialRelationship:'disjoint'}; }catch(e){ console.warn('[3D] 웹씬 시 밖 건물 필터 실패',l.title,String((e&&e.message)||e)); } });
+    console.log('[3D] 시 밖 건물: 웹씬의',outsideSceneLayers.map(l=>l.title).join(', '),'사용(코드 추가 안 함) — 시 안 제외 필터 적용');
     return;
   }
   if(!SCENE.outsideBuildingsUrl) return;
@@ -663,14 +660,25 @@ function clipBuildingsToCity(outline){
   bldgLayers.forEach(l=>{ try{ l.filter={geometries:[outline],spatialRelationship:'contains'}; }catch(e){ console.warn('[3D] 건물 시 안 필터 실패',l.title,String((e&&e.message)||e)); } });
   console.log('[3D] 웹씬 건물을 시 안으로 제한',bldgLayers.length,'개 | 경계 고리',(outline.rings||[]).length,'| 좌표계',outline.spatialReference&&outline.spatialReference.wkid);
 }
+let outsideSceneLayers=[];   /* 웹씬에 든 '시 밖 건물'(예: 구리외건물 — LOD1·LOD2 가 아닌 3D 건물 레이어 전부) */
 function prepBuildings(){
-  bldgLayers=[];
+  bldgLayers=[]; outsideSceneLayers=[];
   try{
-    scene.allLayers.forEach(l=>{ if(l.type!=='scene') return; const kind=bldgKindOf(l); if(!kind) return;
+    scene.allLayers.forEach(l=>{ if(l.type!=='scene') return;
+      const kind=bldgKindOf(l);
+      if(!kind){   /* LOD1·LOD2 가 아닌 3D 건물(mesh) 레이어 = 시 밖 건물로 취급. 포인트형 씬 레이어는 제외 */
+        const gt=String(l.geometryType||''); const u=String(l.url||'');
+        const isMesh=/mesh|3DObject/i.test(gt) || /Esri3D_Buildings|basemaps3d\.arcgis\.com|SceneServer/i.test(u);
+        if(!isMesh || /point/i.test(gt)) return;
+        l.popupEnabled=false; l.legendEnabled=false; l.listMode='hide'; outsideSceneLayers.push(l);
+        const style=()=>{ try{ l.renderer={type:'simple',symbol:meshSym(SCENE.outsideBuildingColor,'replace')}; }catch(e){} };
+        if(typeof l.when==='function') l.when(style,()=>{}); else style();
+        return; }
       l.popupEnabled=false; try{ l.outFields=['*']; }catch(e){}
       l.__kind=kind; bldgLayers.push(l);
       if(typeof l.when==='function') l.when(()=>applyBuildingStyle(l),()=>{}); else applyBuildingStyle(l); });
-    console.log('[3D] 건물 레이어',bldgLayers.map(l=>l.title+'('+l.__kind+')').join(', ')||'없음');
+    console.log('[3D] 시 안 건물',bldgLayers.map(l=>l.title+'('+l.__kind+')').join(', ')||'없음',
+      '| 시 밖 건물(웹씬)',outsideSceneLayers.map(l=>l.title+' '+String(l.url||'').slice(-60)).join(', ')||'없음');
   }catch(e){ console.warn('[3D] 건물 레이어 준비 실패',e); }
 }
 /* 클릭한 건물의 전체 속성: 히트 결과에 없으면 ObjectID 로 다시 조회 */
