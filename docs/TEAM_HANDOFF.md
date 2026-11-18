@@ -1117,3 +1117,9 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 구리시 생활지도 전용 브이월드 키(`0CBBA26D-…`, www.guri.go.kr 등록) 발급. 도메인 등록형이라 소스에 바로 넣으면 kgeodata 미리보기의 항공사진 겹침 자료(브이월드 WMS·데이터 API)가 깨짐 → `deploy.guri.json`·`deploy.config.json` 에 `vworldKey` 를 두고 `build-deploy.mjs` 가 `aerial.html` 의 `VW.key` 를 빌드 때 바꿔 넣는다(사진 주소·검토 위젯과 같은 방식). 소스 값은 미리보기 키 그대로.
 - 배경지도용 `vworldKey`(theme·aerial·animal, 지금 빈 값 → 키 없는 xdworld 타일)는 그대로 둠 — 전용 키로 바꾸면 미리보기 배경이 깨지므로, 바꾸려면 같은 방식으로 설정별 치환을 추가해야 함.
 - 검증: `build:guri` 결과 `VW.key` 가 전용 키, `build:deploy` 결과는 미리보기 키, aerial `node --check`, `git diff --check`. 브랜치 `work/kangmina-vworld-key`.
+
+## 2026-11-18 국토정보플랫폼 키를 배포 설정별로(구리 승인 키) (담당: 강민아)
+
+- www.guri.go.kr 도메인 승인 키(`56A6233E…`) 발급 → `deploy.guri.json` `ngiiKey`, `deploy.config.json` 은 기존 kgeodata 키. `build-deploy.mjs` 가 `aerial.html` `NGII.apiKey` 를 빌드 때 치환(브이월드 키와 같은 방식). 소스 값은 미리보기 키 그대로.
+- 참고: 12.1 이관 후 기존 키로도 항공사진이 보였음(국토정보플랫폼이 도메인을 느슨하게 보거나 승인이 빨랐던 것) — 어쨌든 구리 빌드는 구리 명의 키를 쓴다.
+- 검증: `build:guri` → `apiKey` 승인 키, `build:deploy` → 기존 키, aerial `node --check`, `git diff --check`. 브랜치 `work/kangmina-ngii-key`.
