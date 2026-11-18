@@ -1123,3 +1123,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - www.guri.go.kr 도메인 승인 키(`56A6233E…`) 발급 → `deploy.guri.json` `ngiiKey`, `deploy.config.json` 은 기존 kgeodata 키. `build-deploy.mjs` 가 `aerial.html` `NGII.apiKey` 를 빌드 때 치환(브이월드 키와 같은 방식). 소스 값은 미리보기 키 그대로.
 - 참고: 12.1 이관 후 기존 키로도 항공사진이 보였음(국토정보플랫폼이 도메인을 느슨하게 보거나 승인이 빨랐던 것) — 어쨌든 구리 빌드는 구리 명의 키를 쓴다.
 - 검증: `build:guri` → `apiKey` 승인 키, `build:deploy` → 기존 키, aerial `node --check`, `git diff --check`. 브랜치 `work/kangmina-ngii-key`.
+
+## 2026-11-18 3D 건물 색 섞임 수정 — 시 안 건물 한 색, 웹씬 건물은 시 안에서만 (담당: 강민아)
+
+- 증상(구리 서버 이관 후 확인): 시 안팎 모두 밝은 회색·진한 회색 건물이 섞여 보임.
+- 원인: 웹씬에 3D 건물 레이어가 둘(LOD1 건축물대장 `3D_Buildings_LOD1_2508`, LOD2 국토지리정보원 `Buildings_LOD2_2508`) 있고 둘 다 시 밖까지 뻗음. `applyBuildingStyle` 이 원래 재질 색·혼합 방식을 살려 LOD1 은 흰색, LOD2 는 질감 회색으로 그려져 시 안에서 섞였고, 시 밖에서는 이 둘과 Esri 3D 건물(회색)이 겹침. Esri 건물의 `disjoint` 필터 자체는 정상(경계 좌표계는 view 와 같음).
+- 조치(`scene.html`): `SCENE.insideBuildingColor`(밝은 회백색)로 웹씬 건물 두 레이어를 모두 `replace` 로 통일, `clipBuildingsToCity()` 가 시 경계로 `contains` 필터를 걸어 웹씬 건물은 시 안에서만, 시 밖은 Esri 회색 건물만. 경계에 걸친 건물은 양쪽에서 빠질 수 있음(필요하면 Esri 쪽 필터를 빼서 보완).
+- 검증: scene `node --check`, `npm run build:deploy`, `git diff --check`. 실제 화면은 미리보기(kgeodata) 3D 에서 확인 후 구리 zip 재생성. 브랜치 `work/kangmina-3d-filter`.
