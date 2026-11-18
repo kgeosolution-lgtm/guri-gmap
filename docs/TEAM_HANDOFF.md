@@ -1137,3 +1137,9 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 코드(`scene.html`): 웹씬 안에 Esri 3D 건물 레이어(URL 에 `Esri3D_Buildings`)가 있으면 코드가 따로 추가하지 않고 그 레이어에 시 밖 색·`disjoint` 필터만 적용(이중 표시 방지). 없을 때만 전처럼 코드가 추가.
 - 스냅샷(11-17) 기준 LOD1·LOD2 의 `definitionExpression` 이 `adm_nm IN ('구리시','') OR adm_nm IS NULL` — "adm_nm 값이 없는 피처 표시"가 켜져 있어 adm_nm 이 비어 있는 시 밖 건물이 흰색으로 보였던 것도 섞임의 한 원인. 사이트는 `clipBuildingsToCity()` 로 시 안만 남기지만, 웹씬에서도 그 옵션을 끄는 것을 권장.
 - 검증: scene `node --check`, `npm run build:deploy`, `git diff --check`. 실제 화면은 담당자 쪽에서 재빌드(새 스냅샷) 후 확인. 브랜치 `work/kangmina-3d-webscene-first`.
+
+## 2026-11-18 3D: LOD1·LOD2 가 아닌 웹씬의 3D 건물 레이어는 모두 '시 밖 건물'로 (담당: 강민아)
+
+- 구리 서버(새 스냅샷)에서 여전히 건물이 겹침. 앞 수정은 웹씬의 시 밖 건물을 URL 문자열(`Esri3D_Buildings`)로만 찾아, 주소가 다르면 그 레이어가 원래 색으로 시 안팎에 그대로 그려졌음.
+- 조치(`scene.html` `prepBuildings`): 웹씬의 3D 건물(mesh) 씬 레이어 중 LOD1·LOD2 가 아닌 것은 전부 `outsideSceneLayers` 로 — 시 밖 색 + 시 경계 `disjoint` 필터. 포인트형 씬 레이어는 제외. 콘솔 `[3D] 시 안 건물 … | 시 밖 건물(웹씬) …` 로 어떤 레이어가 어느 쪽으로 분류됐는지 보임.
+- 검증: scene `node --check`, `npm run build:deploy`, `git diff --check`. 실제 확인은 담당자 재빌드 후. 브랜치 `work/kangmina-3d-outside-any`.
