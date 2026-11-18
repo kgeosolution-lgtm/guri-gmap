@@ -622,6 +622,16 @@ async function addOutsideMask(){
   try{ cityOutline=await loadCityOutline(); }catch(e){ fail('구리시 경계',e); return; }
   if(SCENE.maskMode!=='tile'){ try{ addMaskPolygon(); }catch(e){ fail('시 밖 회색 덮개',e); } }
   try{ clipBuildingsToCity(cityOutline); }catch(e){ console.warn('[3D] 건물 시 안 필터',e); }
+  /* 웹씬에 이미 Esri 3D 건물(예: '구리외건물')이 들어 있으면 그것을 쓴다 — 색만 시 밖 색으로, 시 안 제외 필터는 웹씬 설정에 더해 한 번 더 */
+  let inScene=null; try{ scene.allLayers.forEach(l=>{ if(l.type==='scene'&&/Esri3D_Buildings|basemaps3d\.arcgis\.com/i.test(String(l.url||''))) inScene=l; }); }catch(e){}
+  if(inScene){
+    outsideLayer=inScene;
+    try{ inScene.popupEnabled=false; inScene.legendEnabled=false; inScene.listMode='hide';
+         inScene.renderer={type:'simple',symbol:meshSym(SCENE.outsideBuildingColor,'replace')};
+         inScene.filter={geometries:[cityOutline],spatialRelationship:'disjoint'}; }catch(e){ console.warn('[3D] 웹씬 시 밖 건물 설정 실패',String((e&&e.message)||e)); }
+    console.log('[3D] 시 밖 건물: 웹씬의',inScene.title,'사용(코드 추가 안 함)');
+    return;
+  }
   if(!SCENE.outsideBuildingsUrl) return;
   try{
     outsideLayer=new ESRI.SceneLayer({url:SCENE.outsideBuildingsUrl,title:'3D 시 밖 건물',
