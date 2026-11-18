@@ -194,7 +194,8 @@ const SCENE={
   maskColor:[92,102,114,.5],          /* polygon 방식일 때 덮개 색 */
   /* 모든 3D 건물(구리 LOD1·LOD2, 시 밖 Esri 건물)의 겉모습: 투명도 40%(불투명 0.6), 진한 회색 얇은 외곽선 */
   building:{opacity:0.6,edgeColor:[64,68,72,.9],edgeSize:0.6},
-  outsideBuildingColor:[168,174,182,1]  /* 시 바깥 건물 색 */
+  outsideBuildingColor:[168,174,182,1],  /* 시 바깥 건물 색(Esri 3D 건물) */
+  insideBuildingColor:[248,249,251,1]    /* 시 안 건물 색 — 웹씬의 LOD1·LOD2 모두 이 색으로 통일(2026-11-18: LOD2 질감이 회색으로 남아 섞여 보이던 것) */
 };
 let ESRI=null;   /* require 로 받은 모듈 묶음 (require 밖 함수에서 쓴다) */
 let PLACES=[];   /* [{title, thumb, kind, attrs, go:()=>Promise}] — 웹씬 슬라이드 또는 명소 (attrs 가 있으면 도착 후 팝업 카드) */
@@ -620,6 +621,7 @@ async function addOutsideMask(){
   const fail=(what,e)=>{ const m=String((e&&e.message)||e); console.warn('[3D]',what,'실패',m,e); toast(what+'을(를) 불러오지 못했어요: '+m.slice(0,90),6000); };
   try{ cityOutline=await loadCityOutline(); }catch(e){ fail('구리시 경계',e); return; }
   if(SCENE.maskMode!=='tile'){ try{ addMaskPolygon(); }catch(e){ fail('시 밖 회색 덮개',e); } }
+  try{ clipBuildingsToCity(cityOutline); }catch(e){ console.warn('[3D] 건물 시 안 필터',e); }
   if(!SCENE.outsideBuildingsUrl) return;
   try{
     outsideLayer=new ESRI.SceneLayer({url:SCENE.outsideBuildingsUrl,title:'3D 시 밖 건물',
@@ -642,13 +644,14 @@ function meshSym(color,mix){
     edges:{type:'solid',color:B.edgeColor,size:B.edgeSize}}]};
 }
 function applyBuildingStyle(layer,baseColor){
-  let color=baseColor||null, mix='replace';
-  try{
-    const r=layer.renderer; const sym=r&&r.type==='simple'? r.symbol : null;
-    const sl=sym&&sym.symbolLayers? (sym.symbolLayers.getItemAt? sym.symbolLayers.getItemAt(0) : sym.symbolLayers[0]) : null;
-    if(sl&&sl.material){ const mc=sl.material.color; if(!color&&mc&&mc.r!==undefined) color=[mc.r,mc.g,mc.b]; if(sl.material.colorMixMode) mix=sl.material.colorMixMode; }
-  }catch(e){}
-  try{ layer.renderer={type:'simple',symbol:meshSym(color,mix)}; }catch(e){ console.warn('[3D] 건물 심볼 적용 실패',layer.title,String((e&&e.message)||e)); }
+  /* 원래 색·질감을 살리지 않고 한 색(insideBuildingColor)으로 덮는다('replace') — LOD1(흰색)과 LOD2(질감 회색)가 섞여 보이지 않게 */
+  const color=baseColor||SCENE.insideBuildingColor||[255,255,255];
+  try{ layer.renderer={type:'simple',symbol:meshSym(color,'replace')}; }catch(e){ console.warn('[3D] 건물 심볼 적용 실패',layer.title,String((e&&e.message)||e)); }
+}
+/* 웹씬 건물(LOD1·LOD2)은 구리시 안에서만 — 시 밖은 Esri 3D 건물(회색)이 맡는다. 경계에 걸친 건물은 양쪽 필터에서 모두 빠질 수 있음 */
+function clipBuildingsToCity(outline){
+  bldgLayers.forEach(l=>{ try{ l.filter={geometries:[outline],spatialRelationship:'contains'}; }catch(e){ console.warn('[3D] 건물 시 안 필터 실패',l.title,String((e&&e.message)||e)); } });
+  console.log('[3D] 웹씬 건물을 시 안으로 제한',bldgLayers.length,'개 | 경계 고리',(outline.rings||[]).length,'| 좌표계',outline.spatialReference&&outline.spatialReference.wkid);
 }
 function prepBuildings(){
   bldgLayers=[];
