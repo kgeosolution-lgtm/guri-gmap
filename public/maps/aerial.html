@@ -282,7 +282,7 @@ const CITY={
  * 자체 프록시를 쓰려면 proxyTemplate 에 {url} 자리를 둔 주소를 넣는다. 예: '/proxy/ngii?url={url}' */
 const NGII={
   wmtsUrl:'https://map.ngii.go.kr/airmapprime/map/wmts',
-  apiKey:'17513F3A71B2FEAA62FD5191213C7C26',   /* 국토정보플랫폼 인증키 (kgeodata.com 등록) */
+  apiKey:'17513F3A71B2FEAA62FD5191213C7C26',   /* 미리보기(kgeodata.com) 키 — 배포 빌드가 deploy.*.json 의 ngiiKey 로 바꿔 넣는다(구리는 www.guri.go.kr 승인 키) */
   proxyTemplate:'',
   layerPrefix:'mapprime:air_',                 /* 실제 레이어명 = mapprime:air_2015 */
   tileMatrixSet:'NGIS_AIR',

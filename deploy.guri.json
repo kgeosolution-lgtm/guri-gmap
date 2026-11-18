@@ -1,10 +1,11 @@
 {
-  "_comment": "구리시 서버(운영) 배포 설정 — npm run build:guri 가 읽는다(담당: 강민아). 주소는 기존 생활지도 그대로 https://www.guri.go.kr/gmapweb/ (2026-11-16 확정). 사진은 public/images/pet/ 에 복사해 두면 /gmapweb/images/pet/ 로 함께 담긴다. reviewWidget false 면 검토용 '수정 요청' 위젯을 결과물에서 뺀다. zip true 면 dist/gmapweb-날짜-커밋.zip 을 만든다(포털 업로드용). vworldKey: 항공사진 비교의 브이월드 2D 데이터 API 키(aerial.html VW.key 를 빌드 때 이 값으로 바꿈) — 구리시 생활지도 전용 키(www.guri.go.kr 등록, 2026-11-17).",
+  "_comment": "구리시 서버(운영) 배포 설정 — npm run build:guri 가 읽는다(담당: 강민아). 주소는 기존 생활지도 그대로 https://www.guri.go.kr/gmapweb/ (2026-11-16 확정). 사진은 public/images/pet/ 에 복사해 두면 /gmapweb/images/pet/ 로 함께 담긴다. reviewWidget false 면 검토용 '수정 요청' 위젯을 결과물에서 뺀다. zip true 면 dist/gmapweb-날짜-커밋.zip 을 만든다(포털 업로드용). vworldKey: 항공사진 비교의 브이월드 2D 데이터 API 키(aerial.html VW.key 를 빌드 때 이 값으로 바꿈) — 구리시 생활지도 전용 키(www.guri.go.kr 등록, 2026-11-17). ngiiKey: 국토정보플랫폼 항공사진 WMTS 키(aerial.html NGII.apiKey 를 빌드 때 이 값으로 바꿈) — 구리시 www.guri.go.kr 승인 키(2026-11-18).",
   "origin": "https://www.guri.go.kr",
   "base": "/gmapweb",
   "photoBase": "/images/pet/",
   "reviewWidget": false,
   "zip": true,
   "zipName": "gmapweb",
-  "vworldKey": "0CBBA26D-9893-46FB-8A8D-453BA99DB759"
+  "vworldKey": "0CBBA26D-9893-46FB-8A8D-453BA99DB759",
+  "ngiiKey": "56A6233ECE736E1378F4DF3149E0E38D2C8440020B"
 }

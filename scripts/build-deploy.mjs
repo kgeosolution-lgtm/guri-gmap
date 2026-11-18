@@ -67,6 +67,9 @@ for (const file of walk('out')) {
     );
     text = text.replace(/<script[^>]*\/review\/review\.js[^>]*><\/script>/g, '');
   }
+  // 국토정보플랫폼 항공사진 키(aerial.html NGII.apiKey) — 도메인 등록형이라 배포 설정마다 다르다
+  if (file.endsWith('maps/aerial.html') && cfg.ngiiKey)
+    text = text.replace(/(const NGII=\{[\s\S]*?\n\s*apiKey:')[^']*(')/, `$1${cfg.ngiiKey}$2`);
   // 브이월드 2D 데이터 API 키(aerial.html VW.key) — 도메인 등록형이라 배포 설정마다 다르다
   if (file.endsWith('maps/aerial.html') && cfg.vworldKey)
     text = text.replace(/(const VW=\{[\s\S]*?\n\s*key:')[^']*(')/, `$1${cfg.vworldKey}$2`);
