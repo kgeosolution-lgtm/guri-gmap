@@ -1130,3 +1130,10 @@ npm run build, npx prettier --check src public/styles/site-shell.css, git diff -
 - 원인: 웹씬에 3D 건물 레이어가 둘(LOD1 건축물대장 `3D_Buildings_LOD1_2508`, LOD2 국토지리정보원 `Buildings_LOD2_2508`) 있고 둘 다 시 밖까지 뻗음. `applyBuildingStyle` 이 원래 재질 색·혼합 방식을 살려 LOD1 은 흰색, LOD2 는 질감 회색으로 그려져 시 안에서 섞였고, 시 밖에서는 이 둘과 Esri 3D 건물(회색)이 겹침. Esri 건물의 `disjoint` 필터 자체는 정상(경계 좌표계는 view 와 같음).
 - 조치(`scene.html`): `SCENE.insideBuildingColor`(밝은 회백색)로 웹씬 건물 두 레이어를 모두 `replace` 로 통일, `clipBuildingsToCity()` 가 시 경계로 `contains` 필터를 걸어 웹씬 건물은 시 안에서만, 시 밖은 Esri 회색 건물만. 경계에 걸친 건물은 양쪽에서 빠질 수 있음(필요하면 Esri 쪽 필터를 빼서 보완).
 - 검증: scene `node --check`, `npm run build:deploy`, `git diff --check`. 실제 화면은 미리보기(kgeodata) 3D 에서 확인 후 구리 zip 재생성. 브랜치 `work/kangmina-3d-filter`.
+
+## 2026-11-18 3D: 웹씬에 든 Esri 시 밖 건물('구리외건물')이 있으면 그것을 쓰도록 (담당: 강민아)
+
+- 담당자가 웹씬 '구리시 3D 가상도시'를 바꿈: 시 안은 `3D_Buildings_LOD1_2508`(adm_nm=구리시 필터), 시 밖은 Esri 3D 건물('구리외건물', 공간 필터 제외 모드). 사이트는 이 웹씬을 **빌드 때 받은 스냅샷(`public/maps/data/scene.json`)** 으로 쓰므로 웹씬을 바꾸면 **다시 빌드해야 반영**된다(`npm run build:guri` 가 `fetch-scene.mjs` 로 새로 받음).
+- 코드(`scene.html`): 웹씬 안에 Esri 3D 건물 레이어(URL 에 `Esri3D_Buildings`)가 있으면 코드가 따로 추가하지 않고 그 레이어에 시 밖 색·`disjoint` 필터만 적용(이중 표시 방지). 없을 때만 전처럼 코드가 추가.
+- 스냅샷(11-17) 기준 LOD1·LOD2 의 `definitionExpression` 이 `adm_nm IN ('구리시','') OR adm_nm IS NULL` — "adm_nm 값이 없는 피처 표시"가 켜져 있어 adm_nm 이 비어 있는 시 밖 건물이 흰색으로 보였던 것도 섞임의 한 원인. 사이트는 `clipBuildingsToCity()` 로 시 안만 남기지만, 웹씬에서도 그 옵션을 끄는 것을 권장.
+- 검증: scene `node --check`, `npm run build:deploy`, `git diff --check`. 실제 화면은 담당자 쪽에서 재빌드(새 스냅샷) 후 확인. 브랜치 `work/kangmina-3d-webscene-first`.
