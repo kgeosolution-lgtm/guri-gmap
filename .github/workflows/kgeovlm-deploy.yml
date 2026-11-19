@@ -22,11 +22,11 @@ jobs:
           $ErrorActionPreference='Stop'
           $ProgressPreference='SilentlyContinue'
           if ($env:COMPUTERNAME -ne 'KGO-GIS') { throw 'Unexpected server' }
-          $stage=Join-Path 'D:\kgeoHub\tools\kgeovlm\staging' 'a0319181d4c8d6559df770d556fd63122f290fcd'
+          $stage=Join-Path 'D:\kgeoHub\tools\kgeovlm\staging' '773953e2f2fbdd9b906fb042f277c508aa536035'
           New-Item -ItemType Directory -Force -Path $stage | Out-Null
           $zip=Join-Path $stage 'source.zip'
           try { Invoke-WebRequest -Uri $env:KGEOVLM_SOURCE_URL -OutFile $zip -UseBasicParsing -TimeoutSec 180 } catch { throw 'Private source asset download failed; regenerate deployment URLs' }
-          if ((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'dd66484f429cdd1e83e3f7447d276b4dacd0b5940c0d0a386a03168e17de1ac0') { throw 'Source integrity mismatch' }
+          if ((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne '783f8db699002e784d0b79b7897131c1c1eb4f7c199624081acaf3683828d2b5') { throw 'Source integrity mismatch' }
           $modelDir='D:\kgeoHub\models\kgeovlm'
           New-Item -ItemType Directory -Force -Path $modelDir | Out-Null
           $model=Join-Path $modelDir 'building-v5.pt'
@@ -38,8 +38,8 @@ jobs:
           }
           $env:KGEOVLM_SOURCE_URL='';$env:KGEOVLM_MODEL_URL=''
           Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $stage 'source') -Force
-          & (Join-Path $stage 'source\deploy\Install.ps1') -Source (Join-Path $stage 'source') -Commit 'a0319181d4c8d6559df770d556fd63122f290fcd'
+          & (Join-Path $stage 'source\deploy\Install.ps1') -Source (Join-Path $stage 'source') -Commit '773953e2f2fbdd9b906fb042f277c508aa536035'
           if (!$?) { throw 'Install failed' }
           Write-Output 'KgeoVLM install complete'
           
-# Deployment request 2026-11-19T01:14:40.416Z
+# Deployment request 2026-11-19T01:18:16.491Z
