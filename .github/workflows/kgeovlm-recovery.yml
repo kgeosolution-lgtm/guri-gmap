@@ -1,0 +1,32 @@
+name: Verify KgeoVLM restart recovery
+on:
+  push:
+    branches: [codex/kgeovlm-server]
+    paths: [.github/workflows/kgeovlm-recovery.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 5
+    steps:
+      - shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $h=Invoke-RestMethod 'http://127.0.0.1:8796/api/health' -TimeoutSec 5
+          if($h.busy -ne 0) { throw 'Analysis active; recovery test deferred' }
+          $connections=@(Get-NetTCPConnection -LocalPort 8796 -State Listen)
+          $before=@(Get-ChildItem -LiteralPath 'D:\kgeoHub\data\kgeovlm\jobs' -Directory).Count
+          foreach($c in $connections) {
+           $p=Get-CimInstance Win32_Process -Filter ('ProcessId='+$c.OwningProcess)
+           if($p.CommandLine -notlike '*D:\kgeoHub\tools\kgeovlm\current\backend\server.py*') { throw 'Not our application; stop prohibited' }
+          }
+          foreach($c in $connections) { Stop-Process -Id $c.OwningProcess -Force }
+          Start-Sleep -Seconds 2
+          $r=Invoke-RestMethod -Uri 'https://kgeodata.com/app/kgeovlm/api.py?r=health' -TimeoutSec 25
+          $now=@(Get-NetTCPConnection -LocalPort 8796 -State Listen)
+          $after=@(Get-ChildItem -LiteralPath 'D:\kgeoHub\data\kgeovlm\jobs' -Directory).Count
+          if(!$r.ok -or $before -ne $after) {throw 'Recovery check failed'}
+          Write-Output ('RECOVERY_OK saved_jobs='+$after+' new_pid='+$now[0].OwningProcess)
+          exit 0
+# 2026-11-19T01:09:00.497Z
