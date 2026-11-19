@@ -1,0 +1,32 @@
+name: KgeoVLM server readiness (read only)
+on:
+  push:
+    branches: [codex/kgeovlm-server]
+    paths: [.github/workflows/kgeovlm-probe.yml]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: Read runtime and IIS availability
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $env:CUDA_VISIBLE_DEVICES=''
+          $info=[ordered]@{computer=$env:COMPUTERNAME;user=$env:USERNAME;cpu=[Environment]::ProcessorCount;os=[Environment]::OSVersion.VersionString}
+          $py=@('D:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe','C:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe','D:\kgeoHub\tools\3dscan\venv\Scripts\python.exe','C:\Python311\python.exe','C:\Python312\python.exe')
+          $found=@()
+          foreach($p in $py){if(Test-Path -LiteralPath $p){$out=& $p -c "import sys,importlib.util,json; print(json.dumps({'version':sys.version.split()[0],'base':sys.base_prefix,'modules':{k:bool(importlib.util.find_spec(k)) for k in ['torch','torchvision','fastapi','uvicorn','PIL','pyproj','requests']}}))"; $found+=@{path=$p;details=$out}}}
+          $info.python=$found
+          $info.ports=@(8788,8796,8841)|ForEach-Object {@{port=$_;busy=[bool](Get-NetTCPConnection -LocalPort $_ -State Listen -ErrorAction SilentlyContinue)}}
+          $info.modelsExist=Test-Path -LiteralPath 'D:\GeoVLM_Korea\KgeoVLM_Buildings_v5\models\expanded_best.pt'
+          try {Import-Module WebAdministration; $info.iisModules=@(Get-WebGlobalModule|Select-Object -ExpandProperty Name);$info.sites=@(Get-Website|Select-Object Name,Id,State);$info.applications=@(Get-WebApplication|Select-Object Path,ApplicationPool)}catch{$info.iisReadable=$false}
+          $env:GIT_TERMINAL_PROMPT='0';$env:GCM_INTERACTIVE='never'
+          $ErrorActionPreference='Continue'
+          $null=& git -c credential.interactive=never ls-remote 'https://github.com/kgeosolution-lgtm/kgeovlm.git' HEAD 2>$null
+          $info.canReadPrivateRepo=($LASTEXITCODE -eq 0)
+          $ErrorActionPreference='Stop'
+          Write-Output ('KGEO_PROBE_JSON '+($info|ConvertTo-Json -Depth 6 -Compress))
+          exit 0
