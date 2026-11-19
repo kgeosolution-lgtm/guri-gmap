@@ -1,0 +1,31 @@
+name: Inspect dedicated KgeoVLM runtime
+on:
+  push:
+    branches: [codex/kgeovlm-server]
+    paths: [.github/workflows/kgeovlm-runtime.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 5
+    steps:
+      - shell: powershell
+        run: |
+          $ErrorActionPreference='Continue'
+          Write-Output ('ACCOUNT '+[Security.Principal.WindowsIdentity]::GetCurrent().Name)
+          Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*kgeovlm*' -and $_.Name -match 'python|powershell' } | Select-Object ProcessId,ParentProcessId,Name | ConvertTo-Json -Compress
+          Get-NetTCPConnection -LocalPort 8796 -State Listen -ErrorAction SilentlyContinue | Select-Object LocalPort,OwningProcess | ConvertTo-Json -Compress
+          foreach($p in @('D:\kgeoHub\data\kgeovlm\logs\service.log','D:\kgeoHub\data\kgeovlm\logs\launcher.stderr.log')) {
+           if(Test-Path -LiteralPath $p) { Write-Output ('LOG '+(Split-Path $p -Leaf)); Get-Content -LiteralPath $p -Tail 12 | Where-Object {$_ -match 'Error:|Exception:|^\s*\+ CategoryInfo|python.exe :|WinError|Permission|Traceback'} }
+          }
+          try {
+           $a=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File D:\kgeoHub\tools\kgeovlm\Start-Service.ps1'
+           $p=New-ScheduledTaskPrincipal -UserId ([Security.Principal.WindowsIdentity]::GetCurrent().Name) -LogonType ServiceAccount
+           $s=New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew -StartWhenAvailable
+           Register-ScheduledTask -TaskName 'KgeoVLMServer' -Action $a -Trigger (New-ScheduledTaskTrigger -AtStartup) -Principal $p -Settings $s -Force -ErrorAction Stop | Out-Null
+           Start-ScheduledTask -TaskName 'KgeoVLMServer'
+           Write-Output 'OWN_ACCOUNT_TASK_REGISTERED'
+          } catch { Write-Output ('TASK_ERROR '+$_.Exception.Message) }
+          exit 0
+# 2026-11-19T01:00:20.245Z
