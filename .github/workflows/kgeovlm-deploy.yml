@@ -1,0 +1,45 @@
+name: Deploy private KgeoVLM to IIS
+on:
+  push:
+    branches: [codex/kgeovlm-server]
+    paths: [.github/workflows/kgeovlm-deploy.yml]
+permissions:
+  contents: read
+concurrency:
+  group: kgeovlm-deploy
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 35
+    steps:
+      - name: Download verified private release and install dedicated runtime
+        shell: powershell
+        env:
+          KGEOVLM_SOURCE_URL: ${{ secrets.KGEOVLM_SOURCE_URL }}
+          KGEOVLM_MODEL_URL: ${{ secrets.KGEOVLM_MODEL_URL }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $ProgressPreference='SilentlyContinue'
+          if ($env:COMPUTERNAME -ne 'KGO-GIS') { throw 'Unexpected server' }
+          $stage='D:\kgeoHub\tools\kgeovlm\staging\${commit}'
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          $zip=Join-Path $stage 'source.zip'
+          try { Invoke-WebRequest -Uri $env:KGEOVLM_SOURCE_URL -OutFile $zip -UseBasicParsing -TimeoutSec 180 } catch { throw 'Private source asset download failed; regenerate deployment URLs' }
+          if ((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne '83a29b31c04309ae9888aee6ecb46d97498784871ee4da6c0a2497e46f9bbeea') { throw 'Source integrity mismatch' }
+          $modelDir='D:\kgeoHub\models\kgeovlm'
+          New-Item -ItemType Directory -Force -Path $modelDir | Out-Null
+          $model=Join-Path $modelDir 'building-v5.pt'
+          if (!(Test-Path -LiteralPath $model) -or (Get-FileHash -LiteralPath $model -Algorithm SHA256).Hash.ToLowerInvariant() -ne '0ad38fe0db9226385a92e332a99889977cfa740fc582f69062ffb21a43c3f8a4') {
+           $part=Join-Path $modelDir 'building-v5.pt.part'
+           try { Invoke-WebRequest -Uri $env:KGEOVLM_MODEL_URL -OutFile $part -UseBasicParsing -TimeoutSec 600 } catch { throw 'Private model asset download failed; regenerate deployment URLs' }
+           if ((Get-FileHash -LiteralPath $part -Algorithm SHA256).Hash.ToLowerInvariant() -ne '0ad38fe0db9226385a92e332a99889977cfa740fc582f69062ffb21a43c3f8a4') { throw 'Model integrity mismatch' }
+           Move-Item -LiteralPath $part -Destination $model -Force
+          }
+          $env:KGEOVLM_SOURCE_URL='';$env:KGEOVLM_MODEL_URL=''
+          Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $stage 'source') -Force
+          & (Join-Path $stage 'source\deploy\Install.ps1') -Source (Join-Path $stage 'source') -Commit '8de235e6e97bafc9fe4e044007a87d125fa95e60'
+          if (!$?) { throw 'Install failed' }
+          Write-Output 'KgeoVLM install complete'
+          
+# Deployment request 2026-11-19T00:55:24.743Z
