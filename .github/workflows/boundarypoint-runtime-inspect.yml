@@ -1,0 +1,22 @@
+name: Boundarypoint runtime ownership inspection
+on:
+  push:
+    branches: [codex/boundarypoint-runtime-inspect]
+    paths: [.github/workflows/boundarypoint-runtime-inspect.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 3
+    steps:
+      - name: Inspect only this service task and port
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME-ne'KGO-GIS'){throw 'Unexpected server'}
+          $task=Get-ScheduledTask -TaskName 'KGEO-Boundarypoint'
+          $listeners=@(Get-NetTCPConnection -LocalPort 8786 -State Listen)
+          $processInfo=@(foreach($listener in $listeners){$p=Get-CimInstance Win32_Process -Filter ('ProcessId='+$listener.OwningProcess);[ordered]@{address=$listener.LocalAddress;name=$p.Name;exe=$p.ExecutablePath;commandPresent=!!$p.CommandLine;expectedCommand=($p.CommandLine-like'*D:\services\boundarypoint\service-entry.mjs*');pid=$p.ProcessId;session=$p.SessionId}})
+          $h=Invoke-RestMethod 'http://127.0.0.1:8786/api/health' -TimeoutSec 5
+          [ordered]@{node=(Get-Command node.exe).Source;task=@{name=$task.TaskName;description=$task.Description;state=[string]$task.State;user=$task.Principal.UserId;logon=[string]$task.Principal.LogonType;actions=@($task.Actions|Select-Object Execute,Arguments,WorkingDirectory)};listeners=$processInfo;health=$h}|ConvertTo-Json -Depth 6
