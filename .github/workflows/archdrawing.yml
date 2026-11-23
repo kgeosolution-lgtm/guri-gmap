@@ -12,43 +12,42 @@ jobs:
     runs-on: [self-hosted, Windows, X64, guri-preview]
     timeout-minutes: 8
     steps:
-      - name: Check drawing backend and route with bounded requests
+      - name: Start drawing application independently of deployment console
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
           $root='D:\services\archdrawing'
-          Write-Output 'ARCHDRAWING_PHASE process-check'
-          foreach($name in @('supervisor','app')){
-            $number=[int](Get-Content -LiteralPath (Join-Path $root ($name+'.pid')) -Raw)
-            $process=Get-Process -Id $number -ErrorAction SilentlyContinue
-            Write-Output ('ARCHDRAWING_PROCESS '+(@{name=$name;pid=$number;running=[bool]$process;process_name=$process.ProcessName}|ConvertTo-Json -Compress))
-          }
-          Write-Output 'ARCHDRAWING_PHASE backend-check'
+          if((Get-Content -LiteralPath (Join-Path $root '.archdrawing-owned') -Raw).Trim() -ne 'archdrawing'){throw 'Unexpected application root'}
+          $python=Join-Path $root 'venv\Scripts\python.exe'
           $program=@'
-          import urllib.request,json,socket
+          from pathlib import Path
+          import os,subprocess,json,urllib.request,time
+          root=Path(r'D:\services\archdrawing')
+          config=json.loads((root/'config.json').read_text(encoding='utf-8-sig'))
+          environment=dict(os.environ)
+          environment.pop('RUNNER_TRACKING_ID',None)
+          stop=root/'stop.request'
+          if stop.exists(): raise SystemExit('Application stop marker present; inspect before starting')
           http=urllib.request.build_opener(urllib.request.ProxyHandler({}))
           try:
-              r=http.open('http://127.0.0.1:4193/api/health',timeout=5)
-              print('ARCHDRAWING_BACKEND',r.status,r.read().decode(),flush=True)
-          except Exception as e:
-              print('ARCHDRAWING_BACKEND_ERROR',type(e).__name__,str(e),flush=True)
+              value=json.load(http.open('http://127.0.0.1:4193/api/health',timeout=3))
+              if value.get('application')=='archdrawing':
+                  print('ARCHDRAWING_ALREADY_RUNNING',json.dumps(value),flush=True)
+                  raise SystemExit(0)
+          except (OSError,ValueError): pass
+          with (root/'logs/detached.stdout.log').open('ab') as out,(root/'logs/detached.stderr.log').open('ab') as err:
+              process=subprocess.Popen([config['python'],'-X','utf8',str(root/'supervisor.py')],cwd=root,env=environment,stdin=subprocess.DEVNULL,stdout=out,stderr=err,creationflags=subprocess.DETACHED_PROCESS|subprocess.CREATE_NEW_PROCESS_GROUP,close_fds=True)
+          print('ARCHDRAWING_DETACHED',json.dumps({'launcher_pid':process.pid,'runner_tracking_inherited':bool(environment.get('RUNNER_TRACKING_ID'))}),flush=True)
+          for attempt in range(45):
+              try:
+                  value=json.load(http.open('http://127.0.0.1:4193/api/health',timeout=3))
+                  if value.get('ready'):
+                      print('ARCHDRAWING_READY',json.dumps(value),flush=True)
+                      break
+              except (OSError,ValueError): pass
+              time.sleep(2)
+          else: raise SystemExit('Application did not become ready')
           '@
-          & (Join-Path $root 'venv\Scripts\python.exe') -X utf8 -c $program
-          Write-Output 'ARCHDRAWING_PHASE proxy-configuration'
-          foreach($path in @('D:\codesolution\web.config','D:\codesolution\kgeodata\web.config','D:\codesolution\kgeodata\archdrawing\web.config')){
-            if(Test-Path -LiteralPath $path){
-              [xml]$xml=Get-Content -LiteralPath $path -Raw
-              $rules=@($xml.SelectNodes('//system.webServer/rewrite/rules/rule')|ForEach-Object{@{name=$_.name;match=$_.match.url;type=$_.action.type;url=$_.action.url}})
-              Write-Output ('ARCHDRAWING_ROUTING '+(@{path=$path;rules=$rules}|ConvertTo-Json -Depth 5 -Compress))
-            }
-          }
-          foreach($name in @('supervisor.stderr.log','app.stderr.log')){
-            $path=Join-Path $root ('logs\'+$name)
-            if(Test-Path -LiteralPath $path){
-              $lines=@(Get-Content -LiteralPath $path -Tail 15 | Where-Object {$_ -match '^INFO:|^ERROR:|^WARNING:|^[A-Za-z]+Error:'})
-              Write-Output ('ARCHDRAWING_LOG '+(@{name=$name;lines=$lines}|ConvertTo-Json -Compress))
-            }
-          }
-          Write-Output ('ARCHDRAWING_HTTP_PLATFORM '+(Test-Path -LiteralPath 'C:\Windows\System32\inetsrv\httpPlatformHandler.dll'))
-          Write-Output 'ARCHDRAWING_PHASE done'
+          & $python -X utf8 -c $program
+          if($LASTEXITCODE -ne 0){throw 'Application start failed'}
           
