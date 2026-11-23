@@ -1,4 +1,4 @@
-name: Architectural drawing application operation
+name: Architectural drawing server deployment
 on:
   push:
     branches: [codex/archdrawing-deploy]
@@ -8,46 +8,47 @@ concurrency:
   group: archdrawing-deploy
   cancel-in-progress: false
 jobs:
-  operation:
+  deploy:
     runs-on: [self-hosted, Windows, X64, guri-preview]
-    timeout-minutes: 8
+    timeout-minutes: 30
     steps:
-      - name: Start drawing application independently of deployment console
+      - name: Receive and install requested private application
         shell: powershell
+        env:
+          ARCHDRAWING_TRANSFER: ${{ secrets.ARCHDRAWING_TRANSFER }}
+          ARCHDRAWING_RELEASE: server-ops-20261123-r1
+          ARCHDRAWING_ARCHIVE_SHA256: 99cbf1898d301e2fe93f904c3ada3a3cc49a9f858bc5ae7496abf7a995575575
         run: |
-          $ErrorActionPreference='Stop'
-          $root='D:\services\archdrawing'
-          if((Get-Content -LiteralPath (Join-Path $root '.archdrawing-owned') -Raw).Trim() -ne 'archdrawing'){throw 'Unexpected application root'}
-          $python=Join-Path $root 'venv\Scripts\python.exe'
-          $program=@'
-          from pathlib import Path
-          import os,subprocess,json,urllib.request,time
-          root=Path(r'D:\services\archdrawing')
-          config=json.loads((root/'config.json').read_text(encoding='utf-8-sig'))
-          environment=dict(os.environ)
-          environment.pop('RUNNER_TRACKING_ID',None)
-          stop=root/'stop.request'
-          if stop.exists(): raise SystemExit('Application stop marker present; inspect before starting')
-          http=urllib.request.build_opener(urllib.request.ProxyHandler({}))
-          try:
-              value=json.load(http.open('http://127.0.0.1:4193/api/health',timeout=3))
-              if value.get('application')=='archdrawing':
-                  print('ARCHDRAWING_ALREADY_RUNNING',json.dumps(value),flush=True)
-                  raise SystemExit(0)
-          except (OSError,ValueError): pass
-          with (root/'logs/detached.stdout.log').open('ab') as out,(root/'logs/detached.stderr.log').open('ab') as err:
-              process=subprocess.Popen([config['python'],'-X','utf8',str(root/'supervisor.py')],cwd=root,env=environment,stdin=subprocess.DEVNULL,stdout=out,stderr=err,creationflags=subprocess.DETACHED_PROCESS|subprocess.CREATE_NEW_PROCESS_GROUP,close_fds=True)
-          print('ARCHDRAWING_DETACHED',json.dumps({'launcher_pid':process.pid,'runner_tracking_inherited':bool(environment.get('RUNNER_TRACKING_ID'))}),flush=True)
-          for attempt in range(45):
-              try:
-                  value=json.load(http.open('http://127.0.0.1:4193/api/health',timeout=3))
-                  if value.get('ready'):
-                      print('ARCHDRAWING_READY',json.dumps(value),flush=True)
-                      break
-              except (OSError,ValueError): pass
-              time.sleep(2)
-          else: raise SystemExit('Application did not become ready')
-          '@
-          & $python -X utf8 -c $program
-          if($LASTEXITCODE -ne 0){throw 'Application start failed'}
+          $ErrorActionPreference = 'Stop'
+          $ProgressPreference = 'SilentlyContinue'
+          $release = $env:ARCHDRAWING_RELEASE
+          if($release -notmatch '^[a-z0-9-]+$'){throw 'Invalid release identifier'}
+          $transfer = $env:ARCHDRAWING_TRANSFER | ConvertFrom-Json
+          $env:ARCHDRAWING_TRANSFER = $null
+          $temporary = Join-Path $env:RUNNER_TEMP ('archdrawing-'+$release+'-'+[Guid]::NewGuid().ToString('N'))
+          New-Item -ItemType Directory -Path $temporary | Out-Null
+          $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+          & icacls.exe $temporary /inheritance:r /grant:r "*$($sid):(OI)(CI)F" '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' | Out-Null
+          if($LASTEXITCODE -ne 0){throw 'Private transfer permissions failed'}
+          foreach($part in $transfer.parts){
+            if($part.name -notmatch '^part-[0-9]{2}\.bin$'){throw 'Invalid package chunk'}
+            if(([Uri]$part.url).Host -ne 'raw.githubusercontent.com'){throw 'Unexpected package source'}
+            $target = Join-Path $temporary $part.name
+            try { Invoke-WebRequest -UseBasicParsing -Uri $part.url -OutFile $target } catch { throw 'Private package download failed. Refresh its temporary transfer capability.' }
+            if((Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant() -ne $part.sha256){throw 'Private package chunk integrity failed'}
+          }
+          $archive = Join-Path $temporary 'package.zip'
+          $combined = [IO.File]::OpenWrite($archive)
+          try{
+            foreach($part in $transfer.parts){
+              $inputFile = [IO.File]::OpenRead((Join-Path $temporary $part.name))
+              try{$inputFile.CopyTo($combined)}finally{$inputFile.Dispose()}
+            }
+          }finally{$combined.Dispose()}
+          $transfer = $null
+          if((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:ARCHDRAWING_ARCHIVE_SHA256){throw 'Private application archive integrity failed'}
+          $payload = Join-Path $temporary 'payload'
+          Expand-Archive -LiteralPath $archive -DestinationPath $payload
+          Write-Output 'Private drawing application received and verified.'
+          & (Join-Path $payload 'install-server.ps1') -PackageDirectory $payload
           
