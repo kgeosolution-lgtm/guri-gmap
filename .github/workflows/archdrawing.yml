@@ -1,4 +1,4 @@
-name: Architectural drawing server deployment
+name: Architectural drawing application operation
 on:
   push:
     branches: [codex/archdrawing-deploy]
@@ -8,47 +8,44 @@ concurrency:
   group: archdrawing-deploy
   cancel-in-progress: false
 jobs:
-  deploy:
+  operation:
     runs-on: [self-hosted, Windows, X64, guri-preview]
-    timeout-minutes: 30
+    timeout-minutes: 8
     steps:
-      - name: Receive and install requested private application
+      - name: Verify registered drawing startup task and service health
         shell: powershell
-        env:
-          ARCHDRAWING_TRANSFER: ${{ secrets.ARCHDRAWING_TRANSFER }}
-          ARCHDRAWING_RELEASE: server-ops-20261123-r1
-          ARCHDRAWING_ARCHIVE_SHA256: 99cbf1898d301e2fe93f904c3ada3a3cc49a9f858bc5ae7496abf7a995575575
         run: |
-          $ErrorActionPreference = 'Stop'
-          $ProgressPreference = 'SilentlyContinue'
-          $release = $env:ARCHDRAWING_RELEASE
-          if($release -notmatch '^[a-z0-9-]+$'){throw 'Invalid release identifier'}
-          $transfer = $env:ARCHDRAWING_TRANSFER | ConvertFrom-Json
-          $env:ARCHDRAWING_TRANSFER = $null
-          $temporary = Join-Path $env:RUNNER_TEMP ('archdrawing-'+$release+'-'+[Guid]::NewGuid().ToString('N'))
-          New-Item -ItemType Directory -Path $temporary | Out-Null
-          $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-          & icacls.exe $temporary /inheritance:r /grant:r "*$($sid):(OI)(CI)F" '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' | Out-Null
-          if($LASTEXITCODE -ne 0){throw 'Private transfer permissions failed'}
-          foreach($part in $transfer.parts){
-            if($part.name -notmatch '^part-[0-9]{2}\.bin$'){throw 'Invalid package chunk'}
-            if(([Uri]$part.url).Host -ne 'raw.githubusercontent.com'){throw 'Unexpected package source'}
-            $target = Join-Path $temporary $part.name
-            try { Invoke-WebRequest -UseBasicParsing -Uri $part.url -OutFile $target } catch { throw 'Private package download failed. Refresh its temporary transfer capability.' }
-            if((Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant() -ne $part.sha256){throw 'Private package chunk integrity failed'}
-          }
-          $archive = Join-Path $temporary 'package.zip'
-          $combined = [IO.File]::OpenWrite($archive)
+          $ErrorActionPreference='Stop'
+          $root='D:\services\archdrawing'
+          if((Get-Content -LiteralPath (Join-Path $root '.archdrawing-owned') -Raw).Trim() -ne 'archdrawing'){throw 'Unexpected application root'}
+          $result=[ordered]@{checked_at=[DateTime]::UtcNow.ToString('o')}
+          $receipt=Get-Content -LiteralPath (Join-Path $root 'deployment_receipt.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          $result.recorded_startup=$receipt.startup
           try{
-            foreach($part in $transfer.parts){
-              $inputFile = [IO.File]::OpenRead((Join-Path $temporary $part.name))
-              try{$inputFile.CopyTo($combined)}finally{$inputFile.Dispose()}
+            $task=Get-ScheduledTask -TaskName 'KGEO Architectural Drawing Classifier' -ErrorAction Stop
+            $result.task=@{
+              name=$task.TaskName
+              state=[string]$task.State
+              enabled=[bool]$task.Settings.Enabled
+              actions=@($task.Actions | ForEach-Object {@{execute=$_.Execute;arguments=$_.Arguments;working_directory=$_.WorkingDirectory}})
+              triggers=@($task.Triggers | ForEach-Object {@{type=$_.CimClass.CimClassName;enabled=[bool]$_.Enabled}})
+              principal=@{user=$task.Principal.UserId;logon_type=[string]$task.Principal.LogonType;run_level=[string]$task.Principal.RunLevel}
+              execution_time_limit=$task.Settings.ExecutionTimeLimit
+              restart_count=$task.Settings.RestartCount
+              restart_interval=$task.Settings.RestartInterval
+              multiple_instances=[string]$task.Settings.MultipleInstances
             }
-          }finally{$combined.Dispose()}
-          $transfer = $null
-          if((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:ARCHDRAWING_ARCHIVE_SHA256){throw 'Private application archive integrity failed'}
-          $payload = Join-Path $temporary 'payload'
-          Expand-Archive -LiteralPath $archive -DestinationPath $payload
-          Write-Output 'Private drawing application received and verified.'
-          & (Join-Path $payload 'install-server.ps1') -PackageDirectory $payload
+            $result.startup_configuration_verified=([bool]$task.Settings.Enabled -and @($task.Triggers | Where-Object {$_.CimClass.CimClassName -eq 'MSFT_TaskBootTrigger' -and $_.Enabled}).Count -eq 1 -and @($task.Actions | Where-Object {$_.Execute -eq (Join-Path $root 'venv\Scripts\python.exe') -and $_.Arguments -eq '-X utf8 "D:\services\archdrawing\supervisor.py"'}).Count -eq 1)
+          }catch{$result.task_read_error=$_.Exception.GetType().Name;$result.startup_configuration_verified=$false}
+          $program=@'
+          import json,urllib.request
+          client=urllib.request.build_opener(urllib.request.ProxyHandler({}))
+          with client.open('http://127.0.0.1:4193/api/health',timeout=5) as response:
+              print(json.dumps(json.load(response)))
+          '@
+          $health=& (Join-Path $root 'venv\Scripts\python.exe') -X utf8 -c $program
+          if($LASTEXITCODE -ne 0){throw 'Application health check failed'}
+          $result.health=$health | ConvertFrom-Json
+          $result.reboot_performed=$false
+          Write-Output ('ARCHDRAWING_STARTUP_VERIFIED '+($result|ConvertTo-Json -Depth 8 -Compress))
           
