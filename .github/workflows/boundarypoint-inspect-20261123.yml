@@ -1,0 +1,25 @@
+name: Boundarypoint server inspection
+on:
+  push:
+    branches: [codex/boundarypoint-inspect-20261123]
+    paths: [.github/workflows/boundarypoint-inspect-20261123.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 3
+    steps:
+      - name: Read only boundarypoint prerequisites
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'Unexpected machine'}
+          $identity=[Security.Principal.WindowsIdentity]::GetCurrent()
+          $admin=([Security.Principal.WindowsPrincipal]::new($identity)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+          $checks=@{}
+          foreach($p in @('D:\codesolution\kgeodata','D:\codesolution\kgeodata\boundarypoint','D:\services\boundarypoint','D:\services\vworld-portal-proxy','D:\codesolution\GS\stormwater\swcalc\keys.json')){$checks[$p]=Test-Path -LiteralPath $p}
+          $ports=@(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object {$_.LocalPort -in @(8786,8787,8788)} | Select-Object LocalAddress,LocalPort)
+          $tasks=@(Get-ScheduledTask -TaskName 'KGEO-Boundarypoint*' -ErrorAction SilentlyContinue | Select-Object TaskName,State)
+          $result=[ordered]@{machine=$env:COMPUTERNAME;node=(& node --version);npm=(& npm.cmd --version);admin=$admin;checks=$checks;ports=$ports;tasks=$tasks}
+          $result | ConvertTo-Json -Depth 5
