@@ -1,0 +1,45 @@
+name: Boundarypoint public service 4d3fd4785b89
+on:
+  push:
+    branches: [codex/boundarypoint-4d3fd4785b89]
+    paths: [.github/workflows/boundarypoint-4d3fd4785b89.yml]
+permissions:
+  contents: read
+concurrency:
+  group: boundarypoint-service-deploy
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: [self-hosted, Windows, X64, guri-preview]
+    timeout-minutes: 10
+    steps:
+      - name: Install the isolated boundarypoint service
+        shell: powershell
+        env:
+          BOUNDARYPOINT_ARCHIVE_URL: ${{ secrets.BOUNDARYPOINT_ARCHIVE_4D3FD4785B89 }}
+          BOUNDARYPOINT_VWORLD_JSON: ${{ secrets.BOUNDARYPOINT_VWORLD_4D3FD4785B89 }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $ProgressPreference='SilentlyContinue'
+          if($env:COMPUTERNAME -ne 'KGO-GIS'){throw 'Unexpected server'}
+          $tempRoot=[IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\')
+          $work=[IO.Path]::GetFullPath((Join-Path $tempRoot ('boundarypoint-'+[Guid]::NewGuid().ToString('N'))))
+          if(!$work.StartsWith($tempRoot+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Invalid staging path'}
+          New-Item -ItemType Directory -Path $work|Out-Null
+          try{
+            $zip=Join-Path $work 'source.zip'
+            try{Invoke-WebRequest -UseBasicParsing -Uri $env:BOUNDARYPOINT_ARCHIVE_URL -OutFile $zip -TimeoutSec 60}catch{throw 'Private source download failed'}
+            $env:BOUNDARYPOINT_ARCHIVE_URL=$null
+            if((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()-ne'bfe656a856877f61725ed7f3ad1dd071ad51a33d1e1eaeb6a83f6a9a5ea43796'){throw 'Archive checksum mismatch'}
+            $expanded=Join-Path $work 'source'
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            $archive=[IO.Compression.ZipFile]::OpenRead($zip)
+            try{foreach($entry in $archive.Entries){$dest=[IO.Path]::GetFullPath((Join-Path $expanded $entry.FullName));if(!$dest.StartsWith($expanded+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Archive path escape'}}}finally{$archive.Dispose()}
+            Expand-Archive -LiteralPath $zip -DestinationPath $expanded
+            $roots=@(Get-ChildItem -LiteralPath $expanded -Directory)
+            if($roots.Count-ne1){throw 'Unexpected archive structure'}
+            & (Join-Path $roots[0].FullName 'deploy\install-server.ps1') -SourceRoot $roots[0].FullName -Revision '4d3fd4785b89285b8836d52253bad8742f8c5f7d'
+          }finally{
+            $env:BOUNDARYPOINT_ARCHIVE_URL=$null;$env:BOUNDARYPOINT_VWORLD_JSON=$null
+            if($work.StartsWith($tempRoot+'\',[StringComparison]::OrdinalIgnoreCase)-and(Test-Path -LiteralPath $work)){Remove-Item -LiteralPath $work -Recurse -Force}
+          }
