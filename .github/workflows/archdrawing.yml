@@ -12,31 +12,43 @@ jobs:
     runs-on: [self-hosted, Windows, X64, guri-preview]
     timeout-minutes: 8
     steps:
-      - name: Inspect architectural drawing proxy connection
+      - name: Check drawing backend and route with bounded requests
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
-          $result=[ordered]@{}
           $root='D:\services\archdrawing'
+          Write-Output 'ARCHDRAWING_PHASE process-check'
           foreach($name in @('supervisor','app')){
-            $pidFile=Join-Path $root ($name+'.pid')
-            if(Test-Path -LiteralPath $pidFile){
-              $number=[int](Get-Content -LiteralPath $pidFile -Raw)
-              $process=Get-Process -Id $number -ErrorAction SilentlyContinue
-              $result[$name]=@{pid=$number;running=[bool]$process;name=$process.ProcessName}
+            $number=[int](Get-Content -LiteralPath (Join-Path $root ($name+'.pid')) -Raw)
+            $process=Get-Process -Id $number -ErrorAction SilentlyContinue
+            Write-Output ('ARCHDRAWING_PROCESS '+(@{name=$name;pid=$number;running=[bool]$process;process_name=$process.ProcessName}|ConvertTo-Json -Compress))
+          }
+          Write-Output 'ARCHDRAWING_PHASE backend-check'
+          $program=@'
+          import urllib.request,json,socket
+          http=urllib.request.build_opener(urllib.request.ProxyHandler({}))
+          try:
+              r=http.open('http://127.0.0.1:4193/api/health',timeout=5)
+              print('ARCHDRAWING_BACKEND',r.status,r.read().decode(),flush=True)
+          except Exception as e:
+              print('ARCHDRAWING_BACKEND_ERROR',type(e).__name__,str(e),flush=True)
+          '@
+          & (Join-Path $root 'venv\Scripts\python.exe') -X utf8 -c $program
+          Write-Output 'ARCHDRAWING_PHASE proxy-configuration'
+          foreach($path in @('D:\codesolution\web.config','D:\codesolution\kgeodata\web.config','D:\codesolution\kgeodata\archdrawing\web.config')){
+            if(Test-Path -LiteralPath $path){
+              [xml]$xml=Get-Content -LiteralPath $path -Raw
+              $rules=@($xml.SelectNodes('//system.webServer/rewrite/rules/rule')|ForEach-Object{@{name=$_.name;match=$_.match.url;type=$_.action.type;url=$_.action.url}})
+              Write-Output ('ARCHDRAWING_ROUTING '+(@{path=$path;rules=$rules}|ConvertTo-Json -Depth 5 -Compress))
             }
           }
-          $result.listener=@(Get-NetTCPConnection -LocalPort 4193 -State Listen -ErrorAction SilentlyContinue | Select-Object LocalAddress,LocalPort,OwningProcess)
-          try{$result.backend=Invoke-RestMethod -Uri 'http://127.0.0.1:4193/api/health' -TimeoutSec 5}catch{$result.backend_error=$_.Exception.Message}
-          foreach($test in @(@{name='iis_loopback';uri='http://127.0.0.1/app/archdrawing/api/health';host='kgeodata.com'},@{name='public';uri='https://kgeodata.com/app/archdrawing/api/health';host='kgeodata.com'})){
-            try{$r=Invoke-WebRequest -UseBasicParsing -Uri $test.uri -Headers @{Host=$test.host} -TimeoutSec 10;$result[$test.name]=@{status=$r.StatusCode;body=$r.Content}}catch{$result[$test.name]=@{error=$_.Exception.Message;status=[int]$_.Exception.Response.StatusCode}}
-          }
-          $result.log_tail=@{}
           foreach($name in @('supervisor.stderr.log','app.stderr.log')){
-            $file=Join-Path $root ('logs\'+$name)
-            if(Test-Path -LiteralPath $file){$result.log_tail[$name]=@(Get-Content -LiteralPath $file -Tail 16)}
+            $path=Join-Path $root ('logs\'+$name)
+            if(Test-Path -LiteralPath $path){
+              $lines=@(Get-Content -LiteralPath $path -Tail 15 | Where-Object {$_ -match '^INFO:|^ERROR:|^WARNING:|^[A-Za-z]+Error:'})
+              Write-Output ('ARCHDRAWING_LOG '+(@{name=$name;lines=$lines}|ConvertTo-Json -Compress))
+            }
           }
-          $result.http_platform_installed=Test-Path -LiteralPath 'C:\Windows\System32\inetsrv\httpPlatformHandler.dll'
-          $result.rewrite_files=@(Get-ChildItem -LiteralPath 'D:\codesolution\kgeodata\archdrawing' | Select-Object Name,Length)
-          Write-Output ('ARCHDRAWING_DIAGNOSTIC '+($result|ConvertTo-Json -Depth 9 -Compress))
+          Write-Output ('ARCHDRAWING_HTTP_PLATFORM '+(Test-Path -LiteralPath 'C:\Windows\System32\inetsrv\httpPlatformHandler.dll'))
+          Write-Output 'ARCHDRAWING_PHASE done'
           
